@@ -1,5 +1,8 @@
+
 {
   "name": "CleanEgypt.co Marketplace",
   "description": "A friendly marketplace for booking professional home cleaning services or donating to clean up your city, with a fun, game-like interface.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "geolocation"
+  ]
 }

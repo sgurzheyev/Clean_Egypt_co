@@ -4,6 +4,8 @@ import PhotoUploader from './PhotoUploader';
 import Slider from './Slider';
 import { OrderMode, Language } from '../types';
 import { useLocalization } from '../hooks/useLocalization';
+import { supabase } from '../lib/supabaseClient';
+import SpinnerIcon from './icons/SpinnerIcon';
 import {
   USD_TO_EGP_RATE,
   HOME_MIN_PRICE,
@@ -27,6 +29,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   const [size, setSize] = useState<number>(50);
   const [price, setPrice] = useState<number>(isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE);
   const [comment, setComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { minPrice, maxPrice, priceLabel, priceColor, title, commentPlaceholder } = useMemo(() => {
     if (isHomeMode) {
@@ -56,20 +59,63 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   }, [isHomeMode]);
 
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Placeholder for submission logic
-    console.log({
-      mode,
-      photos,
-      size,
-      price,
-      comment,
-      priceEGP: price * USD_TO_EGP_RATE,
-    });
-    // Here you would integrate with Supabase to upload photos and create a DB record.
-    // Then, trigger the payment flow (Paymob/Stripe).
-    alert('Order submitted to console! Ready for Supabase & Payment integration.');
+    setIsSubmitting(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const locationGps = `${latitude}, ${longitude}`;
+
+          // 1. Upload photos to Supabase Storage
+          for (const photo of photos) {
+            const fileName = `${Date.now()}-${photo.name}`;
+            const { error: uploadError } = await supabase.storage
+              .from('order-photos')
+              .upload(fileName, photo);
+
+            if (uploadError) {
+              throw new Error(`Photo upload failed: ${uploadError.message}`);
+            }
+          }
+
+          // 2. Insert order data into Supabase database
+          const { error: insertError } = await supabase.from('orders').insert([
+            {
+              area_size: size,
+              offer_amount_usd: price,
+              details: comment,
+              location_gps: locationGps,
+              order_type: mode,
+            },
+          ]);
+
+          if (insertError) {
+            throw new Error(`Database insert failed: ${insertError.message}`);
+          }
+          
+          // 3. Success
+          alert('Order placed successfully! Ahmed will contact you soon.');
+          setPhotos([]);
+          setSize(50);
+          setPrice(isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE);
+          setComment('');
+
+        } catch (error) {
+            console.error('Submission error:', error);
+            alert((error as Error).message);
+        } finally {
+            setIsSubmitting(false);
+        }
+      },
+      (error) => {
+        console.error('Geolocation error:', error.message);
+        alert(`Could not get location: ${error.message}. Please enable location services to place an order.`);
+        setIsSubmitting(false);
+      }
+    );
   };
 
   return (
@@ -117,9 +163,11 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
         
         <button
           type="submit"
-          className="w-full text-white font-bold text-xl py-4 rounded-full transition-transform duration-200 ease-in-out transform hover:scale-105 shadow-lg bg-gradient-to-r from-green-400 to-teal-500 hover:from-green-500 hover:to-teal-600"
+          disabled={isSubmitting}
+          className="w-full text-white font-bold text-xl py-4 rounded-full transition-transform duration-200 ease-in-out transform hover:scale-105 shadow-lg bg-gradient-to-r from-green-400 to-teal-500 hover:from-green-500 hover:to-teal-600 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3"
         >
-          {t('submit_order')}
+          {isSubmitting && <SpinnerIcon className="w-6 h-6" />}
+          {isSubmitting ? 'Placing Order...' : t('submit_order')}
         </button>
       </form>
     </div>
