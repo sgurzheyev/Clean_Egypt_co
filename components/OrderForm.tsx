@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import PhotoUploader from './PhotoUploader';
 import Slider from './Slider';
@@ -29,6 +28,8 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   const [size, setSize] = useState<number>(50);
   const [price, setPrice] = useState<number>(isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE);
   const [comment, setComment] = useState('');
+  const [clientName, setClientName] = useState(''); // НОВОЕ ПОЛЕ
+  const [phone, setPhone] = useState(''); // НОВОЕ ПОЛЕ
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { minPrice, maxPrice, priceLabel, priceColor, title, commentPlaceholder } = useMemo(() => {
@@ -53,11 +54,9 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
     }
   }, [isHomeMode, t]);
   
-  // Reset price when mode changes
   React.useEffect(() => {
     setPrice(isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE);
   }, [isHomeMode]);
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +68,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
           const { latitude, longitude } = position.coords;
           const locationGps = `${latitude}, ${longitude}`;
 
-          // 1. Upload photos to Supabase Storage
+          // 1. Upload photos to Supabase Storage (ИМЯ БАКЕТА ЗАГЛАВНЫМИ)
           for (const photo of photos) {
             const fileName = `${Date.now()}-${photo.name}`;
             const { error: uploadError } = await supabase.storage
@@ -81,7 +80,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
             }
           }
 
-          // 2. Insert order data into Supabase database
+          // 2. Insert order data into Supabase (МАКСИМУМ ИНФО)
           const { error: insertError } = await supabase.from('orders').insert([
             {
               area_size: size,
@@ -89,6 +88,9 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
               details: comment,
               location_gps: locationGps,
               order_type: mode,
+              client_name: clientName, // СОХРАНЯЕМ ИМЯ
+              phone: phone, // СОХРАНЯЕМ ТЕЛЕФОН
+              status: 'new'
             },
           ]);
 
@@ -96,11 +98,10 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
             throw new Error(`Database insert failed: ${insertError.message}`);
           }
           
-          // 3. Success
           alert('Order placed successfully! Ahmed will contact you soon.');
           setPhotos([]);
-          setSize(50);
-          setPrice(isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE);
+          setClientName('');
+          setPhone('');
           setComment('');
 
         } catch (error) {
@@ -111,8 +112,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
         }
       },
       (error) => {
-        console.error('Geolocation error:', error.message);
-        alert(`Could not get location: ${error.message}. Please enable location services to place an order.`);
+        alert(`Please enable location to place an order.`);
         setIsSubmitting(false);
       }
     );
@@ -122,49 +122,44 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
     <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 space-y-8 border border-gray-200">
       <h2 className="text-2xl md:text-3xl font-extrabold text-center text-gray-800">{title}</h2>
       
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* НОВЫЕ ПОЛЯ КОНТАКТОВ */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input
+            type="text"
+            required
+            placeholder="Your Name"
+            className="p-3 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
+            value={clientName}
+            onChange={(e) => setClientName(e.target.value)}
+          />
+          <input
+            type="tel"
+            required
+            placeholder="Phone Number"
+            className="p-3 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+        </div>
+
         <PhotoUploader files={photos} setFiles={setPhotos} language={language} />
 
-        <Slider
-          label={t('size_slider_title')}
-          min={MIN_SIZE}
-          max={MAX_SIZE}
-          value={size}
-          onChange={(e) => setSize(Number(e.target.value))}
-          unit={t('sqm')}
-          colorClass={isHomeMode ? 'accent-teal-500' : 'accent-blue-500'}
-        />
+        <Slider label={t('size_slider_title')} min={MIN_SIZE} max={MAX_SIZE} value={size} onChange={(e) => setSize(Number(e.target.value))} unit={t('sqm')} colorClass={isHomeMode ? 'accent-teal-500' : 'accent-blue-500'} />
+        <Slider label={priceLabel} min={minPrice} max={maxPrice} value={price} onChange={(e) => setPrice(Number(e.target.value))} displayValue={`$${price} (~${Math.round(price * USD_TO_EGP_RATE)} EGP)`} colorClass={priceColor} />
 
-        <Slider
-          label={priceLabel}
-          min={minPrice}
-          max={maxPrice}
-          value={price}
-          onChange={(e) => setPrice(Number(e.target.value))}
-          displayValue={`$${price} (~${Math.round(price * USD_TO_EGP_RATE)} EGP)`}
-          colorClass={priceColor}
-        />
-
-        <div>
-          <label className="text-lg font-bold text-gray-700 block mb-2">{t('comment_title')}</label>
-          <textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder={commentPlaceholder}
-            rows={3}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 transition"
-          ></textarea>
-        </div>
-
-        <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 rounded-lg">
-          <h4 className="font-bold">{t('anti_cheat_title')}</h4>
-          <p className="text-sm">{t('anti_cheat_desc')}</p>
-        </div>
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder={commentPlaceholder}
+          rows={3}
+          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
+        ></textarea>
         
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full text-white font-bold text-xl py-4 rounded-full transition-transform duration-200 ease-in-out transform hover:scale-105 shadow-lg bg-gradient-to-r from-green-400 to-teal-500 hover:from-green-500 hover:to-teal-600 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+          className="w-full text-white font-bold text-xl py-4 rounded-full bg-gradient-to-r from-green-400 to-teal-500 hover:scale-105 transition disabled:opacity-70 flex items-center justify-center gap-3"
         >
           {isSubmitting && <SpinnerIcon className="w-6 h-6" />}
           {isSubmitting ? 'Placing Order...' : t('submit_order')}
@@ -175,4 +170,3 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
 };
 
 export default OrderForm;
- 
