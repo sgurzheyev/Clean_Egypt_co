@@ -71,7 +71,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
           for (const photo of photos) {
             const fileName = `${Date.now()}-${photo.name}`;
             const { error: uploadError } = await supabase.storage
-              .from('ORDER-PHOTOS')
+              .from('order-photos')
               .upload(fileName, photo);
 
             if (uploadError) {
