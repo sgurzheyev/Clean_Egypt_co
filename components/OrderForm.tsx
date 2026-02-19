@@ -96,8 +96,8 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
             throw new Error(`Database insert failed: ${insertError.message}`);
           }
           
-          alert('Order placed successfully! Ahmed will contact you soon.');
-          setPhotos([]);
+const rank = size > 2000 ? 'World Changer 🌍' : 'Eco-Hero 🌿';
+alert(`VICTORY! \n\nYou've unlocked: ${rank} \nStatus: Order Reserved! \nMuhamed is on his way.`);          setPhotos([]);
           setClientName('');
           setPhone('');
           setComment('');
