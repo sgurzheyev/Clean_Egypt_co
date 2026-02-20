@@ -31,6 +31,15 @@ const checkInvestorProgress = async (phone: string, setOrderCount: (count: numbe
     setOrderCount(data.orders_completed); // Теперь данные попадают на экран!
   }
 };
+const sendToTelegram = async (message: string) => {
+  const token = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
+  const chatId = '6618910143';
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text: message })
+  });
+};
 const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   const { t } = useLocalization(language);
   const isHomeMode = mode === OrderMode.HOME;
@@ -109,6 +118,9 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
           }
           
 const rank = size > 2000 ? 'World Changer 🌍' : 'Eco-Hero 🌿';
+            // Отправляем рапорт Серджио и Мухамеду
+            const reportMessage = `🚀 NEW ORDER! \n👤 Name: ${clientName} \n📧 Email: ${email} \n📱 Phone: ${phone} \n📍 GPS: ${locationGps} \n🏆 Status: ${rank} \n\n"Hey Sergio! Your place will be clean as soon as we get enough donations. For apartments - Mohamed is on it! Photo proof coming to ${email} soon!"`;
+            sendToTelegram(reportMessage);
 alert(`VICTORY! \n\nYou've unlocked: ${rank} \nStatus: Order Reserved! \nMuhamed is on his way.`);          setPhotos([]);
           setClientName('');
           setPhone('');
@@ -149,6 +161,24 @@ alert(`VICTORY! \n\nYou've unlocked: ${rank} \nStatus: Order Reserved! \nMuhamed
               </p>
             </div>
           )}
+          {/* Сбор Email для фото-отчетов */}
+          <div className="mt-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200 shadow-sm animate-fade-in">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-lg">📸</span>
+              <p className="text-sm font-bold text-yellow-800">Get Photo Proof!</p>
+            </div>
+            <input
+              type="email"
+              required
+              placeholder="Enter email for Before/After photos"
+              className="w-full p-3 border-2 border-yellow-300 rounded-lg text-sm outline-none focus:ring-4 focus:ring-yellow-200 transition-all"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <p className="text-[10px] text-yellow-700 mt-2 italic">
+              * We will send you GPS-verified photos and a "Thank You" message once the job is done.
+            </p>
+          </div>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <input
