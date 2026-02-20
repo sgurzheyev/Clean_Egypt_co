@@ -19,7 +19,18 @@ interface OrderFormProps {
   mode: OrderMode;
   language: Language;
 }
+// Функция-детектор: проверяем путь к 100 заказам
+const checkInvestorProgress = async (phone: string) => {
+  const { data } = await supabase
+    .from('user_achievements')
+    .select('orders_completed, is_corporate_ready')
+    .eq('phone_number', phone)
+    .single();
 
+  if (data) {
+    console.log(`Current progress: ${data.orders_completed}/100 iterations`);
+  }
+};
 const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   const { t } = useLocalization(language);
   const isHomeMode = mode === OrderMode.HOME;
@@ -136,8 +147,14 @@ alert(`VICTORY! \n\nYou've unlocked: ${rank} \nStatus: Order Reserved! \nMuhamed
             placeholder="Phone Number"
             className="p-3 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
+          onChange={(e) => {
+            const val = e.target.value;
+            setPhone(val);
+            // Как только ввели 10 цифр (египетский или международный номер), проверяем прогресс
+            if (val.length >= 10) {
+              checkInvestorProgress(val);
+            }
+          }}          />
         </div>
 
         <PhotoUploader files={photos} setFiles={setPhotos} language={language} />
