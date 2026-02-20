@@ -19,16 +19,16 @@ interface OrderFormProps {
   mode: OrderMode;
   language: Language;
 }
-// Функция-детектор: проверяем путь к 100 заказам
-const checkInvestorProgress = async (phone: string) => {
+/// Функция-детектор: проверяем путь к 100 заказам
+const checkInvestorProgress = async (phone: string, setOrderCount: (count: number) => void) => {
   const { data } = await supabase
     .from('user_achievements')
-    .select('orders_completed, is_corporate_ready')
+    .select('orders_completed')
     .eq('phone_number', phone)
     .single();
 
   if (data) {
-    console.log(`Current progress: ${data.orders_completed}/100 iterations`);
+    setOrderCount(data.orders_completed); // Теперь данные попадают на экран!
   }
 };
 const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
@@ -36,6 +36,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   const isHomeMode = mode === OrderMode.HOME;
 
   const [photos, setPhotos] = useState<File[]>([]);
+  const [orderCount, setOrderCount] = useState<number>(0);
   const [size, setSize] = useState<number>(50);
   const [price, setPrice] = useState<number>(isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE);
   const [comment, setComment] = useState('');
@@ -130,7 +131,24 @@ alert(`VICTORY! \n\nYou've unlocked: ${rank} \nStatus: Order Reserved! \nMuhamed
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 space-y-8 border border-gray-200">
       <h2 className="text-2xl md:text-3xl font-extrabold text-center text-gray-800">{title}</h2>
-      
+          {/* Шкала прогресса для инвестора */}
+          {orderCount > 0 && (
+            <div className="mt-4 mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100 shadow-sm">
+              <div className="flex justify-between text-[10px] font-black text-blue-800 mb-2 tracking-widest uppercase">
+                <span>Corporate Scale</span>
+                <span>{orderCount}%</span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-3 overflow-hidden border border-blue-300">
+                <div
+                  className="bg-blue-600 h-full rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(37,99,235,0.5)]"
+                  style={{ width: `${Math.min(orderCount, 100)}%` }}
+                ></div>
+              </div>
+              <p className="text-[9px] text-blue-600 mt-2 text-center font-medium">
+                {100 - orderCount} more cleanup events to reach official Tax Loyalty status.
+              </p>
+            </div>
+          )}
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <input
@@ -152,7 +170,7 @@ alert(`VICTORY! \n\nYou've unlocked: ${rank} \nStatus: Order Reserved! \nMuhamed
             setPhone(val);
             // Как только ввели 10 цифр (египетский или международный номер), проверяем прогресс
             if (val.length >= 10) {
-              checkInvestorProgress(val);
+              checkInvestorProgress(val, setOrderCount);
             }
           }}          />
         </div>
