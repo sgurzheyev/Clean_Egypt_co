@@ -45,6 +45,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   const isHomeMode = mode === OrderMode.HOME;
 
   const [photos, setPhotos] = useState<File[]>([]);
+    const [email, setEmail] = useState('');
   const [orderCount, setOrderCount] = useState<number>(0);
   const [size, setSize] = useState<number>(50);
   const [price, setPrice] = useState<number>(isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE);
