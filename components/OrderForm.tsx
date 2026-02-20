@@ -34,22 +34,22 @@ const checkInvestorProgress = async (phone: string, setOrderCount: (count: numbe
 
 const token = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
 
-// Функция отправки (Админу и в Хаб рабочих)
+// Единая функция уведомлений
 const sendNotifications = async (message: string, clientPhone: string) => {
-  // 1. Тебе лично
+  // 1. Отчет лично Серджио
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: '6618910143', text: message })
   });
 
-  // 2. В группу рабочих с кнопкой WhatsApp
+  // 2. В группу рабочих CleanEgypt Workers с кнопкой WhatsApp
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: '-5115781349',
-      text: `🚀 NEW JOB!\n${message.split('\n"Hey Sergio')[0]}`,
+      text: `🚀 NEW JOB AVAILABLE!\n\n${message.split('\n\n')[0]}`,
       reply_markup: {
         inline_keyboard: [[
           {
@@ -135,11 +135,13 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
           const rank = size > 2000 ? 'World Changer 🌍' : 'Eco-Hero 🌿';
           const reportMessage = `🚀 NEW ORDER! \n👤 Name: ${clientName} \n📧 Email: ${email} \n📱 Phone: ${phone} \n📍 GPS: ${locationGps} \n🏆 Status: ${rank} \n\n"Hey Sergio! Your place will be clean as soon as we get enough donations."`;
           
-          // ВЫЗОВ НАШЕЙ НОВОЙ ФУНКЦИИ
+          // Сначала отправляем данные всем
           await sendNotifications(reportMessage, phone);
 
+          // Потом показываем успех
           alert(`VICTORY! \n\nYou've unlocked: ${rank} \nStatus: Order Reserved!`);
           
+          // Очищаем форму только в самом конце
           setPhotos([]);
           setClientName('');
           setPhone('');
@@ -178,13 +180,16 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
         </div>
       )}
 
-      <div className="mt-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
-        <p className="text-sm font-bold text-yellow-800">📸 Get Photo Proof!</p>
+      <div className="mt-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200 shadow-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-lg">📸</span>
+          <p className="text-sm font-bold text-yellow-800">Get Photo Proof!</p>
+        </div>
         <input
           type="email"
           required
-          placeholder="Enter email for photos"
-          className="w-full p-3 border-2 border-yellow-300 rounded-lg mt-2 outline-none"
+          placeholder="Enter email for Before/After photos"
+          className="w-full p-3 border-2 border-yellow-300 rounded-lg text-sm outline-none focus:ring-4 focus:ring-yellow-200 transition-all"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -196,7 +201,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
             type="text"
             required
             placeholder="Your Name"
-            className="p-3 border rounded-lg"
+            className="p-3 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
             value={clientName}
             onChange={(e) => setClientName(e.target.value)}
           />
@@ -204,7 +209,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
             type="tel"
             required
             placeholder="Phone Number"
-            className="p-3 border rounded-lg"
+            className="p-3 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
             value={phone}
             onChange={(e) => {
               const val = e.target.value;
@@ -224,10 +229,20 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
           onChange={(e) => setComment(e.target.value)}
           placeholder={commentPlaceholder}
           rows={3}
-          className="w-full p-3 border rounded-lg"
+          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
         ></textarea>
         
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full text-white font-bold text-xl py-4 rounded-full bg-gradient-to-r from-green-
+          className="w-full text-white font-bold text-xl py-4 rounded-full bg-gradient-to-r from-green-400 to-teal-500 hover:scale-105 transition disabled:opacity-70 flex items-center justify-center gap-3"
+        >
+          {isSubmitting && <SpinnerIcon className="w-6 h-6" />}
+          {isSubmitting ? 'Placing Order...' : t('submit_order')}
+        </button>
+      </form>
+    </div>
+  );
+};
+
+export default OrderForm;
