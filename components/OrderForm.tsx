@@ -35,7 +35,7 @@ const checkInvestorProgress = async (phone: string, setOrderCount: (count: numbe
 const token = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
 
 // Единая функция уведомлений
-const sendNotifications = async (message: string, clientPhone: string) => {
+const sendNotifications = async (message: string, clientPhone: string, orderId: string, price: number) => {
   // 1. Отчет лично Серджио
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
@@ -43,18 +43,20 @@ const sendNotifications = async (message: string, clientPhone: string) => {
     body: JSON.stringify({ chat_id: '6618910143', text: message })
   });
 
-  // 2. В группу рабочих CleanEgypt Workers с кнопкой WhatsApp
+  // 2. В группу рабочих CleanEgypt Workers с динамической ссылкой на кошелек
+  const workerHubLink = `https://cleanegypt.co/worker-hub?orderId=${orderId}&price=${price}`;
+  
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: '-5115781349',
-      text: `🚀 NEW JOB AVAILABLE!\n\n${message.split('\n\n')[0]}`,
+      text: `🚀 NEW JOB AVAILABLE!\n\n${message.split('\n\n')[0]}\n\n💰 Reward: ${price} USD`,
       reply_markup: {
         inline_keyboard: [[
           {
-            text: "📦 TAKE JOB (WhatsApp)",
-            url: `https://wa.me/${clientPhone.replace(/\D/g,'')}`
+            text: "💳 TAKE JOB & PAY DEPOSIT",
+            url: workerHubLink
           }
         ]]
       }
@@ -111,6 +113,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
         try {
           const { latitude, longitude } = position.coords;
           const locationGps = `${latitude}, ${longitude}`;
+          const currentOrderId = Date.now().toString().slice(-6); // Генерируем ID заказа
 
           for (const photo of photos) {
             const fileName = `${Date.now()}-${photo.name}`;
@@ -133,15 +136,13 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
           if (insertError) throw new Error(insertError.message);
           
           const rank = size > 2000 ? 'World Changer 🌍' : 'Eco-Hero 🌿';
-          const reportMessage = `🚀 NEW ORDER! \n👤 Name: ${clientName} \n📧 Email: ${email} \n📱 Phone: ${phone} \n📍 GPS: ${locationGps} \n🏆 Status: ${rank} \n\n"Hey Sergio! Your place will be clean as soon as we get enough donations."`;
+          const reportMessage = `🚀 NEW ORDER #${currentOrderId}! \n👤 Name: ${clientName} \n📧 Email: ${email} \n📱 Phone: ${phone} \n📍 GPS: ${locationGps} \n🏆 Status: ${rank}`;
           
-          // Сначала отправляем данные всем
-          await sendNotifications(reportMessage, phone);
+          // Отправляем уведомления с ID заказа и ценой
+          await sendNotifications(reportMessage, phone, currentOrderId, price);
 
-          // Потом показываем успех
           alert(`VICTORY! \n\nYou've unlocked: ${rank} \nStatus: Order Reserved!`);
           
-          // Очищаем форму только в самом конце
           setPhotos([]);
           setClientName('');
           setPhone('');
@@ -187,6 +188,9 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
         </div>
         <input
           type="email"
+          name="email"
+          id="email"
+          autoComplete="email"
           required
           placeholder="Enter email for Before/After photos"
           className="w-full p-3 border-2 border-yellow-300 rounded-lg text-sm outline-none focus:ring-4 focus:ring-yellow-200 transition-all"
@@ -199,6 +203,9 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <input
             type="text"
+            name="name"
+            id="client-name"
+            autoComplete="name"
             required
             placeholder="Your Name"
             className="p-3 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
@@ -207,6 +214,9 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
           />
           <input
             type="tel"
+            name="tel"
+            id="client-phone"
+            autoComplete="tel"
             required
             placeholder="Phone Number"
             className="p-3 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
@@ -225,6 +235,8 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
         <Slider label={priceLabel} min={minPrice} max={maxPrice} value={price} onChange={(e) => setPrice(Number(e.target.value))} displayValue={`$${price}`} colorClass={priceColor} />
 
         <textarea
+          name="comment"
+          id="comment"
           value={comment}
           onChange={(e) => setComment(e.target.value)}
           placeholder={commentPlaceholder}
