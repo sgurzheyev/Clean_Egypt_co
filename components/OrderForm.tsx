@@ -98,8 +98,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
 
       // 3. WhatsApp Link (для тебя)
       const waMsg = encodeURIComponent(`New Mission! Client: ${clientName}, Phone: ${phone}, Price: $${price}`);
-      window.open(`https://wa.me/201026563603?text=${waMsg}`, '_blank');
-
+        window.open(`https://wa.me/48532883201?text=${waMsg}`, '_blank');
       alert('BOOM! Mission Accepted! 🚀');
       setClientName(''); setPhone(''); setEmail(''); setComment(''); setPhotos([]);
     } catch (err: any) {
