@@ -20,41 +20,9 @@ interface OrderFormProps {
   language: Language;
 }
 
-// ПРОВЕРЬ ЭТИ ДАННЫЕ ОДИН РАЗ
-const BOT_CONFIG = {
-  token: '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs',
-  chatId: '158546194'
-};
-
-const sendTelegram = async (message: string) => {
-  try {
-    const response = await fetch(`https://api.telegram.org/bot${BOT_CONFIG.token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: BOT_CONFIG.chatId,
-        text: message,
-        parse_mode: 'HTML'
-      })
-    });
-    const result = await response.json();
-    console.log("Telegram log:", result);
-  } catch (e) {
-    console.error("Telegram catch:", e);
-  }
-};
-
-const checkInvestorProgress = async (phone: string, setOrderCount: (count: number) => void) => {
-  const { data } = await supabase
-    .from('user_achievements')
-    .select('orders_completed')
-    .eq('phone_number', phone)
-    .single();
-
-  if (data) {
-    setOrderCount(data.orders_completed);
-  }
-};
+// ГЛОБАЛЬНЫЕ НАСТРОЙКИ (ПРОВЕРЬ ID ЕЩЕ РАЗ)
+const BOT_TOKEN = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
+const MY_CHAT_ID = '158546194';
 
 const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   const { t } = useLocalization(language);
@@ -68,29 +36,25 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [comment, setComment] = useState('');
-  const [orderCount, setOrderCount] = useState(0);
 
   const minPrice = isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE;
   const maxPrice = isHomeMode ? HOME_MAX_PRICE : CITY_MAX_PRICE;
-  const priceLabel = isHomeMode ? t('home_price_label') : t('city_price_label');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    let locationGps = "GPS Access Denied/Timeout";
+    let locationGps = "GPS Not Available";
     try {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
       });
       locationGps = `${position.coords.latitude}, ${position.coords.longitude}`;
-    } catch (gpsError) {
-      console.warn("GPS failed", gpsError);
-    }
+    } catch (err) { console.warn("GPS timeout"); }
 
     try {
-      // 1. Вставка в базу (имена колонок точно как в твоем Supabase)
-      const { error: insertError } = await supabase
+      // 1. ЗАПИСЬ В БАЗУ
+      const { error: dbError } = await supabase
         .from('orders')
         .insert([{
           order_type: mode,
@@ -103,30 +67,34 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
           status: 'pending'
         }]);
 
-      if (insertError) throw insertError;
+      if (dbError) throw new Error(`Database: ${dbError.message}`);
 
-      // 2. Уведомление (Берем данные напрямую из формы)
-      const reportMessage = `
-🚀 <b>NEW MISSION ACCEPTED!</b>
-━━━━━━━━━━━━━━━━━━
-👤 <b>Name:</b> ${clientName}
-📧 <b>Email:</b> ${email}
-📱 <b>Phone:</b> ${phone}
-📍 <b>GPS:</b> <code>${locationGps}</code>
-💰 <b>Price:</b> $${price}
-📝 <b>Info:</b> ${comment || 'No comment'}
-━━━━━━━━━━━━━━━━━━
-      `;
-
-      await sendTelegram(reportMessage);
-
-      alert('BOOM! Success! 🚀 Check Telegram!');
+      // 2. ОТПРАВКА В ТЕЛЕГРАМ С ДЕТЕКТОРОМ ОШИБОК
+      const reportMessage = `🚀 NEW MISSION!\n👤 Name: ${clientName}\n📧 Email: ${email}\n📱 Phone: ${phone}\n📍 GPS: ${locationGps}\n💰 Price: $${price}`;
       
+      const tgResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: MY_CHAT_ID,
+          text: reportMessage
+        })
+      });
+
+      const tgResult = await tgResponse.json();
+
+      if (!tgResult.ok) {
+        // ЕСЛИ БОТ "МЕРТВ", ОН СКАЖЕТ ПОЧЕМУ
+        alert(`Telegram Error: ${tgResult.description}\n(Check if you started the bot!)`);
+      } else {
+        alert('BOOM! Mission Accepted! 🚀 Check Telegram!');
+      }
+
+      // Сброс формы
       setClientName(''); setPhone(''); setEmail(''); setComment(''); setPhotos([]);
 
     } catch (err: any) {
-      console.error(err);
-      alert(`Database Error: ${err.message}`);
+      alert(`Error: ${err.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -164,11 +132,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
               required
               className="p-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 outline-none focus:border-[#BC13FE] transition-all"
               value={phone}
-              onChange={(e) => {
-                const val = e.target.value;
-                setPhone(val);
-                if (val.length >= 10) checkInvestorProgress(val, setOrderCount);
-              }}
+              onChange={(e) => setPhone(e.target.value)}
             />
           </div>
         </div>
@@ -183,7 +147,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
         />
         
         <Slider
-          label={priceLabel}
+          label={isHomeMode ? t('home_price_label') : t('city_price_label')}
           min={minPrice} max={maxPrice}
           value={price}
           onChange={(e) => setPrice(Number(e.target.value))}
@@ -194,7 +158,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
         <PhotoUploader files={photos} setFiles={setPhotos} language={language} />
 
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Mission Details</label>
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Details</label>
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
@@ -206,7 +170,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full text-white font-black text-xl py-5 rounded-2xl bg-gradient-to-r from-[#39FF14] to-[#BC13FE] shadow-lg shadow-green-500/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3 uppercase italic"
+          className="w-full text-white font-black text-xl py-5 rounded-2xl bg-gradient-to-r from-[#39FF14] to-[#BC13FE] hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3 uppercase italic"
         >
           {isSubmitting ? <SpinnerIcon /> : "Submit Mission 🚀"}
         </button>
