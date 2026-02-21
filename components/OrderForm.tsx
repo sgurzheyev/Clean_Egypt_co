@@ -1,4 +1,4 @@
-imporimport React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import PhotoUploader from './PhotoUploader';
 import Slider from './Slider';
 import { OrderMode, Language } from '../types';
