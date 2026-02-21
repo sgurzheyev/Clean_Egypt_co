@@ -34,18 +34,22 @@ const checkInvestorProgress = async (phone: string, setOrderCount: (count: numbe
 
 const token = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
 
-const sendNotifications = async (message: string, clientPhone: string, orderId: string, price: number) => {
+const sendNotifications = async (message: string, price: number) => {
+  const botToken = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
+  const chatId = '158546194';
+  
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_id: '158546194',
-        text: `🚀 NEW MISSION!\n${message}\nPrice: $${price}`
+        chat_id: chatId,
+        text: message + `\n\nTotal: $${price}`
       })
     });
+    console.log("TG Sent!");
   } catch (e) {
-    console.error("Telegram notify failed", e);
+    console.error("TG Error:", e);
   }
 };
 
@@ -115,20 +119,12 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
 
       if (insertError) throw insertError;
 
-        // 3. Уведомление (Используем твои переменные напрямую)
-              const reportMessage = `
-        🌟 NEW MISSION!
-        👤 Client: ${clientName}
-        📧 Email: ${email}
-        📱 Phone: ${phone}
-        📍 GPS: ${locationGps}
-        💰 Amount: $${price}
-              `;
+        // 3. Уведомление
+              const reportMessage = `🚀 NEW MISSION!\n👤 Client: ${clientName}\n📧 Email: ${email}\n📱 Phone: ${phone}\n📍 GPS: ${locationGps}\n📝 Info: ${comment}`;
 
-              // Вместо data[0].id пишем просто "NEW", чтобы не зависеть от ответа базы
-              await sendNotifications(reportMessage, phone, "NEW", price);
-      alert('BOOM! Mission Accepted! 🚀');
-      
+              await sendNotifications(reportMessage, price);
+              
+              alert('BOOM! Mission Accepted! 🚀');
       setClientName('');
       setPhone('');
       setEmail('');
