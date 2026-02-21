@@ -35,15 +35,18 @@ const checkInvestorProgress = async (phone: string, setOrderCount: (count: numbe
 const token = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
 
 const sendNotifications = async (message: string, clientPhone: string, orderId: string, price: number) => {
-  // Отчет лично Серджио
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: '158546194',
-      text: `🚀 NEW ORDER!\n${message}\nPrice: $${price}`
-    })
-  });
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: '158546194',
+        text: `🚀 NEW MISSION!\n${message}\nPrice: $${price}`
+      })
+    });
+  } catch (e) {
+    console.error("Telegram notify failed", e);
+  }
 };
 
 const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
@@ -63,43 +66,73 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   const minPrice = isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE;
   const maxPrice = isHomeMode ? HOME_MAX_PRICE : CITY_MAX_PRICE;
   const priceLabel = isHomeMode ? t('home_price_label') : t('city_price_label');
-  const priceColor = isHomeMode ? 'accent-teal-500' : 'accent-neon-purple';
   const commentPlaceholder = isHomeMode ? t('home_comment_placeholder') : t('city_comment_placeholder');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
+    let locationGps = "GPS Access Denied/Timeout";
+
+    // Попытка получить координаты (максимум 5 секунд ожидания)
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          timeout: 5000,
+          enableHighAccuracy: false
+        });
+      });
+      locationGps = `${position.coords.latitude}, ${position.coords.longitude}`;
+    } catch (gpsError) {
+      console.warn("GPS failed, using fallback string", gpsError);
+    }
+
+    try {
+      // 1. Загрузка фото (необязательно, если упадет - заказ пойдет дальше)
+      const photoUrls: string[] = [];
       try {
-            // 1. Получаем GPS (обязательно для твоей базы)
-            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(resolve, reject);
-            });
-            const locationGps = `${position.coords.latitude}, ${position.coords.longitude}`;
+        for (const photo of photos) {
+          const fileName = `${Date.now()}-${photo.name}`;
+          await supabase.storage.from('order-photos').upload(fileName, photo);
+          photoUrls.push(fileName);
+        }
+      } catch (err) {
+        console.error("Storage error", err);
+      }
 
-            // 2. Отправляем в базу с ПРАВИЛЬНЫМИ именами полей
-            const { data, error } = await supabase
-              .from('orders')
-              .insert([{
-                order_type: mode,
-                area_size: size,
-                offer_amount_usd: price,
-                client_name: clientName,
-                phone: phone,
-                email: email,
-                details: comment,
-                location_gps: locationGps, // ТЕПЕРЬ ПОЛЕ ЕСТЬ!
-                status: 'pending'
-              }])
-              .select();
+      // 2. Вставка в таблицу orders (имена полей как в твоем Supabase)
+      const { data, error: insertError } = await supabase
+        .from('orders')
+        .insert([{
+          order_type: mode,
+          area_size: size,
+          offer_amount_usd: price,
+          client_name: clientName,
+          phone: phone,
+          email: email,
+          details: comment,
+          location_gps: locationGps,
+          status: 'pending'
+        }])
+        .select();
 
-            if (error) throw error;
+      if (insertError) throw insertError;
 
-            await sendNotifications(`Order from ${clientName}`, phone, data[0].id, price);
-            alert('Success! Order placed.');
-    } catch (err) {
+      // 3. Уведомление
+      await sendNotifications(`Order from ${clientName} (${locationGps})`, phone, data[0].id, price);
+
+      alert('BOOM! Mission Accepted! 🚀');
+      
+      // Сброс
+      setClientName('');
+      setPhone('');
+      setEmail('');
+      setComment('');
+      setPhotos([]);
+
+    } catch (err: any) {
       console.error(err);
-      alert('Error placing order');
+      alert(`Database Error: ${err.message || 'Check your Supabase connection'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -108,9 +141,8 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   return (
     <form onSubmit={handleSubmit} className="p-6 space-y-6 bg-white rounded-[2rem] shadow-xl">
       <div className="space-y-4">
-        {/* Поле Email - буквы ТЕПЕРЬ ВИДНЫ (text-gray-900) */}
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Email Address</label>
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Email</label>
           <input
             type="email"
             required
@@ -121,7 +153,6 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
           />
         </div>
 
-        {/* Name & Phone - буквы ТЕПЕРЬ ВИДНЫ (text-gray-900) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Name</label>
@@ -140,7 +171,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
               type="tel"
               required
               className="p-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 outline-none focus:border-[#BC13FE] transition-all"
-              placeholder="+20..."
+              placeholder="+1..."
               value={phone}
               onChange={(e) => {
                 const val = e.target.value;
@@ -151,11 +182,9 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
           </div>
         </div>
 
-        {/* Слайдеры */}
         <Slider
           label={t('size_slider_title')}
-          min={MIN_SIZE}
-          max={MAX_SIZE}
+          min={MIN_SIZE} max={MAX_SIZE}
           value={size}
           onChange={(e) => setSize(Number(e.target.value))}
           unit={t('sqm')}
@@ -164,19 +193,17 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
         
         <Slider
           label={priceLabel}
-          min={minPrice}
-          max={maxPrice}
+          min={minPrice} max={maxPrice}
           value={price}
           onChange={(e) => setPrice(Number(e.target.value))}
           displayValue={`$${price}`}
           colorClass={isHomeMode ? 'accent-teal-500' : 'accent-[#BC13FE]'}
         />
 
-        {/* Фото и Комментарий - буквы ТЕПЕРЬ ВИДНЫ (text-gray-900) */}
         <PhotoUploader files={photos} setFiles={setPhotos} language={language} />
 
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Comment</label>
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Mission Details</label>
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
@@ -189,9 +216,9 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full text-white font-black text-xl py-5 rounded-2xl bg-gradient-to-r from-[#39FF14] to-[#BC13FE] shadow-lg shadow-green-500/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3 uppercase italic tracking-tighter"
+          className="w-full text-white font-black text-xl py-5 rounded-2xl bg-gradient-to-r from-[#39FF14] to-[#BC13FE] shadow-lg shadow-green-500/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3 uppercase italic"
         >
-          {isSubmitting ? <SpinnerIcon /> : t('submit_button')}
+          {isSubmitting ? <SpinnerIcon /> : "Submit Mission 🚀"}
         </button>
       </div>
     </form>
