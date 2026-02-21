@@ -70,26 +70,33 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        //этот блок в Xcode на место старого insert
-        .insert([{
-          order_type: mode,
-          area_size: size,
-          offer_amount_usd: price,
-          client_name: clientName,
-          phone: phone,
-          email: email,
-          details: comment,
-          status: 'pending'
-        }])
-        .select();
+      try {
+            // 1. Получаем GPS (обязательно для твоей базы)
+            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject);
+            });
+            const locationGps = `${position.coords.latitude}, ${position.coords.longitude}`;
 
-      if (error) throw error;
+            // 2. Отправляем в базу с ПРАВИЛЬНЫМИ именами полей
+            const { data, error } = await supabase
+              .from('orders')
+              .insert([{
+                order_type: mode,
+                area_size: size,
+                offer_amount_usd: price,
+                client_name: clientName,
+                phone: phone,
+                email: email,
+                details: comment,
+                location_gps: locationGps, // ТЕПЕРЬ ПОЛЕ ЕСТЬ!
+                status: 'pending'
+              }])
+              .select();
 
-      await sendNotifications(`Order from ${clientName}`, phone, data[0].id, price);
-      alert('Success! Order placed.');
+            if (error) throw error;
+
+            await sendNotifications(`Order from ${clientName}`, phone, data[0].id, price);
+            alert('Success! Order placed.');
     } catch (err) {
       console.error(err);
       alert('Error placing order');
