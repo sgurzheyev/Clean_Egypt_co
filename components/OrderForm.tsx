@@ -83,54 +83,71 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   const priceLabel = isHomeMode ? t('home_price_label') : t('city_price_label');
   const commentPlaceholder = isHomeMode ? t('home_comment_placeholder') : t('city_comment_placeholder');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true);
 
-    let locationGps = "GPS Access Denied";
-    try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
-      });
-      locationGps = `${position.coords.latitude}, ${position.coords.longitude}`;
-    } catch (gpsError) {
-      console.warn("GPS failed", gpsError);
-    }
+        let locationGps = "GPS Access Denied";
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+          });
+          locationGps = `${position.coords.latitude}, ${position.coords.longitude}`;
+        } catch (gpsError) {
+          console.warn("GPS failed", gpsError);
+        }
 
-    try {
-      // 1. Сохранение в базу (без email)
-      const { error: insertError } = await supabase
-        .from('orders')
-        .insert([{
-          order_type: mode,
-          area_size: size,
-          offer_amount_usd: price,
-          client_name: clientName,
-          phone: phone,
-          details: comment,
-          location_gps: locationGps,
-          status: 'pending'
-        }]);
+        try {
+          // 1. ЗАГРУЗКА ФОТО В SUPABASE STORAGE
+          const uploadedPhotoUrls = [];
+          for (const file of photos) {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Math.random()}.${fileExt}`;
+            const filePath = `${Date.now()}_${fileName}`;
 
-      if (insertError) throw insertError;
+            const { error: uploadError } = await supabase.storage
+              .from('order-photos') // Твой бакет из скриншота
+              .upload(filePath, file);
 
-      // 2. Уведомление в Telegram
-      const reportMessage = `🚀 <b>NEW MISSION!</b>\n👤 Client: ${clientName}\n📧 Email: ${email}\n📱 Phone: ${phone}\n📍 GPS: <code>${locationGps}</code>`;
-        await sendBroadcast(reportMessage, price, photos);
-      // 3. Открытие WhatsApp Business
-      const waMsg = encodeURIComponent(`New Mission Accepted!\nClient: ${clientName}\nPhone: ${phone}\nEmail: ${email}\nPrice: $${price}`);
-      window.open(`https://wa.me/${MY_PHONE}?text=${waMsg}`, '_blank');
-              
-      alert('BOOM! Mission Accepted! 🚀');
+            if (uploadError) console.error("Upload error:", uploadError);
+            else uploadedPhotoUrls.push(filePath);
+          }
 
-      setClientName(''); setPhone(''); setEmail(''); setComment(''); setPhotos([]);
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+          // 2. СОХРАНЕНИЕ В ТАБЛИЦУ (Добавляем size!)
+          const { error: insertError } = await supabase
+            .from('orders')
+            .insert([{
+              order_type: mode,
+              area_size: size, // Теперь размер точно уйдет в базу
+              offer_amount_usd: price,
+              client_name: clientName,
+              phone: phone,
+              details: comment,
+              location_gps: locationGps,
+              photo_urls: uploadedPhotoUrls, // Ссылки на фото в базе
+              status: 'pending'
+            }]);
 
+          if (insertError) throw insertError;
+
+          // 3. УВЕДОМЛЕНИЕ В TELEGRAM (Добавляем size!)
+          const reportMessage = `🚀 <b>NEW MISSION!</b>\n👤 Client: ${clientName}\n📏 Size: <b>${size} sq.m.</b>\n📧 Email: ${email}\n📱 Phone: ${phone}\n📍 GPS: <code>${locationGps}</code>`;
+          
+          await sendBroadcast(reportMessage, price, photos);
+          
+          // 4. WHATSAPP
+          const waMsg = encodeURIComponent(`New Mission!\nSize: ${size}sqm\nPrice: $${price}`);
+          window.open(`https://wa.me/${MY_PHONE}?text=${waMsg}`, '_blank');
+                  
+          alert('BOOM! Mission Saved & Sent! 🚀');
+
+          setClientName(''); setPhone(''); setEmail(''); setComment(''); setPhotos([]);
+        } catch (err: any) {
+          alert(`Error: ${err.message}`);
+        } finally {
+          setIsSubmitting(false);
+        }
+      };
   return (
     <form onSubmit={handleSubmit} className="p-6 space-y-6 bg-white rounded-[2rem] shadow-xl text-gray-900">
       <div className="space-y-4">
