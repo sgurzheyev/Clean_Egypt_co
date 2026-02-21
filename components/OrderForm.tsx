@@ -73,14 +73,15 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
     try {
       const { data, error } = await supabase
         .from('orders')
+        //этот блок в Xcode на место старого insert
         .insert([{
-          mode,
-          size,
-          price,
+          order_type: mode,
+          area_size: size,
+          offer_amount_usd: price,
           client_name: clientName,
-          phone,
-          email,
-          comment,
+          phone: phone,
+          email: email,
+          details: comment,
           status: 'pending'
         }])
         .select();
