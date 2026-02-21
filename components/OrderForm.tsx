@@ -115,17 +115,18 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
 
       if (insertError) throw insertError;
 
-        // 3. Уведомление (Берем данные ПРЯМО из состояния формы, а не из ответа базы)
-              const message = `
-        👤 Name: ${clientName}
+        // 3. Уведомление (Используем твои переменные напрямую)
+              const reportMessage = `
+        🌟 NEW MISSION!
+        👤 Client: ${clientName}
         📧 Email: ${email}
         📱 Phone: ${phone}
         📍 GPS: ${locationGps}
-        📝 Details: ${comment}
-        💰 Price: $${price}
+        💰 Amount: $${price}
               `;
 
-              await sendNotifications(message, phone, "NEW", price);
+              // Вместо data[0].id пишем просто "NEW", чтобы не зависеть от ответа базы
+              await sendNotifications(reportMessage, phone, "NEW", price);
       alert('BOOM! Mission Accepted! 🚀');
       
       setClientName('');
