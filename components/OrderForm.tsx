@@ -22,7 +22,7 @@ interface OrderFormProps {
 
 // ГЛОБАЛЬНЫЕ НАСТРОЙКИ (ПРОВЕРЬ ID ЕЩЕ РАЗ)
 const BOT_TOKEN = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
-const MY_CHAT_ID = '158546194';
+const MY_CHAT_ID = '6618910143';
 
 const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   const { t } = useLocalization(language);
