@@ -115,10 +115,17 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
 
       if (insertError) throw insertError;
 
-      // 3. Уведомление (Email добавим в текст для тебя)
-      const message = `Name: ${clientName}\nEmail: ${email}\nPhone: ${phone}\nGPS: ${locationGps}`;
-      await sendNotifications(message, phone, data[0].id, price);
+        // 3. Уведомление (Берем данные ПРЯМО из состояния формы, а не из ответа базы)
+              const message = `
+        👤 Name: ${clientName}
+        📧 Email: ${email}
+        📱 Phone: ${phone}
+        📍 GPS: ${locationGps}
+        📝 Details: ${comment}
+        💰 Price: $${price}
+              `;
 
+              await sendNotifications(message, phone, "NEW", price);
       alert('BOOM! Mission Accepted! 🚀');
       
       setClientName('');
