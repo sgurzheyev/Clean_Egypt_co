@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+imporimport React, { useState, useMemo } from 'react';
 import PhotoUploader from './PhotoUploader';
 import Slider from './Slider';
 import { OrderMode, Language } from '../types';
@@ -34,32 +34,14 @@ const checkInvestorProgress = async (phone: string, setOrderCount: (count: numbe
 
 const token = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
 
-// Единая функция уведомлений
 const sendNotifications = async (message: string, clientPhone: string, orderId: string, price: number) => {
-  // 1. Отчет лично Серджио
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: '6618910143', text: message })
-  });
-
-  // 2. В группу рабочих CleanEgypt Workers с динамической ссылкой на кошелек
-  const workerHubLink = `https://cleanegypt.co/worker-hub?orderId=${orderId}&price=${price}`;
-  
+  // Отчет лично Серджио
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      chat_id: '-5115781349',
-      text: `🚀 NEW JOB AVAILABLE!\n\n${message.split('\n\n')[0]}\n\n💰 Reward: ${price} USD`,
-      reply_markup: {
-        inline_keyboard: [[
-          {
-            text: "💳 TAKE JOB & PAY DEPOSIT",
-            url: workerHubLink
-          }
-        ]]
-      }
+      chat_id: '158546194',
+      text: `🚀 NEW ORDER!\n${message}\nPrice: $${price}`
     })
   });
 };
@@ -68,192 +50,143 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   const { t } = useLocalization(language);
   const isHomeMode = mode === OrderMode.HOME;
 
+  const [size, setSize] = useState(MIN_SIZE);
+  const [price, setPrice] = useState(isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE);
   const [photos, setPhotos] = useState<File[]>([]);
-  const [email, setEmail] = useState('');
-  const [orderCount, setOrderCount] = useState<number>(0);
-  const [size, setSize] = useState<number>(50);
-  const [price, setPrice] = useState<number>(isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE);
-  const [comment, setComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [clientName, setClientName] = useState('');
   const [phone, setPhone] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [email, setEmail] = useState('');
+  const [comment, setComment] = useState('');
+  const [orderCount, setOrderCount] = useState(0);
 
-  const { minPrice, maxPrice, priceLabel, priceColor, title, commentPlaceholder } = useMemo(() => {
-    if (isHomeMode) {
-      return {
-        minPrice: HOME_MIN_PRICE,
-        maxPrice: HOME_MAX_PRICE,
-        priceLabel: t('price_slider_title_home'),
-        priceColor: 'accent-teal-500',
-        title: t('order_form_title_home'),
-        commentPlaceholder: t('comment_placeholder'),
-      };
-    } else {
-      return {
-        minPrice: CITY_MIN_PRICE,
-        maxPrice: CITY_MAX_PRICE,
-        priceLabel: t('price_slider_title_city'),
-        priceColor: 'accent-blue-500',
-        title: t('order_form_title_city'),
-        commentPlaceholder: t('comment_placeholder_city'),
-      };
-    }
-  }, [isHomeMode, t]);
-  
-  React.useEffect(() => {
-    setPrice(isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE);
-  }, [isHomeMode]);
+  const minPrice = isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE;
+  const maxPrice = isHomeMode ? HOME_MAX_PRICE : CITY_MAX_PRICE;
+  const priceLabel = isHomeMode ? t('home_price_label') : t('city_price_label');
+  const priceColor = isHomeMode ? 'accent-teal-500' : 'accent-neon-purple';
+  const commentPlaceholder = isHomeMode ? t('home_comment_placeholder') : t('city_comment_placeholder');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .insert([{
+          mode,
+          size,
+          price,
+          client_name: clientName,
+          phone,
+          email,
+          comment,
+          status: 'pending'
+        }])
+        .select();
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords;
-          const locationGps = `${latitude}, ${longitude}`;
-          const currentOrderId = Date.now().toString().slice(-6); // Генерируем ID заказа
+      if (error) throw error;
 
-          for (const photo of photos) {
-            const fileName = `${Date.now()}-${photo.name}`;
-            await supabase.storage.from('order-photos').upload(fileName, photo);
-          }
-
-          const { error: insertError } = await supabase.from('orders').insert([
-            {
-              area_size: size,
-              offer_amount_usd: price,
-              details: comment,
-              location_gps: locationGps,
-              order_type: mode,
-              client_name: clientName,
-              phone: phone,
-              status: 'new'
-            },
-          ]);
-
-          if (insertError) throw new Error(insertError.message);
-          
-          const rank = size > 2000 ? 'World Changer 🌍' : 'Eco-Hero 🌿';
-          const reportMessage = `🚀 NEW ORDER #${currentOrderId}! \n👤 Name: ${clientName} \n📧 Email: ${email} \n📱 Phone: ${phone} \n📍 GPS: ${locationGps} \n🏆 Status: ${rank}`;
-          
-          // Отправляем уведомления с ID заказа и ценой
-          await sendNotifications(reportMessage, phone, currentOrderId, price);
-
-          alert(`VICTORY! \n\nYou've unlocked: ${rank} \nStatus: Order Reserved!`);
-          
-          setPhotos([]);
-          setClientName('');
-          setPhone('');
-          setEmail('');
-          setComment('');
-
-        } catch (error) {
-          alert((error as Error).message);
-        } finally {
-          setIsSubmitting(false);
-        }
-      },
-      () => {
-        alert(`Please enable location to place an order.`);
-        setIsSubmitting(false);
-      }
-    );
+      await sendNotifications(`Order from ${clientName}`, phone, data[0].id, price);
+      alert('Success! Order placed.');
+    } catch (err) {
+      console.error(err);
+      alert('Error placing order');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 space-y-8 border border-gray-200">
-      <h2 className="text-2xl md:text-3xl font-extrabold text-center text-gray-800">{title}</h2>
-      
-      {orderCount > 0 && (
-        <div className="mt-4 mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100 shadow-sm">
-          <div className="flex justify-between text-[10px] font-black text-blue-800 mb-2 tracking-widest uppercase">
-            <span>Corporate Scale</span>
-            <span>{orderCount}%</span>
-          </div>
-          <div className="w-full bg-blue-200 rounded-full h-3 overflow-hidden border border-blue-300">
-            <div
-              className="bg-blue-600 h-full rounded-full transition-all duration-1000 ease-out"
-              style={{ width: `${Math.min(orderCount, 100)}%` }}
-            ></div>
-          </div>
+    <form onSubmit={handleSubmit} className="p-6 space-y-6 bg-white rounded-[2rem] shadow-xl">
+      <div className="space-y-4">
+        {/* Поле Email - буквы ТЕПЕРЬ ВИДНЫ (text-gray-900) */}
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Email Address</label>
+          <input
+            type="email"
+            required
+            className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 outline-none focus:border-[#39FF14] transition-all"
+            placeholder="example@mail.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
         </div>
-      )}
 
-      <div className="mt-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200 shadow-sm">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-lg">📸</span>
-          <p className="text-sm font-bold text-yellow-800">Get Photo Proof!</p>
-        </div>
-        <input
-          type="email"
-          name="email"
-          id="email"
-          autoComplete="email"
-          required
-          placeholder="Enter email for Before/After photos"
-          className="w-full p-3 border-2 border-yellow-300 rounded-lg text-sm outline-none focus:ring-4 focus:ring-yellow-200 transition-all"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Name & Phone - буквы ТЕПЕРЬ ВИДНЫ (text-gray-900) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input
-            type="text"
-            name="name"
-            id="client-name"
-            autoComplete="name"
-            required
-            placeholder="Your Name"
-            className="p-3 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
-            value={clientName}
-            onChange={(e) => setClientName(e.target.value)}
-          />
-          <input
-            type="tel"
-            name="tel"
-            id="client-phone"
-            autoComplete="tel"
-            required
-            placeholder="Phone Number"
-            className="p-3 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
-            value={phone}
-            onChange={(e) => {
-              const val = e.target.value;
-              setPhone(val);
-              if (val.length >= 10) checkInvestorProgress(val, setOrderCount);
-            }}
-          />
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Name</label>
+            <input
+              type="text"
+              required
+              className="p-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 outline-none focus:border-[#39FF14] transition-all"
+              placeholder="Sergio"
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Phone</label>
+            <input
+              type="tel"
+              required
+              className="p-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 outline-none focus:border-[#BC13FE] transition-all"
+              placeholder="+20..."
+              value={phone}
+              onChange={(e) => {
+                const val = e.target.value;
+                setPhone(val);
+                if (val.length >= 10) checkInvestorProgress(val, setOrderCount);
+              }}
+            />
+          </div>
         </div>
 
+        {/* Слайдеры */}
+        <Slider
+          label={t('size_slider_title')}
+          min={MIN_SIZE}
+          max={MAX_SIZE}
+          value={size}
+          onChange={(e) => setSize(Number(e.target.value))}
+          unit={t('sqm')}
+          colorClass={isHomeMode ? 'accent-teal-500' : 'accent-[#39FF14]'}
+        />
+        
+        <Slider
+          label={priceLabel}
+          min={minPrice}
+          max={maxPrice}
+          value={price}
+          onChange={(e) => setPrice(Number(e.target.value))}
+          displayValue={`$${price}`}
+          colorClass={isHomeMode ? 'accent-teal-500' : 'accent-[#BC13FE]'}
+        />
+
+        {/* Фото и Комментарий - буквы ТЕПЕРЬ ВИДНЫ (text-gray-900) */}
         <PhotoUploader files={photos} setFiles={setPhotos} language={language} />
 
-        <Slider label={t('size_slider_title')} min={MIN_SIZE} max={MAX_SIZE} value={size} onChange={(e) => setSize(Number(e.target.value))} unit={t('sqm')} colorClass={isHomeMode ? 'accent-teal-500' : 'accent-blue-500'} />
-        <Slider label={priceLabel} min={minPrice} max={maxPrice} value={price} onChange={(e) => setPrice(Number(e.target.value))} displayValue={`$${price}`} colorClass={priceColor} />
-
-        <textarea
-          name="comment"
-          id="comment"
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          placeholder={commentPlaceholder}
-          rows={3}
-          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
-        ></textarea>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Comment</label>
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder={commentPlaceholder}
+            rows={3}
+            className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 outline-none focus:border-[#39FF14] transition-all"
+          ></textarea>
+        </div>
         
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full text-white font-bold text-xl py-4 rounded-full bg-gradient-to-r from-green-400 to-teal-500 hover:scale-105 transition disabled:opacity-70 flex items-center justify-center gap-3"
+          className="w-full text-white font-black text-xl py-5 rounded-2xl bg-gradient-to-r from-[#39FF14] to-[#BC13FE] shadow-lg shadow-green-500/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3 uppercase italic tracking-tighter"
         >
-          {isSubmitting && <SpinnerIcon className="w-6 h-6" />}
-          {isSubmitting ? 'Placing Order...' : t('submit_order')}
+          {isSubmitting ? <SpinnerIcon /> : t('submit_button')}
         </button>
-      </form>
-    </div>
+      </div>
+    </form>
   );
 };
 
