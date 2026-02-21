@@ -25,20 +25,27 @@ const BOT_TOKEN = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
 const MY_ID = '6618910143';
 const WORKERS_ID = '-1003508290829'; // ТОЧНО КАК НА СКРИНШОТЕ!const MY_PHONE = '48532883201';
 const MY_PHONE = '48532883201'; // Твой номер, куда прилетают сообщения
-const sendBroadcast = async (message: string, price: number) => {
+const sendBroadcast = async (message: string, price: number, photoFiles: File[]) => {
   const targets = [MY_ID, WORKERS_ID];
   
   for (const chatId of targets) {
     try {
-      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: message + `\n\n💰 Total: $${price}`,
-          parse_mode: 'HTML'
-        })
-      });
+      const isPhoto = photoFiles.length > 0;
+      const formData = new FormData();
+      formData.append('chat_id', chatId);
+      
+      if (isPhoto) {
+        // Если есть фото, отправляем его с текстом в подписи
+        formData.append('photo', photoFiles[0]);
+        formData.append('caption', message + `\n\n💰 <b>Total: $${price}</b>`);
+        formData.append('parse_mode', 'HTML');
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: formData });
+      } else {
+        // Если фото нет, отправляем просто текст
+        formData.append('text', message + `\n\n💰 <b>Total: $${price}</b>`);
+        formData.append('parse_mode', 'HTML');
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, { method: 'POST', body: formData });
+      }
     } catch (e) {
       console.error("Broadcast error:", e);
     }
@@ -109,8 +116,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
 
       // 2. Уведомление в Telegram
       const reportMessage = `🚀 <b>NEW MISSION!</b>\n👤 Client: ${clientName}\n📧 Email: ${email}\n📱 Phone: ${phone}\n📍 GPS: <code>${locationGps}</code>`;
-      await sendBroadcast(reportMessage, price);
-      
+        await sendBroadcast(reportMessage, price, photos);
       // 3. Открытие WhatsApp Business
       const waMsg = encodeURIComponent(`New Mission Accepted!\nClient: ${clientName}\nPhone: ${phone}\nEmail: ${email}\nPrice: $${price}`);
       window.open(`https://wa.me/${MY_PHONE}?text=${waMsg}`, '_blank');
