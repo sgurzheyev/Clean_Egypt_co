@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import PhotoUploader from './PhotoUploader';
 import Slider from './Slider';
 import { OrderMode, Language } from '../types';
@@ -6,7 +6,6 @@ import { useLocalization } from '../hooks/useLocalization';
 import { supabase } from '../lib/supabaseClient';
 import SpinnerIcon from './icons/SpinnerIcon';
 import {
-  USD_TO_EGP_RATE,
   HOME_MIN_PRICE,
   HOME_MAX_PRICE,
   CITY_MIN_PRICE,
@@ -20,36 +19,22 @@ interface OrderFormProps {
   language: Language;
 }
 
-const checkInvestorProgress = async (phone: string, setOrderCount: (count: number) => void) => {
-  const { data } = await supabase
-    .from('user_achievements')
-    .select('orders_completed')
-    .eq('phone_number', phone)
-    .single();
+const botToken = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
+const chatId = '158546194';
 
-  if (data) {
-    setOrderCount(data.orders_completed);
-  }
-};
-
-const token = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
-
-const sendNotifications = async (message: string, price: number) => {
-  const botToken = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
-  const chatId = '158546194';
-  
+const sendTelegramNotification = async (message: string) => {
   try {
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: message + `\n\nTotal: $${price}`
+        text: message,
+        parse_mode: 'HTML'
       })
     });
-    console.log("TG Sent!");
   } catch (e) {
-    console.error("TG Error:", e);
+    console.error("Telegram error:", e);
   }
 };
 
@@ -65,44 +50,24 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [comment, setComment] = useState('');
-  const [orderCount, setOrderCount] = useState(0);
-
-  const minPrice = isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE;
-  const maxPrice = isHomeMode ? HOME_MAX_PRICE : CITY_MAX_PRICE;
-  const priceLabel = isHomeMode ? t('home_price_label') : t('city_price_label');
-  const commentPlaceholder = isHomeMode ? t('home_comment_placeholder') : t('city_comment_placeholder');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     let locationGps = "GPS Access Denied/Timeout";
-
     try {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          timeout: 5000,
-          enableHighAccuracy: false
-        });
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
       });
       locationGps = `${position.coords.latitude}, ${position.coords.longitude}`;
     } catch (gpsError) {
-      console.warn("GPS failed, using fallback", gpsError);
+      console.warn("GPS failed", gpsError);
     }
 
     try {
-      // 1. Загрузка фото (необязательно)
-      try {
-        for (const photo of photos) {
-          const fileName = `${Date.now()}-${photo.name}`;
-          await supabase.storage.from('order-photos').upload(fileName, photo);
-        }
-      } catch (err) {
-        console.error("Storage error", err);
-      }
-
-      // 2. Вставка в таблицу (УБРАЛИ EMAIL ИЗ ЗАПРОСА)
-      const { data, error: insertError } = await supabase
+      // 1. Отправка в Supabase
+      const { error: insertError } = await supabase
         .from('orders')
         .insert([{
           order_type: mode,
@@ -110,21 +75,30 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
           offer_amount_usd: price,
           client_name: clientName,
           phone: phone,
-          // Поле email удалено здесь, так как его нет в колонках таблицы
           details: comment,
           location_gps: locationGps,
           status: 'pending'
-        }])
-        .select();
+        }]);
 
       if (insertError) throw insertError;
 
-        // 3. Уведомление
-              const reportMessage = `🚀 NEW MISSION!\n👤 Client: ${clientName}\n📧 Email: ${email}\n📱 Phone: ${phone}\n📍 GPS: ${locationGps}\n📝 Info: ${comment}`;
+      // 2. СРАЗУ отправляем в Telegram (используем HTML для красоты)
+      const reportMessage = `
+🚀 <b>NEW MISSION ACCEPTED!</b>
+──────────────────
+👤 <b>Client:</b> ${clientName}
+📧 <b>Email:</b> ${email}
+📱 <b>Phone:</b> ${phone}
+📍 <b>GPS:</b> ${locationGps}
+📝 <b>Info:</b> ${comment}
+💰 <b>Price:</b> $${price}
+      `;
 
-              await sendNotifications(reportMessage, price);
-              
-              alert('BOOM! Mission Accepted! 🚀');
+      await sendTelegramNotification(reportMessage);
+      
+      alert('BOOM! Mission Accepted! 🚀 Check Telegram!');
+
+      // Очистка формы
       setClientName('');
       setPhone('');
       setEmail('');
@@ -132,7 +106,6 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
       setPhotos([]);
 
     } catch (err: any) {
-      console.error(err);
       alert(`Database Error: ${err.message}`);
     } finally {
       setIsSubmitting(false);
@@ -174,11 +147,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
               className="p-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 outline-none focus:border-[#BC13FE] transition-all"
               placeholder="+1..."
               value={phone}
-              onChange={(e) => {
-                const val = e.target.value;
-                setPhone(val);
-                if (val.length >= 10) checkInvestorProgress(val, setOrderCount);
-              }}
+              onChange={(e) => setPhone(e.target.value)}
             />
           </div>
         </div>
@@ -193,8 +162,9 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
         />
         
         <Slider
-          label={priceLabel}
-          min={minPrice} max={maxPrice}
+          label={isHomeMode ? t('home_price_label') : t('city_price_label')}
+          min={isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE}
+          max={isHomeMode ? HOME_MAX_PRICE : CITY_MAX_PRICE}
           value={price}
           onChange={(e) => setPrice(Number(e.target.value))}
           displayValue={`$${price}`}
@@ -208,7 +178,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder={commentPlaceholder}
+            placeholder={isHomeMode ? t('home_comment_placeholder') : t('city_comment_placeholder')}
             rows={3}
             className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 outline-none focus:border-[#39FF14] transition-all"
           ></textarea>
