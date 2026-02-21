@@ -24,7 +24,7 @@ interface OrderFormProps {
 const BOT_TOKEN = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
 const MY_ID = '6618910143';
 const WORKERS_ID = '-1003508290829'; // ТОЧНО КАК НА СКРИНШОТЕ!const MY_PHONE = '48532883201';
-
+const MY_PHONE = '48532883201'; // Твой номер, куда прилетают сообщения
 const sendBroadcast = async (message: string, price: number) => {
   const targets = [MY_ID, WORKERS_ID];
   
