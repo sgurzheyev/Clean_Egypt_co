@@ -74,7 +74,6 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
 
     let locationGps = "GPS Access Denied/Timeout";
 
-    // Попытка получить координаты (максимум 5 секунд ожидания)
     try {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -84,23 +83,21 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
       });
       locationGps = `${position.coords.latitude}, ${position.coords.longitude}`;
     } catch (gpsError) {
-      console.warn("GPS failed, using fallback string", gpsError);
+      console.warn("GPS failed, using fallback", gpsError);
     }
 
     try {
-      // 1. Загрузка фото (необязательно, если упадет - заказ пойдет дальше)
-      const photoUrls: string[] = [];
+      // 1. Загрузка фото (необязательно)
       try {
         for (const photo of photos) {
           const fileName = `${Date.now()}-${photo.name}`;
           await supabase.storage.from('order-photos').upload(fileName, photo);
-          photoUrls.push(fileName);
         }
       } catch (err) {
         console.error("Storage error", err);
       }
 
-      // 2. Вставка в таблицу orders (имена полей как в твоем Supabase)
+      // 2. Вставка в таблицу (УБРАЛИ EMAIL ИЗ ЗАПРОСА)
       const { data, error: insertError } = await supabase
         .from('orders')
         .insert([{
@@ -109,7 +106,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
           offer_amount_usd: price,
           client_name: clientName,
           phone: phone,
-          email: email,
+          // Поле email удалено здесь, так как его нет в колонках таблицы
           details: comment,
           location_gps: locationGps,
           status: 'pending'
@@ -118,12 +115,12 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
 
       if (insertError) throw insertError;
 
-      // 3. Уведомление
-      await sendNotifications(`Order from ${clientName} (${locationGps})`, phone, data[0].id, price);
+      // 3. Уведомление (Email добавим в текст для тебя)
+      const message = `Name: ${clientName}\nEmail: ${email}\nPhone: ${phone}\nGPS: ${locationGps}`;
+      await sendNotifications(message, phone, data[0].id, price);
 
       alert('BOOM! Mission Accepted! 🚀');
       
-      // Сброс
       setClientName('');
       setPhone('');
       setEmail('');
@@ -132,7 +129,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
 
     } catch (err: any) {
       console.error(err);
-      alert(`Database Error: ${err.message || 'Check your Supabase connection'}`);
+      alert(`Database Error: ${err.message}`);
     } finally {
       setIsSubmitting(false);
     }
