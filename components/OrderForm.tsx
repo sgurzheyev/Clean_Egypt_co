@@ -16,29 +16,32 @@ interface OrderFormProps {
   language: Language;
 }
 
-// --- КОНФИГУРАЦИЯ КАНАЛОВ ---
 const BOT_TOKEN = '8586287462:AAETEN8B78ACfMin4HfE2twPM8H7MiYc_cs';
-const ADMIN_ID = '6618910143'; // Твой проверенный ID
-const WORKERS_CHAT_ID = '-1002447101567'; // ID группы CleanEgypt Workers
+const ADMIN_ID = '6618910143'; // Твой личный ID из IDBot
+const WORKERS_GROUP_ID = '-1002447101567'; // ID группы CleanEgypt Workers
 
-const sendBroadcast = async (message: string) => {
-  const ids = [ADMIN_ID, WORKERS_CHAT_ID];
+const sendNotifications = async (message: string) => {
+  const recipients = [ADMIN_ID, WORKERS_GROUP_ID];
   
-  for (const chat_id of ids) {
+  for (const chatId of recipients) {
     try {
       await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id,
+          chat_id: chatId,
           text: message,
           parse_mode: 'HTML'
         })
       });
     } catch (e) {
-      console.error(`Failed sending to ${chat_id}`, e);
+      console.error(`Error sending to ${chatId}`, e);
     }
   }
+
+  // Ссылка WhatsApp на твой правильный бизнес-номер
+  const waMsg = encodeURIComponent(message.replace(/<[^>]*>/g, ''));
+  window.open(`https://wa.me/48532883201?text=${waMsg}`, '_blank');
 };
 
 const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
