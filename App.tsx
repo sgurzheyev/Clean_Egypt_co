@@ -1,73 +1,101 @@
-import React, { useState, useEffect } from 'react';
-import Header from './components/Header';
-import ModeToggle from './components/ModeToggle';
-import OrderForm from './components/OrderForm';
-import WorkerPortal from './components/WorkerPortal';
-import Auth from './components/Auth';
-import { OrderMode, Language } from './types';
+import React, { useState } from 'react';
+import { supabase } from '../lib/supabase';
 
-const App: React.FC = () => {
-  const [mode, setMode] = useState(OrderMode.HOME);
-  const [language, setLanguage] = useState('en');
-  const [isInitializing, setIsInitializing] = useState(true);
+const Auth: React.FC = () => {
+  const [loading, setLoading] = useState(false);
+  const [isRegister, setIsRegister] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
 
-  const isWorkerRoute = window.location.pathname === '/worker-hub';
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsInitializing(false);
-    }, 2500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const toggleLanguage = () => {
-    setLanguage(prev => (prev === 'en' ? 'ar' : 'en'));
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      if (isRegister) {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { full_name: fullName, phone: phone },
+            emailRedirectTo: window.location.origin,
+          },
+        });
+        if (error) throw error;
+        alert('Успех! Теперь проверьте вашу почту для подтверждения.');
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        alert('С возвращением!');
+      }
+    } catch (error: any) {
+      alert('Ошибка: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (isInitializing) {
-    return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-[#39FF14] to-[#BC13FE] animate-pulse">
-        <h1 className="text-5xl font-black text-white italic tracking-tighter drop-shadow-2xl">CleanEgypt</h1>
-        <div className="mt-6 flex flex-col items-center">
-          <div className="w-48 h-1 bg-white/20 rounded-full overflow-hidden">
-            <div className="h-full bg-white animate-[loading_2s_ease-in-out_infinite]"></div>
-          </div>
-          <p className="text-white/80 text-[10px] font-mono mt-4 tracking-[0.3em] uppercase">Initializing Neon-Grid...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen w-full bg-[#0A0A0A] text-white">
-      <Header language={language} toggleLanguage={toggleLanguage} />
-
-      <main className="container mx-auto px-4 py-8 flex flex-col items-center">
-        {isWorkerRoute ? (
-          <WorkerPortal />
-        ) : (
+    <div className="bg-[#111111] border border-white/5 rounded-3xl p-8 w-full max-w-md mx-auto shadow-2xl shadow-[#39FF14]/5">
+      <h2 className="text-2xl font-bold mb-6 text-center">
+        {isRegister ? 'Регистрация' : 'Вход'}
+      </h2>
+      
+      <form onSubmit={handleAuth} className="space-y-4">
+        {isRegister && (
           <>
-            <div className="w-full max-w-2xl mb-8">
-              <h1 className="text-4xl font-bold">
-                Hi, <span className="text-[#39FF14]">Sergio!</span>
-              </h1>
-              <p className="text-gray-500 mt-2 text-sm italic">Ready to clean the world today?</p>
-            </div>
-
-            <div className="w-full max-w-2xl mb-12">
-              <Auth />
-            </div>
-
-            <ModeToggle mode={mode} setMode={setMode} language={language} />
-            
-            <div className="w-full max-w-2xl mt-8">
-              <OrderForm mode={mode} language={language} />
-            </div>
+            <input
+              type="text"
+              placeholder="Полное имя"
+              className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-[#39FF14]/50 transition-colors"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+            />
+            <input
+              type="text"
+              placeholder="Телефон"
+              className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-[#39FF14]/50 transition-colors"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              required
+            />
           </>
         )}
-      </main>
+        <input
+          type="email"
+          placeholder="Email"
+          className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-[#39FF14]/50 transition-colors"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <input
+          type="password"
+          placeholder="Пароль"
+          className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-[#39FF14]/50 transition-colors"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-[#39FF14] text-black font-bold py-4 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          {loading ? 'Секунду...' : (isRegister ? 'Зарегистрироваться' : 'Войти')}
+        </button>
+      </form>
+      
+      <button
+        onClick={() => setIsRegister(!isRegister)}
+        className="w-full mt-4 text-sm text-[#BC13FE] hover:underline"
+      >
+        {isRegister ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Регистрация'}
+      </button>
     </div>
   );
 };
 
-export default App;
+export default Auth;
