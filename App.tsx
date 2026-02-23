@@ -39,7 +39,7 @@ return (
 }
 
 return (
-<div className={min-h-screen w-full bg-[#0A0A0A] text-white ${language === 'ar' ? 'rtl' : 'ltr'}}>
+<div className="min-h-screen w-full bg-[#0A0A0A] text-white">
 <Header language={language} toggleLanguage={toggleLanguage} />
 
 );
