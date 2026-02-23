@@ -3,7 +3,7 @@ import PhotoUploader from './PhotoUploader';
 import Slider from './Slider';
 import { OrderMode, Language } from '../types';
 import { useLocalization } from '../hooks/useLocalization';
-import { supabase } from '../supabaseClient'; // ИСПРАВЛЕНО: правильный путь
+import { supabase } from '../lib/supabaseClient';
 import SpinnerIcon from './icons/SpinnerIcon';
 import {
   HOME_MIN_PRICE,
