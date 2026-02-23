@@ -3,7 +3,8 @@ import Header from './components/Header';
 import Auth from './components/Auth';
 import OrderForm from './components/OrderForm';
 import ModeToggle from './components/ModeToggle';
-import { supabase } from './lib/supabaseClient';import { OrderMode } from './types';
+import { supabase } from './lib/supabaseClient';
+import { OrderMode } from './types';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -11,50 +12,43 @@ const App: React.FC = () => {
   const [mode, setMode] = useState<OrderMode>(OrderMode.HOME);
 
   useEffect(() => {
-    // 1. Проверяем сессию при старте
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
     });
-
-    // 2. Следим за входом/выходом в реальном времени
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
-  const toggleLanguage = () => setLanguage((prev: string) => (prev === 'en' ? 'ar' : 'en'));
-
   return (
-    <div className="min-h-screen bg-black text-white font-['Nunito']">
-      <Header language={language} toggleLanguage={toggleLanguage} />
+    // ВОТ ОН: Глубокий синий фон (Deep Blue) с градиентом в черный
+    <div className="min-h-screen w-full bg-gradient-to-b from-[#020024] via-[#090979] to-[#000000] text-white flex flex-col items-center overflow-x-hidden">
       
-      <main className="flex flex-col items-center pt-10 px-4 pb-20">
+      <Header language={language} setLanguage={setLanguage} />
+      
+      <main className="flex-grow w-full max-w-md px-4 py-8 flex flex-col items-center justify-center gap-8 z-10">
         {!session ? (
-          // Если НЕ залогинен — показываем Auth
-          <div className="mt-10 w-full max-w-md flex flex-col items-center">
-            <h1 className="text-5xl font-black italic text-[#39FF14] mb-2 tracking-tighter">CLEANEGYPT</h1>
-            <p className="text-zinc-500 mb-10 font-bold uppercase tracking-widest text-[10px]">
-              Ready to clean the world, Sergio?
-            </p>
-            <Auth />
-          </div>
+          <Auth />
         ) : (
-          // Если залогинен — показываем форму заказа
-          <div className="w-full max-w-2xl flex flex-col items-center gap-10">
-            <ModeToggle mode={mode} setMode={setMode} language={language} />
+          <>
+            <div className="w-full flex justify-center mb-4">
+              <ModeToggle mode={mode} setMode={setMode} language={language} />
+            </div>
             <OrderForm mode={mode} language={language} />
             
             <button
               onClick={() => supabase.auth.signOut()}
-              className="mt-4 text-zinc-600 hover:text-red-500 text-[10px] font-black uppercase tracking-[0.2em] transition-all"
+              className="mt-8 text-sm text-gray-400 hover:text-[#39FF14] transition-colors uppercase tracking-widest"
             >
-              Sign Out / Выход
+              [ Sign Out ]
             </button>
-          </div>
+          </>
         )}
       </main>
+      
+      {/* Декоративное неоновое свечение внизу */}
+      <div className="fixed bottom-0 left-0 w-full h-32 bg-gradient-to-t from-[#39FF14]/10 to-transparent pointer-events-none" />
     </div>
   );
 };
