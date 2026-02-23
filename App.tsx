@@ -42,6 +42,32 @@ return (
 <div className="min-h-screen w-full bg-[#0A0A0A] text-white">
 <Header language={language} toggleLanguage={toggleLanguage} />
 
+  <main className="container mx-auto px-4 py-8 flex flex-col items-center">
+    {isWorkerRoute ? (
+      <WorkerPortal />
+    ) : (
+      <>
+        <div className="w-full max-w-2xl mb-8">
+          <h1 className="text-4xl font-bold">
+            Hi, <span className="text-[#39FF14]">Sergio!</span>
+          </h1>
+          <p className="text-gray-500 mt-2 text-sm italic">Ready to clean the world today?</p>
+        </div>
+
+        {/* Блок авторизации */}
+        <div className="w-full max-w-2xl mb-12">
+          <Auth />
+        </div>
+
+        <ModeToggle mode={mode} setMode={setMode} language={language} />
+        
+        <div className="w-full max-w-2xl mt-8">
+          <OrderForm mode={mode} language={language} />
+        </div>
+      </>
+    )}
+  </main>
+</div>
 );
 };
 
