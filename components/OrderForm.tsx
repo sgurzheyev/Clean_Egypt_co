@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import PhotoUploader from './PhotoUploader';
 import Slider from './Slider';
+import MapPicker from './MapPicker'; // <-- ПОДКЛЮЧИЛИ НАШ РАДАР
 import { OrderMode, Language } from '../types';
 import { useLocalization } from '../hooks/useLocalization';
 import { supabase } from '../lib/supabaseClient';
@@ -58,39 +59,41 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [comment, setComment] = useState('');
+  
+  // Состояние для хранения координат с карты
+  const [mapLocation, setMapLocation] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    let locationGps = "Denied";
-    try {
-      const pos = await new Promise<GeolocationPosition>((res, rej) => {
-        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 });
-      });
-      locationGps = `${pos.coords.latitude}, ${pos.coords.longitude}`;
-    } catch (err) { console.warn("GPS off"); }
+    if (photos.length === 0) {
+      alert("⚠️ Please upload at least one photo of the mission area!");
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Берем локацию с карты, если клиент не кликнул - пытаемся взять GPS телефона
+    let finalLocation = mapLocation || "Denied";
+    if (!mapLocation) {
+      try {
+        const pos = await new Promise<GeolocationPosition>((res, rej) => {
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 });
+        });
+        finalLocation = `${pos.coords.latitude}, ${pos.coords.longitude}`;
+      } catch (err) { console.warn("GPS off"); }
+    }
 
     try {
-        if (photos.length === 0) {
-                throw new Error("⚠️ Please upload at least one photo of the mission area!");
-              }
+      const photoUrls: string[] = [];
+      for (const file of photos) {
+        const safeName = file.name.replace(/[^a-zA-Z0-9.\-]/g, '_');
+        const path = `${Date.now()}_${safeName}`;
+        const { error } = await supabase.storage.from('order-photos').upload(path, file);
+        if (error) throw new Error(`STORAGE ERROR: ${error.message}`);
+        photoUrls.push(path);
+      }
 
-              const photoUrls: string[] = [];
-              for (const file of photos) {
-                // Очищаем имя от пробелов и спецсимволов (частая причина поломки Storage)
-                const safeName = file.name.replace(/[^a-zA-Z0-9.\-]/g, '_');
-                const path = `${Date.now()}_${safeName}`;
-                
-                const { error } = await supabase.storage.from('order-photos').upload(path, file);
-                
-                if (error) {
-                  // Если Supabase блокирует загрузку, мы выведем точную причину на экран!
-                  throw new Error(`STORAGE ERROR: ${error.message}`);
-                }
-                
-                photoUrls.push(path);
-              }
       const { error: dbError } = await supabase.from('orders').insert([{
         order_type: mode,
         area_size: size,
@@ -98,93 +101,52 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
         client_name: clientName,
         phone: phone,
         details: comment,
-        location_gps: locationGps,
+        location_gps: finalLocation,
         photo_urls: photoUrls,
         status: 'pending'
       }]);
 
       if (dbError) throw dbError;
 
-      await sendBroadcast(`🚀 <b>NEW MISSION!</b>\n👤 Client: ${clientName}\n📏 Size: ${size}m2\n📱 Phone: ${phone}\n📍 GPS: ${locationGps}`, price, photos);
+      // Формируем крутое сообщение для Telegram с ссылкой на Google Maps
+      const tgMessage = `🚀 <b>NEW MISSION!</b>\n👤 Client: ${clientName}\n📏 Size: ${size}m2\n📱 Phone: ${phone}\n📍 GPS: <code>${finalLocation}</code>\n🗺 <a href="https://www.google.com/maps?q=${finalLocation}">Open in Google Maps</a>\n💬 Details: ${comment}`;
+
+      await sendBroadcast(tgMessage, price, photos);
       window.open(`https://wa.me/${MY_PHONE}?text=New Mission! $${price}`, '_blank');
       alert('BOOM! Mission Saved! 🚀');
     } catch (err: any) { alert(err.message); } finally { setIsSubmitting(false); }
   };
 
   return (
-    // Градиентная рамка (Green to Purple) и полупрозрачный черный фон внутри
     <div className="w-full max-w-lg p-[2px] bg-gradient-to-br from-[#39FF14] via-blue-500 to-[#BC13FE] rounded-[2.5rem] shadow-[0_0_40px_rgba(57,255,20,0.3)] animate-pulse-slow">
       <form onSubmit={handleSubmit} className="p-6 space-y-5 bg-[#0a0a0a]/90 backdrop-blur-xl rounded-[2.4rem] text-white relative overflow-hidden">
         
-        {/* Неоновый блик сверху */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-1 bg-[#39FF14] blur-md rounded-full opacity-50"></div>
 
         <h2 className="text-3xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-[#39FF14] to-white uppercase tracking-tighter text-center mb-6">
           Mission Control
         </h2>
         
-        <input
-          type="email"
-          placeholder="Email"
-          required
-          className="w-full p-4 bg-black/50 border border-white/10 rounded-2xl outline-none focus:border-[#39FF14] transition-colors placeholder:text-gray-500"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-        />
+        <input type="email" placeholder="Email" required className="w-full p-4 bg-black/50 border border-white/10 rounded-2xl outline-none focus:border-[#39FF14] transition-colors placeholder:text-gray-500" value={email} onChange={e => setEmail(e.target.value)} />
         
         <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Name"
-            required
-            className="w-1/2 p-4 bg-black/50 border border-white/10 rounded-2xl outline-none focus:border-[#39FF14] transition-colors placeholder:text-gray-500"
-            value={clientName}
-            onChange={e => setClientName(e.target.value)}
-          />
-          <input
-            type="tel"
-            placeholder="Phone"
-            required
-            className="w-1/2 p-4 bg-black/50 border border-white/10 rounded-2xl outline-none focus:border-[#BC13FE] transition-colors placeholder:text-gray-500"
-            value={phone}
-            onChange={e => setPhone(e.target.value)}
-          />
+          <input type="text" placeholder="Name" required className="w-1/2 p-4 bg-black/50 border border-white/10 rounded-2xl outline-none focus:border-[#39FF14] transition-colors placeholder:text-gray-500" value={clientName} onChange={e => setClientName(e.target.value)} />
+          <input type="tel" placeholder="Phone" required className="w-1/2 p-4 bg-black/50 border border-white/10 rounded-2xl outline-none focus:border-[#BC13FE] transition-colors placeholder:text-gray-500" value={phone} onChange={e => setPhone(e.target.value)} />
         </div>
 
         <div className="bg-black/40 p-4 rounded-3xl border border-white/5 space-y-4">
-          <Slider
-            label={t('size_slider_title')}
-            min={MIN_SIZE}
-            max={MAX_SIZE}
-            value={size}
-            onChange={e => setSize(Number(e.target.value))}
-            unit="sq.m."
-          />
-          <Slider
-            label="Your Price"
-            min={isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE}
-            max={isHomeMode ? HOME_MAX_PRICE : CITY_MAX_PRICE}
-            value={price}
-            onChange={e => setPrice(Number(e.target.value))}
-            displayValue={`$${price}`}
-          />
+          <Slider label={t('size_slider_title')} min={MIN_SIZE} max={MAX_SIZE} value={size} onChange={e => setSize(Number(e.target.value))} unit="sq.m." />
+          <Slider label="Your Price" min={isHomeMode ? HOME_MIN_PRICE : CITY_MIN_PRICE} max={isHomeMode ? HOME_MAX_PRICE : CITY_MAX_PRICE} value={price} onChange={e => setPrice(Number(e.target.value))} displayValue={`$${price}`} />
         </div>
+        
+        {/* ВСТАВЛЯЕМ НАШУ КАРТУ ПРЯМО СЮДА */}
+        <MapPicker onLocationSelect={setMapLocation} />
         
         <PhotoUploader files={photos} setFiles={setPhotos} language={language} />
         
-        <textarea
-          placeholder="Mission details..."
-          className="w-full p-4 bg-black/50 border border-white/10 rounded-2xl outline-none focus:border-[#39FF14] transition-colors placeholder:text-gray-500"
-          rows={2}
-          value={comment}
-          onChange={e => setComment(e.target.value)}
-        />
+        <textarea placeholder="Mission details..." className="w-full p-4 bg-black/50 border border-white/10 rounded-2xl outline-none focus:border-[#39FF14] transition-colors placeholder:text-gray-500" rows={2} value={comment} onChange={e => setComment(e.target.value)} />
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full py-5 mt-2 rounded-2xl bg-gradient-to-r from-[#39FF14] to-[#BC13FE] text-black font-black uppercase italic active:scale-95 transition-transform hover:shadow-[0_0_20px_rgba(188,19,254,0.5)]"
-        >
+        <button type="submit" disabled={isSubmitting} className="w-full py-5 mt-2 rounded-2xl bg-gradient-to-r from-[#39FF14] to-[#BC13FE] text-black font-black uppercase italic active:scale-95 transition-transform hover:shadow-[0_0_20px_rgba(188,19,254,0.5)]">
           {isSubmitting ? <SpinnerIcon /> : "Deploy Mission 🚀"}
         </button>
       </form>
