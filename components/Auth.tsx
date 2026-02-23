@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../supabaseClient'; // ПУТЬ: файл должен быть в src/
-
+import { supabase } from '../lib/supabaseClient';
 const Auth: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [isRegister, setIsRegister] = useState(true);
