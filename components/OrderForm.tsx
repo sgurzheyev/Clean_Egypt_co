@@ -72,13 +72,25 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
     } catch (err) { console.warn("GPS off"); }
 
     try {
-      const photoUrls: string[] = [];
-      for (const file of photos) {
-          const path = `${Date.now()}_${file.name}`;
-          const { error } = await supabase.storage.from('order-photos').upload(path, file);
-        if (!error) photoUrls.push(path);
-      }
+        if (photos.length === 0) {
+                throw new Error("⚠️ Please upload at least one photo of the mission area!");
+              }
 
+              const photoUrls: string[] = [];
+              for (const file of photos) {
+                // Очищаем имя от пробелов и спецсимволов (частая причина поломки Storage)
+                const safeName = file.name.replace(/[^a-zA-Z0-9.\-]/g, '_');
+                const path = `${Date.now()}_${safeName}`;
+                
+                const { error } = await supabase.storage.from('order-photos').upload(path, file);
+                
+                if (error) {
+                  // Если Supabase блокирует загрузку, мы выведем точную причину на экран!
+                  throw new Error(`STORAGE ERROR: ${error.message}`);
+                }
+                
+                photoUrls.push(path);
+              }
       const { error: dbError } = await supabase.from('orders').insert([{
         order_type: mode,
         area_size: size,
