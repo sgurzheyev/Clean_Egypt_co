@@ -74,8 +74,8 @@ const OrderForm: React.FC<OrderFormProps> = ({ mode, language }) => {
     try {
       const photoUrls: string[] = [];
       for (const file of photos) {
-        const path = `orders/${Date.now()}_${file.name}`;
-        const { error } = await supabase.storage.from('order-photos').upload(path, file);
+          const path = `${Date.now()}_${file.name}`;
+          const { error } = await supabase.storage.from('order-photos').upload(path, file);
         if (!error) photoUrls.push(path);
       }
 
