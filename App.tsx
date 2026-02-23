@@ -3,8 +3,7 @@ import Header from './components/Header';
 import Auth from './components/Auth';
 import OrderForm from './components/OrderForm';
 import ModeToggle from './components/ModeToggle';
-import { supabase } from './supabaseClient'; // Должен лежать в src/
-import { OrderMode } from './types';
+import { supabase } from './lib/supabaseClient';import { OrderMode } from './types';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
