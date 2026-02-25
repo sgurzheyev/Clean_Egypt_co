@@ -1,56 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import Header from './components/Header';
-import Auth from './components/Auth';
-import OrderForm from './components/OrderForm';
-import ModeToggle from './components/ModeToggle';
-import { supabase } from './lib/supabaseClient';
-import { OrderMode } from './types';
+import React from 'react';
 
-const App: React.FC = () => {
-  const [session, setSession] = useState<any>(null);
-  const [language, setLanguage] = useState<any>('en');
-  const [mode, setMode] = useState<OrderMode>(OrderMode.HOME);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+function App() {
+  const handleTestPayment = () => {
+    alert("Testing payment for CleanEgypt.co");
+  };
 
   return (
-    // ВОТ ОН: Глубокий синий фон (Deep Blue) с градиентом в черный
-    <div className="min-h-screen w-full bg-gradient-to-b from-[#020024] via-[#090979] to-[#000000] text-white flex flex-col items-center overflow-x-hidden">
+    <div className="min-h-screen w-full bg-[#020024] flex flex-col items-center justify-center overflow-x-hidden relative">
       
-      <Header language={language} setLanguage={setLanguage} />
+      {/* Тот самый градиент: Neon Green -> Yellow -> Purple */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#39FF14] via-[#FFF000] to-[#8B00FF] opacity-30 pointer-events-none"></div>
       
-      <main className="flex-grow w-full max-w-md px-4 py-8 flex flex-col items-center justify-center gap-8 z-10">
-        {!session ? (
-          <Auth />
-        ) : (
-          <>
-            <div className="w-full flex justify-center mb-4">
-              <ModeToggle mode={mode} setMode={setMode} language={language} />
-            </div>
-            <OrderForm mode={mode} language={language} />
-            
-            <button
-              onClick={() => supabase.auth.signOut()}
-              className="mt-8 text-sm text-gray-400 hover:text-[#39FF14] transition-colors uppercase tracking-widest"
-            >
-              [ Sign Out ]
-            </button>
-          </>
-        )}
-      </main>
-      
-      {/* Декоративное неоновое свечение внизу */}
-      <div className="fixed bottom-0 left-0 w-full h-32 bg-gradient-to-t from-[#39FF14]/10 to-transparent pointer-events-none" />
+      {/* Дополнительный эффект свечения в центре */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none"></div>
+
+      <div className="relative z-10 flex flex-col items-center">
+        <h1 className="text-7xl font-black mb-2 tracking-tighter text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">
+          Clean Egypt
+        </h1>
+        
+        <p className="text-xl font-bold mb-12 tracking-[0.3em] uppercase text-[#39FF14]">
+          Red Sea Mission
+        </p>
+        
+        <button
+          onClick={handleTestPayment}
+          className="group relative px-12 py-5 bg-black text-white rounded-2xl font-black text-xl transition-all duration-300 hover:scale-105 active:scale-95 shadow-2xl"
+        >
+          {/* Рамка кнопки с твоим градиентом */}
+          <div className="absolute -inset-1 bg-gradient-to-r from-[#39FF14] via-[#FFF000] to-[#8B00FF] rounded-2xl blur opacity-70 group-hover:opacity-100 transition duration-300"></div>
+          
+          <span className="relative z-10">CREATE ACCOUNT 🚀</span>
+        </button>
+      </div>
     </div>
   );
-};
+}
 
 export default App;
