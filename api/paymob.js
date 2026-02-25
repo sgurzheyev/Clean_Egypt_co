@@ -1,12 +1,9 @@
 export default async function handler(req, res) {
-  // Разрешаем запросы только POST (как делает твоя кнопка)
-  if (req.method !== 'POST') {
-    return res.status(200).json({ message: "Paymob endpoint is active. Use POST to get token." });
-  }
-
+  // Твой API ключ
   const API_KEY = "ZXlKaGJHY2lPaUpJVXpVeE1pSXNJblI1Y0NJNklrcFhWQ0o5LmV5SmpiR0Z6Y3lJNklrMWxjbU5vWVc1MElpd2ljSEp2Wm1sc1pWOXdheUk2TVRFek1UUTROU3dpYm1GdFpTSTZJakUzTnpFek16QTNOVEV1T1RVeU1qQTBJbjAuT2U0dzBVdUhQNHY4OXpnVUpzdHM3dElkUFd4Yjc5VzZheWF6Yy1wX19HOWZVblBLTlc4XzE4QTVLeHpzTkN3d0VHMW9wS01MbEFMS0lqbUl4UzdJUHc=";
-  
+
   try {
+    // 1. Авторизация
     const authRes = await fetch('https://egypt.paymob.com/api/auth/tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -14,8 +11,7 @@ export default async function handler(req, res) {
     });
     const authData = await authRes.json();
 
-    if (!authData.token) throw new Error("Paymob Auth Failed");
-
+    // 2. Создание заказа (100 EGP)
     const orderRes = await fetch('https://egypt.paymob.com/api/ecommerce/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -29,6 +25,7 @@ export default async function handler(req, res) {
     });
     const orderData = await orderRes.json();
 
+    // 3. Генерация ключа оплаты (Integration ID: 5516060)
     const keyRes = await fetch('https://egypt.paymob.com/api/acceptance/payment_keys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -49,8 +46,10 @@ export default async function handler(req, res) {
     });
     const keyData = await keyRes.json();
 
-    return res.status(200).json({ token: keyData.token });
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
+    // Возвращаем токен клиенту
+    res.status(200).json({ token: keyData.token });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 }
