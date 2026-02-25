@@ -1,40 +1,40 @@
 export default async function handler(req, res) {
-  // Разрешаем CORS, чтобы фронтенд мог достучаться
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-
   const API_KEY = "ZXlKaGJHY2lPaUpJVXpVeE1pSXNJblI1Y0NJNklrcFhWQ0o5LmV5SmpiR0Z6Y3lJNklrMWxjbU5vWVc1MElpd2ljSEp2Wm1sc1pWOXdheUk2TVRFek1UUTROU3dpYm1GdFpTSTZJakUzTnpFek16QTNOVEV1T1RVeU1qQTBJbjAuT2U0dzBVdUhQNHY4OXpnVUpzdHM3dElkUFd4Yjc5VzZheWF6Yy1wX19HOWZVblBLTlc4XzE4QTVLeHpzTkN3d0VHMW9wS01MbEFMS0lqbUl4UzdJUHc=";
-
+  
   try {
-    // Шаг 1: Auth
-    const authResponse = await fetch('https://egypt.paymob.com/api/auth/tokens', {
+    console.log("--- Starting PayMob Auth ---");
+    const authRes = await fetch('https://egypt.paymob.com/api/auth/tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ api_key: API_KEY })
     });
-    const authData = await authResponse.json();
-    const token = authData.token;
+    const authData = await authRes.json();
+    
+    if (!authData.token) {
+      console.error("PayMob Auth Error:", authData);
+      return res.status(401).json({ error: "Auth failed", details: authData });
+    }
 
-    // Шаг 2: Order
-    const orderResponse = await fetch('https://egypt.paymob.com/api/ecommerce/orders', {
+    console.log("--- Creating Order ---");
+    const orderRes = await fetch('https://egypt.paymob.com/api/ecommerce/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        auth_token: token,
+        auth_token: authData.token,
         delivery_needed: "false",
         amount_cents: "10000",
         currency: "EGP",
         items: []
       })
     });
-    const orderData = await orderResponse.json();
+    const orderData = await orderRes.json();
 
-    // Шаг 3: Payment Key
-    const keyResponse = await fetch('https://egypt.paymob.com/api/acceptance/payment_keys', {
+    console.log("--- Getting Payment Key ---");
+    const keyRes = await fetch('https://egypt.paymob.com/api/acceptance/payment_keys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        auth_token: token,
+        auth_token: authData.token,
         amount_cents: "10000",
         expiration: 3600,
         order_id: orderData.id,
@@ -48,13 +48,16 @@ export default async function handler(req, res) {
         integration_id: "5516060"
       })
     });
-    const keyData = await keyResponse.json();
+    const keyData = await keyRes.json();
 
-    // Возвращаем результат
-    return res.json({ token: keyData.token });
+    if (!keyData.token) {
+      console.error("Payment Key Error:", keyData);
+      return res.status(400).json({ error: "Key generation failed", details: keyData });
+    }
 
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: error.message });
+    return res.status(200).json({ token: keyData.token });
+  } catch (e) {
+    console.error("Critical Server Error:", e.message);
+    return res.status(500).json({ error: e.message });
   }
 }
