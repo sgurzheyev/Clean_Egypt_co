@@ -8,12 +8,12 @@ const supabase = createClient(
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  try {
-    const { lat, lng } = req.body;
-    console.log("Пытаюсь записать координаты:", lat, lng);
+  const { lat, lng } = req.body;
 
-    // 1. ПЕРВЫМ ДЕЛОМ — ЗАПИСЬ В БАЗУ
-    const { data: dbEntry, error: dbError } = await supabase
+  try {
+    // 1. ЗАПИСЬ В БАЗУ ДАННЫХ
+    // Используем .select(), чтобы убедиться, что запись создана
+    const { data, error: dbError } = await supabase
       .from('pyramids')
       .insert([
         {
@@ -26,14 +26,10 @@ export default async function handler(req: any, res: any) {
       ])
       .select();
 
-    if (dbError) {
-      console.error("Ошибка записи в Supabase:", dbError.message);
-      throw new Error("Database error: " + dbError.message);
-    }
+    if (dbError) throw new Error("Supabase Error: " + dbError.message);
+    console.log("Запись успешно создана в базе:", data);
 
-    console.log("Запись создана успешно:", dbEntry);
-
-    // 2. ТОЛЬКО ПОТОМ — ЗАПРОС К PAYMOB
+    // 2. РАБОТА С PAYMOB
     const authRes = await fetch('https://accept.paymob.com/api/auth/tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -46,7 +42,7 @@ export default async function handler(req: any, res: any) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         auth_token: authData.token,
-        amount_cents: "100",
+        amount_cents: "10000", // 100 EGP как на твоем скриншоте
         currency: "EGP",
         items: []
       })
@@ -58,13 +54,16 @@ export default async function handler(req: any, res: any) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         auth_token: authData.token,
-        amount_cents: "100",
+        amount_cents: "10000",
         expiration: 3600,
         order_id: orderData.id,
         billing_data: {
-          first_name: "Eco", last_name: "Hero", email: "hero@cleanegypt.co",
-          phone_number: "01012345678", apartment: "NA", floor: "NA", street: "Sea",
-          building: "1", shipping_method: "NA", postal_code: "12345", city: "Hurghada",
+          first_name: "Sergio",
+          last_name: "Gurgini",
+          email: "sergio@cleanegypt.co",
+          phone_number: "201000000000",
+          apartment: "NA", floor: "NA", street: "Hurghada",
+          building: "NA", shipping_method: "NA", postal_code: "NA", city: "Hurghada",
           country: "EG", state: "Red Sea"
         },
         currency: "EGP",
@@ -73,9 +72,10 @@ export default async function handler(req: any, res: any) {
     });
     const keyData = await keyRes.json();
 
-    res.status(200).json({ paymentToken: keyData.token });
+    return res.status(200).json({ paymentToken: keyData.token });
 
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error("Backend Error:", error.message);
+    return res.status(500).json({ error: error.message });
   }
 }
