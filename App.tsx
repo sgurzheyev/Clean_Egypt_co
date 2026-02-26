@@ -12,7 +12,6 @@ function App() {
 
     try {
       // Вызываем наш бэкенд на Vercel
-      // Обязательно используем относительный путь /api/paymob
       const response = await fetch('/api/paymob', {
         method: 'POST',
         headers: {
@@ -20,7 +19,6 @@ function App() {
         }
       });
 
-      // Если сервер ответил ошибкой (например, 404 или 500)
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `Ошибка сервера: ${response.status}`);
@@ -30,8 +28,14 @@ function App() {
       
       if (data.token) {
         console.log("✅ Токен получен! Перенаправляем на оплату...");
-        // Переход на защищенную страницу оплаты PayMob с полученным токеном
-        window.location.href = `https://egypt.paymob.com/api/acceptance/iframes/${IFRAME_ID}?payment_token=${data.token}`;
+        
+        // --- ИСПРАВЛЕНИЕ ТУТ ---
+        // Заменяем egypt.paymob.com на accept.paymob.com
+        // Также используем data.iframe_id, если он приходит с бэкенда, либо твою константу
+        const targetIframe = data.iframe_id || IFRAME_ID;
+        window.location.href = `https://accept.paymob.com/api/acceptance/iframes/${targetIframe}?payment_token=${data.token}`;
+        // -----------------------
+
       } else {
         throw new Error("Токен оплаты не был сгенерирован.");
       }

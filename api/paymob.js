@@ -1,42 +1,31 @@
-// api/paymob.js
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
 
-  // Используем переменные из Vercel Environment Variables
-  const API_KEY = process.env.PAYMOB_API_KEY;
-  const INTEGRATION_ID = process.env.PAYMOB_INTEGRATION_ID;
-
   try {
-    console.log("--- Starting PayMob Auth ---");
-    // ИСПРАВЛЕНО: Используем accept.paymob.com вместо egypt.paymob.com
+    // Шаг 1: Аутентификация
     const authRes = await fetch('https://accept.paymob.com/api/auth/tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ api_key: API_KEY })
+      body: JSON.stringify({ api_key: process.env.PAYMOB_API_KEY })
     });
-    
     const authData = await authRes.json();
-    
-    if (!authRes.ok) {
-      console.error("PayMob Auth Error:", authData);
-      return res.status(401).json({ error: "Auth failed", details: authData });
-    }
+    if (!authData.token) return res.status(401).json({ error: "Auth failed", details: authData });
 
-    console.log("--- Creating Order ---");
+    // Шаг 2: Создание заказа
     const orderRes = await fetch('https://accept.paymob.com/api/ecommerce/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         auth_token: authData.token,
         delivery_needed: "false",
-        amount_cents: "10000", // 100 EGP
+        amount_cents: "10000", // Сумма 100 EGP (в пиастрах)
         currency: "EGP",
         items: []
       })
     });
     const orderData = await orderRes.json();
 
-    console.log("--- Getting Payment Key ---");
+    // Шаг 3: Генерация Payment Key
     const keyRes = await fetch('https://accept.paymob.com/api/acceptance/payment_keys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -52,24 +41,17 @@ export default async function handler(req, res) {
           postal_code: "NA", city: "Hurghada", country: "EG", last_name: "Gurgini"
         },
         currency: "EGP",
-        integration_id: INTEGRATION_ID
+        integration_id: process.env.PAYMOB_INTEGRATION_ID
       })
     });
     const keyData = await keyRes.json();
 
-    if (!keyRes.ok) {
-      console.error("Payment Key Error:", keyData);
-      return res.status(400).json({ error: "Key generation failed", details: keyData });
-    }
-
-    // Возвращаем токен и Iframe ID для фронтенда
+    // Возвращаем токен и ID фрейма фронтенду
     return res.status(200).json({
       token: keyData.token,
       iframe_id: process.env.PAYMOB_IFRAME_ID
     });
-
   } catch (e) {
-    console.error("Critical Server Error:", e.message);
     return res.status(500).json({ error: e.message });
   }
 }
