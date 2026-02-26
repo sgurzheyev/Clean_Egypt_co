@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import Map, { Marker, NavigationControl, GeolocateControl, Layer } from 'react-map-gl';
+import { Map, Marker, NavigationControl, GeolocateControl, Layer } from 'react-map-gl/dist/esm/index.js';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import OrderForm from './components/OrderForm';
 import { supabase } from './lib/supabaseClient';
