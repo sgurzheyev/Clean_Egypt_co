@@ -10,8 +10,9 @@ export default async function handler(req: any, res: any) {
 
   try {
     const { lat, lng } = req.body;
+    console.log("Запись координат в базу:", lat, lng);
 
-    // 1. ЗАПИСЬ В ТАБЛИЦУ (чтобы таблица не была пустой)
+    // 1. СНАЧАЛА ЗАПИСЫВАЕМ В БАЗУ (ЭТО ГЛАВНОЕ!)
     const { error: dbError } = await supabase
       .from('pyramids')
       .insert([
@@ -24,44 +25,45 @@ export default async function handler(req: any, res: any) {
         }
       ]);
 
-    if (dbError) throw new Error("Supabase Error: " + dbError.message);
+    if (dbError) {
+      console.error("Ошибка Supabase:", dbError.message);
+      throw new Error("Supabase Error: " + dbError.message);
+    }
 
-    // 2. AUTH PAYMOB
+    // 2. ПОЛУЧАЕМ AUTH TOKEN ОТ PAYMOB
     const authRes = await fetch('https://accept.paymob.com/api/auth/tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ api_key: process.env.VITE_PAYMOB_API_KEY })
     });
     const authData = await authRes.json();
-    const authToken = authData.token;
 
-    // 3. CREATE ORDER
+    // 3. СОЗДАЕМ ЗАКАЗ
     const orderRes = await fetch('https://accept.paymob.com/api/ecommerce/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        auth_token: authToken,
-        amount_cents: "100", // 1 EGP для теста
+        auth_token: authData.token,
+        amount_cents: "100",
         currency: "EGP",
         items: []
       })
     });
     const orderData = await orderRes.json();
-    const orderId = orderData.id;
 
-    // 4. GET PAYMENT KEY (Исправляем ошибку переменной)
+    // 4. ПОЛУЧАЕМ КЛЮЧ ОПЛАТЫ
     const keyRes = await fetch('https://accept.paymob.com/api/acceptance/payment_keys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        auth_token: authToken,
+        auth_token: authData.token,
         amount_cents: "100",
         expiration: 3600,
-        order_id: orderId,
+        order_id: orderData.id,
         billing_data: {
           first_name: "Eco", last_name: "Hero", email: "hero@cleanegypt.co",
-          phone_number: "01012345678", apartment: "8", floor: "1", street: "Sea St",
-          building: "1", shipping_method: "PKG", postal_code: "12345", city: "Hurghada",
+          phone_number: "01012345678", apartment: "NA", floor: "NA", street: "NA",
+          building: "NA", shipping_method: "NA", postal_code: "NA", city: "Hurghada",
           country: "EG", state: "Red Sea"
         },
         currency: "EGP",
@@ -69,13 +71,12 @@ export default async function handler(req: any, res: any) {
       })
     });
     const keyData = await keyRes.json();
-    const paymentToken = keyData.token; // ТУТ МЫ СОЗДАЕМ ТУ САМУЮ ПЕРЕМЕННУЮ
 
-    // ОТПРАВЛЯЕМ ОТВЕТ
-    res.status(200).json({ paymentToken: paymentToken });
+    // ВОЗВРАЩАЕМ ТОКЕН (Ошибка "Cannot find name paymentToken" исправлена)
+    res.status(200).json({ paymentToken: keyData.token });
 
   } catch (error: any) {
-    console.error("API Error:", error.message);
+    console.error("Критическая ошибка API:", error.message);
     res.status(500).json({ error: error.message });
   }
 }
