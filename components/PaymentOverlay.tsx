@@ -1,0 +1,68 @@
+import React, { useEffect, useState } from 'react';
+
+interface PaymentOverlayProps {
+  onClose: () => void;
+  lat: number;
+  lng: number;
+}
+
+const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, lat, lng }) => {
+  const [token, setToken] = useState<string | null>(null);
+  const [isIframeLoaded, setIsIframeLoaded] = useState(false);
+
+  useEffect(() => {
+    // Запрашиваем токен у API, передавая координаты
+    fetch('/api/paymob-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat, lng })
+    })
+      .then(res => res.json())
+      .then(data => setToken(data.paymentToken))
+      .catch(err => console.error("Paymob Error:", err));
+  }, [lat, lng]);
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+      <div className="relative w-full max-w-lg p-1 bg-gradient-to-b from-cyan-500/20 to-transparent rounded-[2rem]">
+        <div className="relative w-full bg-zinc-950 p-6 rounded-[1.9rem] border border-white/5 shadow-2xl overflow-hidden">
+          
+          <div className="text-center mb-6">
+            <h2 className="text-white text-2xl font-black tracking-tighter uppercase italic">
+              Clean<span className="text-cyan-400">Egypt</span>
+            </h2>
+            <p className="text-zinc-500 text-[10px] mt-1 uppercase tracking-widest">Активация неоновой пирамиды</p>
+          </div>
+
+          <div className="bg-white rounded-2xl overflow-hidden shadow-inner min-h-[550px] relative">
+            {!isIframeLoaded && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 z-10">
+                <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4"></div>
+                <p className="text-cyan-500 text-[10px] font-bold animate-pulse">УСТАНОВКА ЗАЩИЩЕННОГО СОЕДИНЕНИЯ...</p>
+              </div>
+            )}
+
+            {token && (
+              <iframe
+                src={`https://accept.paymob.com/api/acceptance/iframes/1007120?payment_token=${token}`}
+                width="100%"
+                height="550px"
+                frameBorder="0"
+                onLoad={() => setIsIframeLoaded(true)}
+              />
+            )}
+          </div>
+
+          <button
+            onClick={onClose}
+            className="w-full mt-6 text-zinc-600 hover:text-white text-[11px] uppercase tracking-widest transition-colors"
+          >
+            [ ОТМЕНА ]
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PaymentOverlay;

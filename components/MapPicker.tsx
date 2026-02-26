@@ -1,61 +1,121 @@
-import React, { useState } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import React, { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, useMapEvents, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
+import { supabase } from '../lib/supabaseClient'; // Убедись, что путь верный
+import PaymentOverlay from './PaymentOverlay';
 
-// Создаем нашу кастомную неоновую метку
+// 1. Наша кастомная неоновая метка для ВЫБОРА места
 const neonIcon = L.divIcon({
   className: 'custom-neon-icon',
-  html: `<div style="background-color: #39FF14; width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 15px #39FF14, 0 0 30px #39FF14; border: 2px solid white;"></div>`,
-  iconSize: [20, 20],
-  iconAnchor: [10, 10],
+  html: `<div style="background-color: #39FF14; width: 22px; height: 22px; border-radius: 50%; box-shadow: 0 0 20px #39FF14, 0 0 40px #39FF14; border: 2px solid white; animate: pulse 2s infinite;"></div>`,
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
 });
 
-interface MapPickerProps {
-  onLocationSelect: (location: string) => void;
-}
+const MapPicker: React.FC = () => {
+  const [selectedPos, setSelectedPos] = useState<L.LatLng | null>(null);
+  const [pyramids, setPyramids] = useState<any[]>([]);
+  const [showPayment, setShowPayment] = useState(false);
+  const defaultCenter: [number, number] = [27.2579, 33.8116]; // Хургада
 
-const LocationMarker: React.FC<{ onLocationSelect: (loc: string) => void }> = ({ onLocationSelect }) => {
-  const [position, setPosition] = useState<L.LatLng | null>(null);
+  // 2. Загружаем уже существующие пирамиды из Supabase
+  useEffect(() => {
+    const fetchPyramids = async () => {
+      const { data, error } = await supabase
+        .from('pyramids')
+        .select('*');
+      if (data) setPyramids(data);
+      if (error) console.error("Error fetching pyramids:", error);
+    };
 
-  useMapEvents({
-    click(e) {
-      setPosition(e.latlng);
-      // Передаем координаты в формате "Широта, Долгота"
-      onLocationSelect(`${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`);
-    },
-  });
+    fetchPyramids();
+    
+    // Подписываемся на обновления в реальном времени (Realtime)
+    const subscription = supabase
+      .channel('public:pyramids')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pyramids' }, payload => {
+        setPyramids((prev) => [...prev, payload.new]);
+      })
+      .subscribe();
 
-  return position === null ? null : (
-    <Marker position={position} icon={neonIcon}></Marker>
-  );
-};
+    return () => { supabase.removeChannel(subscription); };
+  }, []);
 
-const MapPicker: React.FC<MapPickerProps> = ({ onLocationSelect }) => {
-  // Центр карты по умолчанию (Хургада)
-  const defaultCenter: [number, number] = [27.2579, 33.8116];
+  // 3. Компонент обработки клика
+  const MapEvents = () => {
+    useMapEvents({
+      click(e) {
+        setSelectedPos(e.latlng);
+      },
+    });
+    return null;
+  };
 
   return (
-    <div className="w-full h-64 rounded-2xl overflow-hidden border-2 border-white/10 relative z-0 mt-4 mb-4">
+    <div className="relative w-full h-[500px] rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl bg-[#020024]">
       <MapContainer
         center={defaultCenter}
         zoom={13}
         scrollWheelZoom={true}
-        style={{ height: '100%', width: '100%', backgroundColor: '#020024' }}
+        className="w-full h-full"
       >
-        {/* Крутая темная тема для карты (Dark Mode) */}
         <TileLayer
           attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         />
-        <LocationMarker onLocationSelect={onLocationSelect} />
+        
+        <MapEvents />
+
+        {/* 4. Отрисовка существующих пирамид из базы */}
+        {pyramids.map((p) => (
+          <CircleMarker
+            key={p.id}
+            center={[p.location.coordinates[1], p.location.coordinates[0]]}
+            radius={p.status === 'completed' ? 12 : 8}
+            pathOptions={{
+              fillColor: p.status === 'completed' ? '#39FF14' : '#BC13FE',
+              color: 'white',
+              weight: 1,
+              fillOpacity: p.glow_intensity || 0.5,
+            }}
+          />
+        ))}
+
+        {/* 5. Метка, которую ставит пользователь сейчас */}
+        {selectedPos && (
+          <Marker position={selectedPos} icon={neonIcon} />
+        )}
       </MapContainer>
-      
-      {/* Подсказка для пользователя */}
-      <div className="absolute bottom-2 left-0 w-full text-center pointer-events-none z-[400]">
-        <span className="bg-black/70 text-[#39FF14] text-xs px-3 py-1 rounded-full border border-[#39FF14]/30 backdrop-blur-sm">
-          TAP ON MAP TO SET LOCATION
-        </span>
-      </div>
+
+      {/* 6. Кнопка вызова оплаты (появляется после клика) */}
+      {selectedPos && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1000] w-full px-10">
+          <button
+            onClick={() => setShowPayment(true)}
+            className="w-full bg-gradient-to-r from-[#39FF14] to-[#BC13FE] text-black font-black py-4 rounded-2xl uppercase italic shadow-[0_0_30px_rgba(57,255,20,0.4)] hover:scale-105 transition-transform"
+          >
+            Зажечь точку за $0.99 🚀
+          </button>
+        </div>
+      )}
+
+      {/* 7. Оверлей оплаты */}
+      {showPayment && selectedPos && (
+        <PaymentOverlay
+          onClose={() => setShowPayment(false)}
+          lat={selectedPos.lat}
+          lng={selectedPos.lng}
+        />
+      )}
+
+      {/* Подсказка */}
+      {!selectedPos && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[400]">
+          <span className="bg-black/80 text-white text-[10px] px-4 py-2 rounded-full border border-white/10 backdrop-blur-md uppercase tracking-widest">
+            Выберите место для очистки на карте
+          </span>
+        </div>
+      )}
     </div>
   );
 };
