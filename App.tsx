@@ -1,95 +1,61 @@
-import React, { useState } from 'react';
+import React from 'react';
+import OrderForm from './components/OrderForm';
+import { useLocalization } from './hooks/useLocalization';
 
-function App() {
-  const [loading, setLoading] = useState(false);
-
-  // ID твоего фрейма из кабинета PayMob
-  const IFRAME_ID = "1007120";
-
-  const handlePayMobPayment = async () => {
-    setLoading(true);
-    console.log("🚀 Запуск процесса оплаты...");
-
-    try {
-      // Вызываем наш бэкенд на Vercel
-      const response = await fetch('/api/paymob', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Ошибка сервера: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.token) {
-        console.log("✅ Токен получен! Перенаправляем на оплату...");
-        
-        // --- ИСПРАВЛЕНИЕ ТУТ ---
-        // Заменяем egypt.paymob.com на accept.paymob.com
-        // Также используем data.iframe_id, если он приходит с бэкенда, либо твою константу
-        const targetIframe = data.iframe_id || IFRAME_ID;
-        window.location.href = `https://accept.paymob.com/api/acceptance/iframes/${targetIframe}?payment_token=${data.token}`;
-        // -----------------------
-
-      } else {
-        throw new Error("Токен оплаты не был сгенерирован.");
-      }
-
-    } catch (error: any) {
-      console.error("❌ Ошибка при инициализации оплаты:", error);
-      alert(`Ошибка: ${error.message}. Проверь консоль браузера.`);
-    } finally {
-      setLoading(false);
-    }
-  };
+const App: React.FC = () => {
+  const [language, setLanguage] = React.useState<'en' | 'ru'>('en');
 
   return (
-    <div className="min-h-screen w-full bg-[#020024] flex flex-col items-center justify-center relative overflow-hidden font-sans">
-      
-      {/* Твой фирменный анимированный фон */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#39FF14] via-[#FFF000] to-[#8B00FF] opacity-35 animate-pulse"></div>
-      
-      {/* Свечение */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-500/20 via-transparent to-transparent pointer-events-none"></div>
-
-      <div className="relative z-10 flex flex-col items-center text-center px-4">
-        <h1 className="text-7xl md:text-9xl font-black text-white mb-4 tracking-tighter drop-shadow-[0_0_30px_rgba(255,255,255,0.3)]">
-          Clean Egypt
-        </h1>
-        
-        <p className="text-xl md:text-2xl font-bold text-[#39FF14] uppercase tracking-[0.5em] mb-12 drop-shadow-[0_0_10px_rgba(57,255,20,0.5)]">
-          Red Sea Mission
-        </p>
-
-        {/* Главная кнопка оплаты */}
-        <button
-          onClick={handlePayMobPayment}
-          disabled={loading}
-          className={`group relative px-12 py-6 bg-black text-white rounded-3xl font-black text-2xl transition-all duration-300 hover:scale-110 active:scale-95 shadow-2xl ${loading ? 'opacity-50 cursor-wait' : ''}`}
-        >
-          {/* Неоновая рамка */}
-          <div className="absolute -inset-1.5 bg-gradient-to-r from-[#39FF14] via-[#FFF000] to-[#8B00FF] rounded-3xl blur-md opacity-75 group-hover:opacity-100 transition duration-500"></div>
-          
-          <span className="relative z-10 flex items-center gap-3">
-            {loading ? "CONNECTING..." : "CREATE ACCOUNT 🚀"}
-          </span>
-        </button>
-
-        {/* Подвал с информацией */}
-        <div className="mt-20 flex flex-col gap-2 items-center">
-          <p className="text-white/40 font-mono text-xs uppercase tracking-widest">
-            Secure Payment via PayMob
+    <div className="min-h-screen bg-black text-white font-sans selection:bg-[#39FF14] selection:text-black">
+      {/* Hero Section */}
+      <section className="h-screen flex flex-col items-center justify-center p-6 text-center space-y-12 bg-gradient-to-b from-black via-zinc-900 to-black">
+        <div className="space-y-4">
+          <h1 className="text-7xl md:text-9xl font-black italic tracking-tighter uppercase leading-none">
+            Clean <span className="text-[#39FF14] drop-shadow-[0_0_30px_rgba(57,255,20,0.5)]">Egypt</span>
+          </h1>
+          <p className="text-sm md:text-lg font-bold text-zinc-500 uppercase tracking-[0.4em]">
+            Red Sea Mission
           </p>
-          <div className="h-1 w-24 bg-gradient-to-r from-[#39FF14] to-[#8B00FF] rounded-full opacity-50"></div>
         </div>
-      </div>
+
+        <div className="w-full max-w-md space-y-6">
+          <button className="w-full bg-[#39FF14] text-black font-black py-6 rounded-3xl text-xl uppercase italic hover:scale-105 active:scale-95 transition-all shadow-[0_0_50px_rgba(57,255,20,0.3)]">
+            CREATE ACCOUNT 🚀
+          </button>
+          
+          {/* Твоя новая кнопка */}
+          <button
+            onClick={() => document.getElementById('map-section')?.scrollIntoView({ behavior: 'smooth' })}
+            className="w-full text-[10px] font-bold text-white/30 uppercase tracking-[0.3em] hover:text-[#39FF14] transition-all underline decoration-dotted underline-offset-8"
+          >
+            Wanna see first?
+          </button>
+        </div>
+      </section>
+
+      {/* Map Section */}
+      <section id="map-section" className="min-h-screen py-24 px-6 space-y-12">
+        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-16 items-start">
+          <div className="sticky top-24">
+            <OrderForm language={language} />
+          </div>
+          
+          <div className="space-y-8">
+            <div className="inline-block px-4 py-1 rounded-full border border-[#39FF14]/30 text-[#39FF14] text-[10px] font-bold uppercase tracking-widest">
+              Live Monitoring
+            </div>
+            <h2 className="text-5xl font-black italic uppercase tracking-tighter">
+              The <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#39FF14] to-[#BC13FE]">Neon</span> Grid
+            </h2>
+            <p className="text-zinc-400 leading-relaxed font-medium">
+              Every neon pyramid on this 3D map represents a real cleanup mission.
+              Track contributions in real-time and see the Red Sea glow.
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
   );
-}
+};
 
 export default App;
