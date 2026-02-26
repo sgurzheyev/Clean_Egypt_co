@@ -1,17 +1,9 @@
-
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-import 'leaflet/dist/leaflet.css';
-
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
+@keyframes neonPulse {
+  0% { filter: drop-shadow(0 0 5px #BC13FE) brightness(1); }
+  50% { filter: drop-shadow(0 0 20px #BC13FE) brightness(1.5); }
+  100% { filter: drop-shadow(0 0 5px #BC13FE) brightness(1); }
 }
 
-const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+.pyramid-glow {
+  animation: neonPulse 2s infinite ease-in-out;
+}
