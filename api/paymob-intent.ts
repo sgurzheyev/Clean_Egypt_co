@@ -8,12 +8,11 @@ const supabase = createClient(
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { lat, lng } = req.body;
-
   try {
-    // 1. ЗАПИСЬ В БАЗУ ДАННЫХ
-    // Используем .select(), чтобы убедиться, что запись создана
-    const { data, error: dbError } = await supabase
+    const { lat, lng } = req.body;
+
+    // 1. ЗАПИСЬ В БАЗУ (Это должно сработать ПЕРВЫМ)
+    const { error: dbError } = await supabase
       .from('pyramids')
       .insert([
         {
@@ -23,13 +22,11 @@ export default async function handler(req: any, res: any) {
           current_amount: 0,
           target_amount: 100
         }
-      ])
-      .select();
+      ]);
 
-    if (dbError) throw new Error("Supabase Error: " + dbError.message);
-    console.log("Запись успешно создана в базе:", data);
+    if (dbError) throw new Error("Database error: " + dbError.message);
 
-    // 2. РАБОТА С PAYMOB
+    // 2. AUTH PAYMOB
     const authRes = await fetch('https://accept.paymob.com/api/auth/tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -37,18 +34,20 @@ export default async function handler(req: any, res: any) {
     });
     const authData = await authRes.json();
 
+    // 3. CREATE ORDER
     const orderRes = await fetch('https://accept.paymob.com/api/ecommerce/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         auth_token: authData.token,
-        amount_cents: "10000", // 100 EGP как на твоем скриншоте
+        amount_cents: "10000",
         currency: "EGP",
         items: []
       })
     });
     const orderData = await orderRes.json();
 
+    // 4. GET PAYMENT KEY (Исправленная переменная)
     const keyRes = await fetch('https://accept.paymob.com/api/acceptance/payment_keys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -58,11 +57,8 @@ export default async function handler(req: any, res: any) {
         expiration: 3600,
         order_id: orderData.id,
         billing_data: {
-          first_name: "Sergio",
-          last_name: "Gurgini",
-          email: "sergio@cleanegypt.co",
-          phone_number: "201000000000",
-          apartment: "NA", floor: "NA", street: "Hurghada",
+          first_name: "Sergio", last_name: "Gurgini", email: "sergio@cleanegypt.co",
+          phone_number: "201000000000", apartment: "NA", floor: "NA", street: "Hurghada",
           building: "NA", shipping_method: "NA", postal_code: "NA", city: "Hurghada",
           country: "EG", state: "Red Sea"
         },
@@ -71,11 +67,12 @@ export default async function handler(req: any, res: any) {
       })
     });
     const keyData = await keyRes.json();
+    const token = keyData.token; // Вот создание токена
 
-    return res.status(200).json({ paymentToken: keyData.token });
+    // Возвращаем результат фронтенду
+    return res.status(200).json({ paymentToken: token });
 
   } catch (error: any) {
-    console.error("Backend Error:", error.message);
     return res.status(500).json({ error: error.message });
   }
 }
