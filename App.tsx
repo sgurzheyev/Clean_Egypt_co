@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Map, Marker, NavigationControl, GeolocateControl, Layer } from 'react-map-gl/dist/esm/index.js';
+// Для версии 8.1.0 импорт должен быть именно таким:
+import Map, { Marker, NavigationControl, GeolocateControl, Layer } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import OrderForm from './components/OrderForm';
 import { supabase } from './lib/supabaseClient';
