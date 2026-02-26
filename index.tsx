@@ -1,9 +1,11 @@
-@keyframes neonPulse {
-  0% { filter: drop-shadow(0 0 5px #BC13FE) brightness(1); }
-  50% { filter: drop-shadow(0 0 20px #BC13FE) brightness(1.5); }
-  100% { filter: drop-shadow(0 0 5px #BC13FE) brightness(1); }
-}
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './index.css'; // Это подключит твои стили
 
-.pyramid-glow {
-  animation: neonPulse 2s infinite ease-in-out;
-}
+const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);

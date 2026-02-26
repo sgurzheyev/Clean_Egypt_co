@@ -1,0 +1,17 @@
+@keyframes neonPulse {
+  0% { filter: drop-shadow(0 0 5px #BC13FE) brightness(1); }
+  50% { filter: drop-shadow(0 0 20px #BC13FE) brightness(1.5); }
+  100% { filter: drop-shadow(0 0 5px #BC13FE) brightness(1); }
+}
+
+.pyramid-glow {
+  animation: neonPulse 2s infinite ease-in-out;
+}
+
+body, html, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  background: black;
+}
