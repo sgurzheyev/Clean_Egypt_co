@@ -1,44 +1,59 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // Добавляем навигацию
+import { useNavigate } from 'react-router-dom';
 
 interface PaymentOverlayProps {
   onClose: () => void;
+  onSuccess?: () => void; // Добавляем этот проп для связи с App.tsx
   lat: number;
   lng: number;
 }
 
-const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, lat, lng }) => {
+const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat, lng }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isIframeLoaded, setIsIframeLoaded] = useState(false);
-  const navigate = useNavigate(); // Инициализируем роутер
+  const [fetchError, setFetchError] = useState(false); // Состояние для отлова ошибок API
+  const navigate = useNavigate();
 
   useEffect(() => {
-    // 1. Слушаем ответ от Paymob Iframe
     const handlePaymobMsg = (event: MessageEvent) => {
-      // Проверяем статус транзакции из iframe
+      // 1. ПРОВЕРКА: Слушаем сигналы об успехе от Paymob
       if (event.data && typeof event.data === 'string') {
         if (event.data.includes('success=true') || event.data.includes('TRANSACTION_SUCCESS')) {
           console.log("Wallet Cleaned! Pyramid Activated 📐");
-          // ФИКС: Вместо простого сообщения уходим в профиль
-          navigate('/profile');
+          if (onSuccess) onSuccess(); // Обновляем карту в App.tsx
+          navigate('/profile'); // Уходим смотреть прогресс Eco-Hero
         }
       }
     };
 
     window.addEventListener('message', handlePaymobMsg);
 
-    // 2. Твой запрос токена
+    // 2. ЗАПРОС ТОКЕНА С ОБРАБОТКОЙ ОШИБОК
     fetch('/api/paymob-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lat, lng })
     })
-      .then(res => res.json())
-      .then(data => setToken(data.paymentToken))
-      .catch(err => console.error("Paymob Error:", err));
+    .then(res => {
+      if (!res.ok) throw new Error('API unreachable');
+      return res.json();
+    })
+    .then(data => {
+      if (data.paymentToken) {
+        setToken(data.paymentToken);
+      } else {
+        throw new Error('Token missing in response');
+      }
+    })
+    .catch(err => {
+      console.error("Paymob Error:", err);
+      setFetchError(true);
+      // Если API упал, через 3 секунды возвращаем пользователя, чтобы он не висел на заглушке
+      setTimeout(onClose, 3000);
+    });
 
     return () => window.removeEventListener('message', handlePaymobMsg);
-  }, [lat, lng, navigate]);
+  }, [lat, lng, navigate, onClose, onSuccess]);
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
@@ -53,10 +68,19 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, lat, lng }) =>
           </div>
 
           <div className="bg-white rounded-2xl overflow-hidden shadow-inner min-h-[550px] relative">
-            {!isIframeLoaded && (
+            {/* ОТОБРАЖАЕМ СПИННЕР, ТОЛЬКО ЕСЛИ НЕТ ОШИБКИ И ТОКЕНА */}
+            {(!isIframeLoaded && !fetchError) && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 z-10">
                 <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4"></div>
                 <p className="text-cyan-500 text-[10px] font-bold animate-pulse">УСТАНОВКА ЗАЩИЩЕННОГО СОЕДИНЕНИЯ...</p>
+              </div>
+            )}
+
+            {/* ЕСЛИ ОШИБКА API (частая проблема Vercel) */}
+            {fetchError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 z-20 p-6 text-center">
+                <p className="text-red-500 font-bold mb-2 uppercase">Ошибка сервера платежей</p>
+                <p className="text-zinc-500 text-[10px]">Возврат на карту через пару секунд...</p>
               </div>
             )}
 

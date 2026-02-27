@@ -1,18 +1,14 @@
-@keyframes neonPulse {
-  0% { filter: drop-shadow(0 0 5px #BC13FE) brightness(1); }
-  50% { filter: drop-shadow(0 0 20px #BC13FE) brightness(1.5); }
-  100% { filter: drop-shadow(0 0 5px #BC13FE) brightness(1); }
+/* Вставь это в index.css */
+.mapboxgl-ctrl-bottom-right {
+    bottom: 110px !important; /* Поднимаем выше кнопок терминала */
+    right: 12px !important;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.pyramid-glow {
-  animation: neonPulse 2s infinite ease-in-out;
-}
-
-body, html, #root {
-  margin: 0;
-  padding: 0;
-  height: 100vh;
-  width: 100vw;
-  background: black;
-  overflow: hidden;
+.mapboxgl-ctrl-group {
+    background: rgba(10, 10, 10, 0.8) !important;
+    border: 1px solid #39FF14 !important; /* Твой фирменный зеленый */
+    backdrop-filter: blur(8px);
 }

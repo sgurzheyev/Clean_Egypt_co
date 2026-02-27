@@ -1,9 +1,9 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import Map, { Marker, NavigationControl, GeolocateControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import PyramidMarker from './PyramidMarker'; // Наш компонент со стилями
 
-// Токен Mapbox (возьми его из своего .env)
+// Токен Mapbox
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 interface MapPickerProps {
@@ -44,8 +44,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
         mapStyle="mapbox://styles/mapbox/dark-v11" // Темная футуристичная карта
         mapboxAccessToken={MAPBOX_TOKEN}
         className="w-full h-full"
+        // ФИКС: Поднимаем элементы управления картой на 160px вверх,
+        // чтобы они не перекрывались нижней панелью
+        padding={{ bottom: 160, top: 0, left: 0, right: 0 }}
       >
-        {/* Авто-определение GPS (работает в Chrome/Safari) */}
+        {/* Авто-определение GPS. Теперь кнопка будет выше текста */}
         <GeolocateControl
           position="bottom-right"
           trackUserLocation
@@ -53,7 +56,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         />
         <NavigationControl position="bottom-right" />
 
-        {/* 1. ОТРИСОВКА СУЩЕСТВУЮЩИХ ПИРАМИД (доступно всем, даже гостям) */}
+        {/* 1. ОТРИСОВКА СУЩЕСТВУЮЩИХ ПИРАМИД (из Supabase) */}
         {orders.map((order) => (
           <Marker
             key={order.id}
@@ -88,9 +91,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
         )}
       </Map>
 
-      {/* Индикатор выбранной цели, как на твоем интерфейсе */}
+      {/* Индикатор выбранной цели */}
       {selectedPoint && (
-        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 z-20">
+        <div className="absolute bottom-40 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 z-20 shadow-[0_0_20px_rgba(34,211,238,0.2)]">
           <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-[0.2em]">
             TARGET: {selectedPoint.lat.toFixed(4)}, {selectedPoint.lng.toFixed(4)}
           </p>
