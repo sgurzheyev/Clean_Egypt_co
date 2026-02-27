@@ -13,21 +13,23 @@ export default defineConfig(({ mode }) => {
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        global: 'window',
+        global: 'window', // Необходим для Mapbox в браузере
       },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
-          // Принудительно направляем на ESM сборку, минуя корявый экспорт в package.json
-          'react-map-gl': 'react-map-gl/dist/esm/index.js'
+          // Убираем проблемный путь! Позволяем Vite искать по имени пакета.
         }
       },
       build: {
         commonjsOptions: {
-          // Позволяем Vite обрабатывать карту как CommonJS, если она капризничает
           include: [/node_modules/],
           transformMixedEsModules: true
         }
+      },
+      ssr: {
+        // Принудительно выносим карту в external, чтобы не было конфликтов импорта
+        noExternal: ['react-map-gl', 'mapbox-gl']
       }
     };
 });
