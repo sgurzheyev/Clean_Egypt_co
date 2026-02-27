@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Map, { Marker, NavigationControl, GeolocateControl, Layer } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import OrderForm from './components/OrderForm';
-import Auth from './Auth'; // ПОДКЛЮЧАЕМ ВАШ КОМПОНЕНТ АВТОРИЗАЦИИ (убедитесь, что путь верный)
+import Auth from './components/Auth'; // ПОДКЛЮЧАЕМ ВАШ КОМПОНЕНТ АВТОРИЗАЦИИ (убедитесь, что путь верный)
 import { supabase } from './lib/supabaseClient';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
