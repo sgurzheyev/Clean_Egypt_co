@@ -18,13 +18,17 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
-          'react-map-gl': 'react-map-gl',
         }
-      }, // <- Тут была пропущена или лишняя скобка
+      },
       build: {
+        sourcemap: true,
         rollupOptions: {
+          // Выносим библиотеку в экстерналы, чтобы Rollup не спотыкался об её внутренности
           external: [],
         }
+      },
+      optimizeDeps: {
+        include: ['react-map-gl', 'mapbox-gl']
       }
     };
 });
