@@ -5,8 +5,7 @@ import Auth from './components/Auth';
 import PaymentOverlay from './components/PaymentOverlay';
 import Slider from './components/Slider';
 import Profile from './components/Profile'; // Твоя страница Eco-Hero
-import { supabase } from './lib/supabase';
-
+import { supabase } from './services/supabase';
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [amount, setAmount] = useState(5); // Дефолт для Home Pyramid
