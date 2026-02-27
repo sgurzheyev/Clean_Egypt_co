@@ -1,9 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Supabase: Судя по скриншоту Vercel, тут префикс VITE_ есть
+// Используем SERVICE_ROLE_KEY для записи пирамиды в базу без RLS блоков
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
-  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY!
+  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY! // Согласно твоему скрину из Vercel
 );
 
 export default async function handler(req: any, res: any) {
@@ -11,9 +11,10 @@ export default async function handler(req: any, res: any) {
 
   try {
     const { lat, lng, amount = 1 } = req.body;
+    // Paymob требует сумму в центах/пиастрах (целое число)
     const amountCents = Math.round(amount * 100).toString();
 
-    // 1. ЗАПИСЬ В БАЗУ (Supabase)
+    // 1. ЗАПИСЬ В БАЗУ (Создаем точку в Supabase)
     const { data: pyramid, error: dbError } = await supabase
       .from('pyramids')
       .insert([
@@ -31,13 +32,11 @@ export default async function handler(req: any, res: any) {
 
     if (dbError) throw new Error("Database error: " + dbError.message);
 
-    // 2. AUTH PAYMOB (УБРАЛИ VITE_, ТАК КАК В ПАНЕЛИ VERCEL ЕГО НЕТ)
+    // 2. AUTH PAYMOB (Убираем VITE_, так как в панели Vercel ключи без него)
     const authRes = await fetch('https://accept.paymob.com/api/auth/tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: process.env.PAYMOB_API_KEY // В панели Vercel именно так
-      })
+      body: JSON.stringify({ api_key: process.env.PAYMOB_API_KEY })
     });
     const authData: any = await authRes.json();
 
@@ -49,7 +48,7 @@ export default async function handler(req: any, res: any) {
         auth_token: authData.token,
         delivery_needed: "false",
         amount_cents: amountCents,
-        currency: "EGP",
+        currency: "EGP", // Валюта совпадает с Integration ID
         items: []
       })
     });
@@ -65,7 +64,7 @@ export default async function handler(req: any, res: any) {
         expiration: 3600,
         order_id: orderData.id,
         billing_data: {
-          first_name: "Sergio", // Твой псевдоним Sergio Gurgini
+          first_name: "Sergio", // Твой псевдоним
           last_name: "Gurgini",
           email: "sergio@cleanegypt.co",
           phone_number: "201000000000",
@@ -74,14 +73,15 @@ export default async function handler(req: any, res: any) {
           country: "EG", state: "Red Sea"
         },
         currency: "EGP",
-        integration_id: Number(process.env.PAYMOB_INTEGRATION_ID) // В панели Vercel без VITE_
+        integration_id: Number(process.env.PAYMOB_INTEGRATION_ID) // Берем из панели Vercel
       })
     });
     
     const keyData: any = await keyRes.json();
     
-    if (!keyData.token) throw new Error("Failed to get Paymob token");
+    if (!keyData.token) throw new Error("Paymob failed to provide token");
 
+    // Возвращаем токен на фронтенд для Iframe
     return res.status(200).json({ paymentToken: keyData.token });
 
   } catch (error: any) {
