@@ -1,26 +1,25 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Используем SERVICE_ROLE_KEY для обхода политик RLS при создании заказа
+// Используем SERVICE_ROLE_KEY для записи в базу без ограничений RLS
 const supabase = createClient(
-  process.env.VITE_SUPABASE_URL!,
-  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY!
+  process.env.VITE_SUPABASE_URL!, // На скрине у тебя она с VITE_
+  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY! // И эта тоже с VITE_
 );
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    // Получаем координаты и сумму (amount) с фронтенда
     const { lat, lng, amount = 1 } = req.body;
-    const amountCents = (amount * 100).toString(); // $1 -> 100, $5 -> 500
+    const amountCents = Math.round(amount * 100).toString();
 
-    // 1. ЗАПИСЬ В БАЗУ (Создаем "тусклую" пирамиду)
+    // 1. ЗАПИСЬ В БАЗУ (Создаем точку в Supabase)
     const { data: pyramid, error: dbError } = await supabase
       .from('pyramids')
       .insert([
         {
           location: `POINT(${lng} ${lat})`,
-          status: 'pending_payment', // Статус "ожидание"
+          status: 'pending_payment',
           glow_intensity: 0.2,
           current_amount: 0,
           target_amount: amount,
@@ -32,13 +31,13 @@ export default async function handler(req: any, res: any) {
 
     if (dbError) throw new Error("Database error: " + dbError.message);
 
-    // 2. AUTH PAYMOB
+    // 2. AUTH PAYMOB (Используем имя со скрина)
     const authRes = await fetch('https://accept.paymob.com/api/auth/tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ api_key: process.env.VITE_PAYMOB_API_KEY })
+      body: JSON.stringify({ api_key: process.env.PAYMOB_API_KEY })
     });
-    const authData = await authRes.json();
+    const authData: any = await authRes.json();
 
     // 3. CREATE ORDER
     const orderRes = await fetch('https://accept.paymob.com/api/ecommerce/orders', {
@@ -52,7 +51,7 @@ export default async function handler(req: any, res: any) {
         items: []
       })
     });
-    const orderData = await orderRes.json();
+    const orderData: any = await orderRes.json();
 
     // 4. GET PAYMENT KEY
     const keyRes = await fetch('https://accept.paymob.com/api/acceptance/payment_keys', {
@@ -64,24 +63,23 @@ export default async function handler(req: any, res: any) {
         expiration: 3600,
         order_id: orderData.id,
         billing_data: {
-          first_name: "Sergio",
+          first_name: "Sergio", // Твой псевдоним Sergio Gurgini
           last_name: "Gurgini",
           email: "sergio@cleanegypt.co",
-          phone_number: "201000000000", // Убедись, что это число без "+"
+          phone_number: "201000000000",
           apartment: "NA", floor: "NA", street: "Hurghada",
           building: "NA", shipping_method: "NA", postal_code: "NA", city: "Hurghada",
           country: "EG", state: "Red Sea"
         },
         currency: "EGP",
-        integration_id: Number(process.env.VITE_PAYMOB_INTEGRATION_ID)
+        integration_id: Number(process.env.PAYMOB_INTEGRATION_ID)
       })
     });
     
-    const keyData = await keyRes.json();
+    const keyData: any = await keyRes.json();
     
     if (!keyData.token) {
-        console.error("Paymob Key Error:", keyData);
-        throw new Error("Failed to generate payment token");
+        throw new Error("Paymob failed to generate token");
     }
 
     return res.status(200).json({ paymentToken: keyData.token });
