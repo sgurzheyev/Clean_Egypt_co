@@ -18,17 +18,16 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
+          // Принудительно направляем на ESM сборку, минуя корявый экспорт в package.json
+          'react-map-gl': 'react-map-gl/dist/esm/index.js'
         }
       },
       build: {
-        sourcemap: true,
-        rollupOptions: {
-          // Выносим библиотеку в экстерналы, чтобы Rollup не спотыкался об её внутренности
-          external: [],
+        commonjsOptions: {
+          // Позволяем Vite обрабатывать карту как CommonJS, если она капризничает
+          include: [/node_modules/],
+          transformMixedEsModules: true
         }
-      },
-      optimizeDeps: {
-        include: ['react-map-gl', 'mapbox-gl']
       }
     };
 });
