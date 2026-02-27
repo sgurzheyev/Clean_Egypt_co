@@ -20,13 +20,14 @@ export default defineConfig(({ mode }) => {
         global: 'window',
       },
       resolve: {
-        alias: {
-          '@': path.resolve(__dirname, '.'),
-          // Принудительно указываем Vite на корень пакета, игнорируя ошибки в package.json
-          'react-map-gl': path.resolve(__dirname, 'node_modules/react-map-gl'),
-          'mapbox-gl': path.resolve(__dirname, 'node_modules/mapbox-gl'),
-        }
-      },
+          resolve: {
+                  alias: {
+                    '@': path.resolve(__dirname, '.'),
+                    // Указываем на конкретный файл индекса, а не на всю папку
+                    'react-map-gl': path.resolve(__dirname, 'node_modules/react-map-gl/dist/esm/index.js'),
+                    'mapbox-gl': path.resolve(__dirname, 'node_modules/mapbox-gl/dist/mapbox-gl.js'),
+                  }
+                },
       build: {
         commonjsOptions: {
           transformMixedEsModules: true
