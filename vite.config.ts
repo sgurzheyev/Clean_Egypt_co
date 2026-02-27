@@ -13,26 +13,17 @@ export default defineConfig(({ mode }) => {
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        // Добавляем для стабильности Mapbox в браузере
         global: 'window',
       },
-        resolve: {
-                alias: {
-                  '@': path.resolve(__dirname, '.'),
-                  // Упрощаем: убираем прямой путь через node_modules
-                  'react-map-gl': 'react-map-gl',
-                }
-              },
-              optimizeDeps: {
-                // Принудительно включаем карту в предварительную сборку
-                include: ['react-map-gl', 'mapbox-gl']
-              }   // Оптимизация для продакшн-сборки
+      resolve: {
+        alias: {
+          '@': path.resolve(__dirname, '.'),
+          'react-map-gl': 'react-map-gl',
+        }
+      }, // <- Тут была пропущена или лишняя скобка
       build: {
         rollupOptions: {
           external: [],
-        },
-        commonjsOptions: {
-          include: [/react-map-gl/, /node_modules/],
         }
       }
     };
