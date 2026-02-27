@@ -1,7 +1,7 @@
 /* Вставь это в index.css */
 .mapboxgl-ctrl-bottom-right {
-    bottom: 110px !important; /* Поднимаем выше кнопок терминала */
-    right: 12px !important;
+    bottom: 120px !important; /* Поднимаем выше кнопок терминала */
+    right: 15px !important;
     display: flex;
     flex-direction: column;
     gap: 8px;
