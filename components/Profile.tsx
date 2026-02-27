@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
-
+import { supabase } from '../services/supabase';
 const Profile: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
 
