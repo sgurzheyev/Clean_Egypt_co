@@ -1,14 +1,16 @@
-/* Вставь это в index.css */
-.mapboxgl-ctrl-bottom-right {
-    bottom: 120px !important; /* Поднимаем выше кнопок терминала */
-    right: 15px !important;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+/* Делаем кнопки навигации в стиле CleanEgypt */
+.mapboxgl-ctrl-group {
+    background: rgba(15, 15, 20, 0.9) !important;
+    border: 1px solid rgba(57, 255, 20, 0.3) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.5) !important;
 }
 
-.mapboxgl-ctrl-group {
-    background: rgba(10, 10, 10, 0.8) !important;
-    border: 1px solid #39FF14 !important; /* Твой фирменный зеленый */
-    backdrop-filter: blur(8px);
+.mapboxgl-ctrl-icon {
+    filter: invert(1) brightness(2); /* Делаем иконки белыми, чтобы их было видно */
+    opacity: 0.8;
+}
+
+.mapboxgl-ctrl-group button:hover {
+    background: rgba(57, 255, 20, 0.1) !important;
 }

@@ -24,7 +24,7 @@ export default async function handler(req: any, res: any) {
       .insert([
         {
           location: `POINT(${lng} ${lat})`,
-          status: 'pending_payment',
+          status: 'pending',
           glow_intensity: 0.2,
           current_amount: 0,
           target_amount: amount,
