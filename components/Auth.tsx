@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom'; // Для мгновенного перехода
-import { supabase } from '../lib/supabase'; // Твоя база
-
+import { supabase } from '../services/supabase';
 const Auth: React.FC = () => {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
