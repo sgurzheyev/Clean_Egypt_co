@@ -22,9 +22,9 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
-        // Указываем точные пути к файлам, чтобы избежать ошибок директорий
-        'react-map-gl': path.resolve(__dirname, 'node_modules/react-map-gl/dist/esm/index.js'),
-        'mapbox-gl': path.resolve(__dirname, 'node_modules/mapbox-gl/dist/mapbox-gl.js'),
+        // Убираем жесткие пути к dist/esm. Используем стандартный поиск.
+        'react-map-gl': 'react-map-gl',
+        'mapbox-gl': 'mapbox-gl',
       },
     },
     build: {
@@ -32,5 +32,9 @@ export default defineConfig(({ mode }) => {
         transformMixedEsModules: true,
       },
     },
+    optimizeDeps: {
+      // Принудительно включаем карту в оптимизацию
+      include: ['react-map-gl', 'mapbox-gl']
+    }
   };
 });
