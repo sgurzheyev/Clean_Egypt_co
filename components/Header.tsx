@@ -5,16 +5,17 @@ import { Language } from '../types';
 interface HeaderProps {
   language: Language;
   toggleLanguage: () => void;
-  // Добавляем пропсы для отображения прогресса Eco-Hero
-  xp?: number; 
+  xp?: number;
   level?: number;
+  onOpenMenu: () => void; // <-- Функция открытия меню
 }
 
-const Header: React.FC<HeaderProps> = ({ 
-  language, 
-  toggleLanguage, 
-  xp = 74, // Значение по умолчанию из твоего скриншота (74%)
-  level = 12 // Твой текущий уровень Eco-Hero
+const Header: React.FC<HeaderProps> = ({
+  language,
+  toggleLanguage,
+  xp = 74,
+  level = 12,
+  onOpenMenu
 }) => {
   const { t } = useLocalization(language);
 
@@ -37,7 +38,7 @@ const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Центральная часть: Статус Eco-Hero (как на iPhone макете) */}
+        {/* Центральная часть: Статус Eco-Hero */}
         <div className="flex flex-col items-center">
           <span className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">
             Eco-Hero
@@ -56,7 +57,11 @@ const Header: React.FC<HeaderProps> = ({
             {language === 'en' ? 'AR' : 'EN'}
           </button>
           
-          <button className="text-white hover:text-[#39FF14] transition-colors">
+          {/* КНОПКА МЕНЮ (Гамбургер) */}
+          <button
+            onClick={onOpenMenu}
+            className="text-white hover:text-[#39FF14] transition-colors"
+          >
             <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="3" y1="12" x2="21" y2="12" />
               <line x1="3" y1="6" x2="21" y2="6" />
@@ -68,12 +73,12 @@ const Header: React.FC<HeaderProps> = ({
 
       {/* Полоска XP (Progress Bar) прямо под хедером */}
       <div className="w-full h-[3px] bg-gray-900/50 relative overflow-hidden">
-        <div 
+        <div
           className="h-full bg-gradient-to-r from-[#39FF14] to-cyan-400 shadow-[0_0_15px_#39FF14] transition-all duration-1000 ease-out"
           style={{ width: `${xp}%` }}
         />
         {/* Световой блик на полоске */}
-        <div 
+        <div
           className="absolute top-0 left-0 h-full w-20 bg-white/20 skew-x-12 animate-[shimmer_2s_infinite]"
           style={{ left: `${xp - 10}%` }}
         />
