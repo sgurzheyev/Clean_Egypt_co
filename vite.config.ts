@@ -16,14 +16,17 @@ export default defineConfig(({ mode }) => {
         // Добавляем для стабильности Mapbox в браузере
         global: 'window',
       },
-      resolve: {
-        alias: {
-          '@': path.resolve(__dirname, '.'),
-          // ФИКС: Принудительно указываем Vite путь к модулю карты
-          'react-map-gl': path.resolve(__dirname, './node_modules/react-map-gl/dist/esm/index.js'),
-        }
-      },
-      // Оптимизация для продакшн-сборки
+        resolve: {
+                alias: {
+                  '@': path.resolve(__dirname, '.'),
+                  // Упрощаем: убираем прямой путь через node_modules
+                  'react-map-gl': 'react-map-gl',
+                }
+              },
+              optimizeDeps: {
+                // Принудительно включаем карту в предварительную сборку
+                include: ['react-map-gl', 'mapbox-gl']
+              }   // Оптимизация для продакшн-сборки
       build: {
         rollupOptions: {
           external: [],
