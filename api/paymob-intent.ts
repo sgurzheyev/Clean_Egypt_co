@@ -1,23 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Используем переменные в точности как на твоем скриншоте из Vercel
+// Supabase: Судя по скриншоту Vercel, тут префикс VITE_ есть
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
   process.env.VITE_SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export default async function handler(req: any, res: any) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
     const { lat, lng, amount = 1 } = req.body;
-    
-    // Переводим доллары в центы/пиастры для Paymob (целое число)
     const amountCents = Math.round(amount * 100).toString();
 
-    // 1. ЗАПИСЬ В БАЗУ: Создаем временную запись пирамиды
+    // 1. ЗАПИСЬ В БАЗУ (Supabase)
     const { data: pyramid, error: dbError } = await supabase
       .from('pyramids')
       .insert([
@@ -35,19 +31,17 @@ export default async function handler(req: any, res: any) {
 
     if (dbError) throw new Error("Database error: " + dbError.message);
 
-    // 2. АВТОРИЗАЦИЯ В PAYMOB: Получаем временный токен
+    // 2. AUTH PAYMOB (УБРАЛИ VITE_, ТАК КАК В ПАНЕЛИ VERCEL ЕГО НЕТ)
     const authRes = await fetch('https://accept.paymob.com/api/auth/tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        api_key: process.env.PAYMOB_API_KEY // Ключ из настроек Vercel
+        api_key: process.env.PAYMOB_API_KEY // В панели Vercel именно так
       })
     });
     const authData: any = await authRes.json();
 
-    if (!authData.token) throw new Error("Paymob Auth failed");
-
-    // 3. СОЗДАНИЕ ЗАКАЗА В PAYMOB
+    // 3. CREATE ORDER
     const orderRes = await fetch('https://accept.paymob.com/api/ecommerce/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -61,7 +55,7 @@ export default async function handler(req: any, res: any) {
     });
     const orderData: any = await orderRes.json();
 
-    // 4. ПОЛУЧЕНИЕ PAYMENT KEY ДЛЯ IFRAME
+    // 4. GET PAYMENT KEY
     const keyRes = await fetch('https://accept.paymob.com/api/acceptance/payment_keys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -80,17 +74,14 @@ export default async function handler(req: any, res: any) {
           country: "EG", state: "Red Sea"
         },
         currency: "EGP",
-        integration_id: Number(process.env.PAYMOB_INTEGRATION_ID) // ID из настроек Vercel
+        integration_id: Number(process.env.PAYMOB_INTEGRATION_ID) // В панели Vercel без VITE_
       })
     });
     
     const keyData: any = await keyRes.json();
     
-    if (!keyData.token) {
-        throw new Error("Paymob failed to generate payment token");
-    }
+    if (!keyData.token) throw new Error("Failed to get Paymob token");
 
-    // Возвращаем токен на фронтенд для загрузки iframe
     return res.status(200).json({ paymentToken: keyData.token });
 
   } catch (error: any) {
