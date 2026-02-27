@@ -1,16 +1,15 @@
-/* Делаем кнопки навигации в стиле CleanEgypt */
+/* Делаем кнопки навигации почти невидимыми, пока на них не наведут */
 .mapboxgl-ctrl-group {
-    background: rgba(15, 15, 20, 0.9) !important;
-    border: 1px solid rgba(57, 255, 20, 0.3) !important;
-    border-radius: 12px !important;
-    box-shadow: 0 0 15px rgba(0, 0, 0, 0.5) !important;
+    background: rgba(0, 0, 0, 0.2) !important;
+    border: none !important;
+    transition: opacity 0.3s ease;
+}
+
+.mapboxgl-ctrl-group:hover {
+    opacity: 1 !important;
+    background: rgba(0, 0, 0, 0.6) !important;
 }
 
 .mapboxgl-ctrl-icon {
-    filter: invert(1) brightness(2); /* Делаем иконки белыми, чтобы их было видно */
-    opacity: 0.8;
-}
-
-.mapboxgl-ctrl-group button:hover {
-    background: rgba(57, 255, 20, 0.1) !important;
+    filter: invert(1); /* Чтобы иконки были белыми на темном фоне */
 }
