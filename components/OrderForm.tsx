@@ -1,79 +1,96 @@
 import React, { useState } from 'react';
-import MapPicker from './MapPicker';
-import PaymentOverlay from './PaymentOverlay';
-import { useLocalization } from '../hooks/useLocalization';
-import { Language } from '../types';
+import { generatePaymobLink } from '../lib/paymob';
 
-interface OrderFormProps {
-  language: Language;
-}
+// ... ваши пропсы (language, selectedLocation, onClose) ...
 
-const OrderForm: React.FC<OrderFormProps> = ({ language }) => {
-  const { t } = useLocalization(language);
-  
-  // Состояния для формы и координат
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [showPayment, setShowPayment] = useState(false);
+const OrderForm: React.FC<OrderFormProps> = ({ language, selectedLocation, onClose }) => {
   const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // ДОБАВЛЯЕМ STATE ДЛЯ УПРАВЛЕНИЯ ЭКРАНАМИ
+  const [step, setStep] = useState<'form' | 'payment'>('form');
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
 
-  // Функция, которую вызывает MapPicker при клике на карту
-  const handleLocationSelect = (locationString: string) => {
-    const [lat, lng] = locationString.split(',').map(Number);
-    setCoords({ lat, lng });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!coords) {
-      alert("Please select a location on the map first!");
-      return;
+    if (!selectedLocation || !email) return; // (добавьте ваши алерты, как мы обсуждали)
+
+    setIsSubmitting(true);
+
+    try {
+      // 1. Генерируем ссылку PayMob (запускаем вашу функцию из lib/paymob.ts)
+      // Передаем сумму (например, $0.99) и email юзера
+      const url = await generatePaymobLink(0.99, email);
+      
+      if (url) {
+        setPaymentUrl(url);
+        // 2. ПЕРЕКЛЮЧАЕМ UI НА ЭКРАН ОПЛАТЫ
+        setStep('payment');
+      } else {
+        alert("Ошибка подключения к PayMob");
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
     }
-    // Открываем окно оплаты
-    setShowPayment(true);
   };
 
   return (
-    <div className="relative">
-      <form onSubmit={handleSubmit} className="space-y-6 bg-[#111111] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
-        <h2 className="text-2xl font-black italic text-[#39FF14] uppercase tracking-tighter">
-          Create Mission
-        </h2>
+    // Это ваш главный контейнер окна (как на скриншоте)
+    <div className="bg-[#111] p-6 rounded-3xl border border-[#39FF14]/20 shadow-2xl relative w-full max-w-sm">
+      
+      {/* ВАША КНОПКА ЗАКРЫТИЯ С КРЕСТИКОМ [ X ] */}
+      <button
+        onClick={onClose}
+        className="absolute -top-4 -left-4 w-12 h-12 bg-[#39FF14] text-black font-black text-xl rounded-xl shadow-[0_0_15px_#39FF14] hover:scale-105 active:scale-95 transition-all flex items-center justify-center z-50"
+      >
+        X
+      </button>
 
-        {/* Поле Email */}
-        <div className="space-y-2">
-          <label className="text-[10px] font-bold text-zinc-500 uppercase ml-4">Your Contact Email</label>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="hero@cleanegypt.co"
-            className="w-full bg-black p-4 rounded-2xl border border-white/10 focus:border-[#39FF14] outline-none transition-all text-white text-sm"
-          />
+      {/* РЕНДЕРИМ ЛИБО ФОРМУ, ЛИБО ОПЛАТУ */}
+      {step === 'form' ? (
+        
+        // --- ЭКРАН 1: ФОРМА СОЗДАНИЯ МИССИИ ---
+        <div className="mt-4">
+           <h2 className="text-2xl font-black italic uppercase text-[#39FF14] mb-6">Create Mission</h2>
+           <form onSubmit={handleSubmit} className="space-y-6">
+              {/* ... здесь ваши инпуты Email и Target Location из предыдущего шага ... */}
+              <button type="submit" className="...">
+                 {isSubmitting ? 'Loading...' : 'ACTIVATE PYRAMID ($0.99) 🚀'}
+              </button>
+           </form>
         </div>
 
-        {/* Карта для выбора места */}
-        <div className="space-y-2">
-          <label className="text-[10px] font-bold text-zinc-500 uppercase ml-4">Target Location</label>
-          <MapPicker onLocationSelect={handleLocationSelect} />
+      ) : (
+
+        // --- ЭКРАН 2: PAYMOB IFRAME ---
+        <div className="mt-4 flex flex-col h-[400px]">
+           <h2 className="text-xl font-black italic uppercase text-white mb-4">
+             Secure <span className="text-[#39FF14]">Checkout</span>
+           </h2>
+           
+           {/* Контейнер для iframe */}
+           <div className="flex-grow bg-white rounded-xl overflow-hidden border border-white/20">
+              {paymentUrl ? (
+                <iframe
+                  src={paymentUrl}
+                  className="w-full h-full border-0"
+                  title="PayMob Payment"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-white">Loading...</div>
+              )}
+           </div>
+
+           <button
+             onClick={() => setStep('form')} // Кнопка "Назад"
+             className="mt-4 text-[10px] text-white/50 uppercase tracking-widest hover:text-white transition-colors"
+           >
+             ← Back to details
+           </button>
         </div>
 
-        {/* Кнопка отправки */}
-        <button
-          type="submit"
-          className="w-full bg-gradient-to-r from-[#39FF14] to-[#BC13FE] text-black font-black py-5 rounded-2xl uppercase italic hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_20px_rgba(57,255,20,0.3)]"
-        >
-          Activate Pyramid ($0.99) 🚀
-        </button>
-      </form>
-
-      {/* Оверлей оплаты — появляется только если координаты выбраны и кнопка нажата */}
-      {showPayment && coords && (
-        <PaymentOverlay
-          lat={coords.lat}
-          lng={coords.lng}
-          onClose={() => setShowPayment(false)}
-        />
       )}
     </div>
   );
