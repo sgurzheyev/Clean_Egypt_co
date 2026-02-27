@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom'; // Добавляем навигацию
 
 interface PaymentOverlayProps {
   onClose: () => void;
@@ -9,9 +10,24 @@ interface PaymentOverlayProps {
 const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, lat, lng }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isIframeLoaded, setIsIframeLoaded] = useState(false);
+  const navigate = useNavigate(); // Инициализируем роутер
 
   useEffect(() => {
-    // Запрашиваем токен у API, передавая координаты
+    // 1. Слушаем ответ от Paymob Iframe
+    const handlePaymobMsg = (event: MessageEvent) => {
+      // Проверяем статус транзакции из iframe
+      if (event.data && typeof event.data === 'string') {
+        if (event.data.includes('success=true') || event.data.includes('TRANSACTION_SUCCESS')) {
+          console.log("Wallet Cleaned! Pyramid Activated 📐");
+          // ФИКС: Вместо простого сообщения уходим в профиль
+          navigate('/profile');
+        }
+      }
+    };
+
+    window.addEventListener('message', handlePaymobMsg);
+
+    // 2. Твой запрос токена
     fetch('/api/paymob-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -20,7 +36,9 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, lat, lng }) =>
       .then(res => res.json())
       .then(data => setToken(data.paymentToken))
       .catch(err => console.error("Paymob Error:", err));
-  }, [lat, lng]);
+
+    return () => window.removeEventListener('message', handlePaymobMsg);
+  }, [lat, lng, navigate]);
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
@@ -55,7 +73,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, lat, lng }) =>
 
           <button
             onClick={onClose}
-            className="w-full mt-6 text-zinc-600 hover:text-white text-[11px] uppercase tracking-widest transition-colors"
+            className="w-full mt-6 text-zinc-600 hover:text-white text-[11px] uppercase tracking-widest transition-colors font-bold"
           >
             [ ОТМЕНА ]
           </button>

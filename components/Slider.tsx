@@ -1,51 +1,69 @@
-
 import React from 'react';
 
 interface SliderProps {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  unit?: string;
-  displayValue?: string;
-  colorClass?: string;
+  amount: number;
+  setAmount: (val: number) => void;
+  type: 'home' | 'city';
 }
 
-const Slider: React.FC<SliderProps> = ({
-  label,
-  value,
-  min,
-  max,
-  step = 1,
-  onChange,
-  unit,
-  displayValue,
-  colorClass = 'accent-teal-500',
-}) => {
-  const percentage = ((value - min) / (max - min)) * 100;
-  
+const Slider: React.FC<SliderProps> = ({ amount, setAmount, type }) => {
+  // Настройки диапазона согласно твоим правилам
+  const min = type === 'home' ? 5 : 1;
+  const max = type === 'home' ? 500 : 100;
+
   return (
-    <div className="w-full">
-      <div className="flex justify-between items-center mb-2">
-        <label className="text-lg font-bold text-gray-700">{label}</label>
-        <span className="px-4 py-1 text-lg font-bold bg-white text-gray-800 rounded-full shadow-sm border border-gray-200">
-          {displayValue || value} {unit}
-        </span>
+    <div className="w-full px-4 py-6 bg-zinc-900/50 backdrop-blur-md rounded-[2rem] border border-white/5 shadow-xl">
+      <div className="flex justify-between items-end mb-4 px-2">
+        <div>
+          <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">
+            {type === 'home' ? 'Private Bidding' : 'Community Donation'}
+          </p>
+          <h3 className="text-white text-3xl font-black italic tracking-tighter">
+            {amount}<span className="text-cyan-400">$</span>
+          </h3>
+        </div>
+        
+        {/* Индикатор масштаба пирамиды */}
+        <div className="text-right">
+          <p className="text-zinc-500 text-[9px] uppercase font-bold mb-1">Pyramid Scale</p>
+          <div className="flex gap-1">
+            {[...Array(5)].map((_, i) => (
+              <div
+                key={i}
+                className={`w-1 h-3 rounded-full transition-all duration-300 ${
+                  amount > (max / 5) * i ? 'bg-cyan-500 shadow-[0_0_8px_#06b6d4]' : 'bg-zinc-800'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={onChange}
-        className={`w-full h-4 bg-gray-200 rounded-full appearance-none cursor-pointer ${colorClass}`}
-        style={{
-          background: `linear-gradient(to right, ${colorClass.replace('accent', 'bg')}-500, ${colorClass.replace('accent', 'bg')}-500 ${percentage}%, #e5e7eb ${percentage}%)`
-        }}
-      />
+
+      <div className="relative flex items-center group">
+        {/* Кастомный трек слайдера с градиентом */}
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={type === 'home' ? 5 : 1}
+          value={amount}
+          onChange={(e) => setAmount(Number(e.target.value))}
+          className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 transition-all"
+          style={{
+            background: `linear-gradient(to right, #06b6d4 0%, #06b6d4 ${(amount / max) * 100}%, #27272a ${(amount / max) * 100}%, #27272a 100%)`
+          }}
+        />
+      </div>
+
+      <div className="flex justify-between mt-3 px-1">
+        <span className="text-zinc-600 text-[10px] font-bold tracking-widest uppercase italic">{min}$</span>
+        <span className="text-zinc-600 text-[10px] font-bold tracking-widest uppercase italic">{max}$</span>
+      </div>
+
+      {/* Подсказка о списании */}
+      <p className="text-center text-[9px] text-zinc-500 uppercase tracking-widest mt-6 opacity-60">
+        Funds will be deducted upon pin placement
+      </p>
     </div>
   );
 };

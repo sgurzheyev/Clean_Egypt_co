@@ -1,110 +1,74 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import PaymentOverlay from './PaymentOverlay'; // Импортируем наш новый компонент
+import { useNavigate } from 'react-router-dom'; // Для мгновенного перехода
+import { supabase } from '../lib/supabase'; // Твоя база
 
 const Auth: React.FC = () => {
-  const [loading, setLoading] = useState(false);
-  const [isRegister, setIsRegister] = useState(true);
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPayment, setShowPayment] = useState(false); // Состояние для показа оплаты
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
-  const handleAuth = async (e: React.FormEvent) => {
+  const handleQuickAccess = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email) return;
+
+    setIsLoading(true);
     
-    // Если это регистрация — сначала показываем оплату
-    if (isRegister) {
-      setShowPayment(true);
-      return;
-    }
+    // Используем Magic Link или просто создаем профиль, если его нет
+    // Твой SQL триггер 'Auto-create profile on user signup' сам создаст запись
+    const { error } = await supabase.auth.signInWithOtp({ email });
 
-    // Если это вход — обычная логика
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-    } catch (error: any) {
-      alert('Error: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Эту функцию можно вызвать из PaymentOverlay после успешного колбэка от Paymob
-  const finalizeRegistration = async () => {
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: window.location.origin }
-      });
-      if (error) throw error;
-      alert('Миссия активирована! Проверьте почту для подтверждения.');
-      setShowPayment(false);
-    } catch (error: any) {
-      alert('Ошибка: ' + error.message);
-    } finally {
-      setLoading(false);
+    if (!error) {
+      console.log("Access granted. Syncing Hero Level...");
+      // ФИКС: Мгновенный переход на страницу профиля
+      navigate('/profile');
+    } else {
+      console.error("Auth Error:", error.message);
+      setIsLoading(false);
     }
   };
 
   return (
-    <>
-      <div className="bg-[#111111] p-8 rounded-[2.5rem] w-full max-w-sm border border-white/5 shadow-2xl">
-        <h2 className="text-2xl font-black mb-6 text-center italic text-[#39FF14] tracking-tighter uppercase">
-          {isRegister ? 'Join Mission' : 'Welcome Back'}
-        </h2>
+    <div className="fixed inset-0 flex items-center justify-center bg-black z-50 p-4">
+      <div className="w-full max-w-sm bg-zinc-900 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden">
         
-        <form onSubmit={handleAuth} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-zinc-500 uppercase ml-4">Email Address</label>
-            <input
-              type="email"
-              placeholder="sergio@cleanegypt.co"
-              className="w-full bg-black p-4 rounded-2xl border border-white/10 focus:border-[#39FF14] outline-none transition-all text-white"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-            />
-          </div>
+        {/* Декор: Неоновая пирамида на фоне */}
+        <div className="absolute -right-10 -top-10 opacity-10 rotate-12">
+          <svg width="200" height="200" viewBox="0 0 24 24" fill="none" stroke="#38bd3d" strokeWidth="1">
+            <path d="M12 2L2 22H22L12 2Z" />
+          </svg>
+        </div>
 
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-zinc-500 uppercase ml-4">Password</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              className="w-full bg-black p-4 rounded-2xl border border-white/10 focus:border-[#BC13FE] outline-none transition-all text-white"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-            />
-          </div>
+        <div className="text-center mb-8 relative z-10">
+          <h2 className="text-white text-3xl font-black italic tracking-tighter uppercase">
+            Join <span className="text-[#38bd3d]">Mission</span>
+          </h2>
+          <p className="text-zinc-500 text-[10px] uppercase tracking-[0.3em] mt-2">Enter your e-mail to start</p>
+        </div>
+
+        <form onSubmit={handleQuickAccess} className="space-y-4 relative z-10">
+          <input
+            type="email"
+            placeholder="sergio@cleanegypt.co"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full p-4 bg-zinc-950 border border-zinc-800 rounded-2xl text-white focus:border-[#38bd3d] outline-none transition-all text-center font-bold"
+            required
+          />
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-[#39FF14] to-[#BC13FE] text-black font-black py-5 rounded-2xl uppercase italic hover:scale-[1.02] active:scale-95 transition-all mt-4 disabled:opacity-50 shadow-[0_0_20px_rgba(57,255,20,0.2)]"
+            disabled={isLoading}
+            className="w-full py-4 bg-gradient-to-r from-[#38bd3d] to-[#a855f7] rounded-2xl font-black text-lg shadow-[0_0_20px_rgba(56,189,61,0.3)] hover:scale-[1.02] active:scale-95 transition-all uppercase italic"
           >
-            {loading ? 'Processing...' : (isRegister ? 'Get Started 🚀' : 'Sign In ⚡')}
+            {isLoading ? "Loading..." : "Get Started 🚀"}
           </button>
         </form>
 
-        <button
-          onClick={() => setIsRegister(!isRegister)}
-          className="w-full mt-6 text-[11px] font-bold text-zinc-500 hover:text-[#BC13FE] transition-colors uppercase tracking-widest"
-        >
-          {isRegister ? 'Already an Eco-Hero? Login' : 'New to CleanEgypt? Register'}
-        </button>
+        <p className="text-center mt-6 text-[10px] text-zinc-600 uppercase tracking-widest">
+          No password required. Instant access.
+        </p>
       </div>
-
-      {/* Оверлей оплаты */}
-      {showPayment && (
-        <PaymentOverlay
-          onClose={() => setShowPayment(false)}
-        />
-      )}
-    </>
+    </div>
   );
 };
 

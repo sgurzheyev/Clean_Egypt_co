@@ -1,46 +1,90 @@
-// src/components/PyramidMarker.tsx
 import React from 'react';
 
-interface PyramidProps {
-  amount: number;
-  label?: string;
+// Интерфейс данных маркера на основе твоей SQL структуры
+interface PyramidMarkerProps {
+  amount: number;       // Сумма заказа ($1 - $500)
+  orderType: 'home' | 'city'; // Тип: Дом (золото) или Город (градиент)
+  label?: string;       // Текст задания
 }
 
-export const PyramidMarker: React.FC<PyramidProps> = ({ amount, label }) => {
-  // Определяем цвет на основе "Clean My Wallet" логики
-  const isPremium = amount >= 5;
-  const glowColor = isPremium ? 'rgba(168, 85, 247, 0.8)' : 'rgba(56, 189, 61, 0.8)';
-  const textColor = isPremium ? '#a855f7' : '#38bd3d';
+const PyramidMarker: React.FC<PyramidMarkerProps> = ({ amount, orderType, label }) => {
+  
+  // 1. Расчет РАЗМЕРА: от 20px (минимум) до 120px (максимум для $500)
+  // Масштабируем так, чтобы "жирные" заказы были реально огромными на карте
+  const size = Math.min(20 + (amount / 500) * 100, 120);
+
+  // 2. Расчет ЦВЕТА и СВЕЧЕНИЯ
+  let mainColor = '#38bd3d'; // Дефолтный зеленый
+  let glowColor = 'rgba(56, 189, 61, 0.6)';
+
+  if (orderType === 'home') {
+    // ЗОЛОТО для CleanMyHome ($5 - $500)
+    mainColor = '#FFD700';
+    glowColor = 'rgba(255, 215, 0, 0.8)';
+  } else {
+    // ГРАДИЕНТ для City Cleanup ($1 - $100)
+    // Зеленый -> Синий -> Пурпурный
+    if (amount >= 70) {
+      mainColor = '#a855f7'; // Пурпурный
+      glowColor = 'rgba(168, 85, 247, 0.8)';
+    } else if (amount >= 30) {
+      mainColor = '#0000FF'; // Синий
+      glowColor = 'rgba(0, 0, 255, 0.7)';
+    }
+  }
 
   return (
-    <div className="relative flex flex-col items-center justify-center cursor-pointer group">
-      {/* Сумма над пирамидой */}
+    <div className="relative flex items-center justify-center group cursor-pointer">
+      {/* Контейнер пирамиды с динамическим размером и свечением */}
       <div
-        className="mb-1 px-2 py-0.5 rounded text-[10px] font-black italic border transition-all group-hover:scale-110"
-        style={{ borderColor: textColor, color: textColor, backgroundColor: 'black' }}
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          filter: `drop-shadow(0 0 ${size / 3}px ${glowColor})`
+        }}
+        className="relative transition-transform duration-500 hover:scale-110"
       >
-        {amount}$
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="w-full h-full"
+        >
+          {/* Основное тело пирамиды */}
+          <path
+            d="M12 2L2 22H22L12 2Z"
+            fill={mainColor}
+            fillOpacity="0.3"
+            stroke={mainColor}
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+          {/* Внутренняя грань для 3D эффекта как на концепте */}
+          <path
+            d="M12 2V22M12 2L22 22"
+            stroke={mainColor}
+            strokeWidth="1"
+            strokeOpacity="0.5"
+          />
+        </svg>
+
+        {/* Отображение суммы прямо на/над пирамидой */}
+        <div
+          className="absolute inset-0 flex items-center justify-center text-white font-black italic drop-shadow-md"
+          style={{ fontSize: `${Math.max(size / 4, 8)}px` }}
+        >
+          {amount}$
+        </div>
       </div>
 
-      {/* Сама пирамида (SVG) */}
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        className="w-10 h-10 drop-shadow-lg transition-transform"
-        style={{ filter: `drop-shadow(0 0 8px ${glowColor})` }}
-      >
-        <path
-          d="M12 2L2 22H22L12 2Z"
-          stroke={textColor}
-          strokeWidth="2"
-          fill={isPremium ? "rgba(168, 85, 247, 0.2)" : "rgba(56, 189, 61, 0.2)"}
-        />
-        <path d="M12 2V22" stroke={textColor} strokeWidth="1" opacity="0.5" />
-      </svg>
-      
+      {/* Текст задания (появляется при наведении или всегда для больших пирамид) */}
       {label && (
-        <span className="text-[8px] uppercase tracking-tighter mt-1 text-gray-400">{label}</span>
+        <div className="absolute -bottom-10 bg-black/80 backdrop-blur-sm border border-white/10 px-3 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+          <p className="text-[10px] text-white font-bold uppercase tracking-widest">{label}</p>
+        </div>
       )}
     </div>
   );
 };
+
+export default PyramidMarker;
