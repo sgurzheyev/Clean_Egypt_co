@@ -1,61 +1,59 @@
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../services/supabase';
-const Profile: React.FC = () => {
-  const [profile, setProfile] = useState<any>(null);
+import React, { useState } from 'react';
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-        setProfile(data);
-      }
-    };
-    fetchProfile();
-  }, []);
+const Profile = () => {
+  const [balance, setBalance] = useState(0); // Баланс в EGP
+  const [hasId, setHasId] = useState(false); // Статус загрузки ID
 
-  if (!profile) return <div className="min-h-screen bg-black flex items-center justify-center text-cyan-500">LOADING HERO DATA...</div>;
+  // Логика депозита (Имитация PayMob / Vodafone Cash)
+  const handleDeposit = () => {
+    // В будущем здесь будет вызов API PayMob
+    setBalance(prev => prev + 100);
+    alert("100 EGP Added via Vodafone Cash! 💸");
+  };
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 flex flex-col items-center">
-      {/* Шапка как на твоем концепте */}
-      <div className="mt-10 text-center">
-        <h1 className="text-4xl font-black italic tracking-tighter uppercase">Eco-Hero</h1>
-        <p className="text-cyan-400 text-xl font-bold italic">Lv. {profile.level || 12}</p>
+    <div className="min-h-screen bg-[#0a0b0e] text-white p-6 font-sans">
+      <h1 className="text-3xl font-black italic text-cyan-400 mb-6">HQ DASHBOARD</h1>
+
+      {/* Блок Работника / Депозиты */}
+      <div className="bg-white/5 p-6 rounded-3xl border border-cyan-400/30 mb-6">
+        <h2 className="text-xl font-bold mb-2">WORKER WALLET</h2>
+        <p className="text-gray-400 text-sm mb-4">Balance: <span className="text-green-400 font-bold">{balance} EGP</span></p>
+        
+        {balance < 100 ? (
+          <div>
+            <p className="text-xs text-yellow-400 mb-4">Deposit 100 EGP to unlock $5 jobs & all city donations! (Includes 25 EGP starting discount)</p>
+            <button
+              onClick={handleDeposit}
+              className="w-full py-3 bg-cyan-400 text-black font-black rounded-xl hover:bg-cyan-300"
+            >
+              PAY DEPO (100 EGP)
+            </button>
+          </div>
+        ) : (
+          <div className="text-green-400 font-bold text-sm">
+            ✅ Account Active. Ready to Grab Jackpots!
+          </div>
+        )}
       </div>
 
-      {/* Полоска опыта XP */}
-      <div className="w-full max-w-xs h-3 bg-zinc-900 rounded-full mt-6 overflow-hidden border border-white/5">
-        <div 
-          className="h-full bg-gradient-to-r from-cyan-500 to-green-500 shadow-[0_0_15px_#06b6d4]" 
-          style={{ width: `${(profile.xp % 100) || 74}%` }}
-        ></div>
+      {/* Верификация ID */}
+      <div className="bg-white/5 p-6 rounded-3xl border border-purple-400/30 mb-6">
+        <h2 className="text-xl font-bold mb-2">NATIONAL ID</h2>
+        {!hasId ? (
+          <div>
+            <input type="file" className="text-sm text-gray-400 mb-4 w-full file:rounded-full file:border-0 file:bg-purple-500/20 file:text-purple-400 file:py-2 file:px-4" />
+            <button
+              onClick={() => setHasId(true)}
+              className="w-full py-3 bg-purple-500 text-white font-black rounded-xl hover:bg-purple-400"
+            >
+              UPLOAD EGYPT ID
+            </button>
+          </div>
+        ) : (
+          <div className="text-green-400 font-bold text-sm">✅ ID Verified</div>
+        )}
       </div>
-
-      {/* Статус Пирамиды */}
-      <div className="mt-20 relative">
-        <div className={`w-40 h-40 transition-all duration-1000 ${profile.pyramid_status === 'gold' ? 'scale-110 shadow-[0_0_50px_#FFD700]' : ''}`}>
-           <svg viewBox="0 0 24 24" fill={profile.pyramid_status === 'gold' ? '#FFD700' : '#38bd3d'}>
-              <path d="M12 2L2 22H22L12 2Z" />
-           </svg>
-        </div>
-        <p className="text-center mt-4 font-black italic uppercase tracking-widest text-zinc-500">
-          Status: <span className={profile.pyramid_status === 'gold' ? 'text-yellow-500' : 'text-cyan-500'}>
-            {profile.pyramid_status || 'ACTIVE'}
-          </span>
-        </p>
-      </div>
-
-      <button 
-        onClick={() => window.location.href = '/'}
-        className="mt-auto mb-10 w-full max-w-xs py-4 bg-zinc-900 rounded-2xl font-bold uppercase tracking-widest border border-white/5"
-      >
-        Back to Map
-      </button>
     </div>
   );
 };
