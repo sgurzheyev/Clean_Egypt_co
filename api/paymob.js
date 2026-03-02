@@ -1,3 +1,4 @@
+```javascript
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
 
@@ -17,13 +18,15 @@ export default async function handler(req, res) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         auth_token: authData.token,
-        delivery_needed: "false",
-        amount_cents: "10000", // Сумма 100 EGP (в пиастрах)
+        delivery_needed: false, // Обратите внимание на тип данных boolean
+        amount_cents: 10000, // Сумма 100 EGP (в пиастрах), используйте число без кавычек
         currency: "EGP",
         items: []
       })
     });
     const orderData = await orderRes.json();
+
+    if (!orderData.id) return res.status(500).json({ error: "Order creation failed", details: orderData });
 
     // Шаг 3: Генерация Payment Key
     const keyRes = await fetch('https://accept.paymob.com/api/acceptance/payment_keys', {
@@ -31,7 +34,7 @@ export default async function handler(req, res) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         auth_token: authData.token,
-        amount_cents: "10000",
+        amount_cents: 10000, // Сумма 100 EGP (в пиастрах), используйте число без кавычек
         expiration: 3600,
         order_id: orderData.id,
         billing_data: {
@@ -46,12 +49,16 @@ export default async function handler(req, res) {
     });
     const keyData = await keyRes.json();
 
+    if (!keyData.token) return res.status(500).json({ error: "Payment Key generation failed", details: keyData });
+
     // Возвращаем токен и ID фрейма фронтенду
     return res.status(200).json({
       token: keyData.token,
       iframe_id: process.env.PAYMOB_IFRAME_ID
     });
   } catch (e) {
+    console.error(e); // Логируем ошибку для отладки
     return res.status(500).json({ error: e.message });
   }
 }
+```
