@@ -1,3 +1,4 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
@@ -6,17 +7,19 @@ const supabase = createClient(
   process.env.VITE_SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export default async function handler(req: any, res: any) {
-  // PayMob отправляет POST-запрос с деталями транзакции
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
 
   try {
     const { obj } = req.body;
-    const hmacReceived = req.query.hmac; // PayMob передает HMAC в URL
+    // Paymob может прислать HMAC в query string
+    const hmacReceived = req.query.hmac as string;
 
-    // 1. ПРОВЕРКА ПОДПИСИ (ЗАЩИТА ОТ ВЗЛОМА)
-    // Строгий порядок полей, требуемый PayMob для валидации
-    const lexigraphicalString = [
+    // 1. ПРОВЕРКА ПОДПИСИ (Строгий порядок Paymob)
+    const secret = process.env.VITE_PAYMOB_HMAC || process.env.PAYMOB_HMAC;
+    
+    // Собираем строку строго по документации Paymob
+    const dataToHash = [
       obj.amount_cents,
       obj.created_at,
       obj.currency,
@@ -36,38 +39,39 @@ export default async function handler(req: any, res: any) {
       obj.success
     ].join('');
 
-    const secret = process.env.VITE_PAYMOB_HMAC!;
-    const hashed = crypto.createHmac('sha512', secret).update(lexigraphicalString).digest('hex');
+    const hashed = crypto
+      .createHmac('sha512', secret!)
+      .update(dataToHash)
+      .digest('hex');
 
-    // Если подписи не совпадают — отклоняем запрос
     if (hashed !== hmacReceived) {
-      console.error('ОШИБКА: Неверный HMAC!');
+      console.error('ОШИБКА: HMAC mismatch!');
+      // Для отладки в логах Vercel:
+      // console.log("Hashed:", hashed);
+      // console.log("Received:", hmacReceived);
       return res.status(401).send('Unauthorized');
     }
 
-    // 2. АКТИВАЦИЯ ПИРАМИДЫ ПРИ УСПЕШНОЙ ОПЛАТЕ
+    // 2. АКТИВАЦИЯ ПИРАМИДЫ
     if (obj.success === true) {
-      const orderId = obj.order.id;
-      const amountPaid = obj.amount_cents / 100; // Переводим центы обратно в доллары/фунты
+      const paymobOrderId = obj.order.id;
+      const amountPaid = obj.amount_cents / 100;
 
-      // Обновляем пирамиду в Supabase (меняем статус и зажигаем неон)
       const { error } = await supabase
         .from('pyramids')
         .update({
           status: 'active',
           current_amount: amountPaid,
-          glow_intensity: 1.0 // Включаем максимальное свечение
+          glow_intensity: 1.0
         })
-        .eq('paymob_order_id', orderId); // Ищем пирамиду по ID заказа
+        .eq('paymob_order_id', paymobOrderId.toString()); // Используем наш ID заказа
 
-      if (error) throw new Error("Supabase Update Error: " + error.message);
+      if (error) throw new Error("Supabase Error: " + error.message);
       
-      // Здесь же можно начислить XP пользователю!
-      // Например: добавить (amountPaid * 10) XP в таблицу profiles
+      console.log(`Пирамида для заказа ${paymobOrderId} успешно активирована!`);
     }
 
-    // Обязательно отвечаем 200 OK, иначе PayMob будет спамить повторными запросами
-    return res.status(200).send('Webhook Processed');
+    return res.status(200).send('OK');
 
   } catch (error: any) {
     console.error('Webhook Error:', error.message);
