@@ -57,13 +57,13 @@ const App: React.FC = () => {
                     onClick={() => { setOrderType('city'); setAmount(1); }}
                     className={`flex-1 py-4 rounded-2xl font-black italic transition-all ${orderType === 'city' ? 'bg-[#38bd3d] text-black shadow-[0_0_20px_#38bd3d]' : 'bg-zinc-900 text-zinc-500'}`}
                   >
-                    CITY {amount}$
+                    {orderType === 'city' ? `CITY ${amount}$` : 'CITY $1'}
                   </button>
                   <button
                     onClick={() => { setOrderType('home'); setAmount(5); }}
                     className={`flex-1 py-4 rounded-2xl font-black italic transition-all ${orderType === 'home' ? 'bg-[#FFD700] text-black shadow-[0_0_20px_#FFD700]' : 'bg-zinc-900 text-zinc-500'}`}
                   >
-                    HOME {amount}$
+                    {orderType === 'home' ? `HOME ${amount}$` : 'HOME $5'}
                   </button>
                 </div>
 
