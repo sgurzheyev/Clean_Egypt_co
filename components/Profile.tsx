@@ -97,7 +97,7 @@ const Profile: React.FC = () => {
         const exchangeRate = 50;
         const fallbackFinalPrice = usdAmount * exchangeRate;
         const finalPrice = pyramid.final_price_egp || fallbackFinalPrice;
-        const totalPayout = finalPrice + (finalPrice * 0.5); // Ставка + возврат 50% депо
+       const totalPayout = finalPrice + (finalPrice * 0.5); // Ставка + возврат 50% депо
 
         // 1. Закрываем пирамиду
         await supabase.from('pyramids').update({
