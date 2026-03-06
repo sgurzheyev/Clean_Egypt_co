@@ -27,6 +27,8 @@ const Profile: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [marketLoading, setMarketplaceLoading] = useState(true);
   const [marketError, setMarketplaceError] = useState<string | null>(null);
+  const [selectedMission, setSelectedMission] = useState<Pyramid | null>(null);
+  const [isPaymentLoading, setIsPaymentLoading] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -43,19 +45,23 @@ const Profile: React.FC = () => {
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
-        .single();
+        .maybeSingle();
 
       if (profile) {
-        setBalance(profile.balance_egp ?? 0);
+        setBalance((profile as ProfileRow).balance_egp ?? 0);
       }
 
       // 2. Мои заказы (где я владелец)
-      const { data: myData } = await supabase
-        .from('pyramids')
-        .select('*')
-        .eq('creator_id', profile?.id)
-        .order('created_at', { ascending: false });
-      if (myData) setMyPyramids(myData);
+      if (profile) {
+        const { data: myData } = await supabase
+          .from('pyramids')
+          .select('*')
+          .eq('creator_id', (profile as ProfileRow).id)
+          .order('created_at', { ascending: false });
+        if (myData) setMyPyramids(myData as Pyramid[]);
+      } else {
+        setMyPyramids([]);
+      }
 
     } catch (err) {
       console.error("Error fetching profile data:", err);
@@ -124,6 +130,79 @@ const Profile: React.FC = () => {
     }
   };
 
+  const computeMissionMeta = (mission: Pyramid) => {
+    const missionLabel = (mission.mission_type || 'city').toString().toUpperCase();
+    const targetUsd = mission.target_amount ?? 0;
+    const exchangeRate = 50; // должен совпадать с серверной логикой
+    const depositEgp = Math.round(targetUsd * exchangeRate * 0.5);
+    return { missionLabel, targetUsd, depositEgp };
+  };
+
+  const handleOpenMission = (mission: Pyramid) => {
+    setSelectedMission(mission);
+  };
+
+  const handleCloseMission = () => {
+    if (isPaymentLoading) return;
+    setSelectedMission(null);
+  };
+
+  const handleAcceptMission = async () => {
+    if (!selectedMission) return;
+
+    const { depositEgp } = computeMissionMeta(selectedMission);
+    if (!depositEgp || depositEgp <= 0) {
+      alert('Невозможно посчитать депозит для этой миссии.');
+      return;
+    }
+
+    try {
+      setIsPaymentLoading(true);
+
+      console.log('Отправляем запрос на /api/paymob-intent');
+      const res = await fetch('/api/paymob-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          missionId: selectedMission.id,
+          amount: depositEgp,
+          type: 'worker_deposit',
+        }),
+      });
+
+      console.log('Статус ответа:', res.status);
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Paymob init failed:', errorText);
+        alert('Сервер отказал в инициализации платежа. См. console.');
+        return;
+      }
+
+      const data = (await res.json()) as { paymentUrl?: string; paymentToken?: string };
+
+      if (data.paymentUrl) {
+        window.location.assign(data.paymentUrl);
+        return;
+      }
+
+      if (data.paymentToken) {
+        const iframeId = (import.meta.env.VITE_PAYMOB_IFRAME_ID as string | undefined) || '1007120';
+        const url = `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${data.paymentToken}`;
+        window.location.assign(url);
+        return;
+      }
+
+      console.error('Unexpected response payload:', data);
+      alert('Сервер не вернул ссылку/токен для оплаты.');
+    } catch (err) {
+      console.error('Worker deposit exception:', err);
+      alert('Ошибка при подготовке платежа. Попробуйте позже.');
+    } finally {
+      setIsPaymentLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-white p-4 font-sans ltr">
       <div className="max-w-2xl mx-auto">
@@ -145,10 +224,25 @@ const Profile: React.FC = () => {
             🏠 MY HOME REQUESTS
           </h2>
           <div className="space-y-4">
-            {myPyramids.length === 0 ? (
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2].map((s) => (
+                  <div
+                    key={s}
+                    className="bg-slate-800/40 border border-slate-700 rounded-2xl p-4 animate-pulse"
+                  >
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="h-4 w-16 bg-slate-700 rounded-full" />
+                      <div className="h-3 w-20 bg-slate-700 rounded-full" />
+                    </div>
+                    <div className="h-3 w-32 bg-slate-700 rounded-full" />
+                  </div>
+                ))}
+              </div>
+            ) : myPyramids.length === 0 ? (
               <p className="text-slate-500 text-sm italic">You haven't created any requests yet.</p>
             ) : (
-              myPyramids.map(p => (
+              myPyramids.map((p) => (
                 <div key={p.id} className="bg-slate-800/40 border border-slate-700 rounded-2xl p-4">
                   <div className="flex justify-between items-start mb-4">
                     <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${p.status === 'active' ? 'bg-emerald-500' : 'bg-slate-600'}`}>
@@ -210,31 +304,49 @@ const Profile: React.FC = () => {
           {!marketLoading && !marketError && marketplaceJobs.length > 0 && (
             <div className="grid grid-cols-1 gap-4">
               {marketplaceJobs.map((job) => {
-                const missionLabel = (job.mission_type || 'city').toString().toUpperCase();
-                const targetUsd = job.target_amount ?? 0;
-                const exchangeRate = 50; // Должен совпадать с серверной логикой
-                const depositEgp = Math.round(targetUsd * exchangeRate * 0.5);
+                const { missionLabel, targetUsd, depositEgp } = computeMissionMeta(job);
+                const isHome = missionLabel === 'HOME';
+                const icon = isHome ? '🏠' : '🌆';
+                const badgeColor = isHome
+                  ? 'bg-amber-400/10 text-amber-300'
+                  : 'bg-teal-400/10 text-teal-300';
 
                 return (
-                  <div
+                  <button
                     key={job.id}
-                    className="bg-slate-800 border border-slate-700 p-5 rounded-2xl flex justify-between items-center hover:border-teal-500/50 transition-colors"
+                    type="button"
+                    onClick={() => handleOpenMission(job)}
+                    className="group w-full text-left"
                   >
-                    <div>
-                      <p className="text-[10px] text-slate-500 uppercase font-black">
-                        {missionLabel} MISSION
-                      </p>
-                      <p className="text-2xl font-black tracking-tighter">
-                        {targetUsd > 0 ? `${targetUsd}$` : 'Custom bid'}
-                      </p>
+                    <div className="relative bg-slate-900/60 border border-slate-700/80 p-5 rounded-2xl flex justify-between items-center overflow-hidden transition-all duration-200 group-hover:border-teal-400/80 group-hover:bg-slate-900 group-hover:-translate-y-0.5 group-hover:shadow-[0_18px_45px_rgba(45,212,191,0.25)]">
+                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                        <div className="absolute -inset-32 bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.18),_transparent_60%),radial-gradient(circle_at_bottom,_rgba(56,189,248,0.16),_transparent_60%)]" />
+                      </div>
+
+                      <div className="relative flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-800 text-xl group-hover:scale-105 group-hover:bg-slate-700 transition-transform duration-200">
+                          <span>{icon}</span>
+                        </div>
+                        <div>
+                          <p className={`text-[10px] uppercase font-black tracking-widest ${badgeColor}`}>
+                            {missionLabel} MISSION
+                          </p>
+                          <p className="text-2xl font-black tracking-tight mt-1">
+                            {targetUsd > 0 ? `${targetUsd}$` : 'Custom bid'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="relative text-right">
+                        <p className="text-[9px] text-slate-500 mb-1 uppercase tracking-widest">
+                          Worker Deposit
+                        </p>
+                        <p className="text-xs font-bold text-teal-300 group-hover:text-teal-100">
+                          {depositEgp > 0 ? `${depositEgp} EGP` : '—'}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[9px] text-slate-500 mb-1 uppercase">Worker Deposit</p>
-                      <p className="text-xs font-bold text-teal-400">
-                        {depositEgp > 0 ? `${depositEgp} EGP` : '—'}
-                      </p>
-                    </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -242,6 +354,76 @@ const Profile: React.FC = () => {
         </section>
 
       </div>
+
+      {/* MODAL: mission details for worker */}
+      {selectedMission && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          onClick={handleCloseMission}
+        >
+          <div
+            className="relative w-full max-w-md bg-slate-900 rounded-3xl border border-slate-700/80 shadow-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={handleCloseMission}
+              className="absolute right-4 top-4 text-slate-500 hover:text-white text-sm font-bold disabled:opacity-40"
+              disabled={isPaymentLoading}
+            >
+              ✕
+            </button>
+
+            {(() => {
+              const { missionLabel, targetUsd, depositEgp } = computeMissionMeta(selectedMission);
+              return (
+                <>
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-teal-400 font-bold mb-1">
+                    Mission details
+                  </p>
+                  <h3 className="text-2xl font-black tracking-tight mb-4">
+                    {missionLabel} MISSION
+                  </h3>
+
+                  <div className="space-y-3 mb-6 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 uppercase text-[10px] tracking-widest">
+                        Reward
+                      </span>
+                      <span className="font-bold">{targetUsd > 0 ? `${targetUsd}$` : 'Custom bid'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 uppercase text-[10px] tracking-widest">
+                        Worker deposit
+                      </span>
+                      <span className="font-bold text-teal-300">{depositEgp > 0 ? `${depositEgp} EGP` : '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 uppercase text-[10px] tracking-widest">
+                        Status
+                      </span>
+                      <span className="font-semibold">{selectedMission.status.toUpperCase()}</span>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+
+            <button
+              type="button"
+              onClick={handleAcceptMission}
+              disabled={isPaymentLoading}
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-teal-400 to-cyan-400 text-slate-900 font-black text-sm uppercase tracking-[0.2em] shadow-[0_18px_45px_rgba(45,212,191,0.45)] hover:brightness-110 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isPaymentLoading ? 'Подготовка безопасного платежа...' : 'Оплатить депозит и взять миссию'}
+            </button>
+
+            <p className="mt-3 text-[10px] text-slate-500 text-center">
+              Депозит будет обработан через защищенный шлюз Paymob.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
