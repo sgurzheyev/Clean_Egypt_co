@@ -5,7 +5,8 @@ import Auth from './components/Auth';
 import PaymentOverlay from './components/PaymentOverlay';
 import Slider from './components/Slider';
 import Profile from './components/Profile';
-import TryFree from './components/TryFree'; // ИМПОРТ ДОБАВЛЕН
+import TryFree from './components/TryFree';
+import VerificationPage from './components/VerificationPage';
 import { supabase } from './services/supabase';
 
 const App: React.FC = () => {
@@ -94,8 +95,8 @@ const App: React.FC = () => {
 
           <Route path="/auth" element={!session ? <Auth /> : <Navigate to="/profile" />} />
           <Route path="/profile" element={<Profile />} />
-          
-          {/* МАРШРУТ ДЛЯ СБОРА EMAIL */}
+          <Route path="/verify" element={<VerificationPage />} />
+
           <Route path="/try-free" element={<TryFree />} />
         </Routes>
       </div>

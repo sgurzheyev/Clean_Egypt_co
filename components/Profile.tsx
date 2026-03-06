@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
 type MissionType = 'home' | 'city' | string | null;
@@ -31,6 +32,8 @@ const Profile: React.FC = () => {
   const [selectedMission, setSelectedMission] = useState<Pyramid | null>(null);
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [userProfile, setUserProfile] = useState<ProfileRow | null>(null);
+  const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -155,7 +158,7 @@ const Profile: React.FC = () => {
     if (!selectedMission) return;
 
     if (selectedMission.mission_type === 'home' && !userProfile?.is_verified) {
-      alert('Только верифицированные рабочие (с проверенным ID паспорта) могут брать домашние миссии!');
+      setShowVerificationPrompt(true);
       return;
     }
 
@@ -432,6 +435,43 @@ const Profile: React.FC = () => {
             <p className="mt-3 text-[10px] text-slate-500 text-center">
               Депозит будет обработан через защищенный шлюз Paymob.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Модалка: требуется верификация для Home-миссий */}
+      {showVerificationPrompt && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          onClick={() => setShowVerificationPrompt(false)}
+        >
+          <div
+            className="relative w-full max-w-md bg-slate-800/95 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-white font-bold text-lg mb-2">Нужна верификация</p>
+            <p className="text-slate-400 text-sm mb-6">
+              Только верифицированные рабочие (с проверенным ID паспорта) могут брать домашние миссии.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowVerificationPrompt(false)}
+                className="flex-1 py-3 rounded-xl border border-white/20 text-slate-400 hover:text-white font-bold text-sm transition-colors"
+              >
+                Закрыть
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowVerificationPrompt(false);
+                  navigate('/verify');
+                }}
+                className="flex-1 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-900 font-black text-sm transition-colors"
+              >
+                Пройти верификацию
+              </button>
+            </div>
           </div>
         </div>
       )}
