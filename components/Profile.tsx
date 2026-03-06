@@ -41,7 +41,7 @@ const Profile: React.FC = () => {
     try {
       // 1. Получаем данные профиля и баланс
       const { data: profile } = await supabase
-        .from<ProfileRow>('profiles')
+        .from('profiles')
         .select('*')
         .single();
 
@@ -51,7 +51,7 @@ const Profile: React.FC = () => {
 
       // 2. Мои заказы (где я владелец)
       const { data: myData } = await supabase
-        .from<Pyramid>('pyramids')
+        .from('pyramids')
         .select('*')
         .eq('creator_id', profile?.id)
         .order('created_at', { ascending: false });
@@ -70,7 +70,7 @@ const Profile: React.FC = () => {
       setMarketplaceError(null);
 
       const { data, error } = await supabase
-        .from<Pyramid>('pyramids')
+        .from('pyramids')
         .select('*')
         .neq('status', 'completed')
         .order('created_at', { ascending: false })
@@ -89,11 +89,14 @@ const Profile: React.FC = () => {
     }
   };
 
-  const handleConfirmDone = async (pyramid: any) => {
+  const handleConfirmDone = async (pyramid: Pyramid) => {
     // Владелец подтверждает чистоту по Photo 3 (Worker Finish)
     if (window.confirm("Подтверждаешь выполнение? Депозит вернется рабочему, и он получит оплату.")) {
       try {
-        const finalPrice = pyramid.final_price_egp || (pyramid.current_amount_usd * 50);
+        const usdAmount = pyramid.current_amount ?? 0;
+        const exchangeRate = 50;
+        const fallbackFinalPrice = usdAmount * exchangeRate;
+        const finalPrice = pyramid.final_price_egp || fallbackFinalPrice;
         const totalPayout = finalPrice + (finalPrice * 0.5); // Ставка + возврат 50% депо
 
         // 1. Закрываем пирамиду
