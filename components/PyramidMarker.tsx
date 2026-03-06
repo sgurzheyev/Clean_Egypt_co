@@ -68,13 +68,21 @@ const PyramidMarker: React.FC<PyramidMarkerProps> = ({ amount, orderType, label 
           />
         </svg>
 
-        {/* Отображение суммы прямо на/над пирамидой */}
-        <div
-          className="absolute inset-0 flex items-center justify-center text-white font-black italic drop-shadow-md"
-          style={{ fontSize: `${Math.max(size / 4, 8)}px` }}
-        >
-          {amount}$
-        </div>
+        {/* Отображение суммы по центру пирамиды: уменьшенная зона + адаптивный шрифт */}
+        {(() => {
+          const baseFontSize = Math.max(size / 4, 8);
+          const digitCount = String(amount).length + 1; // +1 за символ $
+          const scale = digitCount >= 4 ? 0.55 : digitCount >= 3 ? 0.75 : 1;
+          const fontSize = Math.max(Math.round(baseFontSize * scale), 6);
+          return (
+            <div
+              className="absolute inset-[18%] flex items-center justify-center text-white font-black italic drop-shadow-md overflow-hidden"
+              style={{ fontSize: `${fontSize}px` }}
+            >
+              <span className="truncate max-w-full leading-none">{amount}$</span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Текст задания (появляется при наведении или всегда для больших пирамид) */}
