@@ -213,11 +213,12 @@ const Profile: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-4 font-sans ltr">
-      <div className="max-w-2xl mx-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md font-sans ltr">
+      <div className="min-h-full py-6 px-4 flex flex-col items-center">
+        <div className="w-full max-w-2xl">
         
         {/* WALLET SECTION */}
-        <header className="flex justify-between items-center mb-8 bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-2xl">
+        <header className="flex justify-between items-center mb-8 bg-slate-800/80 backdrop-blur-sm text-white p-6 rounded-3xl border border-white/10 shadow-2xl">
           <div>
             <p className="text-teal-400 text-[10px] uppercase tracking-widest font-bold">Your Balance</p>
             <p className="text-4xl font-black">{balance} <span className="text-sm font-normal opacity-50">EGP</span></p>
@@ -228,7 +229,7 @@ const Profile: React.FC = () => {
         </header>
 
         {/* MY REQUESTS (HOME WORK) */}
-        <section className="mb-10">
+        <section className="mb-10 text-white">
           <h2 className="text-xl font-black mb-4 flex items-center gap-2">
             🏠 MY HOME REQUESTS
           </h2>
@@ -236,10 +237,10 @@ const Profile: React.FC = () => {
             {loading ? (
               <div className="space-y-3">
                 {[1, 2].map((s) => (
-                  <div
-                    key={s}
-                    className="bg-slate-800/40 border border-slate-700 rounded-2xl p-4 animate-pulse"
-                  >
+                <div
+                  key={s}
+                  className="bg-slate-800/60 backdrop-blur-sm border border-white/10 rounded-2xl p-4 animate-pulse"
+                >
                     <div className="flex justify-between items-center mb-3">
                       <div className="h-4 w-16 bg-slate-700 rounded-full" />
                       <div className="h-3 w-20 bg-slate-700 rounded-full" />
@@ -252,7 +253,7 @@ const Profile: React.FC = () => {
               <p className="text-slate-500 text-sm italic">You haven't created any requests yet.</p>
             ) : (
               myPyramids.map((p) => (
-                <div key={p.id} className="bg-slate-800/40 border border-slate-700 rounded-2xl p-4">
+                <div key={p.id} className="bg-slate-800/70 backdrop-blur-sm border border-white/10 rounded-2xl p-4">
                   <div className="flex justify-between items-start mb-4">
                     <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${p.status === 'active' ? 'bg-emerald-500' : 'bg-slate-600'}`}>
                       {p.status.toUpperCase()}
@@ -282,7 +283,7 @@ const Profile: React.FC = () => {
         </section>
 
         {/* MARKETPLACE (CITY WORK & BIDDING) */}
-        <section>
+        <section className="text-white">
           <h2 className="text-xl font-black mb-4 text-teal-400">🌍 GLOBAL MARKETPLACE</h2>
 
           {marketLoading && (
@@ -290,7 +291,7 @@ const Profile: React.FC = () => {
               {[1, 2, 3].map((skeleton) => (
                 <div
                   key={skeleton}
-                  className="bg-slate-800 border border-slate-700 p-5 rounded-2xl animate-pulse"
+                  className="bg-slate-800/70 backdrop-blur-sm border border-white/10 p-5 rounded-2xl animate-pulse"
                 >
                   <div className="h-3 w-24 bg-slate-700 rounded-full mb-3" />
                   <div className="h-6 w-32 bg-slate-600 rounded-full mb-4" />
@@ -327,7 +328,7 @@ const Profile: React.FC = () => {
                     onClick={() => handleOpenMission(job)}
                     className="group w-full text-left"
                   >
-                    <div className="relative bg-slate-900/60 border border-slate-700/80 p-5 rounded-2xl flex justify-between items-center overflow-hidden transition-all duration-200 group-hover:border-teal-400/80 group-hover:bg-slate-900 group-hover:-translate-y-0.5 group-hover:shadow-[0_18px_45px_rgba(45,212,191,0.25)]">
+                    <div className="relative bg-slate-800/80 backdrop-blur-sm border border-white/10 p-5 rounded-2xl flex justify-between items-center overflow-hidden transition-all duration-200 group-hover:border-teal-400/50 group-hover:shadow-[0_18px_45px_rgba(45,212,191,0.25)]">
                       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                         <div className="absolute -inset-32 bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.18),_transparent_60%),radial-gradient(circle_at_bottom,_rgba(56,189,248,0.16),_transparent_60%)]" />
                       </div>
@@ -362,6 +363,7 @@ const Profile: React.FC = () => {
           )}
         </section>
 
+        </div>
       </div>
 
       {/* MODAL: mission details for worker */}

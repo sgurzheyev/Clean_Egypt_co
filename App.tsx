@@ -39,16 +39,19 @@ const App: React.FC = () => {
   return (
     <Router>
       <div className="relative w-full h-screen bg-black overflow-hidden">
+        {/* Карта всегда на заднем фоне (не удаляется при переходе в Profile и т.д.) */}
+        <div className="fixed inset-0 z-0 w-full h-full">
+          <MapPicker
+            onLocationSelect={(lat, lng) => setTargetCoords({lat, lng})}
+            orders={orders}
+            currentAmount={amount}
+            currentType={orderType}
+          />
+        </div>
+
         <Routes>
           <Route path="/" element={
             <>
-              <MapPicker
-                onLocationSelect={(lat, lng) => setTargetCoords({lat, lng})}
-                orders={orders}
-                currentAmount={amount}
-                currentType={orderType}
-              />
-
               <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-md px-4 space-y-4 z-30">
                 <Slider amount={amount} setAmount={setAmount} type={orderType} />
                 
