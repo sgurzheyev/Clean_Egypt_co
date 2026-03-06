@@ -2,10 +2,15 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL!,
-  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY!
-);
+// Server-side Supabase client (service role). Never use VITE_* for this.
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceRoleKey) {
+  throw new Error('Missing server env vars: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY');
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
@@ -16,7 +21,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const hmacReceived = req.query.hmac as string;
 
     // 1. ПРОВЕРКА ПОДПИСИ (Строгий порядок Paymob)
-    const secret = process.env.VITE_PAYMOB_HMAC || process.env.PAYMOB_HMAC;
+    // HMAC secret must be server-only (no VITE_*).
+    const secret = process.env.PAYMOB_HMAC;
     
     // Собираем строку строго по документации Paymob
     const dataToHash = [

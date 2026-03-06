@@ -1,11 +1,16 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-// Инициализация Supabase с использованием SERVICE_ROLE_KEY для обхода RLS при записи
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL!,
-  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY!
-);
+// Server-side Supabase client (service role). Never use VITE_* for this.
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceRoleKey) {
+  throw new Error('Missing server env vars: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY');
+}
+
+// Uses SERVICE_ROLE_KEY to bypass RLS for secure server writes.
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
