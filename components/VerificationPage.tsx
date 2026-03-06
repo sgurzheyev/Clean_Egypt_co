@@ -7,20 +7,31 @@ const BUCKET_VERIFICATIONS = 'verifications';
 const VerificationPage: React.FC = () => {
   const navigate = useNavigate();
   const [fullName, setFullName] = useState('');
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoFront, setPhotoFront] = useState<File | null>(null);
+  const [photoBack, setPhotoBack] = useState<File | null>(null);
+  const [photoPreviewFront, setPhotoPreviewFront] = useState<string | null>(null);
+  const [photoPreviewBack, setPhotoPreviewBack] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputFrontRef = useRef<HTMLInputElement>(null);
+  const fileInputBackRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileFront = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setPhotoFile(file);
+      setPhotoFront(file);
       setSubmitError(null);
-      const url = URL.createObjectURL(file);
-      setPhotoPreview(url);
+      setPhotoPreviewFront(URL.createObjectURL(file));
+    }
+  };
+
+  const handleFileBack = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPhotoBack(file);
+      setSubmitError(null);
+      setPhotoPreviewBack(URL.createObjectURL(file));
     }
   };
 
@@ -28,8 +39,12 @@ const VerificationPage: React.FC = () => {
     e.preventDefault();
     setSubmitError(null);
     if (!fullName.trim()) return;
-    if (!photoFile) {
-      setSubmitError('Загрузите фото документа (ID или паспорт).');
+    if (!photoFront) {
+      setSubmitError('Загрузите фото лицевой стороны документа.');
+      return;
+    }
+    if (!photoBack) {
+      setSubmitError('Загрузите фото оборотной стороны документа.');
       return;
     }
 
@@ -41,19 +56,35 @@ const VerificationPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const ext = photoFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const fileName = `${user.id}_${Date.now()}.${ext}`;
+      const ts = Date.now();
+      const extF = photoFront.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const extB = photoBack.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileNameFront = `${user.id}_${ts}_front.${extF}`;
+      const fileNameBack = `${user.id}_${ts}_back.${extB}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadFrontError } = await supabase.storage
         .from(BUCKET_VERIFICATIONS)
-        .upload(fileName, photoFile, {
-          contentType: photoFile.type || 'image/jpeg',
+        .upload(fileNameFront, photoFront, {
+          contentType: photoFront.type || 'image/jpeg',
           upsert: false,
         });
 
-      if (uploadError) {
-        console.error('Storage upload error:', uploadError);
-        setSubmitError('Не удалось загрузить фото. Проверьте размер и формат или попробуйте позже.');
+      if (uploadFrontError) {
+        console.log('Storage upload (front) error:', uploadFrontError);
+        setSubmitError('Не удалось загрузить фото лицевой стороны. Проверьте размер и формат.');
+        return;
+      }
+
+      const { error: uploadBackError } = await supabase.storage
+        .from(BUCKET_VERIFICATIONS)
+        .upload(fileNameBack, photoBack, {
+          contentType: photoBack.type || 'image/jpeg',
+          upsert: false,
+        });
+
+      if (uploadBackError) {
+        console.log('Storage upload (back) error:', uploadBackError);
+        setSubmitError('Не удалось загрузить фото оборотной стороны. Проверьте размер и формат.');
         return;
       }
 
@@ -62,19 +93,20 @@ const VerificationPage: React.FC = () => {
         .update({
           full_name: fullName.trim(),
           verification_status: 'pending',
-          verification_photo_path: fileName,
+          verification_photo_front: fileNameFront,
+          verification_photo_back: fileNameBack,
         })
         .eq('id', user.id);
 
       if (updateError) {
-        console.error('Profile update error:', updateError);
-        setSubmitError('Фото загружено, но не удалось обновить профиль. Обратитесь в поддержку.');
+        console.log('Profile update error:', updateError);
+        setSubmitError('Фото загружены, но не удалось обновить профиль. Обратитесь в поддержку.');
         return;
       }
 
       setSubmitted(true);
     } catch (err) {
-      console.error('Verification submit error:', err);
+      console.log('Verification submit error:', err);
       setSubmitError('Ошибка отправки. Попробуйте позже.');
     } finally {
       setIsSubmitting(false);
@@ -98,7 +130,7 @@ const VerificationPage: React.FC = () => {
               Верификация рабочего
             </h1>
             <p className="text-slate-400 text-sm mb-6">
-              Нужна для доступа к домашним миссиям (CleanMyHome).
+              Нужна для доступа к домашним миссиям (CleanMyHome). Загрузите обе стороны документа.
             </p>
 
             {submitted ? (
@@ -135,33 +167,67 @@ const VerificationPage: React.FC = () => {
 
                 <div>
                   <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">
-                    Фото документа (ID / паспорт)
+                    Лицевая сторона (Front Side)
                   </label>
                   <input
-                    ref={fileInputRef}
+                    ref={fileInputFrontRef}
                     type="file"
                     accept="image/*"
-                    onChange={handleFileChange}
+                    onChange={handleFileFront}
                     className="hidden"
                   />
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-4 rounded-xl border-2 border-dashed border-white/20 hover:border-teal-400/50 bg-slate-900/50 text-slate-400 hover:text-teal-400 transition-all flex flex-col items-center justify-center gap-2"
+                    onClick={() => fileInputFrontRef.current?.click()}
+                    className="w-full py-4 rounded-xl border-2 border-dashed border-white/20 hover:border-teal-400/50 bg-slate-900/50 text-slate-400 hover:text-teal-400 transition-all flex flex-col items-center justify-center gap-2 min-h-[100px]"
                   >
-                    {photoPreview ? (
+                    {photoPreviewFront ? (
                       <>
                         <img
-                          src={photoPreview}
-                          alt="Preview"
+                          src={photoPreviewFront}
+                          alt="Front"
                           className="max-h-24 rounded-lg object-cover"
                         />
-                        <span className="text-xs font-bold">Изменить фото</span>
+                        <span className="text-xs font-bold">Изменить</span>
                       </>
                     ) : (
                       <>
                         <span className="text-2xl">📄</span>
-                        <span className="text-sm font-bold">Нажмите для загрузки</span>
+                        <span className="text-sm font-bold">Загрузить лицевую сторону</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">
+                    Оборотная сторона (Back Side)
+                  </label>
+                  <input
+                    ref={fileInputBackRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileBack}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputBackRef.current?.click()}
+                    className="w-full py-4 rounded-xl border-2 border-dashed border-white/20 hover:border-teal-400/50 bg-slate-900/50 text-slate-400 hover:text-teal-400 transition-all flex flex-col items-center justify-center gap-2 min-h-[100px]"
+                  >
+                    {photoPreviewBack ? (
+                      <>
+                        <img
+                          src={photoPreviewBack}
+                          alt="Back"
+                          className="max-h-24 rounded-lg object-cover"
+                        />
+                        <span className="text-xs font-bold">Изменить</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-2xl">📄</span>
+                        <span className="text-sm font-bold">Загрузить оборотную сторону</span>
                       </>
                     )}
                   </button>
