@@ -20,6 +20,8 @@ interface ProfileRow {
   id: string;
   balance_egp: number | null;
   is_verified?: boolean;
+  verification_status?: string | null;
+  full_name?: string | null;
 }
 
 const Profile: React.FC = () => {
@@ -157,7 +159,8 @@ const Profile: React.FC = () => {
   const handleAcceptMission = async () => {
     if (!selectedMission) return;
 
-    if (selectedMission.mission_type === 'home' && !userProfile?.is_verified) {
+    const isVerified = userProfile?.verification_status === 'verified' || userProfile?.is_verified;
+    if (selectedMission.mission_type === 'home' && !isVerified) {
       setShowVerificationPrompt(true);
       return;
     }
@@ -225,6 +228,16 @@ const Profile: React.FC = () => {
           <div>
             <p className="text-teal-400 text-[10px] uppercase tracking-widest font-bold">Your Balance</p>
             <p className="text-4xl font-black">{balance} <span className="text-sm font-normal opacity-50">EGP</span></p>
+            {userProfile?.verification_status === 'verified' && (
+              <span className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/40">
+                ✓ Верифицирован
+              </span>
+            )}
+            {userProfile?.verification_status === 'pending' && (
+              <span className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold border border-amber-500/40">
+                Документы на проверке
+              </span>
+            )}
           </div>
           <button className="bg-teal-500 hover:bg-teal-400 text-slate-900 px-6 py-3 rounded-2xl font-black text-xs transition-all active:scale-95">
             + RECHARGE
@@ -451,7 +464,9 @@ const Profile: React.FC = () => {
           >
             <p className="text-white font-bold text-lg mb-2">Нужна верификация</p>
             <p className="text-slate-400 text-sm mb-6">
-              Только верифицированные рабочие (с проверенным ID паспорта) могут брать домашние миссии.
+              {userProfile?.verification_status === 'pending'
+                ? 'Ваши документы уже на проверке. Ожидайте обновления статуса в профиле.'
+                : 'Только верифицированные рабочие (с проверенным ID паспорта) могут брать домашние миссии.'}
             </p>
             <div className="flex gap-3">
               <button
@@ -461,16 +476,26 @@ const Profile: React.FC = () => {
               >
                 Закрыть
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowVerificationPrompt(false);
-                  navigate('/verify');
-                }}
-                className="flex-1 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-900 font-black text-sm transition-colors"
-              >
-                Пройти верификацию
-              </button>
+              {userProfile?.verification_status !== 'pending' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowVerificationPrompt(false);
+                    navigate('/verify');
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-900 font-black text-sm transition-colors"
+                >
+                  Пройти верификацию
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="flex-1 py-3 rounded-xl bg-slate-600 text-slate-400 font-black text-sm cursor-not-allowed"
+                >
+                  Документы на проверке
+                </button>
+              )}
             </div>
           </div>
         </div>
