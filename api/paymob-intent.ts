@@ -115,7 +115,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         delivery_needed: "false",
         amount_cents: amountCents,
         currency: "EGP",
-        merchant_order_id: `${type}:${pyramidIdForMetadata}`,
+        merchant_order_id: `${type}:${pyramidIdForMetadata}_${Date.now()}`,
         items: []
       })
     });

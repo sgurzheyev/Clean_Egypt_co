@@ -18,6 +18,7 @@ interface Pyramid {
 interface ProfileRow {
   id: string;
   balance_egp: number | null;
+  is_verified?: boolean;
 }
 
 const Profile: React.FC = () => {
@@ -29,6 +30,7 @@ const Profile: React.FC = () => {
   const [marketError, setMarketplaceError] = useState<string | null>(null);
   const [selectedMission, setSelectedMission] = useState<Pyramid | null>(null);
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
+  const [userProfile, setUserProfile] = useState<ProfileRow | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -47,16 +49,18 @@ const Profile: React.FC = () => {
         .select('*')
         .maybeSingle();
 
-      if (profile) {
-        setBalance((profile as ProfileRow).balance_egp ?? 0);
+      const profileRow = profile as ProfileRow | null;
+      setUserProfile(profileRow ?? null);
+      if (profileRow) {
+        setBalance(profileRow.balance_egp ?? 0);
       }
 
       // 2. Мои заказы (где я владелец)
-      if (profile) {
+      if (profileRow) {
         const { data: myData } = await supabase
           .from('pyramids')
           .select('*')
-          .eq('creator_id', (profile as ProfileRow).id)
+          .eq('creator_id', profileRow.id)
           .order('created_at', { ascending: false });
         if (myData) setMyPyramids(myData as Pyramid[]);
       } else {
@@ -149,6 +153,11 @@ const Profile: React.FC = () => {
 
   const handleAcceptMission = async () => {
     if (!selectedMission) return;
+
+    if (selectedMission.mission_type === 'home' && !userProfile?.is_verified) {
+      alert('Только верифицированные рабочие (с проверенным ID паспорта) могут брать домашние миссии!');
+      return;
+    }
 
     const { depositEgp } = computeMissionMeta(selectedMission);
     if (!depositEgp || depositEgp <= 0) {
