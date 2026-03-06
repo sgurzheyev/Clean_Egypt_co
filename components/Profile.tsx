@@ -1,11 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
-const Profile = () => {
+type MissionType = 'home' | 'city' | string | null;
+
+interface Pyramid {
+  id: string;
+  status: string;
+  created_at: string;
+  creator_id?: string | null;
+  worker_id?: string | null;
+  mission_type: MissionType;
+  target_amount: number | null;
+  current_amount: number | null;
+  final_price_egp?: number | null;
+}
+
+interface ProfileRow {
+  id: string;
+  balance_egp: number | null;
+}
+
+const Profile: React.FC = () => {
   const [balance, setBalance] = useState(0);
-  const [myPyramids, setMyPyramids] = useState<any[]>([]);
-  const [marketplaceJobs, setMarketplaceJobs] = useState<any[]>([]);
+  const [myPyramids, setMyPyramids] = useState<Pyramid[]>([]);
+  const [marketplaceJobs, setMarketplaceJobs] = useState<Pyramid[]>([]);
   const [loading, setLoading] = useState(true);
+  const [marketLoading, setMarketplaceLoading] = useState(true);
+  const [marketError, setMarketplaceError] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -13,35 +34,58 @@ const Profile = () => {
       alert("Оплата прошла успешно! Твоя пирамида создана.");
     }
     fetchProfileData();
+    fetchMarketplaceJobs();
   }, []);
 
   const fetchProfileData = async () => {
     try {
-      setLoading(true);
       // 1. Получаем данные профиля и баланс
-      const { data: profile } = await supabase.from('profiles').select('*').single();
-      if (profile) setBalance(profile.balance_egp || 0);
+      const { data: profile } = await supabase
+        .from<ProfileRow>('profiles')
+        .select('*')
+        .single();
+
+      if (profile) {
+        setBalance(profile.balance_egp ?? 0);
+      }
 
       // 2. Мои заказы (где я владелец)
       const { data: myData } = await supabase
-        .from('pyramids')
+        .from<Pyramid>('pyramids')
         .select('*')
         .eq('creator_id', profile?.id)
         .order('created_at', { ascending: false });
       if (myData) setMyPyramids(myData);
 
-      // 3. Доступные работы (Маркетплейс)
-      const { data: marketData } = await supabase
-        .from('pyramids')
-        .select('*')
-        .neq('status', 'completed')
-        .limit(20);
-      if (marketData) setMarketplaceJobs(marketData);
-
     } catch (err) {
       console.error("Error fetching profile data:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMarketplaceJobs = async () => {
+    try {
+      setMarketplaceLoading(true);
+      setMarketplaceError(null);
+
+      const { data, error } = await supabase
+        .from<Pyramid>('pyramids')
+        .select('*')
+        .neq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) {
+        throw error;
+      }
+
+      setMarketplaceJobs(data || []);
+    } catch (err) {
+      console.error('Error fetching marketplace jobs:', err);
+      setMarketplaceError('Не удалось загрузить миссии. Попробуйте обновить страницу.');
+    } finally {
+      setMarketplaceLoading(false);
     }
   };
 
@@ -76,8 +120,6 @@ const Profile = () => {
       }
     }
   };
-
-  if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-teal-400">LOADING PROFILE...</div>;
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-4 font-sans ltr">
@@ -136,24 +178,64 @@ const Profile = () => {
         {/* MARKETPLACE (CITY WORK & BIDDING) */}
         <section>
           <h2 className="text-xl font-black mb-4 text-teal-400">🌍 GLOBAL MARKETPLACE</h2>
-          <div className="grid grid-cols-1 gap-4">
-            {marketplaceJobs.map(job => (
-              <div key={job.id} className="bg-slate-800 border border-slate-700 p-5 rounded-2xl flex justify-between items-center hover:border-teal-500/50 transition-colors">
-                <div>
-                  <p className="text-[10px] text-slate-500 uppercase font-black">{job.job_type} MISSION</p>
-                  <p className="text-2xl font-black tracking-tighter">
-                    {job.job_type === 'home' ? `${job.final_price_egp} EGP` : `${job.current_amount_usd}$`}
-                  </p>
+
+          {marketLoading && (
+            <div className="grid grid-cols-1 gap-4 mb-2">
+              {[1, 2, 3].map((skeleton) => (
+                <div
+                  key={skeleton}
+                  className="bg-slate-800 border border-slate-700 p-5 rounded-2xl animate-pulse"
+                >
+                  <div className="h-3 w-24 bg-slate-700 rounded-full mb-3" />
+                  <div className="h-6 w-32 bg-slate-600 rounded-full mb-4" />
+                  <div className="h-3 w-20 bg-slate-700 rounded-full ml-auto" />
                 </div>
-                <div className="text-right">
-                  <p className="text-[9px] text-slate-500 mb-1 uppercase">Worker Deposit</p>
-                  <p className="text-xs font-bold text-teal-400">
-                    {(job.job_type === 'home' ? job.final_price_egp : job.current_amount_usd * 50) * 0.5} EGP
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
+
+          {marketError && !marketLoading && (
+            <p className="text-sm text-red-400 mb-4">{marketError}</p>
+          )}
+
+          {!marketLoading && !marketError && marketplaceJobs.length === 0 && (
+            <p className="text-sm text-slate-500 italic">
+              Пока нет активных миссий. Загляни позже — города скоро проснутся.
+            </p>
+          )}
+
+          {!marketLoading && !marketError && marketplaceJobs.length > 0 && (
+            <div className="grid grid-cols-1 gap-4">
+              {marketplaceJobs.map((job) => {
+                const missionLabel = (job.mission_type || 'city').toString().toUpperCase();
+                const targetUsd = job.target_amount ?? 0;
+                const exchangeRate = 50; // Должен совпадать с серверной логикой
+                const depositEgp = Math.round(targetUsd * exchangeRate * 0.5);
+
+                return (
+                  <div
+                    key={job.id}
+                    className="bg-slate-800 border border-slate-700 p-5 rounded-2xl flex justify-between items-center hover:border-teal-500/50 transition-colors"
+                  >
+                    <div>
+                      <p className="text-[10px] text-slate-500 uppercase font-black">
+                        {missionLabel} MISSION
+                      </p>
+                      <p className="text-2xl font-black tracking-tighter">
+                        {targetUsd > 0 ? `${targetUsd}$` : 'Custom bid'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[9px] text-slate-500 mb-1 uppercase">Worker Deposit</p>
+                      <p className="text-xs font-bold text-teal-400">
+                        {depositEgp > 0 ? `${depositEgp} EGP` : '—'}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
 
       </div>
