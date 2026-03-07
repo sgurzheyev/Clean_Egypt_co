@@ -20,10 +20,10 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
     // 1. СЛУШАЕМ ОТВЕТ ОТ PAYMOB (SUCCESS / DECLINE)
     const handlePaymobMsg = (event: MessageEvent) => {
       if (event.data && typeof event.data === 'string') {
-        // Успех: Активируем пирамиду и в профиль
+        // Успех: сначала принудительно очищаем оверлей (setShowPayment(false), targetCoords), затем редирект
         if (event.data.includes('success=true') || event.data.includes('TRANSACTION_SUCCESS')) {
           if (onSuccess) onSuccess();
-          navigate('/profile');
+          requestAnimationFrame(() => navigate('/profile'));
         }
         // Отказ: сбрасываем UI карты и включаем экран ошибки
         if (event.data.includes('success=false') || event.data.includes('TRANSACTION_FAILED')) {

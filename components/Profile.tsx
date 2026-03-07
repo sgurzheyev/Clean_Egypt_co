@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
 type MissionType = 'home' | 'city' | string | null;
@@ -343,7 +343,14 @@ const Profile: React.FC = () => {
         
         {/* WALLET SECTION */}
         <header className="flex justify-between items-center mb-8 bg-slate-800/80 backdrop-blur-sm text-white p-6 rounded-3xl border border-white/10 shadow-2xl">
-          <div>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-700/80 hover:bg-slate-600 text-slate-200 hover:text-white text-xs font-bold uppercase tracking-wider transition-colors"
+            >
+              🗺️ TO MAP
+            </Link>
+            <div>
             <p className="text-teal-400 text-[10px] uppercase tracking-widest font-bold">Your Balance</p>
             <p className="text-4xl font-black">{balance} <span className="text-sm font-normal opacity-50">EGP</span></p>
             {userProfile?.verification_status === 'verified' && (
@@ -356,6 +363,7 @@ const Profile: React.FC = () => {
                 Документы на проверке
               </span>
             )}
+            </div>
           </div>
           <button className="bg-teal-500 hover:bg-teal-400 text-slate-900 px-6 py-3 rounded-2xl font-black text-xs transition-all active:scale-95">
             + RECHARGE

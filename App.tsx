@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import MapPicker from './components/MapPicker';
 import Auth from './components/Auth';
 import PaymentOverlay from './components/PaymentOverlay';
@@ -9,6 +9,18 @@ import TryFree from './components/TryFree';
 import VerificationPage from './components/VerificationPage';
 import EmailCaptureGate, { hasPassedEmailGate } from './components/EmailCaptureGate';
 import { supabase } from './services/supabase';
+
+/** При переходе в профиль принудительно сбрасываем состояние оплаты, чтобы оверлей не оставался в памяти и не блокировал UI. */
+const PaymentStateClearer: React.FC<{ setShowPayment: (v: boolean) => void; setTargetCoords: (v: null) => void }> = ({ setShowPayment, setTargetCoords }) => {
+  const location = useLocation();
+  useEffect(() => {
+    if (location.pathname !== '/') {
+      setShowPayment(false);
+      setTargetCoords(null);
+    }
+  }, [location.pathname, setShowPayment, setTargetCoords]);
+  return null;
+};
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -34,6 +46,7 @@ const App: React.FC = () => {
     fetchOrders();
   }, []);
 
+  /** Вызывается при успешной оплате: принудительно убираем оверлей и координаты, чтобы не блокировать интерфейс. */
   const handlePaymentSuccess = () => {
     setShowPayment(false);
     setTargetCoords(null);
@@ -55,6 +68,10 @@ const App: React.FC = () => {
 
   return (
     <Router>
+      <PaymentStateClearer
+        setShowPayment={setShowPayment}
+        setTargetCoords={setTargetCoords}
+      />
       <div className="relative w-full h-screen bg-black overflow-hidden">
         {/* Карта всегда на заднем фоне (не удаляется при переходе в Profile и т.д.) */}
         <div className="fixed inset-0 z-0 w-full h-full">
@@ -109,7 +126,8 @@ const App: React.FC = () => {
                 </button>
               </div>
 
-              {showPayment && targetCoords && (
+              {/* Условный рендеринг: оверлей только при открытой оплате; при закрытии компонент полностью исчезает */}
+              {showPayment && targetCoords ? (
                 <PaymentOverlay
                   lat={targetCoords.lat}
                   lng={targetCoords.lng}
@@ -118,7 +136,7 @@ const App: React.FC = () => {
                   onClose={handlePaymentClose}
                   onSuccess={handlePaymentSuccess}
                 />
-              )}
+              ) : null}
             </>
           } />
 

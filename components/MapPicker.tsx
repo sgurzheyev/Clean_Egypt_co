@@ -80,6 +80,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   onRequestPayment,
 }) => {
   const navigate = useNavigate();
+  const mountedRef = React.useRef(true);
   const [viewState, setViewState] = useState({
     latitude: 27.2579,
     longitude: 33.8116,
@@ -89,6 +90,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [demoPyramids, setDemoPyramids] = useState<any[]>([]);
   const [pyramidsFromDb, setPyramidsFromDb] = useState<PyramidOnMap[]>([]);
   const [paywallPopup, setPaywallPopup] = useState<PyramidOnMap | null>(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   // Загрузка миссий (пирамид) из Supabase при монтировании и при возврате на карту
   useEffect(() => {
@@ -168,11 +174,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
     [hasFullAccess, navigate]
   );
 
+  const handleMove = useCallback((evt: any) => {
+    if (!mountedRef.current || !evt?.viewState) return;
+    setViewState(evt.viewState);
+  }, []);
+
   return (
     <div className="w-full h-screen relative bg-zinc-950">
       <Map
         {...viewState}
-        onMove={(evt) => setViewState(evt.viewState)}
+        onMove={handleMove}
         onClick={handleMapClick}
         mapStyle="mapbox://styles/mapbox/dark-v11"
         mapboxAccessToken={MAPBOX_TOKEN}
