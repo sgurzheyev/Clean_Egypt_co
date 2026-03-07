@@ -338,8 +338,8 @@ const Profile: React.FC = () => {
 
   return (
     <div className="min-h-screen overflow-y-auto bg-slate-900/60 backdrop-blur-md font-sans ltr relative">
-      <div className="min-h-full py-6 px-4 flex flex-col items-center relative z-0">
-        <div className="w-full max-w-2xl">
+      <div className="min-h-full py-6 px-4 flex flex-col items-center relative z-10">
+        <div className="w-full max-w-2xl relative z-10">
         
         {/* WALLET SECTION */}
         <header className="flex justify-between items-center mb-8 bg-slate-800/80 backdrop-blur-sm text-white p-6 rounded-3xl border border-white/10 shadow-2xl">
@@ -620,14 +620,14 @@ const Profile: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL: mission details for worker */}
+      {/* MODAL: mission details for worker — фон 9998, окно 9999 чтобы кнопки были кликабельны */}
       {selectedMission && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
           onClick={handleCloseMission}
         >
           <div
-            className="relative w-full max-w-md bg-slate-900 rounded-3xl border border-slate-700/80 shadow-2xl p-6"
+            className="relative z-[9999] w-full max-w-md bg-slate-900 rounded-3xl border border-slate-700/80 shadow-2xl p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -690,14 +690,14 @@ const Profile: React.FC = () => {
         </div>
       )}
 
-      {/* Модалка: требуется верификация для Home-миссий */}
+      {/* Модалка: требуется верификация для Home-миссий — фон 9998, окно 9999 */}
       {showVerificationPrompt && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
           onClick={() => setShowVerificationPrompt(false)}
         >
           <div
-            className="relative w-full max-w-md bg-slate-800/95 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6"
+            className="relative z-[9999] w-full max-w-md bg-slate-800/95 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-white font-bold text-lg mb-2">Нужна верификация</p>

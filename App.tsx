@@ -66,6 +66,12 @@ const App: React.FC = () => {
             currentAmount={amount}
             currentType={orderType}
             hasFullAccess={!!session}
+            onRequestPayment={({ lat, lng, amount: a, type: t }) => {
+              setTargetCoords({ lat, lng });
+              setAmount(a);
+              setOrderType(t);
+              setShowPayment(true);
+            }}
           />
         </div>
 

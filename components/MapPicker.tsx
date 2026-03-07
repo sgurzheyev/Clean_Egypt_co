@@ -66,6 +66,8 @@ export interface MapPickerProps {
   currentAmount: number;
   currentType: 'home' | 'city';
   hasFullAccess?: boolean;
+  /** Вызов при «Перейти к оплате» в paywall: открыть PaymentOverlay с этими данными (редирект в /profile только после успешной оплаты). */
+  onRequestPayment?: (params: { lat: number; lng: number; amount: number; type: 'home' | 'city' }) => void;
 }
 
 const MapPicker: React.FC<MapPickerProps> = ({
@@ -75,6 +77,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   currentAmount,
   currentType,
   hasFullAccess = false,
+  onRequestPayment,
 }) => {
   const navigate = useNavigate();
   const [viewState, setViewState] = useState({
@@ -249,14 +252,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
-      {/* Попап «Оплатите доступ» для пользователей без полного доступа */}
+      {/* Попап «Оплатите доступ»: не редиректим в профиль — только открываем оплату; редирект в /profile после успеха в PaymentOverlay */}
       {paywallPopup && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           onClick={() => setPaywallPopup(null)}
         >
           <div
-            className="w-full max-w-sm bg-slate-800/95 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 text-white"
+            className="relative z-[9999] w-full max-w-sm bg-slate-800/95 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 text-white"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-lg font-black mb-2">Оплатите доступ</p>
@@ -275,7 +278,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 type="button"
                 onClick={() => {
                   setPaywallPopup(null);
-                  navigate('/');
+                  if (onRequestPayment) {
+                    const amount = paywallPopup.target_amount && paywallPopup.target_amount > 0 ? paywallPopup.target_amount : 1;
+                    const type = (paywallPopup.mission_type === 'home' ? 'home' : 'city') as 'home' | 'city';
+                    onRequestPayment({ lat: paywallPopup.lat, lng: paywallPopup.lng, amount, type });
+                  } else {
+                    navigate('/');
+                  }
                 }}
                 className="flex-1 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-900 font-black text-sm transition-colors"
               >
