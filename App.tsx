@@ -47,6 +47,7 @@ const App: React.FC = () => {
             orders={orders}
             currentAmount={amount}
             currentType={orderType}
+            hasFullAccess={!!session}
           />
         </div>
 
