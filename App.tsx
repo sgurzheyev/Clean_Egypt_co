@@ -16,6 +16,7 @@ const App: React.FC = () => {
   const [showPayment, setShowPayment] = useState(false);
   const [targetCoords, setTargetCoords] = useState<{lat: number, lng: number} | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
+  const [mapRefreshKey, setMapRefreshKey] = useState(0);
 
   const fetchOrders = async () => {
     const { data, error } = await supabase
@@ -39,12 +40,13 @@ const App: React.FC = () => {
     fetchOrders();
   };
 
-  /** Полный сброс UI карты при отмене или ошибке оплаты: закрыть оверлей, очистить точку и тип миссии. */
+  /** Полный сброс UI карты при отмене или ошибке оплаты + принудительное обновление карты (пирамиды). */
   const handlePaymentClose = () => {
     setShowPayment(false);
     setTargetCoords(null);
     setAmount(5);
     setOrderType('home');
+    setMapRefreshKey((k) => k + 1);
   };
 
   return (
@@ -53,6 +55,7 @@ const App: React.FC = () => {
         {/* Карта всегда на заднем фоне (не удаляется при переходе в Profile и т.д.) */}
         <div className="fixed inset-0 z-0 w-full h-full">
           <MapPicker
+            key={mapRefreshKey}
             onLocationSelect={(lat, lng) => setTargetCoords({lat, lng})}
             selectedCoords={targetCoords}
             orders={orders}

@@ -7,7 +7,29 @@ import { supabase } from '../lib/supabaseClient';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
-/** Парсит location из Supabase (PostGIS point: GeoJSON или WKT) в { lat, lng }. */
+/**
+ * Парсит EWKB Hex-строку PostGIS Point в { lat, lng }.
+ * Формат: 9 байт заголовок, 8 байт Longitude (Float64 LE), 8 байт Latitude (Float64 LE).
+ */
+function parseEwkbHex(hex: string): { lat: number; lng: number } | null {
+  const clean = hex.replace(/\s/g, '').toLowerCase();
+  if (clean.length < 50 || !clean.startsWith('01010000')) return null;
+  const byteLength = clean.length >> 1;
+  const bytes = new Uint8Array(byteLength);
+  for (let i = 0; i < clean.length; i += 2) {
+    const byte = parseInt(clean.slice(i, i + 2), 16);
+    if (isNaN(byte)) return null;
+    bytes[i >> 1] = byte;
+  }
+  if (byteLength < 25) return null; // 9 header + 8 lng + 8 lat
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const lng = dv.getFloat64(9, true);
+  const lat = dv.getFloat64(17, true);
+  if (Number.isFinite(lng) && Number.isFinite(lat)) return { lng, lat };
+  return null;
+}
+
+/** Парсит location из Supabase (PostGIS: EWKB Hex, GeoJSON или WKT) в { lat, lng }. */
 function parseLocation(location: unknown): { lat: number; lng: number } | null {
   if (!location) return null;
   if (typeof location === 'object' && 'coordinates' in (location as any)) {
@@ -15,7 +37,12 @@ function parseLocation(location: unknown): { lat: number; lng: number } | null {
     if (Array.isArray(coords) && coords.length >= 2) return { lng: coords[0], lat: coords[1] };
   }
   if (typeof location === 'string') {
-    const m = location.match(/POINT\s*\(\s*([\d.-]+)\s+([\d.-]+)\s*\)/i);
+    const s = location.trim();
+    if (s.length >= 50 && s.toLowerCase().startsWith('01010000')) {
+      const ewkb = parseEwkbHex(s);
+      if (ewkb) return ewkb;
+    }
+    const m = s.match(/POINT\s*\(\s*([\d.-]+)\s+([\d.-]+)\s*\)/i);
     if (m) return { lng: parseFloat(m[1]), lat: parseFloat(m[2]) };
   }
   return null;

@@ -72,16 +72,30 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
     }
   }, [fetchError, navigate]);
 
+  const depositEgp = amount * 25;
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
       <div className="relative w-full max-w-lg p-1 bg-gradient-to-b from-cyan-500/20 to-transparent rounded-[2rem]">
         <div className="relative w-full bg-zinc-950 p-6 rounded-[1.9rem] border border-white/5 shadow-2xl overflow-hidden">
           
-          <div className="text-center mb-6">
+          <div className="text-center mb-4">
             <h2 className="text-white text-2xl font-black tracking-tighter uppercase italic">
               Clean<span className="text-cyan-400">Egypt</span>
             </h2>
             <p className="text-zinc-500 text-[10px] mt-1 uppercase tracking-widest font-bold">Активация неоновой пирамиды</p>
+          </div>
+
+          <div className="mb-4 flex items-center justify-center gap-4 py-3 px-4 rounded-xl bg-slate-800/80 border border-cyan-500/30">
+            <div className="text-center">
+              <p className="text-[10px] text-cyan-400 uppercase tracking-widest font-bold">Mission Price</p>
+              <p className="text-xl font-black text-white">${amount}</p>
+            </div>
+            <div className="w-px h-8 bg-white/20" />
+            <div className="text-center">
+              <p className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Worker Deposit</p>
+              <p className="text-xl font-black text-white">{depositEgp} EGP</p>
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl overflow-hidden shadow-inner min-h-[550px] relative">
