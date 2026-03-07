@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import Map, { Marker, NavigationControl, GeolocateControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -68,6 +69,8 @@ export interface MapPickerProps {
   hasFullAccess?: boolean;
   /** Вызов при «Перейти к оплате» в paywall: открыть PaymentOverlay с этими данными (редирект в /profile только после успешной оплаты). */
   onRequestPayment?: (params: { lat: number; lng: number; amount: number; type: 'home' | 'city' }) => void;
+  /** true = окно оплаты открыто в App; карта должна быть «призраком» (pointer-events: none, blur). */
+  showPayment?: boolean;
 }
 
 const MapPicker: React.FC<MapPickerProps> = ({
@@ -78,6 +81,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   currentType,
   hasFullAccess = false,
   onRequestPayment,
+  showPayment = false,
 }) => {
   const navigate = useNavigate();
   const mountedRef = React.useRef(true);
@@ -166,7 +170,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     (e: React.MouseEvent, pyramid: PyramidOnMap) => {
       e.stopPropagation();
       if (hasFullAccess) {
-        // Полный доступ: можно перейти в профиль/маркетплейс к этой миссии
         navigate('/profile');
         return;
       }
@@ -180,8 +183,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setViewState(evt.viewState);
   }, []);
 
+  /** Когда открыт paywall или окно оплаты — карта «призрак»: не принимает клики, размыта. */
+  const isOverlayOpen = showPayment || !!paywallPopup;
+  const mapContainerStyle: React.CSSProperties = isOverlayOpen
+    ? { pointerEvents: 'none', filter: 'blur(4px)' }
+    : {};
+
   return (
-    <div className="w-full h-screen relative bg-zinc-950">
+    <div className="w-full h-screen relative bg-zinc-950" style={mapContainerStyle}>
       <Map
         ref={mapRef}
         {...viewState}
@@ -265,8 +274,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
-      {/* Попап «Оплатите доступ»: z-[99999] чтобы поверх всего; контент pointer-events-auto */}
-      {paywallPopup && (
+      {/* Попап «Оплатите доступ»: через портал в body, вне иерархии Mapbox */}
+      {paywallPopup && typeof document !== 'undefined' && createPortal(
         <div
           className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           onClick={() => setPaywallPopup(null)}
@@ -305,7 +314,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

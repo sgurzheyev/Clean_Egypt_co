@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const LS_KEY = 'hasProvidedEmail';
 const LS_EMAIL_KEY = 'capturedEmail';
@@ -41,14 +42,13 @@ const EmailCaptureGate: React.FC<EmailCaptureGateProps> = ({ onUnlock }) => {
     onUnlock();
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
+  const content = (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
       <div className="absolute inset-0 bg-gradient-to-b from-amber-900/20 via-transparent to-cyan-900/20 pointer-events-none" />
-      <div className="relative w-full max-w-md">
+      <div className="relative w-full max-w-md pointer-events-auto">
         <div className="bg-slate-900/95 border border-amber-500/30 rounded-3xl shadow-2xl shadow-amber-500/10 p-8 md:p-10 text-white overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/2" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-cyan-500/5 rounded-full translate-y-1/2 -translate-x-1/2" />
-
           <div className="relative z-10 text-center mb-8">
             <p className="text-amber-400/90 text-[10px] uppercase tracking-[0.35em] font-bold mb-3">
               Карта скрытых сокровищ
@@ -60,7 +60,6 @@ const EmailCaptureGate: React.FC<EmailCaptureGateProps> = ({ onUnlock }) => {
               Бесплатный доступ к карте миссий. Без спама.
             </p>
           </div>
-
           <form onSubmit={handleSubmit} className="relative z-10 space-y-4">
             <input
               type="email"
@@ -86,6 +85,8 @@ const EmailCaptureGate: React.FC<EmailCaptureGateProps> = ({ onUnlock }) => {
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(content, document.body) : content;
 };
 
 export default EmailCaptureGate;
