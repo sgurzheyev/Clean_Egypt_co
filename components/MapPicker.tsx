@@ -70,6 +70,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         .neq('status', 'completed')
         .limit(200);
 
+      console.log('Supabase Data:', data, 'Error:', error);
+
       if (cancelled || error) {
         if (error) console.error('MapPicker fetch pyramids:', error);
         return;
@@ -89,6 +91,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           label: undefined,
         });
       }
+      const parsedData = list;
+      console.log('Parsed Pyramids:', parsedData);
       setPyramidsFromDb(list);
     })();
     return () => { cancelled = true; };
