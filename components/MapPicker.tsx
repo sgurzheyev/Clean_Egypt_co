@@ -81,6 +81,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 }) => {
   const navigate = useNavigate();
   const mountedRef = React.useRef(true);
+  const mapRef = React.useRef<any>(null);
   const [viewState, setViewState] = useState({
     latitude: 27.2579,
     longitude: 33.8116,
@@ -154,7 +155,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleMapClick = useCallback(
     (event: any) => {
-      if (!event.lngLat) return;
+      if (!mapRef.current || !event?.lngLat) return;
       const { lng, lat } = event.lngLat;
       onLocationSelect(lat, lng);
     },
@@ -175,13 +176,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
   );
 
   const handleMove = useCallback((evt: any) => {
-    if (!mountedRef.current || !evt?.viewState) return;
+    if (!mapRef.current || !mountedRef.current || !evt?.viewState) return;
     setViewState(evt.viewState);
   }, []);
 
   return (
     <div className="w-full h-screen relative bg-zinc-950">
       <Map
+        ref={mapRef}
         {...viewState}
         onMove={handleMove}
         onClick={handleMapClick}
@@ -263,14 +265,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
-      {/* Попап «Оплатите доступ»: не редиректим в профиль — только открываем оплату; редирект в /profile после успеха в PaymentOverlay */}
+      {/* Попап «Оплатите доступ»: z-[99999] чтобы поверх всего; контент pointer-events-auto */}
       {paywallPopup && (
         <div
-          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           onClick={() => setPaywallPopup(null)}
         >
           <div
-            className="relative z-[9999] w-full max-w-sm bg-slate-800/95 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 text-white"
+            className="relative z-[99999] w-full max-w-sm bg-slate-800/95 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 text-white pointer-events-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-lg font-black mb-2">Оплатите доступ</p>

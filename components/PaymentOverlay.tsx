@@ -75,8 +75,8 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
   const depositEgp = amount * 25;
 
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-      <div className="relative z-[9999] w-full max-w-lg p-1 bg-gradient-to-b from-cyan-500/20 to-transparent rounded-[2rem]">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+      <div className="relative z-[99999] w-full max-w-lg p-1 bg-gradient-to-b from-cyan-500/20 to-transparent rounded-[2rem] pointer-events-auto">
         <div className="relative w-full bg-zinc-950 p-6 rounded-[1.9rem] border border-white/5 shadow-2xl overflow-hidden">
           
           <div className="text-center mb-4">

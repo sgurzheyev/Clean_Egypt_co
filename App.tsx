@@ -99,9 +99,8 @@ const App: React.FC = () => {
               {showEmailGate && (
                 <EmailCaptureGate onUnlock={() => setHasProvidedEmail(true)} />
               )}
-              <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-md px-4 space-y-4 z-30">
+              <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-md px-4 space-y-4 z-30 pointer-events-auto">
                 <Slider amount={amount} setAmount={setAmount} type={orderType} />
-                
                 <div className="flex gap-2">
                   <button
                     onClick={() => { setOrderType('city'); setAmount(1); }}
@@ -116,7 +115,6 @@ const App: React.FC = () => {
                     {orderType === 'home' ? `HOME ${amount}$` : 'HOME $5'}
                   </button>
                 </div>
-
                 <button
                   onClick={() => setShowPayment(true)}
                   disabled={!targetCoords}
@@ -126,7 +124,7 @@ const App: React.FC = () => {
                 </button>
               </div>
 
-              {/* Условный рендеринг: оверлей только при открытой оплате; при закрытии компонент полностью исчезает */}
+              {/* Бритва Оккама: PaymentOverlay в DOM только при открытой оплате; иначе компонента нет — нет «призрачного» фона */}
               {showPayment && targetCoords ? (
                 <PaymentOverlay
                   lat={targetCoords.lat}
