@@ -58,11 +58,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).send('Unauthorized');
     }
 
-    // 2. АКТИВАЦИЯ ПИРАМИДЫ
+    // 2. ОБРАБОТКА УСПЕШНОЙ ОПЛАТЫ
     if (obj.success === true) {
-      const paymobOrderId = obj.order.id;
+      const paymobOrderId = obj.order.id.toString();
       const amountPaid = obj.amount_cents / 100;
 
+      // 2a. Оплата депозита рабочего: привязываем worker_id к пирамиде
+      const { data: pendingRow } = await supabase
+        .from('payment_pending')
+        .select('pyramid_id, user_id')
+        .eq('paymob_order_id', paymobOrderId)
+        .maybeSingle();
+
+      if (pendingRow) {
+        const { error: updateErr } = await supabase
+          .from('pyramids')
+          .update({
+            worker_id: pendingRow.user_id,
+            status: 'active',
+          })
+          .eq('id', pendingRow.pyramid_id);
+
+        if (updateErr) throw new Error("Supabase Error (worker_deposit): " + updateErr.message);
+
+        await supabase.from('payment_pending').delete().eq('paymob_order_id', paymobOrderId);
+        console.log(`Депозит оплачен: пирамида ${pendingRow.pyramid_id} закреплена за worker ${pendingRow.user_id}`);
+        return res.status(200).send('OK');
+      }
+
+      // 2b. Создание пирамиды (оплата заказа): активируем пирамиду по paymob_order_id
       const { error } = await supabase
         .from('pyramids')
         .update({
@@ -70,10 +94,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           current_amount: amountPaid,
           glow_intensity: 1.0
         })
-        .eq('paymob_order_id', paymobOrderId.toString()); // Используем наш ID заказа
+        .eq('paymob_order_id', paymobOrderId);
 
       if (error) throw new Error("Supabase Error: " + error.message);
-      
       console.log(`Пирамида для заказа ${paymobOrderId} успешно активирована!`);
     }
 

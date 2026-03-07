@@ -27,6 +27,7 @@ interface ProfileRow {
 const Profile: React.FC = () => {
   const [balance, setBalance] = useState(0);
   const [myPyramids, setMyPyramids] = useState<Pyramid[]>([]);
+  const [myActiveMissions, setMyActiveMissions] = useState<Pyramid[]>([]);
   const [marketplaceJobs, setMarketplaceJobs] = useState<Pyramid[]>([]);
   const [loading, setLoading] = useState(true);
   const [marketLoading, setMarketplaceLoading] = useState(true);
@@ -40,7 +41,15 @@ const Profile: React.FC = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('payment') === 'success') {
-      alert("Оплата прошла успешно! Твоя пирамида создана.");
+      const isDeposit = typeof window !== 'undefined' && sessionStorage.getItem('paymentReturnType') === 'deposit';
+      if (isDeposit) {
+        alert('Депозит успешно оплачен! Миссия закреплена за тобой.');
+        sessionStorage.removeItem('paymentReturnType');
+      } else {
+        alert('Оплата прошла успешно! Твоя пирамида создана.');
+      }
+      // Убираем параметры из URL без перезагрузки
+      window.history.replaceState({}, '', window.location.pathname);
     }
     fetchProfileData();
     fetchMarketplaceJobs();
@@ -68,8 +77,18 @@ const Profile: React.FC = () => {
           .eq('creator_id', profileRow.id)
           .order('created_at', { ascending: false });
         if (myData) setMyPyramids(myData as Pyramid[]);
+
+        // 3. Мои активные миссии (где я рабочий — оплатил депозит)
+        const { data: workerMissions } = await supabase
+          .from('pyramids')
+          .select('*')
+          .eq('worker_id', profileRow.id)
+          .neq('status', 'completed')
+          .order('created_at', { ascending: false });
+        setMyActiveMissions((workerMissions as Pyramid[]) || []);
       } else {
         setMyPyramids([]);
+        setMyActiveMissions([]);
       }
 
     } catch (err) {
@@ -171,6 +190,12 @@ const Profile: React.FC = () => {
       return;
     }
 
+    const userId = userProfile?.id;
+    if (!userId) {
+      alert('Не удалось определить пользователя. Обнови страницу и попробуй снова.');
+      return;
+    }
+
     try {
       setIsPaymentLoading(true);
 
@@ -182,6 +207,7 @@ const Profile: React.FC = () => {
           missionId: selectedMission.id,
           amount: depositEgp,
           type: 'worker_deposit',
+          userId,
         }),
       });
 
@@ -197,11 +223,13 @@ const Profile: React.FC = () => {
       const data = (await res.json()) as { paymentUrl?: string; paymentToken?: string };
 
       if (data.paymentUrl) {
+        sessionStorage.setItem('paymentReturnType', 'deposit');
         window.location.assign(data.paymentUrl);
         return;
       }
 
       if (data.paymentToken) {
+        sessionStorage.setItem('paymentReturnType', 'deposit');
         const iframeId = (import.meta.env.VITE_PAYMOB_IFRAME_ID as string | undefined) || '1007120';
         const url = `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${data.paymentToken}`;
         window.location.assign(url);
@@ -219,8 +247,8 @@ const Profile: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md font-sans ltr">
-      <div className="min-h-full py-6 px-4 flex flex-col items-center">
+    <div className="min-h-screen overflow-y-auto bg-slate-900/60 backdrop-blur-md font-sans ltr relative">
+      <div className="min-h-full py-6 px-4 flex flex-col items-center relative z-0">
         <div className="w-full max-w-2xl">
         
         {/* WALLET SECTION */}
@@ -298,6 +326,46 @@ const Profile: React.FC = () => {
           </div>
         </section>
 
+        {/* MY ACTIVE MISSIONS (где я рабочий — оплатил депозит) */}
+        <section className="mb-10 text-white">
+          <h2 className="text-xl font-black mb-4 text-amber-400">🎯 MY ACTIVE MISSIONS</h2>
+          {myActiveMissions.length === 0 ? (
+            <p className="text-slate-500 text-sm italic">Ты ещё не взял ни одной миссии. Выбери миссию в маркетплейсе и оплати депозит.</p>
+          ) : (
+            <div className="space-y-4">
+              {myActiveMissions.map((mission) => {
+                const { missionLabel, targetUsd, depositEgp } = computeMissionMeta(mission);
+                const isHome = missionLabel === 'HOME';
+                const icon = isHome ? '🏠' : '🌆';
+                const badgeColor = isHome ? 'bg-amber-400/10 text-amber-300' : 'bg-teal-400/10 text-teal-300';
+                return (
+                  <div
+                    key={mission.id}
+                    className="bg-slate-800/80 backdrop-blur-sm border border-amber-500/30 p-5 rounded-2xl"
+                  >
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{icon}</span>
+                        <div>
+                          <p className={`text-[10px] uppercase font-black tracking-widest ${badgeColor}`}>
+                            {missionLabel} MISSION
+                          </p>
+                          <p className="text-xl font-black mt-1">{targetUsd > 0 ? `${targetUsd}$` : 'Custom bid'}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[9px] text-slate-500 uppercase tracking-widest">Deposit Paid</p>
+                        <p className="text-sm font-bold text-amber-400">{depositEgp > 0 ? `${depositEgp} EGP` : '—'}</p>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-2">{mission.status}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
         {/* MARKETPLACE (CITY WORK & BIDDING) */}
         <section className="text-white">
           <h2 className="text-xl font-black mb-4 text-teal-400">🌍 GLOBAL MARKETPLACE</h2>
@@ -329,7 +397,9 @@ const Profile: React.FC = () => {
 
           {!marketLoading && !marketError && marketplaceJobs.length > 0 && (
             <div className="grid grid-cols-1 gap-4">
-              {marketplaceJobs.map((job) => {
+              {marketplaceJobs
+                .filter((job) => !myActiveMissions.some((m) => m.id === job.id))
+                .map((job) => {
                 const { missionLabel, targetUsd, depositEgp } = computeMissionMeta(job);
                 const isHome = missionLabel === 'HOME';
                 const icon = isHome ? '🏠' : '🌆';
@@ -385,7 +455,7 @@ const Profile: React.FC = () => {
       {/* MODAL: mission details for worker */}
       {selectedMission && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
           onClick={handleCloseMission}
         >
           <div
@@ -455,7 +525,7 @@ const Profile: React.FC = () => {
       {/* Модалка: требуется верификация для Home-миссий */}
       {showVerificationPrompt && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
           onClick={() => setShowVerificationPrompt(false)}
         >
           <div

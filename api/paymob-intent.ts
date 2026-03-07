@@ -18,12 +18,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { lat, lng, amount = 1, type = 'egypt', missionId } = req.body as {
+    const { lat, lng, amount = 1, type = 'egypt', missionId, userId } = req.body as {
       lat?: number;
       lng?: number;
       amount?: number;
       type?: string;
       missionId?: string;
+      userId?: string;
     };
 
     // 1. КОНВЕРТАЦИЯ: Paymob работает с EGP и принимает сумму в центах (строкой)
@@ -35,6 +36,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (type === 'worker_deposit') {
       if (!missionId) {
         return res.status(400).json({ error: 'missionId is required for worker_deposit' });
+      }
+      if (!userId || typeof userId !== 'string') {
+        return res.status(400).json({ error: 'userId is required for worker_deposit' });
       }
       if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
         return res.status(400).json({ error: 'amount must be a positive number (EGP) for worker_deposit' });
@@ -125,8 +129,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!paymobOrderId) throw new Error("Paymob Order Creation Failed");
 
     // 5. СВЯЗКА: Для создания пирамиды сохраняем paymob_order_id в таблицу pyramids.
-    // Для worker_deposit НЕ перезаписываем paymob_order_id, чтобы не ломать исходную оплату.
-    if (type !== 'worker_deposit') {
+    // Для worker_deposit записываем в payment_pending, чтобы вебхук мог проставить worker_id.
+    if (type === 'worker_deposit') {
+      const { error: pendingError } = await supabase
+        .from('payment_pending')
+        .insert({
+          paymob_order_id: paymobOrderId.toString(),
+          pyramid_id: pyramidIdForMetadata,
+          user_id: userId,
+          type: 'worker_deposit',
+        });
+
+      if (pendingError) {
+        console.error('payment_pending insert error:', pendingError.message);
+        return res.status(500).json({ error: 'Failed to register payment intent' });
+      }
+    } else {
       const { error: updateError } = await supabase
         .from('pyramids')
         .update({ paymob_order_id: paymobOrderId.toString() })

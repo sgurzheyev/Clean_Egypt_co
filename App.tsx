@@ -7,10 +7,12 @@ import Slider from './components/Slider';
 import Profile from './components/Profile';
 import TryFree from './components/TryFree';
 import VerificationPage from './components/VerificationPage';
+import EmailCaptureGate, { hasPassedEmailGate } from './components/EmailCaptureGate';
 import { supabase } from './services/supabase';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
+  const [hasProvidedEmail, setHasProvidedEmail] = useState(() => hasPassedEmailGate());
   const [amount, setAmount] = useState(5);
   const [orderType, setOrderType] = useState<'home' | 'city'>('home');
   const [showPayment, setShowPayment] = useState(false);
@@ -49,6 +51,8 @@ const App: React.FC = () => {
     setMapRefreshKey((k) => k + 1);
   };
 
+  const showEmailGate = !session && !hasProvidedEmail;
+
   return (
     <Router>
       <div className="relative w-full h-screen bg-black overflow-hidden">
@@ -68,6 +72,10 @@ const App: React.FC = () => {
         <Routes>
           <Route path="/" element={
             <>
+              {/* Воронка сбора email: только на главной; без email карта закрыта */}
+              {showEmailGate && (
+                <EmailCaptureGate onUnlock={() => setHasProvidedEmail(true)} />
+              )}
               <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-md px-4 space-y-4 z-30">
                 <Slider amount={amount} setAmount={setAmount} type={orderType} />
                 
