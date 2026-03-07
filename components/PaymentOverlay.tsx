@@ -25,8 +25,9 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
           if (onSuccess) onSuccess();
           navigate('/profile');
         }
-        // Отказ: Включаем экран ошибки для последующего редиректа
+        // Отказ: сбрасываем UI карты и включаем экран ошибки
         if (event.data.includes('success=false') || event.data.includes('TRANSACTION_FAILED')) {
+          onClose();
           setFetchError(true);
         }
       }
@@ -53,11 +54,12 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
     })
     .catch(err => {
       console.error("Paymob Error:", err);
-      setFetchError(true); // Тот самый красный экран
+      onClose();
+      setFetchError(true);
     });
 
     return () => window.removeEventListener('message', handlePaymobMsg);
-  }, [lat, lng, amount, type, navigate, onSuccess]);
+  }, [lat, lng, amount, type, navigate, onSuccess, onClose]);
 
   // 3. АВТО-РЕДИРЕКТ НА TRY-FREE ПРИ ЛЮБОЙ ОШИБКЕ
   useEffect(() => {

@@ -34,7 +34,17 @@ const App: React.FC = () => {
   const handlePaymentSuccess = () => {
     setShowPayment(false);
     setTargetCoords(null);
+    setAmount(5);
+    setOrderType('home');
     fetchOrders();
+  };
+
+  /** Полный сброс UI карты при отмене или ошибке оплаты: закрыть оверлей, очистить точку и тип миссии. */
+  const handlePaymentClose = () => {
+    setShowPayment(false);
+    setTargetCoords(null);
+    setAmount(5);
+    setOrderType('home');
   };
 
   return (
@@ -44,6 +54,7 @@ const App: React.FC = () => {
         <div className="fixed inset-0 z-0 w-full h-full">
           <MapPicker
             onLocationSelect={(lat, lng) => setTargetCoords({lat, lng})}
+            selectedCoords={targetCoords}
             orders={orders}
             currentAmount={amount}
             currentType={orderType}
@@ -87,7 +98,7 @@ const App: React.FC = () => {
                   lng={targetCoords.lng}
                   amount={amount}
                   type={orderType}
-                  onClose={() => setShowPayment(false)}
+                  onClose={handlePaymentClose}
                   onSuccess={handlePaymentSuccess}
                 />
               )}

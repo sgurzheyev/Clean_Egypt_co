@@ -31,8 +31,10 @@ export interface PyramidOnMap {
   label?: string;
 }
 
-interface MapPickerProps {
+export interface MapPickerProps {
   onLocationSelect: (lat: number, lng: number) => void;
+  /** Выбранная точка с карты (контролируется из App). При null маркер и подпись TARGET скрыты. */
+  selectedCoords?: { lat: number; lng: number } | null;
   orders: any[];
   currentAmount: number;
   currentType: 'home' | 'city';
@@ -41,6 +43,7 @@ interface MapPickerProps {
 
 const MapPicker: React.FC<MapPickerProps> = ({
   onLocationSelect,
+  selectedCoords = null,
   orders,
   currentAmount,
   currentType,
@@ -53,7 +56,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     zoom: 13,
   });
 
-  const [selectedPoint, setSelectedPoint] = useState<{ lat: number; lng: number } | null>(null);
   const [demoPyramids, setDemoPyramids] = useState<any[]>([]);
   const [pyramidsFromDb, setPyramidsFromDb] = useState<PyramidOnMap[]>([]);
   const [paywallPopup, setPaywallPopup] = useState<PyramidOnMap | null>(null);
@@ -114,7 +116,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     (event: any) => {
       if (!event.lngLat) return;
       const { lng, lat } = event.lngLat;
-      setSelectedPoint({ lat, lng });
       onLocationSelect(lat, lng);
     },
     [onLocationSelect]
@@ -199,8 +200,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           </Marker>
         ))}
 
-        {selectedPoint && (
-          <Marker latitude={selectedPoint.lat} longitude={selectedPoint.lng} anchor="bottom">
+        {selectedCoords && (
+          <Marker latitude={selectedCoords.lat} longitude={selectedCoords.lng} anchor="bottom">
             <div className="animate-bounce">
               <PyramidMarker amount={currentAmount} orderType={currentType} />
               <div className="w-1 h-4 bg-cyan-400 mx-auto blur-[0.5px]" />
@@ -209,10 +210,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
         )}
       </Map>
 
-      {selectedPoint && (
+      {selectedCoords && (
         <div className="absolute bottom-36 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-xl px-6 py-3 rounded-2xl border border-cyan-500/30 z-20 shadow-[0_0_30px_rgba(6,182,212,0.3)]">
           <p className="text-[10px] text-cyan-400 font-black uppercase tracking-[0.3em]">
-            TARGET: {selectedPoint.lat.toFixed(4)} / {selectedPoint.lng.toFixed(4)}
+            TARGET: {selectedCoords.lat.toFixed(4)} / {selectedCoords.lng.toFixed(4)}
           </p>
         </div>
       )}
