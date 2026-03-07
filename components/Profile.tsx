@@ -14,6 +14,10 @@ interface Pyramid {
   target_amount: number | null;
   current_amount: number | null;
   final_price_egp?: number | null;
+  work_started_at?: string | null;
+  work_finished_at?: string | null;
+  photo_after_url?: string | null;
+  worker_photo_start_url?: string | null;
 }
 
 interface ProfileRow {
@@ -23,6 +27,31 @@ interface ProfileRow {
   verification_status?: string | null;
   full_name?: string | null;
 }
+
+/** Живой таймер: сколько времени прошло с startedAt (ISO строка). Обновляется каждую секунду. */
+function MissionTimer({ startedAt }: { startedAt: string }) {
+  const [elapsed, setElapsed] = useState('');
+  useEffect(() => {
+    const format = (ms: number) => {
+      const s = Math.floor(ms / 1000);
+      const m = Math.floor(s / 60);
+      const h = Math.floor(m / 60);
+      if (h > 0) return `${h}h ${m % 60}m`;
+      if (m > 0) return `${m}m ${s % 60}s`;
+      return `${s}s`;
+    };
+    const tick = () => {
+      const start = new Date(startedAt).getTime();
+      setElapsed(format(Date.now() - start));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+  return <span className="tabular-nums text-teal-400 font-bold">{elapsed}</span>;
+}
+
+const SUPPORT_TELEGRAM = 'https://t.me/cleanegypt';
 
 const Profile: React.FC = () => {
   const [balance, setBalance] = useState(0);
@@ -36,6 +65,8 @@ const Profile: React.FC = () => {
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [userProfile, setUserProfile] = useState<ProfileRow | null>(null);
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
+  const [photoUploadingMissionId, setPhotoUploadingMissionId] = useState<string | null>(null);
+  const [startMissionLoadingId, setStartMissionLoadingId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -175,6 +206,65 @@ const Profile: React.FC = () => {
     setSelectedMission(null);
   };
 
+  const handleStartMission = async (mission: Pyramid) => {
+    try {
+      setStartMissionLoadingId(mission.id);
+      const { error } = await supabase
+        .from('pyramids')
+        .update({ work_started_at: new Date().toISOString() })
+        .eq('id', mission.id);
+      if (error) throw error;
+      await fetchProfileData();
+    } catch (err) {
+      console.error(err);
+      alert('Не удалось запустить миссию. Попробуй снова.');
+    } finally {
+      setStartMissionLoadingId(null);
+    }
+  };
+
+  const handleSubmitFinishedPhoto = async (missionId: string, file: File) => {
+    try {
+      setPhotoUploadingMissionId(missionId);
+      const ext = file.name.split('.').pop() || 'jpg';
+      const fileName = `${missionId}_finish_${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('order-photos')
+        .upload(fileName, file, { upsert: false });
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('order-photos').getPublicUrl(fileName);
+      const { error: updateError } = await supabase
+        .from('pyramids')
+        .update({
+          photo_after_url: publicUrl,
+          work_finished_at: new Date().toISOString(),
+          status: 'in_review',
+        })
+        .eq('id', missionId);
+      if (updateError) throw updateError;
+      await fetchProfileData();
+    } catch (err: any) {
+      console.error(err);
+      alert('Ошибка загрузки: ' + (err?.message || 'попробуй снова'));
+    } finally {
+      setPhotoUploadingMissionId(null);
+    }
+  };
+
+  const handleDispute = async (pyramid: Pyramid) => {
+    if (!window.confirm('Открыть диспут по этой миссии? С вами свяжется поддержка.')) return;
+    try {
+      const { error } = await supabase
+        .from('pyramids')
+        .update({ status: 'disputed' })
+        .eq('id', pyramid.id);
+      if (error) throw error;
+      await fetchProfileData();
+    } catch (err) {
+      alert('Не удалось открыть диспут.');
+    }
+  };
+
   const handleAcceptMission = async () => {
     if (!selectedMission) return;
 
@@ -299,25 +389,59 @@ const Profile: React.FC = () => {
               myPyramids.map((p) => (
                 <div key={p.id} className="bg-slate-800/70 backdrop-blur-sm border border-white/10 rounded-2xl p-4">
                   <div className="flex justify-between items-start mb-4">
-                    <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${p.status === 'active' ? 'bg-emerald-500' : 'bg-slate-600'}`}>
+                    <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${p.status === 'active' ? 'bg-emerald-500' : p.status === 'disputed' ? 'bg-red-500/80' : 'bg-slate-600'}`}>
                       {p.status.toUpperCase()}
                     </span>
                     <p className="text-xs text-slate-500">{new Date(p.created_at).toLocaleDateString()}</p>
                   </div>
-                  
-                  {/* Если работа в проверке, показываем кнопку DONE */}
-                  {p.status === 'verifying' && (
+
+                  {/* Диспут: контакт поддержки */}
+                  {p.status === 'disputed' && (
+                    <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+                      <p className="text-red-300 text-sm font-medium mb-2">Mission in dispute. Contact support:</p>
+                      <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer" className="text-teal-400 font-bold underline hover:text-teal-300">
+                        {SUPPORT_TELEGRAM}
+                      </a>
+                    </div>
+                  )}
+
+                  {/* in_review или verifying: фото ДО/ПОСЛЕ и кнопки APPROVE / DISPUTE */}
+                  {(p.status === 'in_review' || p.status === 'verifying') && (
                     <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                       <p className="text-emerald-400 text-xs font-bold mb-3 text-center">РАБОЧИЙ ЗАКОНЧИЛ! ПРОВЕРЬ ФОТО:</p>
-                      <button
-                        onClick={() => handleConfirmDone(p)}
-                        className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-3 rounded-xl font-black text-sm shadow-lg transition-all"
-                      >
-                        ✅ CONFIRM & PAY WORKER
-                      </button>
-                      <button className="w-full mt-2 text-red-400 text-[10px] font-bold uppercase tracking-widest">
-                        🚨 REPORT DISPUTE
-                      </button>
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <div className="rounded-xl overflow-hidden bg-slate-800 border border-white/10">
+                          <p className="text-[10px] text-slate-500 px-2 py-1 uppercase">ДО</p>
+                          {p.worker_photo_start_url ? (
+                            <img src={p.worker_photo_start_url} alt="До" className="w-full aspect-square object-cover" />
+                          ) : (
+                            <div className="w-full aspect-square flex items-center justify-center text-slate-500 text-xs">Нет фото</div>
+                          )}
+                        </div>
+                        <div className="rounded-xl overflow-hidden bg-slate-800 border border-white/10">
+                          <p className="text-[10px] text-slate-500 px-2 py-1 uppercase">ПОСЛЕ</p>
+                          {p.photo_after_url ? (
+                            <img src={p.photo_after_url} alt="После" className="w-full aspect-square object-cover" />
+                          ) : (
+                            <div className="w-full aspect-square flex items-center justify-center text-slate-500 text-xs">Нет фото</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleConfirmDone(p)}
+                          className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white py-3 rounded-xl font-black text-sm shadow-lg transition-all"
+                        >
+                          APPROVE
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDispute(p)}
+                          className="flex-1 py-3 rounded-xl border border-red-500/50 text-red-400 hover:bg-red-500/20 font-bold text-sm transition-all"
+                        >
+                          DISPUTE
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -338,6 +462,10 @@ const Profile: React.FC = () => {
                 const isHome = missionLabel === 'HOME';
                 const icon = isHome ? '🏠' : '🌆';
                 const badgeColor = isHome ? 'bg-amber-400/10 text-amber-300' : 'bg-teal-400/10 text-teal-300';
+                const started = !!mission.work_started_at;
+                const inReview = mission.status === 'in_review';
+                const isUploading = photoUploadingMissionId === mission.id;
+                const isStarting = startMissionLoadingId === mission.id;
                 return (
                   <div
                     key={mission.id}
@@ -358,7 +486,47 @@ const Profile: React.FC = () => {
                         <p className="text-sm font-bold text-amber-400">{depositEgp > 0 ? `${depositEgp} EGP` : '—'}</p>
                       </div>
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-2">{mission.status}</p>
+
+                    <div className="mt-4 pt-4 border-t border-white/10 space-y-3">
+                      {!started && (
+                        <button
+                          type="button"
+                          onClick={() => handleStartMission(mission)}
+                          disabled={isStarting}
+                          className="w-full py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-900 font-black text-sm uppercase tracking-wider transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {isStarting ? 'Запуск...' : 'START MISSION'}
+                        </button>
+                      )}
+                      {started && !inReview && (
+                        <>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-slate-500">Время:</span>
+                            <MissionTimer startedAt={mission.work_started_at!} />
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            id={`photo-finish-${mission.id}`}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) handleSubmitFinishedPhoto(mission.id, f);
+                              e.target.value = '';
+                            }}
+                          />
+                          <label
+                            htmlFor={`photo-finish-${mission.id}`}
+                            className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl font-black text-sm uppercase tracking-wider transition-all cursor-pointer ${isUploading ? 'bg-slate-600 text-slate-400 cursor-wait' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30'}`}
+                          >
+                            {isUploading ? 'Загрузка...' : '📷 SUBMIT FINISHED PHOTO'}
+                          </label>
+                        </>
+                      )}
+                      {inReview && (
+                        <p className="text-amber-400/90 text-sm font-medium">Ожидаем проверку заказчиком</p>
+                      )}
+                    </div>
                   </div>
                 );
               })}
