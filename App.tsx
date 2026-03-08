@@ -59,7 +59,10 @@ const App: React.FC = () => {
   const handlePaymentClose = async (pyramidId?: string) => {
     if (pyramidId) {
       try {
-        await supabase.from('pyramids').delete().eq('id', pyramidId);
+        const { data } = await supabase.from('pyramids').select('status').eq('id', pyramidId).single();
+        if (data?.status === 'payment_pending') {
+          await supabase.from('pyramids').delete().eq('id', pyramidId);
+        }
       } catch (e) {
         console.error('Failed to delete pending pyramid:', e);
       }

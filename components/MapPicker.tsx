@@ -111,7 +111,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const { data, error } = await supabase
         .from('pyramids')
         .select('id, location, target_amount, mission_type, status')
-        .not('status', 'in', ['completed', 'pending', 'payment_pending'])
+        .not('status', 'in', ['payment_pending', 'completed'])
         .limit(200);
 
       console.log('Supabase Data:', data, 'Error:', error);
