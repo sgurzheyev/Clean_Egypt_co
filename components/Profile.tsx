@@ -67,7 +67,6 @@ const Profile: React.FC = () => {
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [photoUploadingMissionId, setPhotoUploadingMissionId] = useState<string | null>(null);
   const [startMissionLoadingId, setStartMissionLoadingId] = useState<string | null>(null);
-  const [paymentChecking, setPaymentChecking] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -90,39 +89,17 @@ const Profile: React.FC = () => {
       window.history.replaceState({}, '', window.location.pathname);
     }
 
-    const runFetches = async () => {
+    const delayMs = isPaymentSuccess ? 1200 : 0;
+    const t = setTimeout(async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return false;
-        await fetchProfileData();
-        await fetchMarketplaceJobs();
-        return true;
+        if (!session) return;
+        fetchProfileData();
+        fetchMarketplaceJobs();
       } catch (e) {
-        console.error('Profile fetch error:', e);
-        return false;
+        console.error('Profile init fetch error:', e);
       }
-    };
-
-    if (isPaymentSuccess) {
-      setPaymentChecking(true);
-      const intervalMs = 1500;
-      let attempts = 0;
-      const maxAttempts = 3;
-      const tryOnce = () => {
-        attempts += 1;
-        runFetches().then((ok) => {
-          if (ok || attempts >= maxAttempts) {
-            setPaymentChecking(false);
-            return;
-          }
-          setTimeout(tryOnce, intervalMs);
-        });
-      };
-      const t = setTimeout(tryOnce, 1200);
-      return () => clearTimeout(t);
-    }
-
-    const t = setTimeout(() => runFetches(), 0);
+    }, delayMs);
     return () => clearTimeout(t);
   }, []);
 
@@ -137,11 +114,18 @@ const Profile: React.FC = () => {
   const fetchProfileData = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      // 1. Получаем данные профиля и баланс (параметры URL не передаём в запросы)
+      if (!session?.user?.id) {
+        setMyPyramids([]);
+        setMyActiveMissions([]);
+        setLoading(false);
+        return;
+      }
+      const userId = session.user.id;
+
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
+        .eq('id', userId)
         .maybeSingle();
 
       const profileRow = profile as ProfileRow | null;
@@ -150,36 +134,33 @@ const Profile: React.FC = () => {
         setBalance(profileRow.balance_egp ?? 0);
       }
 
-      // 2. Мои заказы (где я владелец)
-      if (profileRow) {
-        const { data: myData } = await supabase
-          .from('pyramids')
-          .select('*')
-          .eq('creator_id', profileRow.id)
-          .in('status', ['pending', 'payment_pending', 'in_review', 'verifying', 'disputed', 'open', 'in_progress'])
-          .order('created_at', { ascending: false });
-        if (myData) {
-          const uniqueById = Array.from(new Map((myData as Pyramid[]).map((p) => [p.id, p])).values());
-          setMyPyramids(uniqueById);
-        }
-
-        // 3. Мои активные миссии (где я рабочий, статус в работе: open, in_progress, in_review)
-        const { data: workerMissions } = await supabase
-          .from('pyramids')
-          .select('*')
-          .eq('worker_id', profileRow.id)
-          .in('status', ['open', 'in_progress', 'in_review'])
-          .order('created_at', { ascending: false });
-        const uniqueMissions = Array.from(new Map(((workerMissions as Pyramid[]) || []).map((m) => [m.id, m])).values());
-        setMyActiveMissions(uniqueMissions);
-      } else {
+      if (!profileRow?.id) {
         setMyPyramids([]);
         setMyActiveMissions([]);
+        setLoading(false);
+        return;
       }
 
+      const creatorId = profileRow.id;
+
+      const { data: myData } = await supabase
+        .from('pyramids')
+        .select('*')
+        .eq('creator_id', creatorId)
+        .order('created_at', { ascending: false });
+      const uniqueById = Array.from(new Map((myData || []).map((p: Pyramid) => [p.id, p])).values());
+      setMyPyramids(uniqueById);
+
+      const { data: workerMissions } = await supabase
+        .from('pyramids')
+        .select('*')
+        .eq('worker_id', creatorId)
+        .neq('status', 'completed')
+        .order('created_at', { ascending: false });
+      const uniqueMissions = Array.from(new Map(((workerMissions || []) as Pyramid[]).map((m) => [m.id, m])).values());
+      setMyActiveMissions(uniqueMissions);
     } catch (err) {
       console.error('Error fetching profile data:', err);
-      throw err;
     } finally {
       setLoading(false);
     }
@@ -188,16 +169,14 @@ const Profile: React.FC = () => {
   const fetchMarketplaceJobs = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session?.user?.id) return;
       setMarketplaceLoading(true);
       setMarketplaceError(null);
 
-      // Только миссии, ждущие рабочего: status === 'pending' и worker_id пустой
       const { data, error } = await supabase
         .from('pyramids')
         .select('*')
         .eq('status', 'pending')
-        .is('worker_id', null)
         .order('created_at', { ascending: false })
         .limit(20);
 
@@ -205,13 +184,12 @@ const Profile: React.FC = () => {
         throw error;
       }
 
-      // Полная перезапись стейта, дедупликация по id (защита от клонов при двойном рендере / realtime)
-      const uniqueJobs = Array.from(new Map((data || []).map((j: Pyramid) => [j.id, j])).values()) as Pyramid[];
+      const list = (data || []).filter((j: Pyramid) => j.worker_id == null);
+      const uniqueJobs = Array.from(new Map(list.map((j: Pyramid) => [j.id, j])).values()) as Pyramid[];
       setMarketplaceJobs(uniqueJobs);
     } catch (err) {
       console.error('Error fetching marketplace jobs:', err);
       setMarketplaceError('Не удалось загрузить миссии. Попробуйте обновить страницу.');
-      throw err;
     } finally {
       setMarketplaceLoading(false);
     }
@@ -643,11 +621,7 @@ const Profile: React.FC = () => {
         <section className="text-white pointer-events-auto relative z-10">
           <h2 className="text-xl font-black mb-4 text-teal-400">🌍 GLOBAL MARKETPLACE</h2>
 
-          {paymentChecking && (
-            <p className="text-teal-400 text-sm font-bold mb-4 animate-pulse">🔄 Проверяем оплату...</p>
-          )}
-
-          {marketLoading && !paymentChecking && (
+          {marketLoading && (
             <div className="grid grid-cols-1 gap-4 mb-2">
               {[1, 2, 3].map((skeleton) => (
                 <div
