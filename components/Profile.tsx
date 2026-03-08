@@ -198,6 +198,7 @@ const Profile: React.FC = () => {
   };
 
   const handleOpenMission = (mission: Pyramid) => {
+    console.log('Mission clicked:', mission.id);
     setSelectedMission(mission);
   };
 
@@ -337,7 +338,7 @@ const Profile: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen overflow-y-auto bg-slate-900/60 backdrop-blur-md font-sans ltr relative">
+    <div className="h-screen overflow-y-auto pb-32 bg-slate-900/60 backdrop-blur-md font-sans ltr relative">
       <div className="min-h-full py-6 px-4 flex flex-col items-center relative z-10">
         <div className="w-full max-w-2xl relative z-10">
         
@@ -542,8 +543,8 @@ const Profile: React.FC = () => {
           )}
         </section>
 
-        {/* MARKETPLACE (CITY WORK & BIDDING) */}
-        <section className="text-white">
+        {/* MARKETPLACE (CITY WORK & BIDDING) — pointer-events-auto чтобы карточки были кликабельны */}
+        <section className="text-white pointer-events-auto relative z-10">
           <h2 className="text-xl font-black mb-4 text-teal-400">🌍 GLOBAL MARKETPLACE</h2>
 
           {marketLoading && (
@@ -572,7 +573,7 @@ const Profile: React.FC = () => {
           )}
 
           {!marketLoading && !marketError && marketplaceJobs.length > 0 && (
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-4 pointer-events-auto">
               {marketplaceJobs
                 .filter((job) => !myActiveMissions.some((m) => m.id === job.id))
                 .map((job) => {
@@ -588,14 +589,15 @@ const Profile: React.FC = () => {
                     key={job.id}
                     type="button"
                     onClick={() => handleOpenMission(job)}
-                    className="group w-full text-left"
+                    className="group w-full text-left cursor-pointer hover:opacity-80 active:scale-95 transition-all relative z-10"
                   >
-                    <div className="relative bg-slate-800/80 backdrop-blur-sm border border-white/10 p-5 rounded-2xl flex justify-between items-center overflow-hidden transition-all duration-200 group-hover:border-teal-400/50 group-hover:shadow-[0_18px_45px_rgba(45,212,191,0.25)]">
-                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                    <div className="relative z-10 bg-slate-800/80 backdrop-blur-sm border border-white/10 p-5 rounded-2xl flex justify-between items-center overflow-hidden transition-all duration-200 group-hover:border-teal-400/50 group-hover:shadow-[0_18px_45px_rgba(45,212,191,0.25)]">
+                      {/* Декоративный градиент — pointer-events-none, не блокирует клики */}
+                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" aria-hidden>
                         <div className="absolute -inset-32 bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.18),_transparent_60%),radial-gradient(circle_at_bottom,_rgba(56,189,248,0.16),_transparent_60%)]" />
                       </div>
 
-                      <div className="relative flex items-center gap-3">
+                      <div className="relative z-10 flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-800 text-xl group-hover:scale-105 group-hover:bg-slate-700 transition-transform duration-200">
                           <span>{icon}</span>
                         </div>
@@ -609,7 +611,7 @@ const Profile: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="relative text-right">
+                      <div className="relative z-10 text-right">
                         <p className="text-[9px] text-slate-500 mb-1 uppercase tracking-widest">
                           Worker Deposit
                         </p>

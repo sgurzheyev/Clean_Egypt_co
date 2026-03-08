@@ -105,10 +105,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Только оплаченные/активные пирамиды; исключаем pending и payment_pending (неоплаченные)
       const { data, error } = await supabase
         .from('pyramids')
         .select('id, location, target_amount, mission_type, status')
-        .neq('status', 'completed')
+        .not('status', 'in', ['completed', 'pending', 'payment_pending'])
         .limit(200);
 
       console.log('Supabase Data:', data, 'Error:', error);

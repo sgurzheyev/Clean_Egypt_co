@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 
 interface PaymentOverlayProps {
-  onClose: () => void;
+  onClose: (pyramidId?: string) => void;
   onSuccess?: () => void;
   lat: number;
   lng: number;
@@ -15,6 +15,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
   const [token, setToken] = useState<string | null>(null);
   const [isIframeLoaded, setIsIframeLoaded] = useState(false);
   const [fetchError, setFetchError] = useState(false);
+  const [pyramidId, setPyramidId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -28,7 +29,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
         }
         // Отказ: сбрасываем UI карты и включаем экран ошибки
         if (event.data.includes('success=false') || event.data.includes('TRANSACTION_FAILED')) {
-          onClose();
+          onClose(pyramidId ?? undefined);
           setFetchError(true);
         }
       }
@@ -49,6 +50,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
     .then(data => {
       if (data.paymentToken) {
         setToken(data.paymentToken);
+        if (data.missionId) setPyramidId(data.missionId);
       } else {
         throw new Error('Token missing');
       }
@@ -60,7 +62,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
     });
 
     return () => window.removeEventListener('message', handlePaymobMsg);
-  }, [lat, lng, amount, type, navigate, onSuccess, onClose]);
+  }, [lat, lng, amount, type, navigate, onSuccess, onClose, pyramidId]);
 
   // 3. АВТО-РЕДИРЕКТ НА TRY-FREE ПРИ ЛЮБОЙ ОШИБКЕ
   useEffect(() => {
@@ -77,10 +79,10 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
 
   const overlayContent = (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-      {/* Аварийный выход: всегда сверху, сбрасывает оплату */}
+      {/* Аварийный выход: всегда сверху, сбрасывает оплату и удаляет зависшую пирамиду из БД */}
       <button
         type="button"
-        onClick={onClose}
+        onClick={() => onClose(pyramidId ?? undefined)}
         className="fixed top-4 right-4 z-[100000] px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-black text-sm uppercase tracking-wider shadow-lg"
       >
         ❌ ЗАКРЫТЬ И СБРОСИТЬ
@@ -130,7 +132,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
             )}
           </div>
           <button
-            onClick={onClose}
+            onClick={() => onClose(pyramidId ?? undefined)}
             className="w-full mt-6 text-zinc-600 hover:text-white text-[11px] uppercase tracking-widest transition-colors font-bold"
           >
             [ ОТМЕНА ]

@@ -55,8 +55,15 @@ const App: React.FC = () => {
     fetchOrders();
   };
 
-  /** Полный сброс UI карты при отмене или ошибке оплаты + принудительное обновление карты (пирамиды). */
-  const handlePaymentClose = () => {
+  /** Полный сброс UI карты при отмене или ошибке оплаты; при pyramidId — удаляем зависшую пирамиду из БД. */
+  const handlePaymentClose = async (pyramidId?: string) => {
+    if (pyramidId) {
+      try {
+        await supabase.from('pyramids').delete().eq('id', pyramidId);
+      } catch (e) {
+        console.error('Failed to delete pending pyramid:', e);
+      }
+    }
     setShowPayment(false);
     setTargetCoords(null);
     setAmount(5);

@@ -190,12 +190,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${keyData.token}`
       : null;
 
-    // Возвращаем токен/ссылку на фронтенд для загрузки Iframe
+    // Возвращаем токен/ссылку на фронтенд для загрузки Iframe; missionId нужен для очистки при отмене
     return res.status(200).json({
       paymentToken: keyData.token,
       paymentUrl,
       mode: type === 'worker_deposit' ? 'worker_deposit' : 'pyramid_creation',
-      missionId: type === 'worker_deposit' ? pyramidIdForMetadata : undefined,
+      missionId: pyramidIdForMetadata,
     });
 
   } catch (error: any) {
