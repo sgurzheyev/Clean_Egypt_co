@@ -200,7 +200,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     <div className={`w-full h-screen relative ${isOverlayOpen ? 'bg-gray-900' : 'bg-zinc-950'}`}>
       <Link
         to="/profile"
-        className="fixed top-20 right-4 z-[100] bg-white text-black font-bold py-3 px-6 rounded-xl shadow-2xl border-2 border-gray-200 hover:bg-gray-100 transition-all"
+        className="fixed bottom-12 right-4 z-[100] bg-white text-black font-bold py-3 px-6 rounded-xl shadow-2xl border-2 border-gray-200 hover:bg-gray-100 transition-all"
       >
         👤 PROFILE
       </Link>

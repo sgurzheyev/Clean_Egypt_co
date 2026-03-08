@@ -86,6 +86,14 @@ const Profile: React.FC = () => {
     fetchMarketplaceJobs();
   }, []);
 
+  // Блокировка скролла body при открытой модалке MISSION DETAILS
+  useEffect(() => {
+    document.body.style.overflow = selectedMission ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [selectedMission]);
+
   const fetchProfileData = async () => {
     try {
       // 1. Получаем данные профиля и баланс
@@ -149,7 +157,8 @@ const Profile: React.FC = () => {
         throw error;
       }
 
-      const uniqueJobs = Array.from(new Map((data || []).map((j: Pyramid) => [j.id, j])).values());
+      // Полная перезапись стейта, дедупликация по id (защита от клонов при двойном рендере / realtime)
+      const uniqueJobs = Array.from(new Map((data || []).map((j: Pyramid) => [j.id, j])).values()) as Pyramid[];
       setMarketplaceJobs(uniqueJobs);
     } catch (err) {
       console.error('Error fetching marketplace jobs:', err);
@@ -658,14 +667,14 @@ const Profile: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL: mission details for worker — фон 9998, окно 9999 чтобы кнопки были кликабельны */}
+      {/* MODAL: mission details for worker — фон блокирует скролл, overflow в useEffect */}
       {selectedMission && (
         <div
-          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          className="fixed inset-0 z-[99999] bg-black/80 flex items-center justify-center p-4"
           onClick={handleCloseMission}
         >
           <div
-            className="relative z-[9999] w-full max-w-md bg-slate-900 rounded-3xl border border-slate-700/80 shadow-2xl p-6"
+            className="relative z-[100000] w-full max-w-md bg-slate-900 rounded-3xl border border-slate-700/80 shadow-2xl p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <button
