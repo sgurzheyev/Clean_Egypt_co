@@ -107,7 +107,10 @@ const Profile: React.FC = () => {
           .select('*')
           .eq('creator_id', profileRow.id)
           .order('created_at', { ascending: false });
-        if (myData) setMyPyramids(myData as Pyramid[]);
+        if (myData) {
+          const uniqueById = Array.from(new Map((myData as Pyramid[]).map((p) => [p.id, p])).values());
+          setMyPyramids(uniqueById);
+        }
 
         // 3. Мои активные миссии (где я рабочий — оплатил депозит)
         const { data: workerMissions } = await supabase
@@ -116,7 +119,8 @@ const Profile: React.FC = () => {
           .eq('worker_id', profileRow.id)
           .neq('status', 'completed')
           .order('created_at', { ascending: false });
-        setMyActiveMissions((workerMissions as Pyramid[]) || []);
+        const uniqueMissions = Array.from(new Map(((workerMissions as Pyramid[]) || []).map((m) => [m.id, m])).values());
+        setMyActiveMissions(uniqueMissions);
       } else {
         setMyPyramids([]);
         setMyActiveMissions([]);
@@ -145,7 +149,8 @@ const Profile: React.FC = () => {
         throw error;
       }
 
-      setMarketplaceJobs(data || []);
+      const uniqueJobs = Array.from(new Map((data || []).map((j: Pyramid) => [j.id, j])).values());
+      setMarketplaceJobs(uniqueJobs);
     } catch (err) {
       console.error('Error fetching marketplace jobs:', err);
       setMarketplaceError('Не удалось загрузить миссии. Попробуйте обновить страницу.');
@@ -249,6 +254,18 @@ const Profile: React.FC = () => {
       alert('Ошибка загрузки: ' + (err?.message || 'попробуй снова'));
     } finally {
       setPhotoUploadingMissionId(null);
+    }
+  };
+
+  const handleDeletePyramid = async (pyramidId: string) => {
+    if (!window.confirm('Удалить это задание? Это действие нельзя отменить.')) return;
+    try {
+      const { error } = await supabase.from('pyramids').delete().eq('id', pyramidId);
+      if (error) throw error;
+      setMyPyramids((prev) => prev.filter((p) => p.id !== pyramidId));
+    } catch (err) {
+      console.error(err);
+      alert('Не удалось удалить задание. Попробуй снова.');
     }
   };
 
@@ -401,7 +418,18 @@ const Profile: React.FC = () => {
                     <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${p.status === 'active' ? 'bg-emerald-500' : p.status === 'disputed' ? 'bg-red-500/80' : 'bg-slate-600'}`}>
                       {p.status.toUpperCase()}
                     </span>
-                    <p className="text-xs text-slate-500">{new Date(p.created_at).toLocaleDateString()}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-slate-500">{new Date(p.created_at).toLocaleDateString()}</p>
+                      {(p.status === 'pending' || p.status === 'payment_pending') && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePyramid(p.id)}
+                          className="text-[10px] font-bold text-red-400 hover:text-red-300 hover:underline uppercase"
+                        >
+                          Удалить
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Диспут: контакт поддержки */}
