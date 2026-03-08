@@ -1,3 +1,11 @@
+/* Глобальный анти-блок для touch/select (модалки, iframe Paymob) */
+.allow-touch-and-select {
+  touch-action: auto !important;
+  user-select: auto !important;
+  -webkit-user-select: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
 /* Делаем кнопки навигации почти невидимыми, пока на них не наведут */
 .mapboxgl-ctrl-group {
     background: rgba(0, 0, 0, 0.2) !important;

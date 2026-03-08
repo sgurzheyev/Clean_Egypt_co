@@ -86,7 +86,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
       <div className="fixed inset-0 flex items-center justify-center z-[99999] pointer-events-none p-4">
         {/* Карточка: pointer-events-auto — единственный блок, который получает клики */}
         <div
-          className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl pointer-events-auto flex flex-col overflow-hidden"
+          className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl pointer-events-auto flex flex-col overflow-hidden allow-touch-and-select"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header с кнопкой закрытия */}
@@ -131,13 +131,20 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
               <p className="text-zinc-500 text-xs uppercase font-bold">Переход к бесплатной проверке через пару секунд...</p>
             </div>
           ) : (
-            /* Чистый iframe — никаких absolute inset-0, ничего поверх */
-            <iframe
-              title="Paymob payment"
-              src={paymobUrl}
-              className="w-full h-[650px] border-0 bg-white block"
-              style={{ pointerEvents: 'auto' }}
-            />
+            /* Обёртка для скролла iOS: overflow-y-auto + allow-touch-and-select */
+            <div className="w-full h-[650px] overflow-y-auto allow-touch-and-select flex-1 min-h-0">
+              <iframe
+                title="Paymob payment"
+                src={paymobUrl}
+                className="w-full h-full border-0 bg-white block"
+                style={{
+                  pointerEvents: 'auto',
+                  touchAction: 'auto',
+                  userSelect: 'auto',
+                  WebkitUserSelect: 'auto',
+                }}
+              />
+            </div>
           )}
 
           <button
