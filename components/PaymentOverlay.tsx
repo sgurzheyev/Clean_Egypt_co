@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface PaymentOverlayProps {
@@ -68,18 +68,20 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
   }, [fetchError, navigate]);
 
   const depositEgp = amount * 25;
-  const paymobUrl = token
-    ? `https://accept.paymob.com/api/acceptance/iframes/1007120?payment_token=${token}`
-    : '';
+  const paymobUrl = useMemo(
+    () => (token ? `https://accept.paymob.com/api/acceptance/iframes/1007120?payment_token=${token}` : ''),
+    [token]
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed top-0 right-0 bottom-0 left-0 z-50 flex items-center justify-center p-4 overscroll-contain">
       <div
-        className="absolute inset-0 bg-black/70"
+        className="absolute top-0 right-0 bottom-0 left-0 bg-black/70"
         onClick={() => onClose(pyramidId ?? undefined)}
       />
       <div
-        className="relative w-full max-w-md bg-white rounded-2xl shadow-xl flex flex-col max-h-[95vh] overflow-hidden"
+        className="relative w-full max-w-md bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden"
+        style={{ maxHeight: 700 }}
         onClick={(e) => e.stopPropagation()}
       >
           {/* ШАПКА С КНОПКОЙ (flex-none) — никогда не скроллится */}
@@ -117,6 +119,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
             </div>
           ) : (
             <iframe
+              key="paymob-iframe"
               title="Paymob payment"
               src={paymobUrl}
               className="w-full h-[600px] bg-white border-0"
