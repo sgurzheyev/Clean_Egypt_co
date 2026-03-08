@@ -69,8 +69,6 @@ export interface MapPickerProps {
   hasFullAccess?: boolean;
   /** Вызов при «Перейти к оплате» в paywall: открыть PaymentOverlay с этими данными (редирект в /profile только после успешной оплаты). */
   onRequestPayment?: (params: { lat: number; lng: number; amount: number; type: 'home' | 'city' }) => void;
-  /** true = окно оплаты открыто в App; карта должна быть «призраком» (pointer-events: none, blur). */
-  showPayment?: boolean;
 }
 
 const MapPicker: React.FC<MapPickerProps> = ({
@@ -81,7 +79,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
   currentType,
   hasFullAccess = false,
   onRequestPayment,
-  showPayment = false,
 }) => {
   const navigate = useNavigate();
   const mountedRef = React.useRef(true);

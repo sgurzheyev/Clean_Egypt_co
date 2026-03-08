@@ -91,7 +91,6 @@ const App: React.FC = () => {
             currentAmount={amount}
             currentType={orderType}
             hasFullAccess={!!session}
-            showPayment={showPayment}
             onRequestPayment={({ lat, lng, amount: a, type: t }) => {
               setTargetCoords({ lat, lng });
               setAmount(a);
@@ -100,6 +99,18 @@ const App: React.FC = () => {
             }}
           />
         </div>
+
+        {/* PaymentOverlay на верхнем уровне: не внутри карты/роута, чтобы Mapbox не влиял на фокус iframe */}
+        {showPayment && targetCoords ? (
+          <PaymentOverlay
+            lat={targetCoords.lat}
+            lng={targetCoords.lng}
+            amount={amount}
+            type={orderType}
+            onClose={handlePaymentClose}
+            onSuccess={handlePaymentSuccess}
+          />
+        ) : null}
 
         <Routes>
           <Route path="/" element={
@@ -132,18 +143,6 @@ const App: React.FC = () => {
                   {targetCoords ? "CLEAN MY WALLET 🚀" : "SELECT TARGET ON MAP"}
                 </button>
               </div>
-
-              {/* Бритва Оккама: PaymentOverlay в DOM только при открытой оплате; иначе компонента нет — нет «призрачного» фона */}
-              {showPayment && targetCoords ? (
-                <PaymentOverlay
-                  lat={targetCoords.lat}
-                  lng={targetCoords.lng}
-                  amount={amount}
-                  type={orderType}
-                  onClose={handlePaymentClose}
-                  onSuccess={handlePaymentSuccess}
-                />
-              ) : null}
             </>
           } />
 

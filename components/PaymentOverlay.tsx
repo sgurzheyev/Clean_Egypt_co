@@ -119,7 +119,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
             <iframe
               title="Paymob payment"
               src={paymobUrl}
-              className="w-full h-[650px] border-0 bg-white"
+              className="w-full h-[600px] bg-white border-0"
             />
           )}
 
