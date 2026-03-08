@@ -120,12 +120,12 @@ const Profile: React.FC = () => {
           setMyPyramids(uniqueById);
         }
 
-        // 3. Мои активные миссии (где я рабочий — оплатил депозит)
+        // 3. Мои активные миссии (где я рабочий, статус в работе: open, in_progress, in_review)
         const { data: workerMissions } = await supabase
           .from('pyramids')
           .select('*')
           .eq('worker_id', profileRow.id)
-          .neq('status', 'completed')
+          .in('status', ['open', 'in_progress', 'in_review'])
           .order('created_at', { ascending: false });
         const uniqueMissions = Array.from(new Map(((workerMissions as Pyramid[]) || []).map((m) => [m.id, m])).values());
         setMyActiveMissions(uniqueMissions);
@@ -146,10 +146,12 @@ const Profile: React.FC = () => {
       setMarketplaceLoading(true);
       setMarketplaceError(null);
 
+      // Только миссии, ждущие рабочего: status === 'pending' и worker_id пустой
       const { data, error } = await supabase
         .from('pyramids')
         .select('*')
-        .neq('status', 'completed')
+        .eq('status', 'pending')
+        .is('worker_id', null)
         .order('created_at', { ascending: false })
         .limit(20);
 
@@ -423,12 +425,15 @@ const Profile: React.FC = () => {
             ) : (
               myPyramids.map((p) => (
                 <div key={p.id} className="bg-slate-800/70 backdrop-blur-sm border border-white/10 rounded-2xl p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-[10px] text-slate-500/80 font-mono">#{p.id.slice(0, 8)}</span>
+                    <span className="text-[10px] text-slate-500">{new Date(p.created_at).toLocaleDateString()}</span>
+                  </div>
                   <div className="flex justify-between items-start mb-4">
                     <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${p.status === 'active' ? 'bg-emerald-500' : p.status === 'disputed' ? 'bg-red-500/80' : 'bg-slate-600'}`}>
                       {p.status.toUpperCase()}
                     </span>
                     <div className="flex items-center gap-2">
-                      <p className="text-xs text-slate-500">{new Date(p.created_at).toLocaleDateString()}</p>
                       {(p.status === 'pending' || p.status === 'payment_pending') && (
                         <button
                           type="button"
@@ -517,6 +522,13 @@ const Profile: React.FC = () => {
                     key={mission.id}
                     className="bg-slate-800/80 backdrop-blur-sm border border-amber-500/30 p-5 rounded-2xl"
                   >
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[10px] text-slate-500/80 font-mono">#{mission.id.slice(0, 8)}</span>
+                      <span className="text-[10px] text-slate-500">{new Date(mission.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-3">
+                      🟢 В РАБОТЕ
+                    </div>
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{icon}</span>
@@ -565,7 +577,7 @@ const Profile: React.FC = () => {
                             htmlFor={`photo-finish-${mission.id}`}
                             className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl font-black text-sm uppercase tracking-wider transition-all cursor-pointer ${isUploading ? 'bg-slate-600 text-slate-400 cursor-wait' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30'}`}
                           >
-                            {isUploading ? 'Загрузка...' : '📷 SUBMIT FINISHED PHOTO'}
+                            {isUploading ? 'Загрузка...' : '📸 ЗАВЕРШИТЬ / ЗАГРУЗИТЬ ОТЧЕТ'}
                           </label>
                         </>
                       )}
@@ -611,9 +623,7 @@ const Profile: React.FC = () => {
 
           {!marketLoading && !marketError && marketplaceJobs.length > 0 && (
             <div className="grid grid-cols-1 gap-4 pointer-events-auto">
-              {marketplaceJobs
-                .filter((job) => !myActiveMissions.some((m) => m.id === job.id))
-                .map((job) => {
+              {marketplaceJobs.map((job) => {
                 const { missionLabel, targetUsd, depositEgp } = computeMissionMeta(job);
                 const isHome = missionLabel === 'HOME';
                 const icon = isHome ? '🏠' : '🌆';
@@ -628,33 +638,38 @@ const Profile: React.FC = () => {
                     onClick={() => handleOpenMission(job)}
                     className="group w-full text-left cursor-pointer hover:opacity-80 active:scale-95 transition-all relative z-10"
                   >
-                    <div className="relative z-10 bg-slate-800/80 backdrop-blur-sm border border-white/10 p-5 rounded-2xl flex justify-between items-center overflow-hidden transition-all duration-200 group-hover:border-teal-400/50 group-hover:shadow-[0_18px_45px_rgba(45,212,191,0.25)]">
+                    <div className="relative z-10 bg-slate-800/80 backdrop-blur-sm border border-white/10 p-5 rounded-2xl overflow-hidden transition-all duration-200 group-hover:border-teal-400/50 group-hover:shadow-[0_18px_45px_rgba(45,212,191,0.25)]">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-[10px] text-slate-500/80 font-mono">#{job.id.slice(0, 8)}</span>
+                        <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
+                      </div>
                       {/* Декоративный градиент — pointer-events-none, не блокирует клики */}
                       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" aria-hidden>
                         <div className="absolute -inset-32 bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.18),_transparent_60%),radial-gradient(circle_at_bottom,_rgba(56,189,248,0.16),_transparent_60%)]" />
                       </div>
 
-                      <div className="relative z-10 flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-800 text-xl group-hover:scale-105 group-hover:bg-slate-700 transition-transform duration-200">
-                          <span>{icon}</span>
+                      <div className="relative z-10 flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-800 text-xl group-hover:scale-105 group-hover:bg-slate-700 transition-transform duration-200">
+                            <span>{icon}</span>
+                          </div>
+                          <div>
+                            <p className={`text-[10px] uppercase font-black tracking-widest ${badgeColor}`}>
+                              {missionLabel} MISSION
+                            </p>
+                            <p className="text-2xl font-black tracking-tight mt-1">
+                              {targetUsd > 0 ? `${targetUsd}$` : 'Custom bid'}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className={`text-[10px] uppercase font-black tracking-widest ${badgeColor}`}>
-                            {missionLabel} MISSION
-                          </p>
-                          <p className="text-2xl font-black tracking-tight mt-1">
-                            {targetUsd > 0 ? `${targetUsd}$` : 'Custom bid'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="relative z-10 text-right">
+                        <div className="relative z-10 text-right">
                         <p className="text-[9px] text-slate-500 mb-1 uppercase tracking-widest">
                           Worker Deposit
                         </p>
-                        <p className="text-xs font-bold text-teal-300 group-hover:text-teal-100">
-                          {depositEgp > 0 ? `${depositEgp} EGP` : '—'}
-                        </p>
+                          <p className="text-xs font-bold text-teal-300 group-hover:text-teal-100">
+                            {depositEgp > 0 ? `${depositEgp} EGP` : '—'}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </button>
