@@ -130,21 +130,18 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
               <p className="text-red-500 font-black text-lg mb-2 uppercase tracking-tighter">Ошибка сервера платежей</p>
               <p className="text-zinc-500 text-xs uppercase font-bold">Переход к бесплатной проверке через пару секунд...</p>
             </div>
-          ) : (
-            /* Обёртка для скролла iOS: overflow-y-auto + allow-touch-and-select */
-            <div className="w-full h-[650px] overflow-y-auto allow-touch-and-select flex-1 min-h-0">
-              <iframe
-                title="Paymob payment"
-                src={paymobUrl}
-                className="w-full h-full border-0 bg-white block"
-                style={{
-                  pointerEvents: 'auto',
-                  touchAction: 'auto',
-                  userSelect: 'auto',
-                  WebkitUserSelect: 'auto',
-                }}
-              />
+          ) : !paymobUrl ? (
+            <div className="flex flex-col items-center justify-center py-24 px-6 bg-white text-center">
+              <p className="text-red-500 font-black text-sm mb-2 uppercase tracking-tighter">ОШИБКА: Ссылка на оплату не получена</p>
+              <p className="text-zinc-600 text-xs font-bold">Попробуйте закрыть и создать снова.</p>
             </div>
+          ) : (
+            <iframe
+              title="Paymob payment"
+              src={paymobUrl}
+              className="w-full h-[600px] sm:h-[650px] border-0 bg-white allow-touch-and-select"
+              style={{ pointerEvents: 'auto' }}
+            />
           )}
 
           <button
