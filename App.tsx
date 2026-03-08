@@ -64,6 +64,7 @@ const App: React.FC = () => {
         console.error('Failed to delete pending pyramid:', e);
       }
     }
+    // Гарантированный сброс всех стейтов — карта снова кликабельна
     setShowPayment(false);
     setTargetCoords(null);
     setAmount(5);

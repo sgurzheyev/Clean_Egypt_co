@@ -78,17 +78,19 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
   const depositEgp = amount * 25;
 
   const overlayContent = (
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-      {/* Аварийный выход: всегда сверху, сбрасывает оплату и удаляет зависшую пирамиду из БД */}
+    /* Внешний фон: pointer-events-none чтобы клики проходили к центру; только центр получает клики */
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 pointer-events-none">
+      {/* Аварийный выход: pointer-events-auto чтобы кнопка была кликабельна */}
       <button
         type="button"
         onClick={() => onClose(pyramidId ?? undefined)}
-        className="fixed top-4 right-4 z-[100000] px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-black text-sm uppercase tracking-wider shadow-lg"
+        className="fixed top-4 right-4 z-[100001] px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-black text-sm uppercase tracking-wider shadow-lg pointer-events-auto"
       >
         ❌ ЗАКРЫТЬ И СБРОСИТЬ
       </button>
-      <div className="relative z-[99999] w-full max-w-lg p-1 bg-gradient-to-b from-cyan-500/20 to-transparent rounded-[2rem] pointer-events-auto">
-        <div className="relative w-full bg-zinc-950 p-6 rounded-[1.9rem] border border-white/5 shadow-2xl overflow-hidden">
+      {/* Контент: pointer-events-auto — клики проходят к iframe */}
+      <div className="relative z-[100000] w-full max-w-lg p-1 bg-gradient-to-b from-cyan-500/20 to-transparent rounded-[2rem] pointer-events-auto">
+        <div className="relative w-full bg-zinc-950 p-6 rounded-[1.9rem] border border-white/5 shadow-2xl overflow-visible">
           <div className="text-center mb-4">
             <h2 className="text-white text-2xl font-black tracking-tighter uppercase italic">
               Clean<span className="text-cyan-400">Egypt</span>
@@ -106,15 +108,16 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
               <p className="text-xl font-black text-white">{depositEgp} EGP</p>
             </div>
           </div>
-          <div className="bg-white rounded-2xl overflow-hidden shadow-inner min-h-[550px] relative">
+          {/* Белый контейнер iframe: pointer-events-auto; лоадер/ошибка — только когда нужны, не перекрывают iframe после загрузки */}
+          <div className="bg-white rounded-2xl overflow-hidden shadow-inner min-h-[550px] relative pointer-events-auto">
             {(!isIframeLoaded && !fetchError) && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 z-10">
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 z-10 pointer-events-none" aria-hidden>
                 <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4" />
                 <p className="text-cyan-500 text-[10px] font-bold animate-pulse uppercase tracking-widest">Установка защищенного соединения...</p>
               </div>
             )}
             {fetchError && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 z-20 p-6 text-center">
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 z-20 p-6 text-center pointer-events-auto">
                 <p className="text-red-500 font-black text-xl mb-2 uppercase tracking-tighter">Ошибка сервера платежей</p>
                 <p className="text-zinc-500 text-[10px] uppercase font-bold">Переход к бесплатной проверке через пару секунд...</p>
               </div>
@@ -127,7 +130,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
                 height="550px"
                 frameBorder="0"
                 onLoad={() => setIsIframeLoaded(true)}
-                style={{ position: 'relative', zIndex: 1 }}
+                className="relative z-[100000] w-full h-[550px] pointer-events-auto"
               />
             )}
           </div>
