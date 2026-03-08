@@ -184,18 +184,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setViewState(evt.viewState);
   }, []);
 
-  /** Когда открыт paywall или окно оплаты — карта «призрак»; при закрытии СТРОГО возвращаем pointer-events и filter. */
-  const isOverlayOpen = showPayment || !!paywallPopup;
-  const mapContainerStyle: React.CSSProperties = isOverlayOpen
-    ? { pointerEvents: 'none', filter: 'blur(4px)' }
-    : { pointerEvents: 'auto', filter: 'none' };
-
   return (
-    <div
-      className="w-full h-screen relative bg-zinc-950"
-      style={mapContainerStyle}
-      tabIndex={showPayment ? -1 : undefined}
-    >
+    <div className="w-full h-screen relative bg-zinc-950">
       <Map
         ref={mapRef}
         {...viewState}

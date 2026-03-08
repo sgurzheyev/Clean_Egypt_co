@@ -73,16 +73,13 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
     : '';
 
   return (
-    <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4">
-      {/* ФОН */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-black/80"
+        className="absolute inset-0 bg-black/70"
         onClick={() => onClose(pyramidId ?? undefined)}
-        aria-hidden
       />
-      {/* КАРТОЧКА */}
       <div
-        className="relative z-10 w-full max-w-md bg-white rounded-2xl flex flex-col max-h-[95vh] overflow-hidden"
+        className="relative w-full max-w-md bg-white rounded-2xl shadow-xl flex flex-col max-h-[95vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
           {/* ШАПКА С КНОПКОЙ (flex-none) — никогда не скроллится */}
