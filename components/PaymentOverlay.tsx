@@ -13,21 +13,19 @@ interface PaymentOverlayProps {
 
 const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat, lng, amount, type }) => {
   const [token, setToken] = useState<string | null>(null);
-  const [isIframeLoaded, setIsIframeLoaded] = useState(false);
   const [fetchError, setFetchError] = useState(false);
   const [pyramidId, setPyramidId] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  const isLoading = !token && !fetchError;
+
   useEffect(() => {
-    // 1. СЛУШАЕМ ОТВЕТ ОТ PAYMOB (SUCCESS / DECLINE)
     const handlePaymobMsg = (event: MessageEvent) => {
       if (event.data && typeof event.data === 'string') {
-        // Успех: сначала принудительно очищаем оверлей (setShowPayment(false), targetCoords), затем редирект
         if (event.data.includes('success=true') || event.data.includes('TRANSACTION_SUCCESS')) {
           if (onSuccess) onSuccess();
           requestAnimationFrame(() => navigate('/profile'));
         }
-        // Отказ: сбрасываем UI карты и включаем экран ошибки
         if (event.data.includes('success=false') || event.data.includes('TRANSACTION_FAILED')) {
           onClose(pyramidId ?? undefined);
           setFetchError(true);
@@ -37,112 +35,121 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
 
     window.addEventListener('message', handlePaymobMsg);
 
-    // 2. ЗАПРОС ТОКЕНА У ТВОЕГО API
     fetch('/api/paymob-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lat, lng, amount, type })
+      body: JSON.stringify({ lat, lng, amount, type }),
     })
-    .then(res => {
-      if (!res.ok) throw new Error('API unreachable');
-      return res.json();
-    })
-    .then(data => {
-      if (data.paymentToken) {
-        setToken(data.paymentToken);
-        if (data.missionId) setPyramidId(data.missionId);
-      } else {
-        throw new Error('Token missing');
-      }
-    })
-    .catch(err => {
-      console.error("Paymob Error:", err);
-      onClose();
-      setFetchError(true);
-    });
+      .then((res) => {
+        if (!res.ok) throw new Error('API unreachable');
+        return res.json();
+      })
+      .then((data) => {
+        if (data.paymentToken) {
+          setToken(data.paymentToken);
+          if (data.missionId) setPyramidId(data.missionId);
+        } else {
+          throw new Error('Token missing');
+        }
+      })
+      .catch((err) => {
+        console.error('Paymob Error:', err);
+        onClose();
+        setFetchError(true);
+      });
 
     return () => window.removeEventListener('message', handlePaymobMsg);
   }, [lat, lng, amount, type, navigate, onSuccess, onClose, pyramidId]);
 
-  // 3. АВТО-РЕДИРЕКТ НА TRY-FREE ПРИ ЛЮБОЙ ОШИБКЕ
   useEffect(() => {
     if (fetchError) {
-      const timer = setTimeout(() => {
-        // Уводим в лапы к парсеру имейлов
-        navigate('/try-free');
-      }, 2500);
+      const timer = setTimeout(() => navigate('/try-free'), 2500);
       return () => clearTimeout(timer);
     }
   }, [fetchError, navigate]);
 
   const depositEgp = amount * 25;
+  const paymobUrl = token
+    ? `https://accept.paymob.com/api/acceptance/iframes/1007120?payment_token=${token}`
+    : '';
 
   const overlayContent = (
-    /* Внешний фон: pointer-events-none чтобы клики проходили к центру; только центр получает клики */
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 pointer-events-none">
-      {/* Аварийный выход: pointer-events-auto чтобы кнопка была кликабельна */}
-      <button
-        type="button"
+    <>
+      {/* Backdrop: кликабельный, закрывает по клику */}
+      <div
+        className="fixed inset-0 bg-black/80 z-[99998] pointer-events-auto"
         onClick={() => onClose(pyramidId ?? undefined)}
-        className="fixed top-4 right-4 z-[100001] px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-black text-sm uppercase tracking-wider shadow-lg pointer-events-auto"
-      >
-        ❌ ЗАКРЫТЬ И СБРОСИТЬ
-      </button>
-      {/* Контент: pointer-events-auto — клики проходят к iframe */}
-      <div className="relative z-[100000] w-full max-w-lg p-1 bg-gradient-to-b from-cyan-500/20 to-transparent rounded-[2rem] pointer-events-auto">
-        <div className="relative w-full bg-zinc-950 p-6 rounded-[1.9rem] border border-white/5 shadow-2xl overflow-visible">
-          <div className="text-center mb-4">
-            <h2 className="text-white text-2xl font-black tracking-tighter uppercase italic">
-              Clean<span className="text-cyan-400">Egypt</span>
-            </h2>
-            <p className="text-zinc-500 text-[10px] mt-1 uppercase tracking-widest font-bold">Активация неоновой пирамиды</p>
-          </div>
-          <div className="mb-4 flex items-center justify-center gap-4 py-3 px-4 rounded-xl bg-slate-800/80 border border-cyan-500/30">
-            <div className="text-center">
-              <p className="text-[10px] text-cyan-400 uppercase tracking-widest font-bold">Mission Price</p>
-              <p className="text-xl font-black text-white">${amount}</p>
+        aria-hidden
+      />
+
+      {/* Контейнер центрирования: pointer-events-none, клики проходят к карточке */}
+      <div className="fixed inset-0 flex items-center justify-center z-[99999] pointer-events-none p-4">
+        {/* Карточка: pointer-events-auto — единственный блок, который получает клики */}
+        <div
+          className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl pointer-events-auto flex flex-col overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header с кнопкой закрытия */}
+          <div className="flex items-center justify-between px-6 py-4 bg-zinc-950 border-b border-white/10">
+            <div>
+              <h2 className="text-white text-xl font-black tracking-tighter uppercase italic">
+                Clean<span className="text-cyan-400">Egypt</span>
+              </h2>
+              <p className="text-zinc-500 text-[10px] mt-0.5 uppercase tracking-widest font-bold">Активация неоновой пирамиды</p>
             </div>
-            <div className="w-px h-8 bg-white/20" />
+            <button
+              type="button"
+              onClick={() => onClose(pyramidId ?? undefined)}
+              className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-black text-xs uppercase tracking-wider shadow-lg"
+            >
+              ❌ ЗАКРЫТЬ И СБРОСИТЬ
+            </button>
+          </div>
+
+          {/* Mission info */}
+          <div className="flex items-center justify-center gap-4 py-3 px-4 bg-zinc-900 border-b border-white/5">
             <div className="text-center">
-              <p className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Worker Deposit</p>
-              <p className="text-xl font-black text-white">{depositEgp} EGP</p>
+              <p className="text-[10px] text-cyan-400 uppercase tracking-widest font-bold">Mission</p>
+              <p className="text-lg font-black text-white">${amount}</p>
+            </div>
+            <div className="w-px h-6 bg-white/20" />
+            <div className="text-center">
+              <p className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Deposit</p>
+              <p className="text-lg font-black text-white">{depositEgp} EGP</p>
             </div>
           </div>
-          {/* Белый контейнер iframe: pointer-events-auto; лоадер/ошибка — только когда нужны, не перекрывают iframe после загрузки */}
-          <div className="bg-white rounded-2xl overflow-hidden shadow-inner min-h-[550px] relative pointer-events-auto">
-            {(!isIframeLoaded && !fetchError) && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 z-10 pointer-events-none" aria-hidden>
-                <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4" />
-                <p className="text-cyan-500 text-[10px] font-bold animate-pulse uppercase tracking-widest">Установка защищенного соединения...</p>
-              </div>
-            )}
-            {fetchError && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 z-20 p-6 text-center pointer-events-auto">
-                <p className="text-red-500 font-black text-xl mb-2 uppercase tracking-tighter">Ошибка сервера платежей</p>
-                <p className="text-zinc-500 text-[10px] uppercase font-bold">Переход к бесплатной проверке через пару секунд...</p>
-              </div>
-            )}
-            {token && !fetchError && (
-              <iframe
-                title="Paymob payment"
-                src={`https://accept.paymob.com/api/acceptance/iframes/1007120?payment_token=${token}`}
-                width="100%"
-                height="550px"
-                frameBorder="0"
-                onLoad={() => setIsIframeLoaded(true)}
-                className="relative z-[100000] w-full h-[550px] pointer-events-auto"
-              />
-            )}
-          </div>
+
+          {/* Контент: лоадер ИЛИ ошибка ИЛИ iframe — только один в DOM */}
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-24 bg-white">
+              <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4" />
+              <p className="text-cyan-600 text-xs font-bold uppercase tracking-widest">Установка защищенного соединения...</p>
+            </div>
+          ) : fetchError ? (
+            <div className="flex flex-col items-center justify-center py-24 px-6 bg-white text-center">
+              <p className="text-red-500 font-black text-lg mb-2 uppercase tracking-tighter">Ошибка сервера платежей</p>
+              <p className="text-zinc-500 text-xs uppercase font-bold">Переход к бесплатной проверке через пару секунд...</p>
+            </div>
+          ) : (
+            /* Чистый iframe — никаких absolute inset-0, ничего поверх */
+            <iframe
+              title="Paymob payment"
+              src={paymobUrl}
+              className="w-full h-[650px] border-0 bg-white block"
+              style={{ pointerEvents: 'auto' }}
+            />
+          )}
+
           <button
+            type="button"
             onClick={() => onClose(pyramidId ?? undefined)}
-            className="w-full mt-6 text-zinc-600 hover:text-white text-[11px] uppercase tracking-widest transition-colors font-bold"
+            className="w-full py-3 text-zinc-500 hover:text-zinc-800 text-[11px] uppercase tracking-widest font-bold border-t border-zinc-200"
           >
             [ ОТМЕНА ]
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
 
   return typeof document !== 'undefined' ? createPortal(overlayContent, document.body) : overlayContent;
