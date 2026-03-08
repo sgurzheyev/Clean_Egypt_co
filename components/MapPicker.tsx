@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Map, { Marker, NavigationControl, GeolocateControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import PyramidMarker from './PyramidMarker';
@@ -103,44 +103,45 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return () => { mountedRef.current = false; };
   }, []);
 
-  // Загрузка миссий (пирамид) из Supabase при монтировании и при возврате на карту
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      // Только оплаченные/активные пирамиды; исключаем pending и payment_pending (неоплаченные)
-      const { data, error } = await supabase
-        .from('pyramids')
-        .select('id, location, target_amount, mission_type, status')
-        .not('status', 'in', ['payment_pending', 'completed'])
-        .limit(200);
+  const fetchPyramids = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('pyramids')
+      .select('id, location, target_amount, mission_type, status')
+      .neq('status', 'completed')
+      .limit(200);
 
-      console.log('Supabase Data:', data, 'Error:', error);
+    if (error) {
+      console.error('MapPicker fetch pyramids:', error);
+      return;
+    }
 
-      if (cancelled || error) {
-        if (error) console.error('MapPicker fetch pyramids:', error);
-        return;
-      }
-
-      const list: PyramidOnMap[] = [];
-      for (const row of data || []) {
-        const coords = parseLocation(row.location);
-        if (!coords) continue;
-        list.push({
-          id: row.id,
-          lat: coords.lat,
-          lng: coords.lng,
-          target_amount: row.target_amount ?? 0,
-          mission_type: row.mission_type ?? 'city',
-          status: row.status ?? '',
-          label: undefined,
-        });
-      }
-      const parsedData = list;
-      console.log('Parsed Pyramids:', parsedData);
-      setPyramidsFromDb(list);
-    })();
-    return () => { cancelled = true; };
+    const list: PyramidOnMap[] = [];
+    for (const row of data || []) {
+      const coords = parseLocation(row.location);
+      if (!coords) continue;
+      list.push({
+        id: row.id,
+        lat: coords.lat,
+        lng: coords.lng,
+        target_amount: row.target_amount ?? 0,
+        mission_type: row.mission_type ?? 'city',
+        status: row.status ?? '',
+        label: undefined,
+      });
+    }
+    setPyramidsFromDb(list);
   }, []);
+
+  useEffect(() => {
+    fetchPyramids();
+  }, [fetchPyramids]);
+
+  // При возврате из вкладки Paymob подтягиваем обновлённые статусы пирамид
+  useEffect(() => {
+    const handleFocus = () => fetchPyramids();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchPyramids]);
 
   // Демо-пирамиды для try-free
   useEffect(() => {
@@ -197,6 +198,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   return (
     <div className={`w-full h-screen relative ${isOverlayOpen ? 'bg-gray-900' : 'bg-zinc-950'}`}>
+      <Link
+        to="/profile"
+        className="fixed top-4 right-4 z-[100] bg-white text-black font-bold py-3 px-6 rounded-xl shadow-2xl border-2 border-gray-200 hover:bg-gray-100 transition-all"
+      >
+        👤 PROFILE
+      </Link>
       <div
         className="w-full h-full"
         style={{ display: isOverlayOpen ? 'none' : 'block' }}
