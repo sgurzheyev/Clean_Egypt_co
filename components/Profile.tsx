@@ -71,9 +71,14 @@ const Profile: React.FC = () => {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const delayMs = params.get('payment') === 'success' ? 1200 : 0;
+    const isPaymentSuccess = params.get('payment') === 'success';
+    const delayMs = isPaymentSuccess ? 1200 : 0;
 
-    if (params.get('payment') === 'success') {
+    if (isPaymentSuccess) {
+      localStorage.setItem('payment_success', Date.now().toString());
+      if (window.self !== window.top) {
+        (window.top as Window).location.href = window.location.href;
+      }
       const isDeposit = typeof window !== 'undefined' && sessionStorage.getItem('paymentReturnType') === 'deposit';
       if (isDeposit) {
         alert('Депозит успешно оплачен! Миссия закреплена за тобой.');
@@ -84,7 +89,9 @@ const Profile: React.FC = () => {
       window.history.replaceState({}, '', window.location.pathname);
     }
 
-    const t = setTimeout(() => {
+    const t = setTimeout(async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
       fetchProfileData();
       fetchMarketplaceJobs();
     }, delayMs);
@@ -101,6 +108,8 @@ const Profile: React.FC = () => {
 
   const fetchProfileData = async () => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
       // 1. Получаем данные профиля и баланс
       const { data: profile } = await supabase
         .from('profiles')
@@ -119,6 +128,7 @@ const Profile: React.FC = () => {
           .from('pyramids')
           .select('*')
           .eq('creator_id', profileRow.id)
+          .in('status', ['pending', 'payment_pending', 'in_review', 'verifying', 'disputed', 'open', 'in_progress'])
           .order('created_at', { ascending: false });
         if (myData) {
           const uniqueById = Array.from(new Map((myData as Pyramid[]).map((p) => [p.id, p])).values());
@@ -148,6 +158,8 @@ const Profile: React.FC = () => {
 
   const fetchMarketplaceJobs = async () => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
       setMarketplaceLoading(true);
       setMarketplaceError(null);
 

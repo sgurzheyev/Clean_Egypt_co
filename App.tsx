@@ -75,6 +75,21 @@ const App: React.FC = () => {
     setMapRefreshKey((k) => k + 1);
   };
 
+  // Старая вкладка: при успешной оплате в новой вкладке (localStorage) — закрыть модалку и обновить карту
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'payment_success') {
+        setShowPayment(false);
+        setTargetCoords(null);
+        setAmount(5);
+        setOrderType('home');
+        setMapRefreshKey((k) => k + 1);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
   const showEmailGate = !session && !hasProvidedEmail;
 
   return (
