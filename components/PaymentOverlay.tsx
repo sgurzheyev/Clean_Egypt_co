@@ -73,29 +73,35 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
     ? `https://accept.paymob.com/api/acceptance/iframes/1007120?payment_token=${token}`
     : '';
 
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+
   const overlayContent = (
     <>
-      {/* Backdrop: кликабельный, закрывает по клику */}
+      {/* ФОН */}
       <div
-        className="fixed inset-0 bg-black/80 z-[99998] pointer-events-auto"
+        className="fixed inset-0 bg-black/90 z-[99998]"
         onClick={() => onClose(pyramidId ?? undefined)}
         aria-hidden
       />
 
-      {/* Контейнер центрирования: pointer-events-none, клики проходят к карточке */}
-      <div className="fixed inset-0 flex items-center justify-center z-[99999] pointer-events-none p-4">
-        {/* Карточка: pointer-events-auto — единственный блок, который получает клики */}
+      {/* ЦЕНТРОВЩИК */}
+      <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 pointer-events-none">
+        {/* БЕЛАЯ КАРТОЧКА: stopPropagation отрезает Mapbox от touch-событий */}
         <div
-          className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl pointer-events-auto flex flex-col overflow-hidden allow-touch-and-select"
+          className="w-full max-w-md bg-white rounded-xl flex flex-col max-h-[95vh] pointer-events-auto"
+          onTouchStart={stop}
+          onTouchMove={stop}
+          onPointerDown={stop}
+          onWheel={stop}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header с кнопкой закрытия */}
-          <div className="flex items-center justify-between px-6 py-4 bg-zinc-950 border-b border-white/10">
+          {/* ШАПКА С КНОПКОЙ (flex-none) — никогда не скроллится */}
+          <div className="flex-none flex justify-between items-center p-3 border-b border-gray-200 bg-zinc-950">
             <div>
-              <h2 className="text-white text-xl font-black tracking-tighter uppercase italic">
+              <h2 className="text-white text-lg font-black tracking-tighter uppercase italic">
                 Clean<span className="text-cyan-400">Egypt</span>
               </h2>
-              <p className="text-zinc-500 text-[10px] mt-0.5 uppercase tracking-widest font-bold">Активация неоновой пирамиды</p>
+              <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">${amount} · {depositEgp} EGP</p>
             </div>
             <button
               type="button"
@@ -106,48 +112,38 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
             </button>
           </div>
 
-          {/* Mission info */}
-          <div className="flex items-center justify-center gap-4 py-3 px-4 bg-zinc-900 border-b border-white/5">
-            <div className="text-center">
-              <p className="text-[10px] text-cyan-400 uppercase tracking-widest font-bold">Mission</p>
-              <p className="text-lg font-black text-white">${amount}</p>
-            </div>
-            <div className="w-px h-6 bg-white/20" />
-            <div className="text-center">
-              <p className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Deposit</p>
-              <p className="text-lg font-black text-white">{depositEgp} EGP</p>
-            </div>
-          </div>
-
-          {/* Контент: лоадер ИЛИ ошибка ИЛИ iframe — только один в DOM */}
+          {/* Контент: лоадер ИЛИ ошибка ИЛИ обёртка iframe */}
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-24 bg-white">
+            <div className="flex-1 flex flex-col items-center justify-center py-24 bg-white">
               <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4" />
               <p className="text-cyan-600 text-xs font-bold uppercase tracking-widest">Установка защищенного соединения...</p>
             </div>
           ) : fetchError ? (
-            <div className="flex flex-col items-center justify-center py-24 px-6 bg-white text-center">
+            <div className="flex-1 flex flex-col items-center justify-center py-24 px-6 bg-white text-center">
               <p className="text-red-500 font-black text-lg mb-2 uppercase tracking-tighter">Ошибка сервера платежей</p>
               <p className="text-zinc-500 text-xs uppercase font-bold">Переход к бесплатной проверке через пару секунд...</p>
             </div>
           ) : !paymobUrl ? (
-            <div className="flex flex-col items-center justify-center py-24 px-6 bg-white text-center">
+            <div className="flex-1 flex flex-col items-center justify-center py-24 px-6 bg-white text-center">
               <p className="text-red-500 font-black text-sm mb-2 uppercase tracking-tighter">ОШИБКА: Ссылка на оплату не получена</p>
               <p className="text-zinc-600 text-xs font-bold">Попробуйте закрыть и создать снова.</p>
             </div>
           ) : (
-            <iframe
-              title="Paymob payment"
-              src={paymobUrl}
-              className="w-full h-[600px] sm:h-[650px] border-0 bg-white allow-touch-and-select"
-              style={{ pointerEvents: 'auto' }}
-            />
+            /* ОБЕРТКА IFRAME (flex-1 + scroll) */
+            <div className="flex-1 w-full overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <iframe
+                title="Paymob payment"
+                src={paymobUrl}
+                className="w-full h-[750px] border-0"
+                style={{ pointerEvents: 'auto' }}
+              />
+            </div>
           )}
 
           <button
             type="button"
             onClick={() => onClose(pyramidId ?? undefined)}
-            className="w-full py-3 text-zinc-500 hover:text-zinc-800 text-[11px] uppercase tracking-widest font-bold border-t border-zinc-200"
+            className="flex-none w-full py-3 text-zinc-500 hover:text-zinc-800 text-[11px] uppercase tracking-widest font-bold border-t border-zinc-200"
           >
             [ ОТМЕНА ]
           </button>
