@@ -127,18 +127,18 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
               <p className="text-zinc-600 text-xs font-bold">Попробуйте закрыть и создать снова.</p>
             </div>
           ) : (
-            <div
-              className="w-full h-[600px] overflow-y-auto overflow-x-hidden"
-              style={{ WebkitOverflowScrolling: 'touch' }}
-            >
-              <iframe
-                key="paymob-iframe"
-                title="Paymob payment"
-                src={paymobUrl}
-                className="w-full h-[600px] bg-white border-0"
-                scrolling="yes"
-                sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
-              />
+            <div className="p-8 flex flex-col items-center justify-center text-center">
+              <div className="text-6xl mb-4">🔒</div>
+              <h3 className="text-2xl font-bold text-gray-800 mb-2">Безопасная оплата</h3>
+              <p className="text-gray-500 mb-8">Вы будете перенаправлены на защищенный шлюз Paymob для ввода данных карты.</p>
+              <a
+                href={paymobUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl text-lg transition-colors"
+              >
+                💳 ПЕРЕЙТИ К ОПЛАТЕ
+              </a>
             </div>
           )}
 
