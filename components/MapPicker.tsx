@@ -69,6 +69,8 @@ export interface MapPickerProps {
   hasFullAccess?: boolean;
   /** Вызов при «Перейти к оплате» в paywall: открыть PaymentOverlay с этими данными (редирект в /profile только после успешной оплаты). */
   onRequestPayment?: (params: { lat: number; lng: number; amount: number; type: 'home' | 'city' }) => void;
+  /** true = окно оплаты открыто; карта скрывается (display: none), чтобы не перехватывать touch в iframe. */
+  showPayment?: boolean;
 }
 
 const MapPicker: React.FC<MapPickerProps> = ({
@@ -79,10 +81,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
   currentType,
   hasFullAccess = false,
   onRequestPayment,
+  showPayment = false,
 }) => {
   const navigate = useNavigate();
   const mountedRef = React.useRef(true);
   const mapRef = React.useRef<any>(null);
+  const wasOverlayOpenRef = React.useRef(false);
   const [viewState, setViewState] = useState({
     latitude: 27.2579,
     longitude: 33.8116,
@@ -92,6 +96,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [demoPyramids, setDemoPyramids] = useState<any[]>([]);
   const [pyramidsFromDb, setPyramidsFromDb] = useState<PyramidOnMap[]>([]);
   const [paywallPopup, setPaywallPopup] = useState<PyramidOnMap | null>(null);
+  const isOverlayOpen = showPayment || !!paywallPopup;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -181,9 +186,22 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setViewState(evt.viewState);
   }, []);
 
+  // После закрытия оверлея карта снова display:block — Mapbox нужно пересчитать размеры
+  useEffect(() => {
+    if (wasOverlayOpenRef.current && !isOverlayOpen) {
+      const t = setTimeout(() => mapRef.current?.resize?.(), 50);
+      return () => clearTimeout(t);
+    }
+    wasOverlayOpenRef.current = isOverlayOpen;
+  }, [isOverlayOpen]);
+
   return (
-    <div className="w-full h-screen relative bg-zinc-950">
-      <Map
+    <div className={`w-full h-screen relative ${isOverlayOpen ? 'bg-gray-900' : 'bg-zinc-950'}`}>
+      <div
+        className="w-full h-full"
+        style={{ display: isOverlayOpen ? 'none' : 'block' }}
+      >
+        <Map
         ref={mapRef}
         {...viewState}
         onMove={handleMove}
@@ -257,6 +275,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           </Marker>
         )}
       </Map>
+      </div>
 
       {selectedCoords && (
         <div className="absolute bottom-36 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-xl px-6 py-3 rounded-2xl border border-cyan-500/30 z-20 shadow-[0_0_30px_rgba(6,182,212,0.3)]">
