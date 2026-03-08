@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import Map, { Marker, NavigationControl, GeolocateControl } from 'react-map-gl';
+import Map, { Marker, NavigationControl, GeolocateControl, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import PyramidMarker from './PyramidMarker';
 import { supabase } from '../lib/supabaseClient';
@@ -165,17 +165,28 @@ const MapPicker: React.FC<MapPickerProps> = ({
     (event: any) => {
       if (!mapRef.current || !event?.lngLat) return;
       const { lng, lat } = event.lngLat;
-      // Проверяем: клик рядом с существующей пирамидой? Открываем модалку миссии, а не создаём новую точку
-      const tolerance = 0.003;
+      const map = mapRef.current.getMap?.();
+      if (map && event.point) {
+        const features = map.queryRenderedFeatures(event.point, { layers: ['pyramids-layer'] });
+        if (features && features.length > 0) {
+          const id = features[0].properties?.id;
+          if (id) {
+            const clickedPyramid = pyramidsFromDb.find((p) => p.id === id);
+            if (clickedPyramid) {
+              if (hasFullAccess) navigate('/profile');
+              else setPaywallPopup(clickedPyramid);
+              return;
+            }
+          }
+        }
+      }
+      const tolerance = 0.0005;
       const clickedPyramid = pyramidsFromDb.find(
         (p) => Math.abs(p.lng - lng) < tolerance && Math.abs(p.lat - lat) < tolerance
       );
       if (clickedPyramid) {
-        if (hasFullAccess) {
-          navigate('/profile');
-        } else {
-          setPaywallPopup(clickedPyramid);
-        }
+        if (hasFullAccess) navigate('/profile');
+        else setPaywallPopup(clickedPyramid);
         return;
       }
       onLocationSelect(lat, lng);
@@ -231,6 +242,28 @@ const MapPicker: React.FC<MapPickerProps> = ({
         style={{ width: '100%', height: '100%' }}
         padding={{ bottom: 0, top: 0, left: 0, right: 0 }}
       >
+        {/* Слой для точного определения клика по пирамиде (queryRenderedFeatures) */}
+        {pyramidsFromDb.length > 0 && (
+          <Source
+            id="pyramids-hit"
+            type="geojson"
+            data={{
+              type: 'FeatureCollection',
+              features: pyramidsFromDb.map((p) => ({
+                type: 'Feature' as const,
+                geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
+                properties: { id: p.id },
+              })),
+            }}
+          >
+            <Layer
+              id="pyramids-layer"
+              type="circle"
+              paint={{ 'circle-radius': 24, 'circle-color': 'transparent' }}
+            />
+          </Source>
+        )}
+
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-2 opacity-60 hover:opacity-100 transition-opacity z-10 scale-110">
           <GeolocateControl
             positionOptions={{ enableHighAccuracy: true }}

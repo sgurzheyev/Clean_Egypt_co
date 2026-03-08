@@ -67,12 +67,13 @@ const Profile: React.FC = () => {
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [photoUploadingMissionId, setPhotoUploadingMissionId] = useState<string | null>(null);
   const [startMissionLoadingId, setStartMissionLoadingId] = useState<string | null>(null);
+  const [paymentChecking, setPaymentChecking] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const search = typeof window !== 'undefined' ? window.location.search : '';
+    const params = new URLSearchParams(search);
     const isPaymentSuccess = params.get('payment') === 'success';
-    const delayMs = isPaymentSuccess ? 1200 : 0;
 
     if (isPaymentSuccess) {
       localStorage.setItem('payment_success', Date.now().toString());
@@ -89,12 +90,39 @@ const Profile: React.FC = () => {
       window.history.replaceState({}, '', window.location.pathname);
     }
 
-    const t = setTimeout(async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      fetchProfileData();
-      fetchMarketplaceJobs();
-    }, delayMs);
+    const runFetches = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return false;
+        await fetchProfileData();
+        await fetchMarketplaceJobs();
+        return true;
+      } catch (e) {
+        console.error('Profile fetch error:', e);
+        return false;
+      }
+    };
+
+    if (isPaymentSuccess) {
+      setPaymentChecking(true);
+      const intervalMs = 1500;
+      let attempts = 0;
+      const maxAttempts = 3;
+      const tryOnce = () => {
+        attempts += 1;
+        runFetches().then((ok) => {
+          if (ok || attempts >= maxAttempts) {
+            setPaymentChecking(false);
+            return;
+          }
+          setTimeout(tryOnce, intervalMs);
+        });
+      };
+      const t = setTimeout(tryOnce, 1200);
+      return () => clearTimeout(t);
+    }
+
+    const t = setTimeout(() => runFetches(), 0);
     return () => clearTimeout(t);
   }, []);
 
@@ -110,7 +138,7 @@ const Profile: React.FC = () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      // 1. Получаем данные профиля и баланс
+      // 1. Получаем данные профиля и баланс (параметры URL не передаём в запросы)
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
@@ -150,7 +178,8 @@ const Profile: React.FC = () => {
       }
 
     } catch (err) {
-      console.error("Error fetching profile data:", err);
+      console.error('Error fetching profile data:', err);
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -182,6 +211,7 @@ const Profile: React.FC = () => {
     } catch (err) {
       console.error('Error fetching marketplace jobs:', err);
       setMarketplaceError('Не удалось загрузить миссии. Попробуйте обновить страницу.');
+      throw err;
     } finally {
       setMarketplaceLoading(false);
     }
@@ -613,7 +643,11 @@ const Profile: React.FC = () => {
         <section className="text-white pointer-events-auto relative z-10">
           <h2 className="text-xl font-black mb-4 text-teal-400">🌍 GLOBAL MARKETPLACE</h2>
 
-          {marketLoading && (
+          {paymentChecking && (
+            <p className="text-teal-400 text-sm font-bold mb-4 animate-pulse">🔄 Проверяем оплату...</p>
+          )}
+
+          {marketLoading && !paymentChecking && (
             <div className="grid grid-cols-1 gap-4 mb-2">
               {[1, 2, 3].map((skeleton) => (
                 <div
