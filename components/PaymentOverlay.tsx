@@ -73,8 +73,17 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
     [token]
   );
 
+  const stopProp = (e: React.SyntheticEvent) => e.stopPropagation();
+
   return (
-    <div className="fixed top-0 right-0 bottom-0 left-0 z-50 flex items-center justify-center p-4 overscroll-contain">
+    <div
+      className="fixed top-0 right-0 bottom-0 left-0 z-50 flex items-center justify-center p-4 overscroll-contain"
+      onTouchStart={stopProp}
+      onTouchMove={stopProp}
+      onTouchEnd={stopProp}
+      onMouseDown={stopProp}
+      onWheel={stopProp}
+    >
       <div
         className="absolute top-0 right-0 bottom-0 left-0 bg-black/70"
         onClick={() => onClose(pyramidId ?? undefined)}
@@ -118,12 +127,19 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
               <p className="text-zinc-600 text-xs font-bold">Попробуйте закрыть и создать снова.</p>
             </div>
           ) : (
-            <iframe
-              key="paymob-iframe"
-              title="Paymob payment"
-              src={paymobUrl}
-              className="w-full h-[600px] bg-white border-0"
-            />
+            <div
+              className="w-full h-[600px] overflow-y-auto overflow-x-hidden"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
+              <iframe
+                key="paymob-iframe"
+                title="Paymob payment"
+                src={paymobUrl}
+                className="w-full h-[600px] bg-white border-0"
+                scrolling="yes"
+                sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
+              />
+            </div>
           )}
 
           <button
