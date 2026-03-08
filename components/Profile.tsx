@@ -71,6 +71,8 @@ const Profile: React.FC = () => {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const delayMs = params.get('payment') === 'success' ? 1200 : 0;
+
     if (params.get('payment') === 'success') {
       const isDeposit = typeof window !== 'undefined' && sessionStorage.getItem('paymentReturnType') === 'deposit';
       if (isDeposit) {
@@ -79,11 +81,14 @@ const Profile: React.FC = () => {
       } else {
         alert('Оплата прошла успешно! Твоя пирамида создана.');
       }
-      // Убираем параметры из URL без перезагрузки
       window.history.replaceState({}, '', window.location.pathname);
     }
-    fetchProfileData();
-    fetchMarketplaceJobs();
+
+    const t = setTimeout(() => {
+      fetchProfileData();
+      fetchMarketplaceJobs();
+    }, delayMs);
+    return () => clearTimeout(t);
   }, []);
 
   // Блокировка скролла body при открытой модалке MISSION DETAILS

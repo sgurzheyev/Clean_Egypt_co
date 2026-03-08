@@ -93,21 +93,21 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
         style={{ maxHeight: 700 }}
         onClick={(e) => e.stopPropagation()}
       >
-          {/* ШАПКА С КНОПКОЙ (flex-none) — никогда не скроллится */}
-          <div className="flex-none flex justify-between items-center p-3 border-b border-gray-200 bg-zinc-950">
-            <div>
+          {/* ШАПКА: кнопка закрытия слева сверху */}
+          <div className="flex-none relative flex justify-between items-center p-3 border-b border-gray-200 bg-zinc-950">
+            <button
+              type="button"
+              onClick={() => onClose(pyramidId ?? undefined)}
+              className="absolute top-3 left-3 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-black text-xs uppercase tracking-wider shadow-lg z-10"
+            >
+              ❌ ЗАКРЫТЬ И СБРОСИТЬ
+            </button>
+            <div className="flex-1 text-center pr-24">
               <h2 className="text-white text-lg font-black tracking-tighter uppercase italic">
                 Clean<span className="text-cyan-400">Egypt</span>
               </h2>
               <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">${amount} · {depositEgp} EGP</p>
             </div>
-            <button
-              type="button"
-              onClick={() => onClose(pyramidId ?? undefined)}
-              className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-black text-xs uppercase tracking-wider shadow-lg"
-            >
-              ❌ ЗАКРЫТЬ И СБРОСИТЬ
-            </button>
           </div>
 
           {/* Контент: лоадер ИЛИ ошибка ИЛИ обёртка iframe */}

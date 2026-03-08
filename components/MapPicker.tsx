@@ -165,9 +165,22 @@ const MapPicker: React.FC<MapPickerProps> = ({
     (event: any) => {
       if (!mapRef.current || !event?.lngLat) return;
       const { lng, lat } = event.lngLat;
+      // Проверяем: клик рядом с существующей пирамидой? Открываем модалку миссии, а не создаём новую точку
+      const tolerance = 0.003;
+      const clickedPyramid = pyramidsFromDb.find(
+        (p) => Math.abs(p.lng - lng) < tolerance && Math.abs(p.lat - lat) < tolerance
+      );
+      if (clickedPyramid) {
+        if (hasFullAccess) {
+          navigate('/profile');
+        } else {
+          setPaywallPopup(clickedPyramid);
+        }
+        return;
+      }
       onLocationSelect(lat, lng);
     },
-    [onLocationSelect]
+    [onLocationSelect, pyramidsFromDb, hasFullAccess, navigate]
   );
 
   const handlePyramidClick = useCallback(
@@ -200,7 +213,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     <div className={`w-full h-screen relative ${isOverlayOpen ? 'bg-gray-900' : 'bg-zinc-950'}`}>
       <Link
         to="/profile"
-        className="fixed bottom-12 right-4 z-[100] bg-white text-black font-bold py-3 px-6 rounded-xl shadow-2xl border-2 border-gray-200 hover:bg-gray-100 transition-all"
+        className="absolute top-4 left-4 z-[60] bg-white text-black font-bold py-3 px-6 rounded-xl shadow-2xl border-2 border-gray-200 hover:bg-gray-100 transition-all"
       >
         👤 PROFILE
       </Link>
@@ -233,9 +246,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
             <div
               role="button"
               tabIndex={0}
-              onClick={(e) => handlePyramidClick(e, p)}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handlePyramidClick(e, p); }}
               onKeyDown={(e) => e.key === 'Enter' && handlePyramidClick(e as any, p)}
-              className="cursor-pointer outline-none"
+              className="cursor-pointer outline-none pointer-events-auto"
             >
               <PyramidMarker
                 amount={p.target_amount}
