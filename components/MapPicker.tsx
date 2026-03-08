@@ -191,7 +191,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
     : { pointerEvents: 'auto', filter: 'none' };
 
   return (
-    <div className="w-full h-screen relative bg-zinc-950" style={mapContainerStyle}>
+    <div
+      className="w-full h-screen relative bg-zinc-950"
+      style={mapContainerStyle}
+      tabIndex={showPayment ? -1 : undefined}
+    >
       <Map
         ref={mapRef}
         {...viewState}

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 
 interface PaymentOverlayProps {
@@ -73,28 +72,19 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
     ? `https://accept.paymob.com/api/acceptance/iframes/1007120?payment_token=${token}`
     : '';
 
-  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
-
-  const overlayContent = (
-    <>
+  return (
+    <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4">
       {/* ФОН */}
       <div
-        className="fixed inset-0 bg-black/90 z-[99998]"
+        className="absolute inset-0 bg-black/80"
         onClick={() => onClose(pyramidId ?? undefined)}
         aria-hidden
       />
-
-      {/* ЦЕНТРОВЩИК */}
-      <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 pointer-events-none">
-        {/* БЕЛАЯ КАРТОЧКА: stopPropagation отрезает Mapbox от touch-событий */}
-        <div
-          className="w-full max-w-md bg-white rounded-xl flex flex-col max-h-[95vh] pointer-events-auto"
-          onTouchStart={stop}
-          onTouchMove={stop}
-          onPointerDown={stop}
-          onWheel={stop}
-          onClick={(e) => e.stopPropagation()}
-        >
+      {/* КАРТОЧКА */}
+      <div
+        className="relative z-10 w-full max-w-md bg-white rounded-2xl flex flex-col max-h-[95vh] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
           {/* ШАПКА С КНОПКОЙ (flex-none) — никогда не скроллится */}
           <div className="flex-none flex justify-between items-center p-3 border-b border-gray-200 bg-zinc-950">
             <div>
@@ -129,15 +119,11 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
               <p className="text-zinc-600 text-xs font-bold">Попробуйте закрыть и создать снова.</p>
             </div>
           ) : (
-            /* ОБЕРТКА IFRAME (flex-1 + scroll) */
-            <div className="flex-1 w-full overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <iframe
-                title="Paymob payment"
-                src={paymobUrl}
-                className="w-full h-[750px] border-0"
-                style={{ pointerEvents: 'auto' }}
-              />
-            </div>
+            <iframe
+              title="Paymob payment"
+              src={paymobUrl}
+              className="w-full h-[650px] border-0 bg-white"
+            />
           )}
 
           <button
@@ -148,11 +134,8 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
             [ ОТМЕНА ]
           </button>
         </div>
-      </div>
-    </>
+    </div>
   );
-
-  return typeof document !== 'undefined' ? createPortal(overlayContent, document.body) : overlayContent;
 };
 
 export default PaymentOverlay;
