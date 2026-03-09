@@ -123,7 +123,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     { lat: number; lng: number } | null
   >(selectedCoords || null);
 
-  // Unified order form state
+  // Adaptive UI: task type selected = show form overlay
+  const [taskTypeSelected, setTaskTypeSelected] = useState<TaskType | null>(null);
   const [taskType, setTaskType] = useState<TaskType>('city');
   const [orderAmount, setOrderAmount] = useState('');
   const [orderDescription, setOrderDescription] = useState('');
@@ -131,6 +132,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
+
+  const selectTaskType = useCallback((type: TaskType) => {
+    setTaskType(type);
+    setTaskTypeSelected(type);
+    setOrderError(null);
+    setOrderSuccess(null);
+  }, []);
+
+  const closeFormOverlay = useCallback(() => {
+    if (!orderSubmitting) {
+      setTaskTypeSelected(null);
+      setOrderError(null);
+      setOrderSuccess(null);
+    }
+  }, [orderSubmitting]);
 
   // Bidding modal state
   const [bidJob, setBidJob] = useState<JobOnMap | null>(null);
@@ -326,6 +342,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setOrderAmount('');
       setOrderDescription('');
       setOrderPhoto(null);
+      setTaskTypeSelected(null);
       await fetchJobs();
     } catch (err) {
       console.error('Job submit exception:', err);
@@ -336,21 +353,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   };
 
   return (
-    <div className="w-full h-screen relative bg-black">
-      {/* Top-left profile chip */}
-      <Link
-        to="/profile"
-        className="absolute top-4 left-4 z-[80] flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white shadow-[0_0_15px_rgba(255,255,255,0.05)] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:bg-black/60 hover:border-emerald-500/50 transition-all duration-300 active:scale-95 group overflow-hidden"
-      >
-        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-white/20 bg-white/10 text-xs text-slate-200 group-hover:text-emerald-300 transition-colors">
-          👤
-        </span>
-        <span className="text-xs font-bold tracking-[0.18em] uppercase text-slate-100 group-hover:text-emerald-200">
-          Profile
-        </span>
-      </Link>
-
-      {/* Full-screen 3D map */}
+    <div className="w-full h-screen relative bg-black overflow-hidden">
+      {/* Full-screen 3D map — no blocking overlays */}
       <Map
         ref={(ref) => {
           // keep react-map-gl ref stable
@@ -400,139 +404,164 @@ const MapPicker: React.FC<MapPickerProps> = ({
         })}
       </Map>
 
-      {/* Unified order form overlay (floating bottom panel) */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center z-[90]">
-        <div className="pointer-events-auto w-full max-w-xl px-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="inline-flex gap-2 rounded-full bg-slate-900/80 border border-white/5 p-1">
+      {/* Minimalist overlays — full-screen map visible, glassmorphism only */}
+      <div className="absolute inset-0 pointer-events-none z-[80] flex flex-col">
+        {/* Header: CleanEgypt.co + profile avatar (mockup match) */}
+        <header className="pointer-events-auto flex items-center justify-between px-5 pt-5">
+          <h1 className="text-sm font-medium tracking-wide text-white">
+            CleanEgypt.co
+          </h1>
+          <Link
+            to="/profile"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] transition-all"
+          >
+            👤
+          </Link>
+        </header>
+
+        {/* Hurghada — map layer label */}
+        <div className="absolute top-16 left-5 text-[10px] font-medium tracking-[0.25em] uppercase text-white/40">
+          Hurghada
+        </div>
+
+        {/* Upper center: "What needs cleaning?" + two floating pills — ONLY elements when idle */}
+        {!taskTypeSelected && (
+          <div className="flex-1 flex flex-col items-center pt-[18vh] px-6 pointer-events-auto">
+            <h2 className="text-xl sm:text-2xl font-semibold text-white mb-10 text-center tracking-tight">
+              What needs cleaning?
+            </h2>
+            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm justify-center">
               <button
                 type="button"
-                onClick={() => setTaskType('city')}
-                className={`px-4 py-2 rounded-full text-[10px] font-bold tracking-[0.18em] uppercase transition-all ${
-                  taskType === 'city'
-                    ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-black shadow-[0_0_18px_rgba(16,185,129,0.6)]'
-                    : 'bg-transparent text-slate-400 hover:text-emerald-300'
-                }`}
+                onClick={() => selectTaskType('city')}
+                className="rounded-full px-6 py-3.5 bg-black/60 backdrop-blur-md border-2 border-emerald-400/60 text-white font-medium text-sm shadow-[0_0_28px_rgba(52,211,153,0.5)] hover:shadow-[0_0_36px_rgba(52,211,153,0.6)] hover:border-emerald-400 transition-all active:scale-[0.98]"
               >
-                City Cleaning
+                Clean City Area
               </button>
               <button
                 type="button"
-                onClick={() => setTaskType('home')}
-                className={`px-4 py-2 rounded-full text-[10px] font-bold tracking-[0.18em] uppercase transition-all ${
-                  taskType === 'home'
-                    ? 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_18px_rgba(251,191,36,0.6)]'
-                    : 'bg-transparent text-slate-400 hover:text-amber-200'
-                }`}
+                onClick={() => selectTaskType('home')}
+                className="rounded-full px-6 py-3.5 bg-black/60 backdrop-blur-md border-2 border-amber-400/60 text-white font-medium text-sm shadow-[0_0_28px_rgba(251,191,36,0.5)] hover:shadow-[0_0_36px_rgba(251,191,36,0.6)] hover:border-amber-400 transition-all active:scale-[0.98]"
               >
-                Home Cleaning
+                Clean Your Home/Office
               </button>
             </div>
           </div>
+        )}
+      </div>
 
-          <form
-            onSubmit={handleSubmit}
-            className="rounded-3xl bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl p-5 space-y-4"
-          >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                  Amount (USD)
-                </label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min="0"
-                  value={orderAmount}
-                  onChange={(e) => setOrderAmount(e.target.value)}
-                  placeholder="Any amount"
-                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500"
-                />
+      {/* Adaptive form — slides up from bottom only after City or Home selected */}
+      {taskTypeSelected && (
+        <div
+          className="absolute inset-0 z-[90] flex items-end justify-center p-4 pointer-events-none"
+          aria-hidden="false"
+        >
+          <div className="pointer-events-auto w-full max-w-xl rounded-2xl bg-black/75 backdrop-blur-xl border border-white/10 shadow-2xl p-5 space-y-4 animate-slide-up">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                  {taskType === 'city' ? 'Clean City Area' : 'Clean Your Home/Office'}
+                </p>
+                <button
+                  type="button"
+                  onClick={closeFormOverlay}
+                  disabled={orderSubmitting}
+                  className="text-slate-500 hover:text-white text-lg font-bold disabled:opacity-40"
+                >
+                  ✕
+                </button>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                  Location
-                </label>
-                <div className="flex items-center gap-2 rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5">
-                  <span className="text-slate-400 text-sm">📍</span>
-                  <p className="flex-1 text-xs text-slate-300">
-                    {selectedLocation
-                      ? `${selectedLocation.lat.toFixed(4)}, ${selectedLocation.lng.toFixed(4)}`
-                      : 'Tap on the 3D map to select'}
-                  </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                    Amount (USD)
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={orderAmount}
+                    onChange={(e) => setOrderAmount(e.target.value)}
+                    placeholder="Any amount"
+                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                    Location
+                  </label>
+                  <div className="flex items-center gap-2 rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5">
+                    <span className="text-slate-400 text-sm">📍</span>
+                    <p className="flex-1 text-xs text-slate-300">
+                      {selectedLocation
+                        ? `${selectedLocation.lat.toFixed(4)}, ${selectedLocation.lng.toFixed(4)}`
+                        : 'Tap on the 3D map to select'}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                    Upload photo
+                  </label>
+                  <label className="flex h-[52px] items-center justify-center rounded-2xl border border-dashed border-slate-600 bg-black/30 text-[11px] text-slate-400 cursor-pointer hover:border-teal-400 hover:text-teal-300 transition-all">
+                    {orderPhoto ? 'Photo selected' : 'Tap to add reference photo'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setOrderPhoto(file);
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                  Upload photo
+                  Short description & area
                 </label>
-                <label className="flex h-[52px] items-center justify-center rounded-2xl border border-dashed border-slate-600 bg-black/30 text-[11px] text-slate-400 cursor-pointer hover:border-teal-400 hover:text-teal-300 transition-all">
-                  {orderPhoto ? 'Photo selected' : 'Tap to add reference photo'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      setOrderPhoto(file);
-                    }}
-                  />
-                </label>
+                <textarea
+                  value={orderDescription}
+                  onChange={(e) => setOrderDescription(e.target.value)}
+                  rows={2}
+                  placeholder={
+                    taskType === 'city'
+                      ? 'Describe the city spot you want to support...'
+                      : 'Describe your home cleaning task and area size...'
+                  }
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none"
+                />
               </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                  Type
-                </label>
-                <p className="text-sm text-slate-200 font-medium">
-                  {taskType === 'city'
-                    ? 'Donation for City Cleaning'
-                    : 'Order Home Cleaning'}
-                </p>
-              </div>
-            </div>
 
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                Short description & area
-              </label>
-              <textarea
-                value={orderDescription}
-                onChange={(e) => setOrderDescription(e.target.value)}
-                rows={3}
-                placeholder={
+              {orderError && (
+                <p className="text-xs text-red-400 font-medium">{orderError}</p>
+              )}
+              {orderSuccess && (
+                <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={orderSubmitting}
+                className={`w-full mt-1 rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all ${
                   taskType === 'city'
-                    ? 'Describe the city spot you want to support...'
-                    : 'Describe your home cleaning task and area size...'
-                }
-                className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none"
-              />
-            </div>
-
-            {orderError && (
-              <p className="text-xs text-red-400 font-medium">{orderError}</p>
-            )}
-            {orderSuccess && (
-              <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={orderSubmitting}
-              className={`w-full mt-1 rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all ${
-                taskType === 'city'
-                  ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-black shadow-[0_0_24px_rgba(16,185,129,0.7)] hover:brightness-110'
-                  : 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.7)] hover:brightness-110'
-              } ${orderSubmitting ? 'opacity-60 cursor-wait' : 'active:scale-95'}`}
-            >
-              {orderSubmitting ? 'Processing...' : 'Submit Task & Pay'}
-            </button>
-          </form>
+                    ? 'bg-emerald-400 text-black shadow-[0_0_24px_rgba(52,211,153,0.7)] hover:brightness-110'
+                    : 'bg-amber-400 text-black shadow-[0_0_24px_rgba(251,191,36,0.7)] hover:brightness-110'
+                } ${orderSubmitting ? 'opacity-60 cursor-wait' : 'active:scale-95'}`}
+              >
+                {orderSubmitting ? 'Processing...' : 'Submit Task & Pay'}
+              </button>
+            </form>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Bidding modal — dark glassmorphism */}
       {bidJob && (
