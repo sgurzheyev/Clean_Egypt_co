@@ -86,7 +86,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).send('OK');
       }
 
-      // 2b. Создание пирамиды (оплата заказа): активируем пирамиду по paymob_order_id
+      // 2b. Job creation: insert job from job_payment_pending
+      const { data: jobPending } = await supabase
+        .from('job_payment_pending')
+        .select('creator_id, task_type, amount, location_lat, location_lng, description')
+        .eq('paymob_order_id', paymobOrderId)
+        .maybeSingle();
+
+      if (jobPending) {
+        const { error: jobErr } = await supabase.from('jobs').insert({
+          creator_id: jobPending.creator_id,
+          task_type: jobPending.task_type,
+          amount: jobPending.amount,
+          location_lat: jobPending.location_lat,
+          location_lng: jobPending.location_lng,
+          description: jobPending.description,
+          status: 'pending',
+        });
+        if (jobErr) throw new Error("Supabase Error (job_creation): " + jobErr.message);
+        await supabase.from('job_payment_pending').delete().eq('paymob_order_id', paymobOrderId);
+        console.log(`Job created for Paymob order ${paymobOrderId}`);
+        return res.status(200).send('OK');
+      }
+
+      // 2c. Pyramid creation: activate pyramid by paymob_order_id
       const { error } = await supabase
         .from('pyramids')
         .update({

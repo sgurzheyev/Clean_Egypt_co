@@ -229,6 +229,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [bidError, setBidError] = useState<string | null>(null);
   const [bidSuccess, setBidSuccess] = useState<string | null>(null);
 
+  // Auth gate modal (for unauthenticated users on submit)
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authSent, setAuthSent] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
   // Fetch pending jobs from Supabase
   const fetchJobs = useCallback(async () => {
     const { data, error } = await supabase
@@ -265,6 +272,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const handleFocus = () => fetchJobs();
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchJobs]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') === 'success' || params.get('success') === 'true') {
+      fetchJobs();
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, [fetchJobs]);
 
   const handleMapClick = useCallback(
@@ -361,6 +376,38 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
   };
 
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authEmail?.trim()) return;
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: authEmail.trim(),
+        options: { emailRedirectTo: `${window.location.origin}/` },
+      });
+      if (error) {
+        setAuthError(error.message || 'Failed to send magic link.');
+        return;
+      }
+      setAuthSent(true);
+    } catch (err) {
+      console.error('Auth error:', err);
+      setAuthError('Something went wrong. Please try again.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleCloseAuthModal = useCallback(() => {
+    if (!authLoading) {
+      setShowAuthModal(false);
+      setAuthEmail('');
+      setAuthSent(false);
+      setAuthError(null);
+    }
+  }, [authLoading]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setOrderError(null);
@@ -383,44 +430,61 @@ const MapPicker: React.FC<MapPickerProps> = ({
       } = await supabase.auth.getSession();
 
       if (!session?.user?.id) {
-        setOrderError('You must be signed in to create a job.');
+        setOrderSubmitting(false);
+        setShowAuthModal(true);
+        setAuthEmail('');
+        setAuthSent(false);
+        setAuthError(null);
         return;
       }
 
       const creatorId = session.user.id;
 
-      // TODO: upload orderPhoto to storage and save URL if needed
-      const { error } = await supabase.from('jobs').insert([
-        {
-          creator_id: creatorId,
-          task_type: taskType,
+      const res = await fetch('/api/paymob-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'job_creation',
+          userId: creatorId,
           amount,
+          taskType,
           location_lat: selectedLocation.lat,
           location_lng: selectedLocation.lng,
-          status: 'pending',
-          description: orderDescription,
-        },
-      ]);
+          description: orderDescription || undefined,
+        }),
+      });
 
-      if (error) {
-        console.error(
-          'Error inserting job:',
-          error.message,
-          (error as any)?.details || ''
-        );
-        setOrderError('Could not create job. Please try again.');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Payment init failed (${res.status})`);
+      }
+
+      const data = (await res.json()) as {
+        paymentUrl?: string;
+        paymentToken?: string;
+      };
+
+      if (data.paymentUrl) {
+        sessionStorage.setItem('paymentReturnType', 'job_creation');
+        window.location.assign(data.paymentUrl);
         return;
       }
 
-      setOrderSuccess('Job created. It will appear on the map shortly.');
-      setOrderAmount('');
-      setOrderDescription('');
-      setOrderPhoto(null);
-      setTaskTypeSelected(null);
-      await fetchJobs();
+      if (data.paymentToken) {
+        sessionStorage.setItem('paymentReturnType', 'job_creation');
+        const iframeId =
+          (import.meta.env.VITE_PAYMOB_IFRAME_ID as string | undefined) || '1007120';
+        const url = `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${data.paymentToken}`;
+        window.location.assign(url);
+        return;
+      }
+
+      throw new Error('No payment URL or token received.');
     } catch (err) {
       console.error('Job submit exception:', err);
-      setOrderError('Unexpected error. Please try again.');
+      setOrderError(
+        err instanceof Error ? err.message : 'Unexpected error. Please try again.'
+      );
     } finally {
       setOrderSubmitting(false);
     }
@@ -708,6 +772,74 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 {bidSubmitting ? 'Placing bid...' : 'Place bid'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Auth gate modal — sign in to create jobs */}
+      {showAuthModal && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={handleCloseAuthModal}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-black/85 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-lg font-bold uppercase tracking-[0.18em] text-white">
+                Sign in to continue
+              </h3>
+              <button
+                type="button"
+                onClick={handleCloseAuthModal}
+                disabled={authLoading}
+                className="text-slate-400 hover:text-white text-lg font-bold disabled:opacity-40"
+              >
+                ✕
+              </button>
+            </div>
+
+            {authSent ? (
+              <div className="py-4">
+                <p className="text-emerald-400 text-sm font-medium mb-2">
+                  Check your email
+                </p>
+                <p className="text-slate-400 text-sm">
+                  We sent a magic link to <span className="text-white font-medium">{authEmail}</span>. Click it to sign in, then return here to submit your task.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleAuthSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    required
+                  />
+                </div>
+                {authError && (
+                  <p className="text-xs text-red-400 font-medium">{authError}</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] bg-emerald-500 text-black shadow-[0_0_24px_rgba(52,211,153,0.6)] hover:brightness-110 disabled:opacity-60 disabled:cursor-wait transition-all"
+                >
+                  {authLoading ? 'Sending...' : 'Send magic link'}
+                </button>
+              </form>
+            )}
+
+            <p className="mt-4 text-[10px] text-slate-500 text-center uppercase tracking-wider">
+              No password required. We&apos;ll email you a link to sign in.
+            </p>
           </div>
         </div>
       )}

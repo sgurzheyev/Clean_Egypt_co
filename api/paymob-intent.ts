@@ -18,22 +18,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { lat, lng, amount = 1, type = 'egypt', missionId, userId } = req.body as {
+    const {
+      lat,
+      lng,
+      amount = 1,
+      type = 'egypt',
+      missionId,
+      userId,
+      taskType,
+      location_lat,
+      location_lng,
+      description,
+    } = req.body as {
       lat?: number;
       lng?: number;
       amount?: number;
       type?: string;
       missionId?: string;
       userId?: string;
+      taskType?: 'city' | 'home';
+      location_lat?: number;
+      location_lng?: number;
+      description?: string;
     };
 
-    // 1. КОНВЕРТАЦИЯ: Paymob работает с EGP и принимает сумму в центах (строкой)
     const exchangeRate = 50;
     let amountInEgp: number;
-
     let pyramidIdForMetadata: string;
 
-    if (type === 'worker_deposit') {
+    if (type === 'job_creation') {
+      if (!userId || typeof userId !== 'string') {
+        return res.status(400).json({ error: 'userId is required for job_creation' });
+      }
+      if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+        return res.status(400).json({ error: 'amount must be a positive number (USD)' });
+      }
+      if (!taskType || !['city', 'home'].includes(taskType)) {
+        return res.status(400).json({ error: 'taskType must be city or home' });
+      }
+      if (typeof location_lat !== 'number' || typeof location_lng !== 'number') {
+        return res.status(400).json({ error: 'location_lat and location_lng are required' });
+      }
+
+      amountInEgp = amount * exchangeRate;
+
+      const { data: pendingJob, error: jobPendingError } = await supabase
+        .from('job_payment_pending')
+        .insert({
+          creator_id: userId,
+          task_type: taskType,
+          amount,
+          location_lat,
+          location_lng,
+          description: description || null,
+        })
+        .select('id')
+        .single();
+
+      if (jobPendingError) {
+        console.error('job_payment_pending insert error:', jobPendingError.message);
+        return res.status(500).json({ error: 'Failed to register job payment intent' });
+      }
+
+      pyramidIdForMetadata = pendingJob.id;
+    } else if (type === 'worker_deposit') {
       if (!missionId) {
         return res.status(400).json({ error: 'missionId is required for worker_deposit' });
       }
@@ -110,7 +158,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const authData = await authRes.json();
     if (!authData.token) throw new Error("Paymob Auth Failed");
 
-    // 4. CREATE ORDER: Регистрируем заказ в системе Paymob
+    const merchantOrderId =
+      type === 'job_creation'
+        ? `job:${pyramidIdForMetadata}_${Date.now()}`
+        : `${type}:${pyramidIdForMetadata}_${Date.now()}`;
+
     const orderRes = await fetch('https://accept.paymob.com/api/ecommerce/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -119,7 +171,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         delivery_needed: "false",
         amount_cents: amountCents,
         currency: "EGP",
-        merchant_order_id: `${type}:${pyramidIdForMetadata}_${Date.now()}`,
+        merchant_order_id: merchantOrderId,
         items: []
       })
     });
@@ -128,9 +180,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!paymobOrderId) throw new Error("Paymob Order Creation Failed");
 
-    // 5. СВЯЗКА: Для создания пирамиды сохраняем paymob_order_id в таблицу pyramids.
-    // Для worker_deposit записываем в payment_pending, чтобы вебхук мог проставить worker_id.
-    if (type === 'worker_deposit') {
+    if (type === 'job_creation') {
+      const { error: jobUpdateErr } = await supabase
+        .from('job_payment_pending')
+        .update({ paymob_order_id: paymobOrderId.toString() })
+        .eq('id', pyramidIdForMetadata);
+      if (jobUpdateErr) {
+        console.error('job_payment_pending update error:', jobUpdateErr.message);
+        return res.status(500).json({ error: 'Failed to link Paymob order' });
+      }
+    } else if (type === 'worker_deposit') {
       const { error: pendingError } = await supabase
         .from('payment_pending')
         .insert({
