@@ -67,12 +67,14 @@ const Profile: React.FC = () => {
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [photoUploadingMissionId, setPhotoUploadingMissionId] = useState<string | null>(null);
   const [startMissionLoadingId, setStartMissionLoadingId] = useState<string | null>(null);
+  const [paymentSyncing, setPaymentSyncing] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     const search = typeof window !== 'undefined' ? window.location.search : '';
     const params = new URLSearchParams(search);
-    const isPaymentSuccess = params.get('payment') === 'success';
+    const isPaymentSuccess =
+      params.get('payment') === 'success' || params.get('success') === 'true';
 
     if (isPaymentSuccess) {
       localStorage.setItem('payment_success', Date.now().toString());
@@ -89,17 +91,43 @@ const Profile: React.FC = () => {
       window.history.replaceState({}, '', window.location.pathname);
     }
 
-    const delayMs = isPaymentSuccess ? 1200 : 0;
-    const t = setTimeout(async () => {
+    const loadOnce = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-        fetchProfileData();
-        fetchMarketplaceJobs();
+        if (!session) return false;
+        await fetchProfileData();
+        await fetchMarketplaceJobs();
+        return true;
       } catch (e) {
         console.error('Profile init fetch error:', e);
+        return false;
       }
-    }, delayMs);
+    };
+
+    if (isPaymentSuccess) {
+      setPaymentSyncing(true);
+      let attempts = 0;
+      const maxAttempts = 3;
+      const intervalMs = 1500;
+
+      const attempt = () => {
+        attempts += 1;
+        loadOnce().then((ok) => {
+          if (ok || attempts >= maxAttempts) {
+            setPaymentSyncing(false);
+            return;
+          }
+          setTimeout(attempt, intervalMs);
+        });
+      };
+
+      const t = setTimeout(attempt, 1200);
+      return () => clearTimeout(t);
+    }
+
+    const t = setTimeout(() => {
+      loadOnce();
+    }, 0);
     return () => clearTimeout(t);
   }, []);
 
@@ -619,7 +647,12 @@ const Profile: React.FC = () => {
 
         {/* MARKETPLACE (CITY WORK & BIDDING) — pointer-events-auto чтобы карточки были кликабельны */}
         <section className="text-white pointer-events-auto relative z-10">
-          <h2 className="text-xl font-black mb-4 text-teal-400">🌍 GLOBAL MARKETPLACE</h2>
+          <h2 className="text-xl font-black mb-2 text-teal-400">🌍 GLOBAL MARKETPLACE</h2>
+          {paymentSyncing && (
+            <p className="text-[11px] font-bold text-emerald-300 mb-3 animate-pulse">
+              🔄 Синхронизация платежа...
+            </p>
+          )}
 
           {marketLoading && (
             <div className="grid grid-cols-1 gap-4 mb-2">

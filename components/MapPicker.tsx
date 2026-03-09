@@ -201,9 +201,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
     <div className={`w-full h-screen relative ${isOverlayOpen ? 'bg-gray-900' : 'bg-zinc-950'}`}>
       <Link
         to="/profile"
-        className="absolute top-4 left-4 z-[60] bg-white text-black font-bold py-3 px-6 rounded-xl shadow-2xl border-2 border-gray-200 hover:bg-gray-100 transition-all"
+        className="absolute top-4 left-4 z-[80] flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white shadow-[0_0_15px_rgba(255,255,255,0.05)] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:bg-black/60 hover:border-emerald-500/50 transition-all duration-300 active:scale-95 group overflow-hidden"
       >
-        👤 PROFILE
+        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-white/20 bg-white/10 text-xs text-slate-200 group-hover:text-emerald-300 transition-colors">
+          👤
+        </span>
+        <span className="text-xs font-bold tracking-[0.18em] uppercase text-slate-100 group-hover:text-emerald-200">
+          Profile
+        </span>
       </Link>
       <div
         className="w-full h-full"
