@@ -1,224 +1,343 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { Link, useNavigate } from 'react-router-dom';
 import Map, { Marker, NavigationControl, GeolocateControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import PyramidMarker from './PyramidMarker';
+import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
-/**
- * Парсит EWKB Hex-строку PostGIS Point в { lat, lng }.
- * Формат: 9 байт заголовок, 8 байт Longitude (Float64 LE), 8 байт Latitude (Float64 LE).
- */
-function parseEwkbHex(hex: string): { lat: number; lng: number } | null {
-  const clean = hex.replace(/\s/g, '').toLowerCase();
-  if (clean.length < 50 || !clean.startsWith('01010000')) return null;
-  const byteLength = clean.length >> 1;
-  const bytes = new Uint8Array(byteLength);
-  for (let i = 0; i < clean.length; i += 2) {
-    const byte = parseInt(clean.slice(i, i + 2), 16);
-    if (isNaN(byte)) return null;
-    bytes[i >> 1] = byte;
-  }
-  if (byteLength < 25) return null; // 9 header + 8 lng + 8 lat
-  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const lng = dv.getFloat64(9, true);
-  const lat = dv.getFloat64(17, true);
-  if (Number.isFinite(lng) && Number.isFinite(lat)) return { lng, lat };
-  return null;
-}
+type TaskType = 'city' | 'home';
 
-/** Парсит location из Supabase (PostGIS: EWKB Hex, GeoJSON или WKT) в { lat, lng }. */
-function parseLocation(location: unknown): { lat: number; lng: number } | null {
-  if (!location) return null;
-  if (typeof location === 'object' && 'coordinates' in (location as any)) {
-    const coords = (location as { coordinates: [number, number] }).coordinates;
-    if (Array.isArray(coords) && coords.length >= 2) return { lng: coords[0], lat: coords[1] };
-  }
-  if (typeof location === 'string') {
-    const s = location.trim();
-    if (s.length >= 50 && s.toLowerCase().startsWith('01010000')) {
-      const ewkb = parseEwkbHex(s);
-      if (ewkb) return ewkb;
-    }
-    const m = s.match(/POINT\s*\(\s*([\d.-]+)\s+([\d.-]+)\s*\)/i);
-    if (m) return { lng: parseFloat(m[1]), lat: parseFloat(m[2]) };
-  }
-  return null;
-}
-
-export interface PyramidOnMap {
+interface JobOnMap {
   id: string;
-  lat: number;
-  lng: number;
-  target_amount: number;
-  mission_type: 'home' | 'city' | string;
+  task_type: TaskType | string;
+  amount: number;
+  location_lat: number;
+  location_lng: number;
   status: string;
   worker_id?: string | null;
-  label?: string;
+  creator_id?: string | null;
+  description?: string | null;
 }
 
-export interface MapPickerProps {
+interface MapPickerProps {
   onLocationSelect: (lat: number, lng: number) => void;
-  /** Выбранная точка с карты (контролируется из App). При null маркер и подпись TARGET скрыты. */
   selectedCoords?: { lat: number; lng: number } | null;
-  orders: any[];
-  currentAmount: number;
-  currentType: 'home' | 'city';
-  hasFullAccess?: boolean;
-  currentUserId?: string | null;
-  /** Вызов при «Перейти к оплате» в paywall: открыть PaymentOverlay с этими данными (редирект в /profile только после успешной оплаты). */
-  onRequestPayment?: (params: { lat: number; lng: number; amount: number; type: 'home' | 'city' }) => void;
-  /** true = окно оплаты открыто; карта скрывается (display: none), чтобы не перехватывать touch в iframe. */
-  showPayment?: boolean;
+  orders?: any[]; // legacy, ignored
+  currentAmount?: number; // legacy
+  currentType?: 'home' | 'city'; // legacy
+  hasFullAccess?: boolean; // legacy
+  currentUserId?: string | null; // legacy
+  onRequestPayment?: (params: {
+    lat: number;
+    lng: number;
+    amount: number;
+    type: 'home' | 'city';
+  }) => void; // legacy, ignored
+  showPayment?: boolean; // legacy
 }
+
+const customDarkStyle: any = {
+  version: 8,
+  sources: {
+    composite: {
+      type: 'vector',
+      url: 'mapbox://mapbox.mapbox-streets-v8',
+    },
+  },
+  sprite: 'mapbox://sprites/mapbox/dark-v10',
+  glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
+  layers: [
+    {
+      id: 'background',
+      type: 'background',
+      paint: {
+        'background-color': '#000000',
+      },
+    },
+    {
+      id: 'water',
+      type: 'fill',
+      source: 'composite',
+      'source-layer': 'water',
+      paint: {
+        'fill-color': '#808080',
+      },
+    },
+    {
+      id: 'road',
+      type: 'line',
+      source: 'composite',
+      'source-layer': 'road',
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          10,
+          0.4,
+          16,
+          2.5,
+        ],
+      },
+    },
+    {
+      id: '3d-buildings',
+      type: 'fill-extrusion',
+      source: 'composite',
+      'source-layer': 'building',
+      minzoom: 15,
+      paint: {
+        'fill-extrusion-color': '#333333',
+        'fill-extrusion-height': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15,
+          0,
+          16,
+          ['get', 'height'],
+        ],
+        'fill-extrusion-base': ['get', 'min_height'],
+        'fill-extrusion-opacity': 0.95,
+      },
+    },
+  ],
+};
 
 const MapPicker: React.FC<MapPickerProps> = ({
   onLocationSelect,
   selectedCoords = null,
-  orders,
-  currentAmount,
-  currentType,
-  hasFullAccess = false,
-  currentUserId = null,
-  onRequestPayment,
-  showPayment = false,
 }) => {
-  const navigate = useNavigate();
-  const mountedRef = React.useRef(true);
-  const mapRef = React.useRef<any>(null);
-  const wasOverlayOpenRef = React.useRef(false);
   const [viewState, setViewState] = useState({
     latitude: 27.2579,
     longitude: 33.8116,
     zoom: 13,
+    pitch: 55,
+    bearing: -20,
   });
 
-  const [demoPyramids, setDemoPyramids] = useState<any[]>([]);
-  const [pyramidsFromDb, setPyramidsFromDb] = useState<PyramidOnMap[]>([]);
-  const [paywallPopup, setPaywallPopup] = useState<PyramidOnMap | null>(null);
-  const isOverlayOpen = showPayment || !!paywallPopup;
+  const [jobs, setJobs] = useState<JobOnMap[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<
+    { lat: number; lng: number } | null
+  >(selectedCoords || null);
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
+  // Unified order form state
+  const [taskType, setTaskType] = useState<TaskType>('city');
+  const [orderAmount, setOrderAmount] = useState('');
+  const [orderDescription, setOrderDescription] = useState('');
+  const [orderPhoto, setOrderPhoto] = useState<File | null>(null);
+  const [orderSubmitting, setOrderSubmitting] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
 
-  const fetchPyramids = useCallback(async () => {
+  // Bidding modal state
+  const [bidJob, setBidJob] = useState<JobOnMap | null>(null);
+  const [bidAmount, setBidAmount] = useState('');
+  const [bidSubmitting, setBidSubmitting] = useState(false);
+  const [bidError, setBidError] = useState<string | null>(null);
+  const [bidSuccess, setBidSuccess] = useState<string | null>(null);
+
+  // Fetch pending jobs from Supabase
+  const fetchJobs = useCallback(async () => {
     const { data, error } = await supabase
-      .from('pyramids')
-      .select('id, location, target_amount, mission_type, status, worker_id, created_at')
-      .in('status', ['pending', 'completed', 'in_progress'])
+      .from('jobs')
+      .select('id, task_type, amount, location_lat, location_lng, status, worker_id, creator_id, description')
+      .eq('status', 'pending')
       .order('created_at', { ascending: false })
       .limit(500);
 
     if (error) {
       console.error(
-        'Ошибка загрузки пирамид с Supabase:',
+        'Ошибка загрузки jobs с Supabase:',
         error.message,
         (error as any)?.details || ''
       );
-      setPyramidsFromDb([]);
+      setJobs([]);
       return;
     }
 
-    const list: PyramidOnMap[] = [];
-    for (const row of data || []) {
-      const coords = parseLocation(row.location);
-      if (!coords) continue;
-      list.push({
-        id: row.id,
-        lat: coords.lat,
-        lng: coords.lng,
-        target_amount: row.target_amount ?? 0,
-        mission_type: row.mission_type ?? 'city',
-        status: row.status ?? '',
-        worker_id: row.worker_id ?? null,
-        label: undefined,
-      });
-    }
-    setPyramidsFromDb(list);
+    const list: JobOnMap[] = (data || []).filter(
+      (row: any) =>
+        typeof row.location_lat === 'number' &&
+        typeof row.location_lng === 'number'
+    ) as JobOnMap[];
+
+    setJobs(list);
   }, []);
 
   useEffect(() => {
-    fetchPyramids();
-  }, [fetchPyramids]);
+    fetchJobs();
+  }, [fetchJobs]);
 
-  // При возврате из вкладки Paymob подтягиваем обновлённые статусы пирамид
   useEffect(() => {
-    const handleFocus = () => fetchPyramids();
+    const handleFocus = () => fetchJobs();
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [fetchPyramids]);
-
-  // Демо-пирамиды для try-free
-  useEffect(() => {
-    const isDemo = new URLSearchParams(window.location.search).get('view') === 'demo_active';
-    if (isDemo) {
-      const names = ['Ahmed', 'Moustafa', 'Elena', 'Sergio', 'Habibi', 'Eco_Warrior', 'Cleaner_Pro'];
-      const bounds = { lat: [27.2, 27.3], lng: [33.8, 33.9] };
-      const fakeData = Array.from({ length: 45 }).map((_, i) => ({
-        id: `fake-${i}`,
-        lat: Math.random() * (bounds.lat[1] - bounds.lat[0]) + bounds.lat[0],
-        lng: Math.random() * (bounds.lng[1] - bounds.lng[0]) + bounds.lng[0],
-        amount: [1, 5, 10, 50, 100][Math.floor(Math.random() * 5)],
-        type: Math.random() > 0.5 ? 'home' : 'city',
-        label: names[Math.floor(Math.random() * names.length)],
-      }));
-      setDemoPyramids(fakeData);
-    }
-  }, []);
+  }, [fetchJobs]);
 
   const handleMapClick = useCallback(
     (event: any) => {
-      if (!mapRef.current || !event?.lngLat) return;
+      if (!event?.lngLat) return;
       const { lng, lat } = event.lngLat;
+
+      setSelectedLocation({ lat, lng });
       onLocationSelect(lat, lng);
     },
     [onLocationSelect]
   );
 
-  const handlePyramidClick = useCallback(
-    (e: React.MouseEvent, pyramid: PyramidOnMap) => {
-      e.stopPropagation();
-      e.preventDefault();
-
-      if (pyramid.status === 'in_progress') {
-        if (pyramid.worker_id && currentUserId && pyramid.worker_id === currentUserId) {
-          alert('Это твоя активная миссия. Зайди в профиль → MY ACTIVE MISSIONS, чтобы завершить и загрузить фото.');
-        } else {
-          alert('Эту миссию уже выполняет другой рабочий.');
-        }
+  const handleMarkerClick = useCallback(
+    async (job: JobOnMap) => {
+      if (job.task_type !== 'home') return;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        alert('You must be signed in to place a bid.');
         return;
       }
-
-      if (hasFullAccess) {
-        navigate('/profile');
+      if (job.creator_id === session.user.id) {
+        alert('You cannot bid on your own job.');
         return;
       }
-      setPaywallPopup(pyramid);
+      setBidJob(job);
+      setBidAmount('');
+      setBidError(null);
+      setBidSuccess(null);
     },
-    [hasFullAccess, navigate]
+    []
   );
 
-  const handleMove = useCallback((evt: any) => {
-    if (!mapRef.current || !mountedRef.current || !evt?.viewState) return;
-    setViewState(evt.viewState);
-  }, []);
-
-  // После закрытия оверлея карта снова display:block — Mapbox нужно пересчитать размеры
-  useEffect(() => {
-    if (wasOverlayOpenRef.current && !isOverlayOpen) {
-      const t = setTimeout(() => mapRef.current?.resize?.(), 50);
-      return () => clearTimeout(t);
+  const handleCloseBidModal = useCallback(() => {
+    if (!bidSubmitting) {
+      setBidJob(null);
+      setBidAmount('');
+      setBidError(null);
+      setBidSuccess(null);
     }
-    wasOverlayOpenRef.current = isOverlayOpen;
-  }, [isOverlayOpen]);
+  }, [bidSubmitting]);
+
+  const handlePlaceBid = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bidJob) return;
+    setBidError(null);
+    setBidSuccess(null);
+
+    const amount = parseFloat(bidAmount.replace(',', '.'));
+    if (isNaN(amount) || amount <= 0) {
+      setBidError('Please enter a positive USD amount.');
+      return;
+    }
+
+    try {
+      setBidSubmitting(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user?.id) {
+        setBidError('You must be signed in to place a bid.');
+        return;
+      }
+
+      const { error } = await supabase.from('bids').insert([
+        {
+          job_id: bidJob.id,
+          worker_id: session.user.id,
+          bid_amount: amount,
+          status: 'pending',
+        },
+      ]);
+
+      if (error) {
+        console.error('Error placing bid:', error.message);
+        setBidError('Could not place bid. Please try again.');
+        return;
+      }
+
+      setBidSuccess('Bid placed successfully.');
+      setBidAmount('');
+      await fetchJobs();
+      setTimeout(() => {
+        handleCloseBidModal();
+      }, 1200);
+    } catch (err) {
+      console.error('Bid exception:', err);
+      setBidError('Unexpected error. Please try again.');
+    } finally {
+      setBidSubmitting(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOrderError(null);
+    setOrderSuccess(null);
+
+    const amount = parseFloat(orderAmount.replace(',', '.'));
+    if (isNaN(amount) || amount <= 0) {
+      setOrderError('Please enter any positive USD value.');
+      return;
+    }
+    if (!selectedLocation) {
+      setOrderError('Tap on the map to choose a location.');
+      return;
+    }
+
+    try {
+      setOrderSubmitting(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user?.id) {
+        setOrderError('You must be signed in to create a job.');
+        return;
+      }
+
+      const creatorId = session.user.id;
+
+      // TODO: upload orderPhoto to storage and save URL if needed
+      const { error } = await supabase.from('jobs').insert([
+        {
+          creator_id: creatorId,
+          task_type: taskType,
+          amount,
+          location_lat: selectedLocation.lat,
+          location_lng: selectedLocation.lng,
+          status: 'pending',
+          description: orderDescription,
+        },
+      ]);
+
+      if (error) {
+        console.error(
+          'Error inserting job:',
+          error.message,
+          (error as any)?.details || ''
+        );
+        setOrderError('Could not create job. Please try again.');
+        return;
+      }
+
+      setOrderSuccess('Job created. It will appear on the map shortly.');
+      setOrderAmount('');
+      setOrderDescription('');
+      setOrderPhoto(null);
+      await fetchJobs();
+    } catch (err) {
+      console.error('Job submit exception:', err);
+      setOrderError('Unexpected error. Please try again.');
+    } finally {
+      setOrderSubmitting(false);
+    }
+  };
 
   return (
-    <div className={`w-full h-screen relative ${isOverlayOpen ? 'bg-gray-900' : 'bg-zinc-950'}`}>
+    <div className="w-full h-screen relative bg-black">
+      {/* Top-left profile chip */}
       <Link
         to="/profile"
         className="absolute top-4 left-4 z-[80] flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white shadow-[0_0_15px_rgba(255,255,255,0.05)] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:bg-black/60 hover:border-emerald-500/50 transition-all duration-300 active:scale-95 group overflow-hidden"
@@ -230,19 +349,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
           Profile
         </span>
       </Link>
-      <div
-        className="w-full h-full"
-        style={{ display: isOverlayOpen ? 'none' : 'block' }}
-      >
-        <Map
-        ref={mapRef}
+
+      {/* Full-screen 3D map */}
+      <Map
+        ref={(ref) => {
+          // keep react-map-gl ref stable
+        }}
         {...viewState}
-        onMove={handleMove}
+        onMove={(evt) => setViewState(evt.viewState)}
         onClick={handleMapClick}
-        mapStyle="mapbox://styles/mapbox/dark-v11"
+        mapStyle={customDarkStyle}
         mapboxAccessToken={MAPBOX_TOKEN}
         style={{ width: '100%', height: '100%' }}
-        padding={{ bottom: 0, top: 0, left: 0, right: 0 }}
       >
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-2 opacity-60 hover:opacity-100 transition-opacity z-10 scale-110">
           <GeolocateControl
@@ -253,118 +371,249 @@ const MapPicker: React.FC<MapPickerProps> = ({
           <NavigationControl showCompass={false} style={{ position: 'relative' }} />
         </div>
 
-        {/* Пирамиды из Supabase (миссии/заказы) */}
-        {(pyramidsFromDb || []).map((p) => {
-          const isInProgress = p.status === 'in_progress';
-          const markerWrapperClass = isInProgress
-            ? 'cursor-pointer outline-none pointer-events-auto shadow-[0_0_20px_rgba(251,191,36,0.9)]'
-            : 'cursor-pointer outline-none pointer-events-auto';
+        {/* Job markers as pills */}
+        {(jobs || []).map((job) => {
+          const isCity = job.task_type === 'city';
+          const pillClasses = isCity
+            ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-black'
+            : 'bg-gradient-to-r from-amber-300 to-amber-500 text-black';
+
           return (
-          <Marker key={p.id} latitude={p.lat} longitude={p.lng} anchor="bottom">
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handlePyramidClick(e, p); }}
-              onKeyDown={(e) => e.key === 'Enter' && handlePyramidClick(e as any, p)}
-              className={markerWrapperClass}
+            <Marker
+              key={job.id}
+              latitude={job.location_lat}
+              longitude={job.location_lng}
+              anchor="bottom"
             >
-              <PyramidMarker
-                amount={p.target_amount}
-                orderType={p.mission_type as 'home' | 'city'}
-                label={p.label}
-              />
-            </div>
-          </Marker>
-        );})}
-
-        {/* Legacy orders из App (таблица orders) */}
-        {orders?.map((order) => (
-          <Marker key={order.id} latitude={order.lat || 0} longitude={order.lng || 0} anchor="bottom">
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-              className="cursor-pointer outline-none"
-            >
-              <PyramidMarker
-                amount={order.amount}
-                orderType={order.order_type}
-                label={order.task_description}
-              />
-            </div>
-          </Marker>
-        ))}
-
-        {demoPyramids.map((p) => (
-          <Marker key={p.id} latitude={p.lat} longitude={p.lng} anchor="bottom">
-            <div className="animate-pulse opacity-70 cursor-pointer" onClick={(e) => e.stopPropagation()}>
-              <PyramidMarker amount={p.amount} orderType={p.type} label={p.label} />
-            </div>
-          </Marker>
-        ))}
-
-        {selectedCoords && (
-          <Marker latitude={selectedCoords.lat} longitude={selectedCoords.lng} anchor="bottom">
-            <div className="animate-bounce">
-              <PyramidMarker amount={currentAmount} orderType={currentType} />
-              <div className="w-1 h-4 bg-cyan-400 mx-auto blur-[0.5px]" />
-            </div>
-          </Marker>
-        )}
-      </Map>
-      </div>
-
-      {selectedCoords && (
-        <div className="absolute bottom-36 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-xl px-6 py-3 rounded-2xl border border-cyan-500/30 z-20 shadow-[0_0_30px_rgba(6,182,212,0.3)]">
-          <p className="text-[10px] text-cyan-400 font-black uppercase tracking-[0.3em]">
-            TARGET: {selectedCoords.lat.toFixed(4)} / {selectedCoords.lng.toFixed(4)}
-          </p>
-        </div>
-      )}
-
-      {/* Попап «Оплатите доступ»: через портал в body, вне иерархии Mapbox */}
-      {paywallPopup && typeof document !== 'undefined' && createPortal(
-        <div
-          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={() => setPaywallPopup(null)}
-        >
-          <div
-            className="relative z-[99999] w-full max-w-sm bg-slate-800/95 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 text-white pointer-events-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-lg font-black mb-2">Оплатите доступ</p>
-            <p className="text-slate-400 text-sm mb-6">
-              Чтобы увидеть детали заказа и взять эту миссию, оформите полный доступ к платформе.
-            </p>
-            <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => setPaywallPopup(null)}
-                className="flex-1 py-3 rounded-xl border border-white/20 text-slate-400 hover:text-white font-bold text-sm transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleMarkerClick(job);
+                }}
+                className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-[0.16em] shadow-lg cursor-pointer select-none transition-transform hover:scale-110 active:scale-95 ${pillClasses}`}
               >
-                Закрыть
+                ${job.amount}
+              </button>
+            </Marker>
+          );
+        })}
+      </Map>
+
+      {/* Unified order form overlay (floating bottom panel) */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center z-[90]">
+        <div className="pointer-events-auto w-full max-w-xl px-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="inline-flex gap-2 rounded-full bg-slate-900/80 border border-white/5 p-1">
+              <button
+                type="button"
+                onClick={() => setTaskType('city')}
+                className={`px-4 py-2 rounded-full text-[10px] font-bold tracking-[0.18em] uppercase transition-all ${
+                  taskType === 'city'
+                    ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-black shadow-[0_0_18px_rgba(16,185,129,0.6)]'
+                    : 'bg-transparent text-slate-400 hover:text-emerald-300'
+                }`}
+              >
+                City Cleaning
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setPaywallPopup(null);
-                  if (onRequestPayment) {
-                    const amount = paywallPopup.target_amount && paywallPopup.target_amount > 0 ? paywallPopup.target_amount : 1;
-                    const type = (paywallPopup.mission_type === 'home' ? 'home' : 'city') as 'home' | 'city';
-                    onRequestPayment({ lat: paywallPopup.lat, lng: paywallPopup.lng, amount, type });
-                  } else {
-                    navigate('/');
-                  }
-                }}
-                className="flex-1 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-900 font-black text-sm transition-colors"
+                onClick={() => setTaskType('home')}
+                className={`px-4 py-2 rounded-full text-[10px] font-bold tracking-[0.18em] uppercase transition-all ${
+                  taskType === 'home'
+                    ? 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_18px_rgba(251,191,36,0.6)]'
+                    : 'bg-transparent text-slate-400 hover:text-amber-200'
+                }`}
               >
-                Перейти к оплате
+                Home Cleaning
               </button>
             </div>
           </div>
-        </div>,
-        document.body
+
+          <form
+            onSubmit={handleSubmit}
+            className="rounded-3xl bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl p-5 space-y-4"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                  Amount (USD)
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={orderAmount}
+                  onChange={(e) => setOrderAmount(e.target.value)}
+                  placeholder="Any amount"
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                  Location
+                </label>
+                <div className="flex items-center gap-2 rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5">
+                  <span className="text-slate-400 text-sm">📍</span>
+                  <p className="flex-1 text-xs text-slate-300">
+                    {selectedLocation
+                      ? `${selectedLocation.lat.toFixed(4)}, ${selectedLocation.lng.toFixed(4)}`
+                      : 'Tap on the 3D map to select'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                  Upload photo
+                </label>
+                <label className="flex h-[52px] items-center justify-center rounded-2xl border border-dashed border-slate-600 bg-black/30 text-[11px] text-slate-400 cursor-pointer hover:border-teal-400 hover:text-teal-300 transition-all">
+                  {orderPhoto ? 'Photo selected' : 'Tap to add reference photo'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setOrderPhoto(file);
+                    }}
+                  />
+                </label>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                  Type
+                </label>
+                <p className="text-sm text-slate-200 font-medium">
+                  {taskType === 'city'
+                    ? 'Donation for City Cleaning'
+                    : 'Order Home Cleaning'}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                Short description & area
+              </label>
+              <textarea
+                value={orderDescription}
+                onChange={(e) => setOrderDescription(e.target.value)}
+                rows={3}
+                placeholder={
+                  taskType === 'city'
+                    ? 'Describe the city spot you want to support...'
+                    : 'Describe your home cleaning task and area size...'
+                }
+                className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none"
+              />
+            </div>
+
+            {orderError && (
+              <p className="text-xs text-red-400 font-medium">{orderError}</p>
+            )}
+            {orderSuccess && (
+              <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={orderSubmitting}
+              className={`w-full mt-1 rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all ${
+                taskType === 'city'
+                  ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-black shadow-[0_0_24px_rgba(16,185,129,0.7)] hover:brightness-110'
+                  : 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.7)] hover:brightness-110'
+              } ${orderSubmitting ? 'opacity-60 cursor-wait' : 'active:scale-95'}`}
+            >
+              {orderSubmitting ? 'Processing...' : 'Submit Task & Pay'}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* Bidding modal — dark glassmorphism */}
+      {bidJob && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={handleCloseBidModal}
+          aria-hidden="false"
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-black/85 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-lg font-black uppercase tracking-[0.18em] text-white">
+                Place bid
+              </h3>
+              <button
+                type="button"
+                onClick={handleCloseBidModal}
+                disabled={bidSubmitting}
+                className="text-slate-400 hover:text-white text-lg font-bold disabled:opacity-40 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div className="rounded-2xl bg-black/40 border border-white/10 px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
+                  Target amount
+                </p>
+                <p className="text-xl font-black text-amber-400">
+                  ${bidJob.amount}
+                </p>
+              </div>
+              {bidJob.description && (
+                <div className="rounded-2xl bg-black/40 border border-white/10 px-4 py-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
+                    Description
+                  </p>
+                  <p className="text-sm text-slate-300 whitespace-pre-wrap">
+                    {bidJob.description}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handlePlaceBid} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                  Your bid (USD)
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={bidAmount}
+                  onChange={(e) => setBidAmount(e.target.value)}
+                  placeholder="Enter your bid amount"
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                />
+              </div>
+
+              {bidError && (
+                <p className="text-xs text-red-400 font-medium">{bidError}</p>
+              )}
+              {bidSuccess && (
+                <p className="text-xs text-emerald-400 font-medium">{bidSuccess}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={bidSubmitting}
+                className="w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.7)] hover:brightness-110 transition-all disabled:opacity-60 disabled:cursor-wait active:scale-95"
+              >
+                {bidSubmitting ? 'Placing bid...' : 'Place bid'}
+              </button>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

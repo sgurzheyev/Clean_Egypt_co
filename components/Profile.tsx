@@ -20,6 +20,26 @@ interface Pyramid {
   worker_photo_start_url?: string | null;
 }
 
+interface Job {
+  id: string;
+  creator_id: string | null;
+  worker_id: string | null;
+  task_type: 'city' | 'home' | string;
+  amount: number;
+  status: string;
+  description?: string | null;
+  created_at: string;
+}
+
+interface Bid {
+  id: string;
+  job_id: string;
+  worker_id: string;
+  bid_amount: number;
+  status: string;
+  created_at?: string;
+}
+
 interface ProfileRow {
   id: string;
   balance_egp: number | null;
@@ -65,6 +85,8 @@ const shortId = (id: unknown): string => {
 const Profile: React.FC = () => {
   const [balance, setBalance] = useState(0);
   const [myPyramids, setMyPyramids] = useState<Pyramid[]>([]);
+  const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);
+  const [jobBidsById, setJobBidsById] = useState<Record<string, Bid[]>>({});
   const [myActiveMissions, setMyActiveMissions] = useState<Pyramid[]>([]);
   const [marketplaceJobs, setMarketplaceJobs] = useState<Pyramid[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,10 +95,19 @@ const Profile: React.FC = () => {
   const [selectedMission, setSelectedMission] = useState<Pyramid | null>(null);
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [userProfile, setUserProfile] = useState<ProfileRow | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [photoUploadingMissionId, setPhotoUploadingMissionId] = useState<string | null>(null);
   const [startMissionLoadingId, setStartMissionLoadingId] = useState<string | null>(null);
   const [paymentSyncing, setPaymentSyncing] = useState(false);
+  const [taskType, setTaskType] = useState<'city' | 'home'>('city');
+  const [orderAmount, setOrderAmount] = useState('');
+  const [orderLocation, setOrderLocation] = useState('');
+  const [orderDescription, setOrderDescription] = useState('');
+  const [orderPhoto, setOrderPhoto] = useState<File | null>(null);
+  const [orderSubmitting, setOrderSubmitting] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -178,11 +209,14 @@ const Profile: React.FC = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user?.id) {
         setMyPyramids([]);
+        setMyHomeJobs([]);
+        setJobBidsById({});
         setMyActiveMissions([]);
         setLoading(false);
         return;
       }
       const userId = session.user.id;
+      setUserEmail(session.user.email ?? null);
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -198,6 +232,8 @@ const Profile: React.FC = () => {
 
       if (!profileRow?.id) {
         setMyPyramids([]);
+        setMyHomeJobs([]);
+        setJobBidsById({});
         setMyActiveMissions([]);
         setLoading(false);
         return;
@@ -212,6 +248,32 @@ const Profile: React.FC = () => {
         .order('created_at', { ascending: false });
       const uniqueById = Array.from(new Map((myData || []).map((p: Pyramid) => [p.id, p])).values());
       setMyPyramids(uniqueById);
+
+      const { data: homeJobsData } = await supabase
+        .from('jobs')
+        .select('id, creator_id, worker_id, task_type, amount, status, description, created_at')
+        .eq('creator_id', creatorId)
+        .eq('task_type', 'home')
+        .order('created_at', { ascending: false });
+      setMyHomeJobs((homeJobsData || []) as Job[]);
+
+      const pendingHomeJobIds = ((homeJobsData || []) as Job[])
+        .filter((j) => j.status === 'pending')
+        .map((j) => j.id);
+      if (pendingHomeJobIds.length > 0) {
+        const { data: bidsData } = await supabase
+          .from('bids')
+          .select('id, job_id, worker_id, bid_amount, status, created_at')
+          .in('job_id', pendingHomeJobIds);
+        const byJob: Record<string, Bid[]> = {};
+        for (const bid of (bidsData || []) as Bid[]) {
+          if (!byJob[bid.job_id]) byJob[bid.job_id] = [];
+          byJob[bid.job_id].push(bid);
+        }
+        setJobBidsById(byJob);
+      } else {
+        setJobBidsById({});
+      }
 
       const { data: workerMissions } = await supabase
         .from('pyramids')
@@ -254,6 +316,59 @@ const Profile: React.FC = () => {
       setMarketplaceError('Не удалось загрузить миссии. Попробуйте обновить страницу.');
     } finally {
       setMarketplaceLoading(false);
+    }
+  };
+
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOrderError(null);
+    setOrderSuccess(null);
+
+    const amount = parseFloat(orderAmount.replace(',', '.'));
+    if (isNaN(amount) || amount <= 0) {
+      setOrderError('Введите любую сумму в USD больше 0.');
+      return;
+    }
+
+    try {
+      setOrderSubmitting(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        setOrderError('Нужна авторизация, чтобы создать задачу.');
+        return;
+      }
+
+      const creatorId = session.user.id;
+      const email = session.user.email ?? null;
+
+      const { error } = await supabase.from('pyramids').insert([{
+        creator_id: creatorId,
+        user_email: email,
+        mission_type: taskType,
+        target_amount: amount,
+        current_amount: amount,
+        status: 'pending'
+      }]);
+
+      if (error) {
+        console.error('Error creating pyramid:', error);
+        setOrderError('Не удалось создать задачу. Попробуйте ещё раз.');
+        return;
+      }
+
+      setOrderSuccess('Задача создана. Она появится в твоём профиле и на карте.');
+      setOrderAmount('');
+      setOrderLocation('');
+      setOrderDescription('');
+      setOrderPhoto(null);
+
+      await fetchProfileData();
+      await fetchMarketplaceJobs();
+    } catch (err) {
+      console.error('Create task exception:', err);
+      setOrderError('Произошла ошибка. Попробуйте ещё раз.');
+    } finally {
+      setOrderSubmitting(false);
     }
   };
 
@@ -355,6 +470,59 @@ const Profile: React.FC = () => {
     }
   };
 
+  const handleAcceptBid = async (job: Job, bid: Bid) => {
+    if (!window.confirm(`Accept bid of $${bid.bid_amount} from this worker?`)) return;
+    try {
+      const { error: jobErr } = await supabase
+        .from('jobs')
+        .update({
+          worker_id: bid.worker_id,
+          amount: bid.bid_amount,
+          status: 'in_progress',
+        })
+        .eq('id', job.id);
+      if (jobErr) throw jobErr;
+
+      await supabase.from('bids').update({ status: 'accepted' }).eq('id', bid.id);
+
+      const { data: otherBids } = await supabase
+        .from('bids')
+        .select('id')
+        .eq('job_id', job.id)
+        .neq('id', bid.id)
+        .eq('status', 'pending');
+      if (otherBids && otherBids.length > 0) {
+        await supabase
+          .from('bids')
+          .update({ status: 'rejected' })
+          .eq('job_id', job.id)
+          .neq('id', bid.id);
+      }
+
+      await fetchProfileData();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to accept bid. Please try again.');
+    }
+  };
+
+  const handleDeleteJob = async (jobId: string) => {
+    if (!window.confirm('Delete this request? This action cannot be undone.')) return;
+    try {
+      const { error } = await supabase.from('jobs').delete().eq('id', jobId);
+      if (error) throw error;
+      setMyHomeJobs((prev) => prev.filter((j) => j.id !== jobId));
+      setJobBidsById((prev) => {
+        const next = { ...prev };
+        delete next[jobId];
+        return next;
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete. Please try again.');
+    }
+  };
+
   const handleDeletePyramid = async (pyramidId: string) => {
     if (!window.confirm('Удалить это задание? Это действие нельзя отменить.')) return;
     try {
@@ -453,40 +621,175 @@ const Profile: React.FC = () => {
   };
 
   return (
-    <div className="h-screen overflow-y-auto pb-32 bg-slate-900/60 backdrop-blur-md font-sans ltr relative">
+    <div className="h-screen overflow-y-auto pb-32 bg-slate-950 font-sans ltr relative">
       <div className="min-h-full py-6 px-4 flex flex-col items-center relative z-10">
         <div className="w-full max-w-2xl relative z-10">
         
-        {/* WALLET SECTION */}
-        <header className="flex justify-between items-center mb-8 bg-slate-800/80 backdrop-blur-sm text-white p-6 rounded-3xl border border-white/10 shadow-2xl">
-          <div className="flex items-center gap-3">
-            <Link
-              to="/"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-700/80 hover:bg-slate-600 text-slate-200 hover:text-white text-xs font-bold uppercase tracking-wider transition-colors"
-            >
-              🗺️ TO MAP
-            </Link>
+        {/* DASHBOARD HEADER + UNIFIED ORDER FORM */}
+        <header className="mb-6 text-white">
+          <div className="flex items-center justify-between mb-4">
             <div>
-            <p className="text-teal-400 text-[10px] uppercase tracking-widest font-bold">Your Balance</p>
-            <p className="text-4xl font-black">{balance} <span className="text-sm font-normal opacity-50">EGP</span></p>
-            {userProfile?.verification_status === 'verified' && (
-              <span className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/40">
-                ✓ Верифицирован
-              </span>
-            )}
-            {userProfile?.verification_status === 'pending' && (
-              <span className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold border border-amber-500/40">
-                Документы на проверке
-              </span>
-            )}
+              <p className="text-xs text-slate-500 uppercase tracking-[0.25em]">
+                Welcome
+              </p>
+              <h1 className="mt-1 text-2xl font-black tracking-tight">
+                {userProfile?.full_name || userEmail || 'Co-worker'}
+              </h1>
+              {userEmail && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Signed in as <span className="text-slate-300 font-medium">{userEmail}</span>
+                </p>
+              )}
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] text-teal-400 uppercase tracking-[0.25em] font-bold">
+                Wallet
+              </p>
+              <p className="text-3xl font-black mt-1">
+                {balance}{' '}
+                <span className="text-sm font-normal opacity-50">EGP</span>
+              </p>
             </div>
           </div>
-          <button className="bg-teal-500 hover:bg-teal-400 text-slate-900 px-6 py-3 rounded-2xl font-black text-xs transition-all active:scale-95">
-            + RECHARGE
-          </button>
+
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="inline-flex gap-2 rounded-full bg-slate-900/80 border border-white/5 p-1">
+              <button
+                type="button"
+                onClick={() => setTaskType('city')}
+                className={`px-4 py-2 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all ${
+                  taskType === 'city'
+                    ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-black shadow-[0_0_18px_rgba(16,185,129,0.6)]'
+                    : 'bg-transparent text-slate-400 hover:text-emerald-300'
+                }`}
+              >
+                City Cleaning
+              </button>
+              <button
+                type="button"
+                onClick={() => setTaskType('home')}
+                className={`px-4 py-2 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all ${
+                  taskType === 'home'
+                    ? 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_18px_rgba(251,191,36,0.6)]'
+                    : 'bg-transparent text-slate-400 hover:text-amber-200'
+                }`}
+              >
+                Home Cleaning
+              </button>
+            </div>
+            <Link
+              to="/"
+              className="px-3 py-2 rounded-full bg-slate-900/80 border border-white/10 text-[11px] text-slate-300 hover:text-white hover:border-teal-400 transition-all flex items-center gap-2"
+            >
+              <span>🗺️</span>
+              <span className="uppercase tracking-[0.16em] font-bold">To Map</span>
+            </Link>
+          </div>
+
+          <form
+            onSubmit={handleCreateTask}
+            className="mb-10 rounded-3xl bg-slate-900/80 border border-white/10 shadow-2xl p-5 space-y-4"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                  Task type
+                </label>
+                <p className="text-sm text-slate-200 font-medium">
+                  {taskType === 'city' ? 'City Cleaning Donation' : 'Home Cleaning Service'}
+                </p>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                  Amount (USD)
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={orderAmount}
+                  onChange={(e) => setOrderAmount(e.target.value)}
+                  placeholder="Any amount"
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                  Location
+                </label>
+                <div className="flex items-center gap-2 rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5">
+                  <span className="text-slate-400 text-sm">📍</span>
+                  <input
+                    type="text"
+                    value={orderLocation}
+                    onChange={(e) => setOrderLocation(e.target.value)}
+                    placeholder="City / Area (map pin coming next)"
+                    className="flex-1 bg-transparent outline-none text-sm text-white placeholder:text-slate-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                  Upload photo
+                </label>
+                <label className="flex h-[52px] items-center justify-center rounded-2xl border border-dashed border-slate-600 bg-black/30 text-[11px] text-slate-400 cursor-pointer hover:border-teal-400 hover:text-teal-300 transition-all">
+                  {orderPhoto ? 'Photo selected' : 'Tap to add reference photo'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setOrderPhoto(file);
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                Short description & area
+              </label>
+              <textarea
+                value={orderDescription}
+                onChange={(e) => setOrderDescription(e.target.value)}
+                rows={3}
+                placeholder={
+                  taskType === 'city'
+                    ? 'Describe the city spot you want to clean up...'
+                    : 'Describe your home cleaning task and area size...'
+                }
+                className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none"
+              />
+            </div>
+
+            {orderError && (
+              <p className="text-xs text-red-400 font-medium">{orderError}</p>
+            )}
+            {orderSuccess && (
+              <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={orderSubmitting}
+              className={`w-full mt-1 rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all ${
+                taskType === 'city'
+                  ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-black shadow-[0_0_24px_rgba(16,185,129,0.7)] hover:brightness-110'
+                  : 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.7)] hover:brightness-110'
+              } ${orderSubmitting ? 'opacity-60 cursor-wait' : 'active:scale-95'}`}
+            >
+              {orderSubmitting ? 'Processing...' : 'Submit Task & Pay'}
+            </button>
+          </form>
         </header>
 
-        {/* MY REQUESTS (HOME WORK) */}
+        {/* MY HOME REQUESTS (from jobs table) */}
         <section className="mb-10 text-white">
           <h2 className="text-xl font-black mb-4 flex items-center gap-2">
             🏠 MY HOME REQUESTS
@@ -495,10 +798,10 @@ const Profile: React.FC = () => {
             {loading ? (
               <div className="space-y-3">
                 {[1, 2].map((s) => (
-                <div
-                  key={s}
-                  className="bg-slate-800/60 backdrop-blur-sm border border-white/10 rounded-2xl p-4 animate-pulse"
-                >
+                  <div
+                    key={s}
+                    className="bg-slate-800/60 backdrop-blur-sm border border-white/10 rounded-2xl p-4 animate-pulse"
+                  >
                     <div className="flex justify-between items-center mb-3">
                       <div className="h-4 w-16 bg-slate-700 rounded-full" />
                       <div className="h-3 w-20 bg-slate-700 rounded-full" />
@@ -507,83 +810,85 @@ const Profile: React.FC = () => {
                   </div>
                 ))}
               </div>
-            ) : (myPyramids || []).length === 0 ? (
-              <p className="text-slate-500 text-sm italic">You haven't created any requests yet.</p>
+            ) : (myHomeJobs || []).length === 0 ? (
+              <p className="text-slate-500 text-sm italic">You haven&apos;t created any home requests yet.</p>
             ) : (
-              (myPyramids || []).filter((p) => (p.mission_type || 'city') === 'home').map((p) => (
-                <div key={p.id} className="bg-slate-800/70 backdrop-blur-sm border border-white/10 rounded-2xl p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(p.id)}</span>
-                    <span className="text-[10px] text-slate-500">{new Date(p.created_at).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex justify-between items-start mb-4">
-                    <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${p.status === 'active' ? 'bg-emerald-500' : p.status === 'disputed' ? 'bg-red-500/80' : 'bg-slate-600'}`}>
-                      {p.status.toUpperCase()}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {(p.status === 'pending' || p.status === 'payment_pending') && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeletePyramid(p.id)}
-                          className="text-[10px] font-bold text-red-400 hover:text-red-300 hover:underline uppercase"
-                        >
-                          Удалить
-                        </button>
+              (myHomeJobs || []).map((job) => {
+                const bids = (jobBidsById[job.id] || []).filter((b) => b.status === 'pending');
+                return (
+                  <div key={job.id} className="bg-slate-800/70 backdrop-blur-sm border border-white/10 rounded-2xl p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
+                      <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex justify-between items-start mb-3">
+                      <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${
+                        job.status === 'in_progress' ? 'bg-emerald-500/80' :
+                        job.status === 'disputed' ? 'bg-red-500/80' :
+                        'bg-slate-600'
+                      }`}>
+                        {job.status.toUpperCase()}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {job.status === 'pending' && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteJob(job.id)}
+                            className="text-[10px] font-bold text-red-400 hover:text-red-300 hover:underline uppercase"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-slate-300 mb-1">
+                      <span className="text-amber-400 font-bold">${job.amount}</span>
+                      {job.description && (
+                        <span className="ml-2 text-slate-400">— {job.description}</span>
                       )}
-                    </div>
+                    </p>
+
+                    {job.status === 'disputed' && (
+                      <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+                        <p className="text-red-300 text-sm font-medium mb-2">Mission in dispute. Contact support:</p>
+                        <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer" className="text-teal-400 font-bold underline hover:text-teal-300">
+                          {SUPPORT_TELEGRAM}
+                        </a>
+                      </div>
+                    )}
+
+                    {job.status === 'pending' && bids.length > 0 && (
+                      <div className="mt-4 p-4 bg-black/40 border border-white/10 rounded-xl">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
+                          Bids
+                        </p>
+                        <div className="space-y-2">
+                          {bids.map((bid) => (
+                            <div
+                              key={bid.id}
+                              className="flex items-center justify-between gap-3 py-2 px-3 rounded-xl bg-slate-800/60 border border-white/5"
+                            >
+                              <span className="text-sm font-bold text-amber-400">${bid.bid_amount}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleAcceptBid(job, bid)}
+                                className="px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.16em] bg-emerald-500 hover:bg-emerald-400 text-black transition-all active:scale-95"
+                              >
+                                Accept bid
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {job.status === 'pending' && bids.length === 0 && (
+                      <p className="text-slate-500 text-xs italic mt-2">No bids yet. Workers can bid from the map.</p>
+                    )}
                   </div>
-
-                  {/* Диспут: контакт поддержки */}
-                  {p.status === 'disputed' && (
-                    <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
-                      <p className="text-red-300 text-sm font-medium mb-2">Mission in dispute. Contact support:</p>
-                      <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer" className="text-teal-400 font-bold underline hover:text-teal-300">
-                        {SUPPORT_TELEGRAM}
-                      </a>
-                    </div>
-                  )}
-
-                  {/* in_review или verifying: фото ДО/ПОСЛЕ и кнопки APPROVE / DISPUTE */}
-                  {(p.status === 'in_review' || p.status === 'verifying') && (
-                    <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                      <p className="text-emerald-400 text-xs font-bold mb-3 text-center">РАБОЧИЙ ЗАКОНЧИЛ! ПРОВЕРЬ ФОТО:</p>
-                      <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className="rounded-xl overflow-hidden bg-slate-800 border border-white/10">
-                          <p className="text-[10px] text-slate-500 px-2 py-1 uppercase">ДО</p>
-                          {p.worker_photo_start_url ? (
-                            <img src={p.worker_photo_start_url} alt="До" className="w-full aspect-square object-cover" />
-                          ) : (
-                            <div className="w-full aspect-square flex items-center justify-center text-slate-500 text-xs">Нет фото</div>
-                          )}
-                        </div>
-                        <div className="rounded-xl overflow-hidden bg-slate-800 border border-white/10">
-                          <p className="text-[10px] text-slate-500 px-2 py-1 uppercase">ПОСЛЕ</p>
-                          {p.photo_after_url ? (
-                            <img src={p.photo_after_url} alt="После" className="w-full aspect-square object-cover" />
-                          ) : (
-                            <div className="w-full aspect-square flex items-center justify-center text-slate-500 text-xs">Нет фото</div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleConfirmDone(p)}
-                          className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white py-3 rounded-xl font-black text-sm shadow-lg transition-all"
-                        >
-                          APPROVE
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDispute(p)}
-                          className="flex-1 py-3 rounded-xl border border-red-500/50 text-red-400 hover:bg-red-500/20 font-bold text-sm transition-all"
-                        >
-                          DISPUTE
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </section>
