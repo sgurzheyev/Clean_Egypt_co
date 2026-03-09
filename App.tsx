@@ -1,22 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useLocation, Routes, Route } from 'react-router-dom';
 import MapPicker from './components/MapPicker';
-import Auth from './components/Auth';
 import Profile from './components/Profile';
-import TryFree from './components/TryFree';
+import AuthOverlay from './components/AuthOverlay';
 import VerificationPage from './components/VerificationPage';
 import { supabase } from './services/supabase';
 
-const App: React.FC = () => (
-  <Router>
-    <AppContent />
-  </Router>
-);
-
-function AppContent() {
+const App: React.FC = () => {
   const location = useLocation();
   const [session, setSession] = useState<any>(null);
+  const [showProfileOverlay, setShowProfileOverlay] = useState(false);
+  const [showAuthOverlay, setShowAuthOverlay] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentSuccessType, setPaymentSuccessType] = useState<'job' | 'deposit'>('job');
 
@@ -36,30 +30,54 @@ function AppContent() {
       sessionStorage.setItem('paymentSuccessNeedsVerify', returnType);
       sessionStorage.removeItem('paymentReturnType');
       setShowPaymentModal(true);
-      window.history.replaceState({}, '', location.pathname);
+      window.history.replaceState({}, '', location.pathname || '/');
       window.dispatchEvent(new CustomEvent('paymentSuccess'));
     }
   }, [location.search, location.pathname]);
 
+  const handleAvatarClick = () => {
+    if (session) {
+      setShowProfileOverlay(true);
+    } else {
+      setShowAuthOverlay(true);
+    }
+  };
+
+  const handleCloseProfile = () => setShowProfileOverlay(false);
+  const handleAuthSuccess = () => setShowAuthOverlay(false);
+
   return (
+    <Routes>
+      <Route path="/verify" element={<VerificationPage />} />
+      <Route
+        path="/*"
+        element={
     <div className="relative w-full h-screen bg-black overflow-hidden">
-      <Routes>
-        <Route path="/" element={
-            <div className="fixed inset-0 z-0 w-full h-full">
-              <MapPicker
-                onLocationSelect={() => {}}
-                selectedCoords={null}
-              />
-            </div>
-          } />
+      {/* Single map interface — never unmounts */}
+      <div className="fixed inset-0 z-0 w-full h-full">
+        <MapPicker
+          onLocationSelect={() => {}}
+          selectedCoords={null}
+          onAvatarClick={handleAvatarClick}
+          onRequestAuth={() => setShowAuthOverlay(true)}
+        />
+      </div>
 
-          <Route path="/auth" element={!session ? <Auth /> : <Navigate to="/profile" />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/verify" element={<VerificationPage />} />
+      {/* Profile as sliding overlay */}
+      <Profile
+        isOpen={showProfileOverlay}
+        onClose={handleCloseProfile}
+        session={session}
+      />
 
-          <Route path="/try-free" element={<TryFree />} />
-        </Routes>
+      {/* Auth overlay */}
+      <AuthOverlay
+        isOpen={showAuthOverlay}
+        onClose={() => setShowAuthOverlay(false)}
+        onSuccess={handleAuthSuccess}
+      />
 
+      {/* Payment success modal */}
       {showPaymentModal && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
@@ -73,9 +91,7 @@ function AppContent() {
               <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-500/40 mb-4">
                 <span className="text-2xl">✓</span>
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">
-                Payment successful
-              </h3>
+              <h3 className="text-xl font-bold text-white mb-2">Payment successful</h3>
               <p className="text-slate-400 text-sm mb-6">
                 {paymentSuccessType === 'deposit'
                   ? 'Deposit paid successfully! Mission is yours.'
@@ -93,7 +109,10 @@ function AppContent() {
         </div>
       )}
     </div>
+        }
+      />
+    </Routes>
   );
-}
+};
 
 export default App;

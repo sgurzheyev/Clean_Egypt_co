@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+
+interface ProfileProps {
+  isOpen: boolean;
+  onClose: () => void;
+  session: any;
+}
 
 interface Job {
   id: string;
@@ -41,7 +47,7 @@ const shortId = (id: unknown): string => {
   }
 };
 
-const Profile: React.FC = () => {
+const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session }) => {
   const [balance, setBalance] = useState(0);
   const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);
   const [myCityJobs, setMyCityJobs] = useState<Job[]>([]);
@@ -64,6 +70,11 @@ const Profile: React.FC = () => {
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    onClose();
+  };
 
   const verifyJobPaymentAndRefetch = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -111,6 +122,7 @@ const Profile: React.FC = () => {
   }, [verifyJobPaymentAndRefetch]);
 
   useEffect(() => {
+    if (!isOpen) return;
     const loadOnce = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -122,7 +134,7 @@ const Profile: React.FC = () => {
       }
     };
     loadOnce();
-  }, []);
+  }, [isOpen]);
 
   const fetchProfileData = async () => {
     try {
@@ -351,16 +363,42 @@ const Profile: React.FC = () => {
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="min-h-screen overflow-y-auto pb-32 bg-gradient-to-b from-black via-slate-950 to-black font-sans ltr relative">
-      <div className="min-h-full py-6 px-4 flex flex-col items-center relative z-10">
-        <div className="w-full max-w-2xl relative z-10">
-        
-        {/* HEADER: Your Account + Welcome */}
+    <div
+      className="fixed inset-0 z-[120] flex justify-end"
+      aria-modal="true"
+      role="dialog"
+    >
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      {/* Sliding drawer */}
+      <div
+        className="relative w-full max-w-lg h-full overflow-y-auto bg-gradient-to-b from-slate-950 via-black to-slate-950 shadow-2xl animate-slide-in-right"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 bg-black/80 backdrop-blur-xl border-b border-white/10">
+          <h1 className="text-lg font-bold text-white">Your Account</h1>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+        <div className="px-5 py-6 flex flex-col items-center">
+          <div className="w-full max-w-md">
+        {/* HEADER: Welcome + Wallet */}
         <header className="mb-8 text-white">
-          <h1 className="text-2xl font-bold tracking-tight text-white mb-1">
-            Your Account
-          </h1>
           <p className="text-sm text-slate-400 uppercase tracking-[0.2em]">
             Welcome {userProfile?.full_name || userEmail || 'Co-worker'}!
           </p>
@@ -380,6 +418,15 @@ const Profile: React.FC = () => {
               <span className="text-sm font-medium text-slate-400">EGP</span>
             </p>
           </div>
+
+          {/* LOGOUT — highly visible */}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="mt-4 w-full py-3 rounded-full font-black text-sm uppercase tracking-[0.2em] bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30 hover:text-red-300 hover:border-red-400/60 transition-all"
+          >
+            Logout
+          </button>
 
           <div className="mt-6 mb-4 flex items-center justify-between gap-3">
             <div className="inline-flex gap-2 rounded-full bg-slate-900/80 border border-white/5 p-1">
@@ -406,13 +453,14 @@ const Profile: React.FC = () => {
                 Home Cleaning
               </button>
             </div>
-            <Link
-              to="/"
+            <button
+              type="button"
+              onClick={onClose}
               className="px-4 py-2.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[11px] text-slate-300 hover:text-white hover:border-emerald-500/40 hover:shadow-[0_0_16px_rgba(16,185,129,0.25)] transition-all flex items-center gap-2 font-bold uppercase tracking-[0.16em]"
             >
               <span>🗺️</span>
-              <span>To Map</span>
-            </Link>
+              <span>Close & Back to Map</span>
+            </button>
           </div>
 
           <form
@@ -749,7 +797,7 @@ const Profile: React.FC = () => {
                   <button
                     key={job.id}
                     type="button"
-                    onClick={() => navigate('/')}
+                    onClick={onClose}
                     className="group w-full text-left cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all relative z-10"
                   >
                     <div className="relative z-10 rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5 overflow-hidden transition-all duration-200 group-hover:border-emerald-500/40 group-hover:shadow-[0_0_24px_rgba(52,211,153,0.25)]">
@@ -787,6 +835,7 @@ const Profile: React.FC = () => {
           )}
         </section>
 
+          </div>
         </div>
       </div>
 

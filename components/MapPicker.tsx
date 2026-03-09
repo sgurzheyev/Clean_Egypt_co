@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import Map, { Marker, NavigationControl, GeolocateControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -23,6 +22,8 @@ interface JobOnMap {
 interface MapPickerProps {
   onLocationSelect: (lat: number, lng: number) => void;
   selectedCoords?: { lat: number; lng: number } | null;
+  onAvatarClick?: () => void;
+  onRequestAuth?: () => void;
   orders?: any[]; // legacy, ignored
   currentAmount?: number; // legacy
   currentType?: 'home' | 'city'; // legacy
@@ -183,6 +184,8 @@ const customDarkStyle: any = {
 const MapPicker: React.FC<MapPickerProps> = ({
   onLocationSelect,
   selectedCoords = null,
+  onAvatarClick,
+  onRequestAuth,
 }) => {
   const [viewState, setViewState] = useState({
     latitude: 27.2579,
@@ -228,13 +231,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [bidSubmitting, setBidSubmitting] = useState(false);
   const [bidError, setBidError] = useState<string | null>(null);
   const [bidSuccess, setBidSuccess] = useState<string | null>(null);
-
-  // Auth gate modal (for unauthenticated users on submit)
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authEmail, setAuthEmail] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authSent, setAuthSent] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
 
   // Fetch pending jobs from Supabase
   const fetchJobs = useCallback(async () => {
@@ -402,7 +398,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         data: { session },
       } = await supabase.auth.getSession();
       if (!session?.user?.id) {
-        alert('You must be signed in to place a bid.');
+        onRequestAuth?.();
         return;
       }
       if (job.creator_id === session.user.id) {
@@ -414,7 +410,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setBidError(null);
       setBidSuccess(null);
     },
-    []
+    [onRequestAuth]
   );
 
   const handleCloseBidModal = useCallback(() => {
@@ -478,38 +474,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
   };
 
-  const handleAuthSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!authEmail?.trim()) return;
-    setAuthError(null);
-    setAuthLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: authEmail.trim(),
-        options: { emailRedirectTo: `${window.location.origin}/` },
-      });
-      if (error) {
-        setAuthError(error.message || 'Failed to send magic link.');
-        return;
-      }
-      setAuthSent(true);
-    } catch (err) {
-      console.error('Auth error:', err);
-      setAuthError('Something went wrong. Please try again.');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleCloseAuthModal = useCallback(() => {
-    if (!authLoading) {
-      setShowAuthModal(false);
-      setAuthEmail('');
-      setAuthSent(false);
-      setAuthError(null);
-    }
-  }, [authLoading]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setOrderError(null);
@@ -543,10 +507,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           })
         );
         setOrderSubmitting(false);
-        setShowAuthModal(true);
-        setAuthEmail('');
-        setAuthSent(false);
-        setAuthError(null);
+        onRequestAuth?.();
         return;
       }
 
@@ -623,12 +584,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
           <h1 className="text-sm font-medium tracking-wide text-white pointer-events-none">
             CleanEgypt.co
           </h1>
-          <Link
-            to="/profile"
+          <button
+            type="button"
+            onClick={onAvatarClick}
             className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] transition-all"
           >
             👤
-          </Link>
+          </button>
         </header>
 
         {/* Upper center: heading is non-interactive; only pill buttons capture clicks */}
@@ -852,73 +814,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
-      {/* Auth gate modal — sign in to create jobs */}
-      {showAuthModal && (
-        <div
-          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-          onClick={handleCloseAuthModal}
-        >
-          <div
-            className="w-full max-w-md rounded-3xl bg-black/85 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-bold uppercase tracking-[0.18em] text-white">
-                Sign in to continue
-              </h3>
-              <button
-                type="button"
-                onClick={handleCloseAuthModal}
-                disabled={authLoading}
-                className="text-slate-400 hover:text-white text-lg font-bold disabled:opacity-40"
-              >
-                ✕
-              </button>
-            </div>
-
-            {authSent ? (
-              <div className="py-4">
-                <p className="text-emerald-400 text-sm font-medium mb-2">
-                  Check your email
-                </p>
-                <p className="text-slate-400 text-sm">
-                  We sent a magic link to <span className="text-white font-medium">{authEmail}</span>. Click it to sign in, then return here to submit your task.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleAuthSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={authEmail}
-                    onChange={(e) => setAuthEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                    required
-                  />
-                </div>
-                {authError && (
-                  <p className="text-xs text-red-400 font-medium">{authError}</p>
-                )}
-                <button
-                  type="submit"
-                  disabled={authLoading}
-                  className="w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] bg-emerald-500 text-black shadow-[0_0_24px_rgba(52,211,153,0.6)] hover:brightness-110 disabled:opacity-60 disabled:cursor-wait transition-all"
-                >
-                  {authLoading ? 'Sending...' : 'Send magic link'}
-                </button>
-              </form>
-            )}
-
-            <p className="mt-4 text-[10px] text-slate-500 text-center uppercase tracking-wider">
-              No password required. We&apos;ll email you a link to sign in.
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
