@@ -68,7 +68,7 @@ function MissionTimer({ startedAt }: { startedAt: string }) {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [startedAt]);
-  return <span className="tabular-nums text-teal-400 font-bold">{elapsed}</span>;
+  return <span className="tabular-nums text-emerald-400 font-bold">{elapsed}</span>;
 }
 
 const SUPPORT_TELEGRAM = 'https://t.me/cleanegypt';
@@ -621,38 +621,36 @@ const Profile: React.FC = () => {
   };
 
   return (
-    <div className="h-screen overflow-y-auto pb-32 bg-slate-950 font-sans ltr relative">
+    <div className="min-h-screen overflow-y-auto pb-32 bg-gradient-to-b from-black via-slate-950 to-black font-sans ltr relative">
       <div className="min-h-full py-6 px-4 flex flex-col items-center relative z-10">
         <div className="w-full max-w-2xl relative z-10">
         
-        {/* DASHBOARD HEADER + UNIFIED ORDER FORM */}
-        <header className="mb-6 text-white">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-xs text-slate-500 uppercase tracking-[0.25em]">
-                Welcome
-              </p>
-              <h1 className="mt-1 text-2xl font-black tracking-tight">
-                {userProfile?.full_name || userEmail || 'Co-worker'}
-              </h1>
-              {userEmail && (
-                <p className="mt-1 text-xs text-slate-500">
-                  Signed in as <span className="text-slate-300 font-medium">{userEmail}</span>
-                </p>
-              )}
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] text-teal-400 uppercase tracking-[0.25em] font-bold">
-                Wallet
-              </p>
-              <p className="text-3xl font-black mt-1">
-                {balance}{' '}
-                <span className="text-sm font-normal opacity-50">EGP</span>
-              </p>
-            </div>
+        {/* HEADER: Your Account + Welcome */}
+        <header className="mb-8 text-white">
+          <h1 className="text-2xl font-bold tracking-tight text-white mb-1">
+            Your Account
+          </h1>
+          <p className="text-sm text-slate-400 uppercase tracking-[0.2em]">
+            Welcome {userProfile?.full_name || userEmail || 'Co-worker'}!
+          </p>
+          {userEmail && (
+            <p className="mt-1 text-[10px] text-slate-500 uppercase tracking-[0.18em]">
+              {userEmail}
+            </p>
+          )}
+
+          {/* Wallet — glass panel */}
+          <div className="mt-6 rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
+              Wallet
+            </p>
+            <p className="text-3xl font-black text-white">
+              {balance}{' '}
+              <span className="text-sm font-medium text-slate-400">EGP</span>
+            </p>
           </div>
 
-          <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="mt-6 mb-4 flex items-center justify-between gap-3">
             <div className="inline-flex gap-2 rounded-full bg-slate-900/80 border border-white/5 p-1">
               <button
                 type="button"
@@ -679,16 +677,16 @@ const Profile: React.FC = () => {
             </div>
             <Link
               to="/"
-              className="px-3 py-2 rounded-full bg-slate-900/80 border border-white/10 text-[11px] text-slate-300 hover:text-white hover:border-teal-400 transition-all flex items-center gap-2"
+              className="px-4 py-2.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[11px] text-slate-300 hover:text-white hover:border-emerald-500/40 hover:shadow-[0_0_16px_rgba(16,185,129,0.25)] transition-all flex items-center gap-2 font-bold uppercase tracking-[0.16em]"
             >
               <span>🗺️</span>
-              <span className="uppercase tracking-[0.16em] font-bold">To Map</span>
+              <span>To Map</span>
             </Link>
           </div>
 
           <form
             onSubmit={handleCreateTask}
-            className="mb-10 rounded-3xl bg-slate-900/80 border border-white/10 shadow-2xl p-5 space-y-4"
+            className="mb-10 rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5 space-y-4"
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -791,8 +789,8 @@ const Profile: React.FC = () => {
 
         {/* MY HOME REQUESTS (from jobs table) */}
         <section className="mb-10 text-white">
-          <h2 className="text-xl font-black mb-4 flex items-center gap-2">
-            🏠 MY HOME REQUESTS
+          <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-300">
+            🏠 My Home Requests
           </h2>
           <div className="space-y-4">
             {loading ? (
@@ -800,7 +798,7 @@ const Profile: React.FC = () => {
                 {[1, 2].map((s) => (
                   <div
                     key={s}
-                    className="bg-slate-800/60 backdrop-blur-sm border border-white/10 rounded-2xl p-4 animate-pulse"
+                    className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5 animate-pulse"
                   >
                     <div className="flex justify-between items-center mb-3">
                       <div className="h-4 w-16 bg-slate-700 rounded-full" />
@@ -816,25 +814,25 @@ const Profile: React.FC = () => {
               (myHomeJobs || []).map((job) => {
                 const bids = (jobBidsById[job.id] || []).filter((b) => b.status === 'pending');
                 return (
-                  <div key={job.id} className="bg-slate-800/70 backdrop-blur-sm border border-white/10 rounded-2xl p-4">
+                  <div key={job.id} className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5">
                     <div className="flex justify-between items-start mb-2">
-                      <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
-                      <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
+                      <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">#{shortId(job.id)}</span>
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider">{new Date(job.created_at).toLocaleDateString()}</span>
                     </div>
                     <div className="flex justify-between items-start mb-3">
-                      <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${
-                        job.status === 'in_progress' ? 'bg-emerald-500/80' :
-                        job.status === 'disputed' ? 'bg-red-500/80' :
-                        'bg-slate-600'
+                      <span className={`text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider ${
+                        job.status === 'in_progress' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' :
+                        job.status === 'disputed' ? 'bg-red-500/20 text-red-400 border border-red-500/40' :
+                        'bg-white/10 text-slate-400 border border-white/10'
                       }`}>
-                        {job.status.toUpperCase()}
+                        {job.status}
                       </span>
                       <div className="flex items-center gap-2">
                         {job.status === 'pending' && (
                           <button
                             type="button"
                             onClick={() => handleDeleteJob(job.id)}
-                            className="text-[10px] font-bold text-red-400 hover:text-red-300 hover:underline uppercase"
+                            className="text-[10px] font-bold text-red-400 hover:text-red-300 uppercase tracking-wider"
                           >
                             Delete
                           </button>
@@ -850,16 +848,16 @@ const Profile: React.FC = () => {
                     </p>
 
                     {job.status === 'disputed' && (
-                      <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+                      <div className="mt-4 p-4 rounded-2xl bg-red-500/10 border border-red-500/30">
                         <p className="text-red-300 text-sm font-medium mb-2">Mission in dispute. Contact support:</p>
-                        <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer" className="text-teal-400 font-bold underline hover:text-teal-300">
+                        <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer" className="text-emerald-400 font-bold underline hover:text-emerald-300">
                           {SUPPORT_TELEGRAM}
                         </a>
                       </div>
                     )}
 
                     {job.status === 'pending' && bids.length > 0 && (
-                      <div className="mt-4 p-4 bg-black/40 border border-white/10 rounded-xl">
+                      <div className="mt-4 p-4 rounded-2xl bg-black/40 border border-white/10">
                         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
                           Bids
                         </p>
@@ -867,13 +865,13 @@ const Profile: React.FC = () => {
                           {bids.map((bid) => (
                             <div
                               key={bid.id}
-                              className="flex items-center justify-between gap-3 py-2 px-3 rounded-xl bg-slate-800/60 border border-white/5"
+                              className="flex items-center justify-between gap-3 py-2 px-3 rounded-xl bg-black/40 border border-white/5"
                             >
-                              <span className="text-sm font-bold text-amber-400">${bid.bid_amount}</span>
+                              <span className="text-sm font-black text-amber-400">${bid.bid_amount}</span>
                               <button
                                 type="button"
                                 onClick={() => handleAcceptBid(job, bid)}
-                                className="px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.16em] bg-emerald-500 hover:bg-emerald-400 text-black transition-all active:scale-95"
+                                className="px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.16em] bg-emerald-500 text-black shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:brightness-110 transition-all active:scale-95"
                               >
                                 Accept bid
                               </button>
@@ -893,11 +891,13 @@ const Profile: React.FC = () => {
           </div>
         </section>
 
-        {/* MY ACTIVE MISSIONS (где я рабочий — оплатил депозит) */}
+        {/* MY ACTIVE MISSIONS */}
         <section className="mb-10 text-white">
-          <h2 className="text-xl font-black mb-4 text-amber-400">🎯 MY ACTIVE MISSIONS</h2>
+          <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-amber-400/90">
+            🎯 My Active Missions
+          </h2>
           {(myActiveMissions || []).filter((m) => m.worker_id && m.status === 'in_progress').length === 0 ? (
-            <p className="text-slate-500 text-sm italic">Ты ещё не взял ни одной миссии. Выбери миссию в маркетплейсе и оплати депозит.</p>
+            <p className="text-slate-500 text-sm italic">You haven&apos;t taken any missions yet. Pick one from the marketplace and pay the deposit.</p>
           ) : (
             <div className="space-y-4">
               {(myActiveMissions || [])
@@ -906,7 +906,7 @@ const Profile: React.FC = () => {
                 const { missionLabel, targetUsd, depositEgp } = computeMissionMeta(mission);
                 const isHome = missionLabel === 'HOME';
                 const icon = isHome ? '🏠' : '🌆';
-                const badgeColor = isHome ? 'bg-amber-400/10 text-amber-300' : 'bg-teal-400/10 text-teal-300';
+                const badgeColor = isHome ? 'bg-amber-400/10 text-amber-300 border-amber-500/30' : 'bg-emerald-400/10 text-emerald-300 border-emerald-500/30';
                 const started = !!mission.work_started_at;
                 const inReview = mission.status === 'in_review';
                 const isUploading = photoUploadingMissionId === mission.id;
@@ -914,21 +914,21 @@ const Profile: React.FC = () => {
                 return (
                   <div
                     key={mission.id}
-                    className="bg-slate-800/80 backdrop-blur-sm border border-amber-500/30 p-5 rounded-2xl"
+                    className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5"
                   >
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(mission.id)}</span>
                       <span className="text-[10px] text-slate-500">{new Date(mission.created_at).toLocaleDateString()}</span>
                     </div>
-                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-3">
-                      🟢 В РАБОТЕ
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-3 border border-emerald-500/40">
+                      🟢 In Progress
                     </div>
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{icon}</span>
                         <div>
-                          <p className={`text-[10px] uppercase font-black tracking-widest ${badgeColor}`}>
-                            {missionLabel} MISSION
+                          <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
+                            {missionLabel} Mission
                           </p>
                           <p className="text-xl font-black mt-1">{targetUsd > 0 ? `${targetUsd}$` : 'Custom bid'}</p>
                         </div>
@@ -945,9 +945,9 @@ const Profile: React.FC = () => {
                           type="button"
                           onClick={() => handleStartMission(mission)}
                           disabled={isStarting}
-                          className="w-full py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-900 font-black text-sm uppercase tracking-wider transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="w-full py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-sm uppercase tracking-wider shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:brightness-110 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                          {isStarting ? 'Запуск...' : 'START MISSION'}
+                          {isStarting ? 'Starting...' : 'Start Mission'}
                         </button>
                       )}
                       {started && !inReview && (
@@ -969,14 +969,14 @@ const Profile: React.FC = () => {
                           />
                           <label
                             htmlFor={`photo-finish-${mission.id}`}
-                            className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl font-black text-sm uppercase tracking-wider transition-all cursor-pointer ${isUploading ? 'bg-slate-600 text-slate-400 cursor-wait' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30'}`}
+                            className={`flex items-center justify-center gap-2 w-full py-3 rounded-full font-black text-sm uppercase tracking-wider transition-all cursor-pointer ${isUploading ? 'bg-slate-600 text-slate-400 cursor-wait' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30 shadow-[0_0_16px_rgba(251,191,36,0.3)]'}`}
                           >
-                            {isUploading ? 'Загрузка...' : '📸 ЗАВЕРШИТЬ / ЗАГРУЗИТЬ ОТЧЕТ'}
+                            {isUploading ? 'Uploading...' : '📸 Finish & Upload Report'}
                           </label>
                         </>
                       )}
                       {inReview && (
-                        <p className="text-amber-400/90 text-sm font-medium">Ожидаем проверку заказчиком</p>
+                        <p className="text-amber-400/90 text-sm font-medium">Waiting for owner to verify</p>
                       )}
                     </div>
                   </div>
@@ -988,28 +988,28 @@ const Profile: React.FC = () => {
 
         {/* MY CITY DONATIONS */}
         <section className="mb-10 text-white">
-          <h2 className="text-xl font-black mb-4 flex items-center gap-2">
-            🏙️ MY CITY DONATIONS
+          <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-300">
+            🏙️ My City Donations
           </h2>
           <div className="space-y-4">
             {loading ? (
-              <p className="text-slate-500 text-sm italic">Загружаем ваши городские пирамиды...</p>
+              <p className="text-slate-500 text-sm italic">Loading city donations...</p>
             ) : (myPyramids || []).filter((p) => (p.mission_type || 'city') === 'city').length === 0 ? (
-              <p className="text-slate-500 text-sm italic">У тебя ещё нет CITY донатов в городе.</p>
+              <p className="text-slate-500 text-sm italic">You have no city donations yet.</p>
             ) : (
               (myPyramids || [])
                 .filter((p) => (p.mission_type || 'city') === 'city')
                 .map((p) => (
-                  <div key={p.id} className="bg-slate-800/70 backdrop-blur-sm border border-cyan-500/40 rounded-2xl p-4">
+                  <div key={p.id} className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(p.id)}</span>
                       <span className="text-[10px] text-slate-500">{new Date(p.created_at).toLocaleDateString()}</span>
                     </div>
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-cyan-300 font-bold mb-1">
-                      CITY DONATION
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-400 font-bold mb-1">
+                      City Donation
                     </p>
                     <p className="text-xs text-slate-400">
-                      Твоя городская пирамида на карте. Рабочие смогут взять её в GLOBAL MARKETPLACE.
+                      Your donation on the map. Workers can pick it up in the marketplace.
                     </p>
                   </div>
                 ))
@@ -1017,12 +1017,14 @@ const Profile: React.FC = () => {
           </div>
         </section>
 
-        {/* MARKETPLACE (CITY WORK & BIDDING) — pointer-events-auto чтобы карточки были кликабельны */}
+        {/* GLOBAL MARKETPLACE */}
         <section className="text-white pointer-events-auto relative z-10">
-          <h2 className="text-xl font-black mb-2 text-teal-400">🌍 GLOBAL MARKETPLACE</h2>
+          <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-emerald-400/90">
+            🌍 Global Marketplace
+          </h2>
           {paymentSyncing && (
-            <p className="text-[11px] font-bold text-emerald-300 mb-3 animate-pulse">
-              🔄 Синхронизация платежа...
+            <p className="text-[11px] font-bold text-emerald-400 mb-3 animate-pulse">
+              🔄 Syncing payment...
             </p>
           )}
 
@@ -1031,7 +1033,7 @@ const Profile: React.FC = () => {
               {[1, 2, 3].map((skeleton) => (
                 <div
                   key={skeleton}
-                  className="bg-slate-800/70 backdrop-blur-sm border border-white/10 p-5 rounded-2xl animate-pulse"
+                  className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5 animate-pulse"
                 >
                   <div className="h-3 w-24 bg-slate-700 rounded-full mb-3" />
                   <div className="h-6 w-32 bg-slate-600 rounded-full mb-4" />
@@ -1047,7 +1049,7 @@ const Profile: React.FC = () => {
 
           {!marketLoading && !marketError && (marketplaceJobs || []).filter((job) => job.status === 'pending').length === 0 && (
             <p className="text-sm text-slate-500 italic">
-              Пока нет активных миссий. Загляни позже — города скоро проснутся.
+              No active missions yet. Check back soon.
             </p>
           )}
 
@@ -1060,35 +1062,35 @@ const Profile: React.FC = () => {
                 const isHome = missionLabel === 'HOME';
                 const icon = isHome ? '🏠' : '🌆';
                 const badgeColor = isHome
-                  ? 'bg-amber-400/10 text-amber-300'
-                  : 'bg-teal-400/10 text-teal-300';
+                  ? 'bg-amber-400/10 text-amber-300 border-amber-500/30'
+                  : 'bg-emerald-400/10 text-emerald-300 border-emerald-500/30';
 
                 return (
                   <button
                     key={job.id}
                     type="button"
                     onClick={() => handleOpenMission(job)}
-                    className="group w-full text-left cursor-pointer hover:opacity-80 active:scale-95 transition-all relative z-10"
+                    className="group w-full text-left cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all relative z-10"
                   >
-                    <div className="relative z-10 bg-slate-800/80 backdrop-blur-sm border border-white/10 p-5 rounded-2xl overflow-hidden transition-all duration-200 group-hover:border-teal-400/50 group-hover:shadow-[0_18px_45px_rgba(45,212,191,0.25)]">
+                    <div className="relative z-10 rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5 overflow-hidden transition-all duration-200 group-hover:border-emerald-500/40 group-hover:shadow-[0_0_24px_rgba(52,211,153,0.25)]">
                       <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
                         <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
                       </div>
                       {/* Декоративный градиент — pointer-events-none, не блокирует клики */}
                       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" aria-hidden>
-                        <div className="absolute -inset-32 bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.18),_transparent_60%),radial-gradient(circle_at_bottom,_rgba(56,189,248,0.16),_transparent_60%)]" />
+                        <div className="absolute -inset-32 bg-[radial-gradient(circle_at_top,_rgba(52,211,153,0.15),_transparent_60%)]" />
                       </div>
 
                       <div className="relative z-10 flex justify-between items-center">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-800 text-xl group-hover:scale-105 group-hover:bg-slate-700 transition-transform duration-200">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black/40 border border-white/10 text-xl group-hover:scale-105 transition-transform duration-200">
                             <span>{icon}</span>
                           </div>
                           <div>
-                            <p className={`text-[10px] uppercase font-black tracking-widest ${badgeColor}`}>
-                              {missionLabel} MISSION
-                            </p>
+                          <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
+                            {missionLabel} Mission
+                          </p>
                             <p className="text-2xl font-black tracking-tight mt-1">
                               {targetUsd > 0 ? `${targetUsd}$` : 'Custom bid'}
                             </p>
@@ -1098,7 +1100,7 @@ const Profile: React.FC = () => {
                         <p className="text-[9px] text-slate-500 mb-1 uppercase tracking-widest">
                           Worker Deposit
                         </p>
-                          <p className="text-xs font-bold text-teal-300 group-hover:text-teal-100">
+                          <p className="text-xs font-bold text-emerald-400 group-hover:text-emerald-300">
                             {depositEgp > 0 ? `${depositEgp} EGP` : '—'}
                           </p>
                         </div>
@@ -1114,14 +1116,14 @@ const Profile: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL: mission details for worker — фон блокирует скролл, overflow в useEffect */}
+      {/* MODAL: mission details for worker */}
       {selectedMission && (
         <div
-          className="fixed inset-0 z-[99999] bg-black/80 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={handleCloseMission}
         >
           <div
-            className="relative z-[100000] w-full max-w-md bg-slate-900 rounded-3xl border border-slate-700/80 shadow-2xl p-6"
+            className="relative z-[100000] w-full max-w-md rounded-3xl bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -1137,7 +1139,7 @@ const Profile: React.FC = () => {
               const { missionLabel, targetUsd, depositEgp } = computeMissionMeta(selectedMission);
               return (
                 <>
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-teal-400 font-bold mb-1">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-1">
                     Mission details
                   </p>
                   <h3 className="text-2xl font-black tracking-tight mb-4">
@@ -1155,7 +1157,7 @@ const Profile: React.FC = () => {
                       <span className="text-slate-500 uppercase text-[10px] tracking-widest">
                         Worker deposit
                       </span>
-                      <span className="font-bold text-teal-300">{depositEgp > 0 ? `${depositEgp} EGP` : '—'}</span>
+                      <span className="font-bold text-emerald-400">{depositEgp > 0 ? `${depositEgp} EGP` : '—'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500 uppercase text-[10px] tracking-widest">
@@ -1172,41 +1174,41 @@ const Profile: React.FC = () => {
               type="button"
               onClick={handleAcceptMission}
               disabled={isPaymentLoading}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-teal-400 to-cyan-400 text-slate-900 font-black text-sm uppercase tracking-[0.2em] shadow-[0_18px_45px_rgba(45,212,191,0.45)] hover:brightness-110 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full py-4 rounded-full bg-emerald-500 text-black font-black text-sm uppercase tracking-[0.2em] shadow-[0_0_24px_rgba(52,211,153,0.6)] hover:brightness-110 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isPaymentLoading ? 'Подготовка безопасного платежа...' : 'Оплатить депозит и взять миссию'}
+              {isPaymentLoading ? 'Preparing secure payment...' : 'Pay deposit & take mission'}
             </button>
 
-            <p className="mt-3 text-[10px] text-slate-500 text-center">
-              Депозит будет обработан через защищенный шлюз Paymob.
+            <p className="mt-3 text-[10px] text-slate-500 text-center uppercase tracking-wider">
+              Deposit processed via secure Paymob gateway.
             </p>
           </div>
         </div>
       )}
 
-      {/* Модалка: требуется верификация для Home-миссий — фон 9998, окно 9999 */}
+      {/* Verification required modal */}
       {showVerificationPrompt && (
         <div
-          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
           onClick={() => setShowVerificationPrompt(false)}
         >
           <div
-            className="relative z-[9999] w-full max-w-md bg-slate-800/95 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6"
+            className="relative z-[9999] w-full max-w-md rounded-3xl bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-white font-bold text-lg mb-2">Нужна верификация</p>
+            <p className="text-white font-bold text-lg mb-2">Verification Required</p>
             <p className="text-slate-400 text-sm mb-6">
               {userProfile?.verification_status === 'pending'
-                ? 'Ваши документы уже на проверке. Ожидайте обновления статуса в профиле.'
-                : 'Только верифицированные рабочие (с проверенным ID паспорта) могут брать домашние миссии.'}
+                ? 'Your documents are under review. Check your profile for status updates.'
+                : 'Only verified workers (with ID verification) can take home missions.'}
             </p>
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => setShowVerificationPrompt(false)}
-                className="flex-1 py-3 rounded-xl border border-white/20 text-slate-400 hover:text-white font-bold text-sm transition-colors"
+                className="flex-1 py-3 rounded-full border border-white/20 text-slate-400 hover:text-white font-bold text-sm transition-colors"
               >
-                Закрыть
+                Close
               </button>
               {userProfile?.verification_status !== 'pending' ? (
                 <button
@@ -1215,17 +1217,17 @@ const Profile: React.FC = () => {
                     setShowVerificationPrompt(false);
                     navigate('/verify');
                   }}
-                  className="flex-1 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-900 font-black text-sm transition-colors"
+                  className="flex-1 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-sm shadow-[0_0_20px_rgba(52,211,153,0.5)] transition-colors"
                 >
-                  Пройти верификацию
+                  Verify Now
                 </button>
               ) : (
                 <button
                   type="button"
                   disabled
-                  className="flex-1 py-3 rounded-xl bg-slate-600 text-slate-400 font-black text-sm cursor-not-allowed"
+                  className="flex-1 py-3 rounded-full bg-white/10 text-slate-500 font-black text-sm cursor-not-allowed"
                 >
-                  Документы на проверке
+                  Documents Pending
                 </button>
               )}
             </div>

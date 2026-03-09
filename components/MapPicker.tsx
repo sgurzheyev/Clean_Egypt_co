@@ -103,6 +103,80 @@ const customDarkStyle: any = {
         'fill-extrusion-opacity': 0.95,
       },
     },
+    {
+      id: 'place_label',
+      type: 'symbol',
+      source: 'composite',
+      'source-layer': 'place_label',
+      minzoom: 3,
+      layout: {
+        'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
+        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 4, 10, 10, 14, 14, 18],
+        'text-anchor': 'center',
+        'text-max-width': 10,
+      },
+      paint: {
+        'text-color': '#e0e0e0',
+        'text-halo-color': 'rgba(0, 0, 0, 0.8)',
+        'text-halo-width': 1.5,
+      },
+    },
+    {
+      id: 'road_label',
+      type: 'symbol',
+      source: 'composite',
+      'source-layer': 'road_label',
+      minzoom: 12,
+      layout: {
+        'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
+        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+        'text-size': 11,
+        'symbol-placement': 'line',
+        'text-rotation-alignment': 'map',
+        'text-pitch-alignment': 'map',
+      },
+      paint: {
+        'text-color': '#c0c0c0',
+        'text-halo-color': 'rgba(0, 0, 0, 0.8)',
+        'text-halo-width': 1.5,
+      },
+    },
+    {
+      id: 'water_name_line',
+      type: 'symbol',
+      source: 'composite',
+      'source-layer': 'waterway_label',
+      minzoom: 10,
+      layout: {
+        'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
+        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+        'text-size': 11,
+        'symbol-placement': 'line',
+      },
+      paint: {
+        'text-color': '#a0a0a0',
+        'text-halo-color': 'rgba(0, 0, 0, 0.8)',
+        'text-halo-width': 1.5,
+      },
+    },
+    {
+      id: 'water_name_point',
+      type: 'symbol',
+      source: 'composite',
+      'source-layer': 'water_name',
+      minzoom: 4,
+      layout: {
+        'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
+        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 4, 10, 10, 14],
+      },
+      paint: {
+        'text-color': '#a0a0a0',
+        'text-halo-color': 'rgba(0, 0, 0, 0.8)',
+        'text-halo-width': 1.5,
+      },
+    },
   ],
 };
 
@@ -416,11 +490,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
             👤
           </Link>
         </header>
-
-        {/* Hurghada — map layer label, strictly non-interactive */}
-        <div className="absolute top-16 left-5 text-[10px] font-medium tracking-[0.25em] uppercase text-white/40 pointer-events-none">
-          Hurghada
-        </div>
 
         {/* Upper center: heading is non-interactive; only pill buttons capture clicks */}
         {!taskTypeSelected && (
