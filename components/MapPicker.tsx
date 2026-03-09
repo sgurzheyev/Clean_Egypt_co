@@ -275,11 +275,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [fetchJobs]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('payment') === 'success' || params.get('success') === 'true') {
-      fetchJobs();
-      window.history.replaceState({}, '', window.location.pathname);
-    }
+    const onPaymentSuccess = () => fetchJobs();
+    window.addEventListener('paymentSuccess', onPaymentSuccess);
+    return () => window.removeEventListener('paymentSuccess', onPaymentSuccess);
   }, [fetchJobs]);
 
   const handleMapClick = useCallback(

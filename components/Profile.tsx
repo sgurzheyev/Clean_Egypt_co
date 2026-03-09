@@ -111,89 +111,28 @@ const Profile: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const search = typeof window !== 'undefined' ? window.location.search : '';
-    const params = new URLSearchParams(search);
-    const isPaymentSuccess =
-      params.get('payment') === 'success' || params.get('success') === 'true';
+    const onPaymentSuccess = () => {
+      setPaymentSyncing(true);
+      fetchProfileData()
+        .then(() => fetchMarketplaceJobs())
+        .finally(() => setPaymentSyncing(false));
+    };
+    window.addEventListener('paymentSuccess', onPaymentSuccess);
+    return () => window.removeEventListener('paymentSuccess', onPaymentSuccess);
+  }, []);
 
-    if (isPaymentSuccess) {
-      localStorage.setItem('payment_success', Date.now().toString());
-      if (window.self !== window.top) {
-        (window.top as Window).location.href = window.location.href;
-      }
-      const isDeposit = typeof window !== 'undefined' && sessionStorage.getItem('paymentReturnType') === 'deposit';
-      if (isDeposit) {
-        alert('Депозит успешно оплачен! Миссия закреплена за тобой.');
-        sessionStorage.removeItem('paymentReturnType');
-      } else {
-        alert('Оплата прошла успешно! Твоя пирамида создана.');
-      }
-
-      // Пытаемся синхронизировать worker_deposit через payment_pending
-      const paymobOrderId = params.get('id');
-      if (paymobOrderId) {
-        (async () => {
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session?.user?.id) return;
-            const { data: pending } = await supabase
-              .from('payment_pending')
-              .select('pyramid_id, type')
-              .eq('paymob_order_id', paymobOrderId)
-              .maybeSingle();
-            if (pending && pending.type === 'worker_deposit') {
-              await supabase
-                .from('pyramids')
-                .update({ status: 'in_progress', worker_id: session.user.id })
-                .eq('id', pending.pyramid_id);
-            }
-          } catch (e) {
-            console.error('Failed to sync worker_deposit from payment_pending:', e);
-          }
-        })();
-      }
-
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-
+  useEffect(() => {
     const loadOnce = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return false;
+        if (!session) return;
         await fetchProfileData();
         await fetchMarketplaceJobs();
-        return true;
       } catch (e) {
         console.error('Profile init fetch error:', e);
-        return false;
       }
     };
-
-    if (isPaymentSuccess) {
-      setPaymentSyncing(true);
-      let attempts = 0;
-      const maxAttempts = 3;
-      const intervalMs = 1500;
-
-      const attempt = () => {
-        attempts += 1;
-        loadOnce().then((ok) => {
-          if (ok || attempts >= maxAttempts) {
-            setPaymentSyncing(false);
-            return;
-          }
-          setTimeout(attempt, intervalMs);
-        });
-      };
-
-      const t = setTimeout(attempt, 1200);
-      return () => clearTimeout(t);
-    }
-
-    const t = setTimeout(() => {
-      loadOnce();
-    }, 0);
-    return () => clearTimeout(t);
+    loadOnce();
   }, []);
 
   // Блокировка скролла body при открытой модалке MISSION DETAILS
@@ -326,7 +265,7 @@ const Profile: React.FC = () => {
 
     const amount = parseFloat(orderAmount.replace(',', '.'));
     if (isNaN(amount) || amount <= 0) {
-      setOrderError('Введите любую сумму в USD больше 0.');
+      setOrderError('Please enter any positive USD amount.');
       return;
     }
 
@@ -334,39 +273,57 @@ const Profile: React.FC = () => {
       setOrderSubmitting(true);
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user?.id) {
-        setOrderError('Нужна авторизация, чтобы создать задачу.');
+        setOrderError('You must be signed in to create a task.');
         return;
       }
 
       const creatorId = session.user.id;
-      const email = session.user.email ?? null;
 
-      const { error } = await supabase.from('pyramids').insert([{
-        creator_id: creatorId,
-        user_email: email,
-        mission_type: taskType,
-        target_amount: amount,
-        current_amount: amount,
-        status: 'pending'
-      }]);
+      const res = await fetch('/api/paymob-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'job_creation',
+          userId: creatorId,
+          amount,
+          taskType,
+          location_lat: 27.2579,
+          location_lng: 33.8116,
+          description: orderDescription || undefined,
+        }),
+      });
 
-      if (error) {
-        console.error('Error creating pyramid:', error);
-        setOrderError('Не удалось создать задачу. Попробуйте ещё раз.');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Payment init failed (${res.status})`);
+      }
+
+      const data = (await res.json()) as {
+        paymentUrl?: string;
+        paymentToken?: string;
+      };
+
+      if (data.paymentUrl) {
+        sessionStorage.setItem('paymentReturnType', 'job_creation');
+        window.location.assign(data.paymentUrl);
         return;
       }
 
-      setOrderSuccess('Задача создана. Она появится в твоём профиле и на карте.');
-      setOrderAmount('');
-      setOrderLocation('');
-      setOrderDescription('');
-      setOrderPhoto(null);
+      if (data.paymentToken) {
+        sessionStorage.setItem('paymentReturnType', 'job_creation');
+        const iframeId =
+          (import.meta.env.VITE_PAYMOB_IFRAME_ID as string | undefined) || '1007120';
+        const url = `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${data.paymentToken}`;
+        window.location.assign(url);
+        return;
+      }
 
-      await fetchProfileData();
-      await fetchMarketplaceJobs();
+      throw new Error('No payment URL or token received.');
     } catch (err) {
       console.error('Create task exception:', err);
-      setOrderError('Произошла ошибка. Попробуйте ещё раз.');
+      setOrderError(
+        err instanceof Error ? err.message : 'Something went wrong. Please try again.'
+      );
     } finally {
       setOrderSubmitting(false);
     }
