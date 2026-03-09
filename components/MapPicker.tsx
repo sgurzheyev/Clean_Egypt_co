@@ -109,13 +109,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const fetchPyramids = useCallback(async () => {
     const { data, error } = await supabase
       .from('pyramids')
-      .select('id, location, target_amount, mission_type, status, worker_id')
+      .select('id, location, target_amount, mission_type, status, worker_id, created_at')
       .in('status', ['pending', 'completed', 'in_progress'])
       .order('created_at', { ascending: false })
       .limit(500);
 
     if (error) {
-      console.error('MapPicker fetch pyramids:', error);
+      console.error(
+        'Ошибка загрузки пирамид с Supabase:',
+        error.message,
+        (error as any)?.details || ''
+      );
+      setPyramidsFromDb([]);
       return;
     }
 
