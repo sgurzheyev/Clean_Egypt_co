@@ -366,14 +366,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
         mapboxAccessToken={MAPBOX_TOKEN}
         style={{ width: '100%', height: '100%' }}
       >
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-2 opacity-60 hover:opacity-100 transition-opacity z-10 scale-110">
-          <GeolocateControl
-            positionOptions={{ enableHighAccuracy: true }}
-            trackUserLocation
-            style={{ position: 'relative' }}
-          />
-          <NavigationControl showCompass={false} style={{ position: 'relative' }} />
-        </div>
+        <GeolocateControl
+          position="bottom-right"
+          positionOptions={{ enableHighAccuracy: true }}
+          trackUserLocation
+        />
+        <NavigationControl position="bottom-right" showCompass={false} />
 
         {/* Job markers as pills */}
         {(jobs || []).map((job) => {
@@ -404,33 +402,33 @@ const MapPicker: React.FC<MapPickerProps> = ({
         })}
       </Map>
 
-      {/* Minimalist overlays — full-screen map visible, glassmorphism only */}
+      {/* Minimalist overlays — wrapper is pointer-events-none so map stays interactive */}
       <div className="absolute inset-0 pointer-events-none z-[80] flex flex-col">
-        {/* Header: CleanEgypt.co + profile avatar (mockup match) */}
-        <header className="pointer-events-auto flex items-center justify-between px-5 pt-5">
-          <h1 className="text-sm font-medium tracking-wide text-white">
+        {/* Header: CleanEgypt.co (non-interactive) + profile avatar (clickable) */}
+        <header className="flex items-center justify-between px-5 pt-5">
+          <h1 className="text-sm font-medium tracking-wide text-white pointer-events-none">
             CleanEgypt.co
           </h1>
           <Link
             to="/profile"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] transition-all"
+            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] transition-all"
           >
             👤
           </Link>
         </header>
 
-        {/* Hurghada — map layer label */}
-        <div className="absolute top-16 left-5 text-[10px] font-medium tracking-[0.25em] uppercase text-white/40">
+        {/* Hurghada — map layer label, strictly non-interactive */}
+        <div className="absolute top-16 left-5 text-[10px] font-medium tracking-[0.25em] uppercase text-white/40 pointer-events-none">
           Hurghada
         </div>
 
-        {/* Upper center: "What needs cleaning?" + two floating pills — ONLY elements when idle */}
+        {/* Upper center: heading is non-interactive; only pill buttons capture clicks */}
         {!taskTypeSelected && (
-          <div className="flex-1 flex flex-col items-center pt-[18vh] px-6 pointer-events-auto">
-            <h2 className="text-xl sm:text-2xl font-semibold text-white mb-10 text-center tracking-tight">
+          <div className="flex-1 flex flex-col items-center pt-[18vh] px-6">
+            <h2 className="text-xl sm:text-2xl font-semibold text-white mb-10 text-center tracking-tight pointer-events-none">
               What needs cleaning?
             </h2>
-            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm justify-center pointer-events-auto">
               <button
                 type="button"
                 onClick={() => selectTaskType('city')}
