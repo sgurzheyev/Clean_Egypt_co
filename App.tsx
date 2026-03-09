@@ -31,10 +31,11 @@ function AppContent() {
       params.get('payment') === 'success' || params.get('success') === 'true';
 
     if (isSuccess) {
-      const returnType = sessionStorage.getItem('paymentReturnType');
+      const returnType = sessionStorage.getItem('paymentReturnType') || 'job_creation';
       setPaymentSuccessType(returnType === 'deposit' ? 'deposit' : 'job');
-      setShowPaymentModal(true);
+      sessionStorage.setItem('paymentSuccessNeedsVerify', returnType);
       sessionStorage.removeItem('paymentReturnType');
+      setShowPaymentModal(true);
       window.history.replaceState({}, '', location.pathname);
       window.dispatchEvent(new CustomEvent('paymentSuccess'));
     }

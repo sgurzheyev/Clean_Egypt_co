@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
@@ -86,9 +86,11 @@ const Profile: React.FC = () => {
   const [balance, setBalance] = useState(0);
   const [myPyramids, setMyPyramids] = useState<Pyramid[]>([]);
   const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);
+  const [myCityJobs, setMyCityJobs] = useState<Job[]>([]);
+  const [myActiveJobs, setMyActiveJobs] = useState<Job[]>([]);
   const [jobBidsById, setJobBidsById] = useState<Record<string, Bid[]>>({});
   const [myActiveMissions, setMyActiveMissions] = useState<Pyramid[]>([]);
-  const [marketplaceJobs, setMarketplaceJobs] = useState<Pyramid[]>([]);
+  const [marketplaceJobs, setMarketplaceJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [marketLoading, setMarketplaceLoading] = useState(true);
   const [marketError, setMarketplaceError] = useState<string | null>(null);
@@ -110,16 +112,50 @@ const Profile: React.FC = () => {
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  const verifyJobPaymentAndRefetch = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    try {
+      const res = await fetch('/api/verify-job-payment', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      await res.json().catch(() => ({}));
+    } catch (e) {
+      console.error('Verify job payment error:', e);
+    } finally {
+      sessionStorage.removeItem('paymentSuccessNeedsVerify');
+    }
+    await fetchProfileData();
+    await fetchMarketplaceJobs();
+  }, []);
+
+  useEffect(() => {
+    const runFallbackIfNeeded = async () => {
+      const needsVerify = sessionStorage.getItem('paymentSuccessNeedsVerify');
+      if (needsVerify !== 'job_creation') return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      setPaymentSyncing(true);
+      try {
+        await verifyJobPaymentAndRefetch();
+      } finally {
+        setPaymentSyncing(false);
+      }
+    };
+    runFallbackIfNeeded();
+  }, [verifyJobPaymentAndRefetch]);
+
   useEffect(() => {
     const onPaymentSuccess = () => {
+      const needsVerify = sessionStorage.getItem('paymentSuccessNeedsVerify');
       setPaymentSyncing(true);
-      fetchProfileData()
-        .then(() => fetchMarketplaceJobs())
+      (needsVerify === 'job_creation' ? verifyJobPaymentAndRefetch() : Promise.all([fetchProfileData(), fetchMarketplaceJobs()]))
         .finally(() => setPaymentSyncing(false));
     };
     window.addEventListener('paymentSuccess', onPaymentSuccess);
     return () => window.removeEventListener('paymentSuccess', onPaymentSuccess);
-  }, []);
+  }, [verifyJobPaymentAndRefetch]);
 
   useEffect(() => {
     const loadOnce = async () => {
@@ -149,6 +185,8 @@ const Profile: React.FC = () => {
       if (!session?.user?.id) {
         setMyPyramids([]);
         setMyHomeJobs([]);
+        setMyCityJobs([]);
+        setMyActiveJobs([]);
         setJobBidsById({});
         setMyActiveMissions([]);
         setLoading(false);
@@ -169,21 +207,10 @@ const Profile: React.FC = () => {
         setBalance(profileRow.balance_egp ?? 0);
       }
 
-      if (!profileRow?.id) {
-        setMyPyramids([]);
-        setMyHomeJobs([]);
-        setJobBidsById({});
-        setMyActiveMissions([]);
-        setLoading(false);
-        return;
-      }
-
-      const creatorId = profileRow.id;
-
       const { data: myData } = await supabase
         .from('pyramids')
         .select('*')
-        .eq('creator_id', creatorId)
+        .eq('creator_id', userId)
         .order('created_at', { ascending: false });
       const uniqueById = Array.from(new Map((myData || []).map((p: Pyramid) => [p.id, p])).values());
       setMyPyramids(uniqueById);
@@ -191,10 +218,26 @@ const Profile: React.FC = () => {
       const { data: homeJobsData } = await supabase
         .from('jobs')
         .select('id, creator_id, worker_id, task_type, amount, status, description, created_at')
-        .eq('creator_id', creatorId)
+        .eq('creator_id', userId)
         .eq('task_type', 'home')
         .order('created_at', { ascending: false });
       setMyHomeJobs((homeJobsData || []) as Job[]);
+
+      const { data: cityJobsData } = await supabase
+        .from('jobs')
+        .select('id, creator_id, worker_id, task_type, amount, status, description, created_at')
+        .eq('creator_id', userId)
+        .eq('task_type', 'city')
+        .order('created_at', { ascending: false });
+      setMyCityJobs((cityJobsData || []) as Job[]);
+
+      const { data: activeJobsData } = await supabase
+        .from('jobs')
+        .select('id, creator_id, worker_id, task_type, amount, status, description, created_at')
+        .eq('worker_id', userId)
+        .in('status', ['in_progress', 'in_review'])
+        .order('created_at', { ascending: false });
+      setMyActiveJobs((activeJobsData || []) as Job[]);
 
       const pendingHomeJobIds = ((homeJobsData || []) as Job[])
         .filter((j) => j.status === 'pending')
@@ -217,7 +260,7 @@ const Profile: React.FC = () => {
       const { data: workerMissions } = await supabase
         .from('pyramids')
         .select('*')
-        .eq('worker_id', creatorId)
+        .eq('worker_id', userId)
         .neq('status', 'completed')
         .order('created_at', { ascending: false });
       const uniqueMissions = Array.from(new Map(((workerMissions || []) as Pyramid[]).map((m) => [m.id, m])).values());
@@ -237,9 +280,10 @@ const Profile: React.FC = () => {
       setMarketplaceError(null);
 
       const { data, error } = await supabase
-        .from('pyramids')
-        .select('*')
+        .from('jobs')
+        .select('id, creator_id, worker_id, task_type, amount, status, description, created_at')
         .eq('status', 'pending')
+        .is('worker_id', null)
         .order('created_at', { ascending: false })
         .limit(20);
 
@@ -247,12 +291,11 @@ const Profile: React.FC = () => {
         throw error;
       }
 
-      const list = (data || []).filter((j: Pyramid) => j.worker_id == null);
-      const uniqueJobs = Array.from(new Map(list.map((j: Pyramid) => [j.id, j])).values()) as Pyramid[];
-      setMarketplaceJobs(uniqueJobs);
+      const list = (data || []).filter((j: Job) => j.creator_id !== session.user.id);
+      setMarketplaceJobs(list as Job[]);
     } catch (err) {
       console.error('Error fetching marketplace jobs:', err);
-      setMarketplaceError('Не удалось загрузить миссии. Попробуйте обновить страницу.');
+      setMarketplaceError('Failed to load marketplace. Please refresh.');
     } finally {
       setMarketplaceLoading(false);
     }
@@ -848,15 +891,48 @@ const Profile: React.FC = () => {
           </div>
         </section>
 
-        {/* MY ACTIVE MISSIONS */}
+        {/* MY ACTIVE MISSIONS (from jobs where worker_id = me) */}
         <section className="mb-10 text-white">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-amber-400/90">
             🎯 My Active Missions
           </h2>
-          {(myActiveMissions || []).filter((m) => m.worker_id && m.status === 'in_progress').length === 0 ? (
+          {(myActiveJobs || []).length === 0 && (myActiveMissions || []).filter((m) => m.worker_id && m.status === 'in_progress').length === 0 ? (
             <p className="text-slate-500 text-sm italic">You haven&apos;t taken any missions yet. Pick one from the marketplace and pay the deposit.</p>
           ) : (
             <div className="space-y-4">
+              {(myActiveJobs || []).map((job) => {
+                const isHome = job.task_type === 'home';
+                const icon = isHome ? '🏠' : '🌆';
+                const badgeColor = isHome ? 'bg-amber-400/10 text-amber-300 border-amber-500/30' : 'bg-emerald-400/10 text-emerald-300 border-emerald-500/30';
+                return (
+                  <div
+                    key={job.id}
+                    className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5"
+                  >
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
+                      <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-3 border border-emerald-500/40">
+                      🟢 In Progress
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{icon}</span>
+                        <div>
+                          <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
+                            {job.task_type} Mission
+                          </p>
+                          <p className="text-xl font-black mt-1">${job.amount}</p>
+                        </div>
+                      </div>
+                    </div>
+                    {job.description && (
+                      <p className="text-xs text-slate-400 mt-2">{job.description}</p>
+                    )}
+                  </div>
+                );
+              })}
               {(myActiveMissions || [])
                 .filter((mission) => mission.worker_id && mission.status === 'in_progress')
                 .map((mission) => {
@@ -943,7 +1019,7 @@ const Profile: React.FC = () => {
           )}
         </section>
 
-        {/* MY CITY DONATIONS */}
+        {/* MY CITY DONATIONS (from jobs table) */}
         <section className="mb-10 text-white">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-300">
             🏙️ My City Donations
@@ -951,25 +1027,24 @@ const Profile: React.FC = () => {
           <div className="space-y-4">
             {loading ? (
               <p className="text-slate-500 text-sm italic">Loading city donations...</p>
-            ) : (myPyramids || []).filter((p) => (p.mission_type || 'city') === 'city').length === 0 ? (
+            ) : (myCityJobs || []).length === 0 ? (
               <p className="text-slate-500 text-sm italic">You have no city donations yet.</p>
             ) : (
-              (myPyramids || [])
-                .filter((p) => (p.mission_type || 'city') === 'city')
-                .map((p) => (
-                  <div key={p.id} className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(p.id)}</span>
-                      <span className="text-[10px] text-slate-500">{new Date(p.created_at).toLocaleDateString()}</span>
-                    </div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-400 font-bold mb-1">
-                      City Donation
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      Your donation on the map. Workers can pick it up in the marketplace.
-                    </p>
+              (myCityJobs || []).map((job) => (
+                <div key={job.id} className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
+                    <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
                   </div>
-                ))
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-400 font-bold mb-1">
+                    City Donation
+                  </p>
+                  <p className="text-sm font-bold text-emerald-400 mb-1">${job.amount}</p>
+                  <p className="text-xs text-slate-400">
+                    Your donation on the map. Workers can pick it up in the marketplace.
+                  </p>
+                </div>
+              ))
             )}
           </div>
         </section>
@@ -981,7 +1056,7 @@ const Profile: React.FC = () => {
           </h2>
           {paymentSyncing && (
             <p className="text-[11px] font-bold text-emerald-400 mb-3 animate-pulse">
-              🔄 Syncing payment...
+              🔄 Verifying your payment...
             </p>
           )}
 
@@ -1013,10 +1088,9 @@ const Profile: React.FC = () => {
           {!marketLoading && !marketError && (marketplaceJobs || []).filter((job) => job.status === 'pending').length > 0 && (
             <div className="grid grid-cols-1 gap-4 pointer-events-auto">
               {(marketplaceJobs || [])
-                .filter((job) => job.status === 'pending' && job.worker_id == null && job.creator_id !== userProfile?.id)
+                .filter((job) => job.status === 'pending' && job.worker_id == null)
                 .map((job) => {
-                const { missionLabel, targetUsd, depositEgp } = computeMissionMeta(job);
-                const isHome = missionLabel === 'HOME';
+                const isHome = job.task_type === 'home';
                 const icon = isHome ? '🏠' : '🌆';
                 const badgeColor = isHome
                   ? 'bg-amber-400/10 text-amber-300 border-amber-500/30'
@@ -1026,7 +1100,7 @@ const Profile: React.FC = () => {
                   <button
                     key={job.id}
                     type="button"
-                    onClick={() => handleOpenMission(job)}
+                    onClick={() => navigate('/')}
                     className="group w-full text-left cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all relative z-10"
                   >
                     <div className="relative z-10 rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5 overflow-hidden transition-all duration-200 group-hover:border-emerald-500/40 group-hover:shadow-[0_0_24px_rgba(52,211,153,0.25)]">
@@ -1045,21 +1119,15 @@ const Profile: React.FC = () => {
                             <span>{icon}</span>
                           </div>
                           <div>
-                          <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
-                            {missionLabel} Mission
-                          </p>
-                            <p className="text-2xl font-black tracking-tight mt-1">
-                              {targetUsd > 0 ? `${targetUsd}$` : 'Custom bid'}
+                            <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
+                              {job.task_type.toUpperCase()} Mission
                             </p>
+                            <p className="text-2xl font-black tracking-tight mt-1">${job.amount}</p>
                           </div>
                         </div>
                         <div className="relative z-10 text-right">
-                        <p className="text-[9px] text-slate-500 mb-1 uppercase tracking-widest">
-                          Worker Deposit
-                        </p>
-                          <p className="text-xs font-bold text-emerald-400 group-hover:text-emerald-300">
-                            {depositEgp > 0 ? `${depositEgp} EGP` : '—'}
-                          </p>
+                          <p className="text-[9px] text-slate-500 mb-1 uppercase tracking-widest">View on Map</p>
+                          <p className="text-xs font-bold text-emerald-400 group-hover:text-emerald-300">→</p>
                         </div>
                       </div>
                     </div>
