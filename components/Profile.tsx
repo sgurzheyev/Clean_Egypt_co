@@ -53,6 +53,15 @@ function MissionTimer({ startedAt }: { startedAt: string }) {
 
 const SUPPORT_TELEGRAM = 'https://t.me/cleanegypt';
 
+const shortId = (id: unknown): string => {
+  if (id == null) return 'N/A';
+  try {
+    return String(id).slice(0, 8);
+  } catch {
+    return 'N/A';
+  }
+};
+
 const Profile: React.FC = () => {
   const [balance, setBalance] = useState(0);
   const [myPyramids, setMyPyramids] = useState<Pyramid[]>([]);
@@ -476,10 +485,10 @@ const Profile: React.FC = () => {
             ) : myPyramids.length === 0 ? (
               <p className="text-slate-500 text-sm italic">You haven't created any requests yet.</p>
             ) : (
-              myPyramids.map((p) => (
+              (myPyramids || []).map((p) => (
                 <div key={p.id} className="bg-slate-800/70 backdrop-blur-sm border border-white/10 rounded-2xl p-4">
                   <div className="flex justify-between items-start mb-2">
-                    <span className="text-[10px] text-slate-500/80 font-mono">#{p.id.slice(0, 8)}</span>
+                    <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(p.id)}</span>
                     <span className="text-[10px] text-slate-500">{new Date(p.created_at).toLocaleDateString()}</span>
                   </div>
                   <div className="flex justify-between items-start mb-4">
@@ -561,7 +570,7 @@ const Profile: React.FC = () => {
             <p className="text-slate-500 text-sm italic">Ты ещё не взял ни одной миссии. Выбери миссию в маркетплейсе и оплати депозит.</p>
           ) : (
             <div className="space-y-4">
-              {myActiveMissions.map((mission) => {
+              {(myActiveMissions || []).map((mission) => {
                 const { missionLabel, targetUsd, depositEgp } = computeMissionMeta(mission);
                 const isHome = missionLabel === 'HOME';
                 const icon = isHome ? '🏠' : '🌆';
@@ -576,7 +585,7 @@ const Profile: React.FC = () => {
                     className="bg-slate-800/80 backdrop-blur-sm border border-amber-500/30 p-5 rounded-2xl"
                   >
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-[10px] text-slate-500/80 font-mono">#{mission.id.slice(0, 8)}</span>
+                      <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(mission.id)}</span>
                       <span className="text-[10px] text-slate-500">{new Date(mission.created_at).toLocaleDateString()}</span>
                     </div>
                     <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-3">
@@ -679,9 +688,9 @@ const Profile: React.FC = () => {
             </p>
           )}
 
-          {!marketLoading && !marketError && marketplaceJobs.length > 0 && (
+          {!marketLoading && !marketError && (marketplaceJobs || []).length > 0 && (
             <div className="grid grid-cols-1 gap-4 pointer-events-auto">
-              {marketplaceJobs.map((job) => {
+              {(marketplaceJobs || []).map((job) => {
                 const { missionLabel, targetUsd, depositEgp } = computeMissionMeta(job);
                 const isHome = missionLabel === 'HOME';
                 const icon = isHome ? '🏠' : '🌆';
@@ -698,7 +707,7 @@ const Profile: React.FC = () => {
                   >
                     <div className="relative z-10 bg-slate-800/80 backdrop-blur-sm border border-white/10 p-5 rounded-2xl overflow-hidden transition-all duration-200 group-hover:border-teal-400/50 group-hover:shadow-[0_18px_45px_rgba(45,212,191,0.25)]">
                       <div className="flex justify-between items-center mb-3">
-                        <span className="text-[10px] text-slate-500/80 font-mono">#{job.id.slice(0, 8)}</span>
+                        <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
                         <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
                       </div>
                       {/* Декоративный градиент — pointer-events-none, не блокирует клики */}
