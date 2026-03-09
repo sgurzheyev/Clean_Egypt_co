@@ -2,24 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
-type MissionType = 'home' | 'city' | string | null;
-
-interface Pyramid {
-  id: string;
-  status: string;
-  created_at: string;
-  creator_id?: string | null;
-  worker_id?: string | null;
-  mission_type: MissionType;
-  target_amount: number | null;
-  current_amount: number | null;
-  final_price_egp?: number | null;
-  work_started_at?: string | null;
-  work_finished_at?: string | null;
-  photo_after_url?: string | null;
-  worker_photo_start_url?: string | null;
-}
-
 interface Job {
   id: string;
   creator_id: string | null;
@@ -48,29 +30,6 @@ interface ProfileRow {
   full_name?: string | null;
 }
 
-/** Живой таймер: сколько времени прошло с startedAt (ISO строка). Обновляется каждую секунду. */
-function MissionTimer({ startedAt }: { startedAt: string }) {
-  const [elapsed, setElapsed] = useState('');
-  useEffect(() => {
-    const format = (ms: number) => {
-      const s = Math.floor(ms / 1000);
-      const m = Math.floor(s / 60);
-      const h = Math.floor(m / 60);
-      if (h > 0) return `${h}h ${m % 60}m`;
-      if (m > 0) return `${m}m ${s % 60}s`;
-      return `${s}s`;
-    };
-    const tick = () => {
-      const start = new Date(startedAt).getTime();
-      setElapsed(format(Date.now() - start));
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [startedAt]);
-  return <span className="tabular-nums text-emerald-400 font-bold">{elapsed}</span>;
-}
-
 const SUPPORT_TELEGRAM = 'https://t.me/cleanegypt';
 
 const shortId = (id: unknown): string => {
@@ -84,23 +43,17 @@ const shortId = (id: unknown): string => {
 
 const Profile: React.FC = () => {
   const [balance, setBalance] = useState(0);
-  const [myPyramids, setMyPyramids] = useState<Pyramid[]>([]);
   const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);
   const [myCityJobs, setMyCityJobs] = useState<Job[]>([]);
   const [myActiveJobs, setMyActiveJobs] = useState<Job[]>([]);
   const [jobBidsById, setJobBidsById] = useState<Record<string, Bid[]>>({});
-  const [myActiveMissions, setMyActiveMissions] = useState<Pyramid[]>([]);
   const [marketplaceJobs, setMarketplaceJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [marketLoading, setMarketplaceLoading] = useState(true);
   const [marketError, setMarketplaceError] = useState<string | null>(null);
-  const [selectedMission, setSelectedMission] = useState<Pyramid | null>(null);
-  const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [userProfile, setUserProfile] = useState<ProfileRow | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
-  const [photoUploadingMissionId, setPhotoUploadingMissionId] = useState<string | null>(null);
-  const [startMissionLoadingId, setStartMissionLoadingId] = useState<string | null>(null);
   const [paymentSyncing, setPaymentSyncing] = useState(false);
   const [taskType, setTaskType] = useState<'city' | 'home'>('city');
   const [orderAmount, setOrderAmount] = useState('');
@@ -171,24 +124,14 @@ const Profile: React.FC = () => {
     loadOnce();
   }, []);
 
-  // Блокировка скролла body при открытой модалке MISSION DETAILS
-  useEffect(() => {
-    document.body.style.overflow = selectedMission ? 'hidden' : '';
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [selectedMission]);
-
   const fetchProfileData = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user?.id) {
-        setMyPyramids([]);
         setMyHomeJobs([]);
         setMyCityJobs([]);
         setMyActiveJobs([]);
         setJobBidsById({});
-        setMyActiveMissions([]);
         setLoading(false);
         return;
       }
@@ -206,14 +149,6 @@ const Profile: React.FC = () => {
       if (profileRow) {
         setBalance(profileRow.balance_egp ?? 0);
       }
-
-      const { data: myData } = await supabase
-        .from('pyramids')
-        .select('*')
-        .eq('creator_id', userId)
-        .order('created_at', { ascending: false });
-      const uniqueById = Array.from(new Map((myData || []).map((p: Pyramid) => [p.id, p])).values());
-      setMyPyramids(uniqueById);
 
       const { data: homeJobsData } = await supabase
         .from('jobs')
@@ -256,15 +191,6 @@ const Profile: React.FC = () => {
       } else {
         setJobBidsById({});
       }
-
-      const { data: workerMissions } = await supabase
-        .from('pyramids')
-        .select('*')
-        .eq('worker_id', userId)
-        .neq('status', 'completed')
-        .order('created_at', { ascending: false });
-      const uniqueMissions = Array.from(new Map(((workerMissions || []) as Pyramid[]).map((m) => [m.id, m])).values());
-      setMyActiveMissions(uniqueMissions);
     } catch (err) {
       console.error('Error fetching profile data:', err);
     } finally {
@@ -372,104 +298,6 @@ const Profile: React.FC = () => {
     }
   };
 
-  const handleConfirmDone = async (pyramid: Pyramid) => {
-    // Владелец подтверждает чистоту по Photo 3 (Worker Finish)
-    if (window.confirm("Подтверждаешь выполнение? Депозит вернется рабочему, и он получит оплату.")) {
-      try {
-        const usdAmount = pyramid.current_amount ?? 0;
-        const exchangeRate = 50;
-        const fallbackFinalPrice = usdAmount * exchangeRate;
-        const finalPrice = pyramid.final_price_egp || fallbackFinalPrice;
-       const totalPayout = finalPrice + (finalPrice * 0.5); // Ставка + возврат 50% депо
-
-        // 1. Закрываем пирамиду
-        await supabase.from('pyramids').update({
-          status: 'completed',
-          verified_by_admin: true
-        }).eq('id', pyramid.id);
-
-        // 2. Выплачиваем деньги рабочему
-        const { data: workerBalance } = await supabase
-          .from('worker_balances')
-          .select('balance_egp')
-          .eq('id', pyramid.worker_id)
-          .single();
-
-        await supabase.from('worker_balances').update({
-          balance_egp: (workerBalance?.balance_egp || 0) + totalPayout
-        }).eq('id', pyramid.worker_id);
-
-        alert("✅ Сделка закрыта! Город стал чище.");
-        fetchProfileData();
-      } catch (err) {
-        alert("Ошибка! Переходим в диспут в Telegram.");
-      }
-    }
-  };
-
-  const computeMissionMeta = (mission: Pyramid) => {
-    const missionLabel = (mission.mission_type || 'city').toString().toUpperCase();
-    const targetUsd = mission.target_amount ?? 0;
-    const exchangeRate = 50; // должен совпадать с серверной логикой
-    const depositEgp = Math.round(targetUsd * exchangeRate * 0.5);
-    return { missionLabel, targetUsd, depositEgp };
-  };
-
-  const handleOpenMission = (mission: Pyramid) => {
-    console.log('Mission clicked:', mission.id);
-    setSelectedMission(mission);
-  };
-
-  const handleCloseMission = () => {
-    if (isPaymentLoading) return;
-    setSelectedMission(null);
-  };
-
-  const handleStartMission = async (mission: Pyramid) => {
-    try {
-      setStartMissionLoadingId(mission.id);
-      const { error } = await supabase
-        .from('pyramids')
-        .update({ work_started_at: new Date().toISOString() })
-        .eq('id', mission.id);
-      if (error) throw error;
-      await fetchProfileData();
-    } catch (err) {
-      console.error(err);
-      alert('Не удалось запустить миссию. Попробуй снова.');
-    } finally {
-      setStartMissionLoadingId(null);
-    }
-  };
-
-  const handleSubmitFinishedPhoto = async (missionId: string, file: File) => {
-    try {
-      setPhotoUploadingMissionId(missionId);
-      const ext = file.name.split('.').pop() || 'jpg';
-      const fileName = `${missionId}_finish_${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from('order-photos')
-        .upload(fileName, file, { upsert: false });
-      if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage.from('order-photos').getPublicUrl(fileName);
-      const { error: updateError } = await supabase
-        .from('pyramids')
-        .update({
-          photo_after_url: publicUrl,
-          work_finished_at: new Date().toISOString(),
-          status: 'in_review',
-        })
-        .eq('id', missionId);
-      if (updateError) throw updateError;
-      await fetchProfileData();
-    } catch (err: any) {
-      console.error(err);
-      alert('Ошибка загрузки: ' + (err?.message || 'попробуй снова'));
-    } finally {
-      setPhotoUploadingMissionId(null);
-    }
-  };
-
   const handleAcceptBid = async (job: Job, bid: Bid) => {
     if (!window.confirm(`Accept bid of $${bid.bid_amount} from this worker?`)) return;
     try {
@@ -520,103 +348,6 @@ const Profile: React.FC = () => {
     } catch (err) {
       console.error(err);
       alert('Failed to delete. Please try again.');
-    }
-  };
-
-  const handleDeletePyramid = async (pyramidId: string) => {
-    if (!window.confirm('Удалить это задание? Это действие нельзя отменить.')) return;
-    try {
-      const { error } = await supabase.from('pyramids').delete().eq('id', pyramidId);
-      if (error) throw error;
-      setMyPyramids((prev) => prev.filter((p) => p.id !== pyramidId));
-    } catch (err) {
-      console.error(err);
-      alert('Не удалось удалить задание. Попробуй снова.');
-    }
-  };
-
-  const handleDispute = async (pyramid: Pyramid) => {
-    if (!window.confirm('Открыть диспут по этой миссии? С вами свяжется поддержка.')) return;
-    try {
-      const { error } = await supabase
-        .from('pyramids')
-        .update({ status: 'disputed' })
-        .eq('id', pyramid.id);
-      if (error) throw error;
-      await fetchProfileData();
-    } catch (err) {
-      alert('Не удалось открыть диспут.');
-    }
-  };
-
-  const handleAcceptMission = async () => {
-    if (!selectedMission) return;
-
-    const isVerified = userProfile?.verification_status === 'verified' || userProfile?.is_verified;
-    if (selectedMission.mission_type === 'home' && !isVerified) {
-      setShowVerificationPrompt(true);
-      return;
-    }
-
-    const { depositEgp } = computeMissionMeta(selectedMission);
-    if (!depositEgp || depositEgp <= 0) {
-      alert('Невозможно посчитать депозит для этой миссии.');
-      return;
-    }
-
-    const userId = userProfile?.id;
-    if (!userId) {
-      alert('Не удалось определить пользователя. Обнови страницу и попробуй снова.');
-      return;
-    }
-
-    try {
-      setIsPaymentLoading(true);
-
-      console.log('Отправляем запрос на /api/paymob-intent');
-      const res = await fetch('/api/paymob-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          missionId: selectedMission.id,
-          amount: depositEgp,
-          type: 'worker_deposit',
-          userId,
-        }),
-      });
-
-      console.log('Статус ответа:', res.status);
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('Paymob init failed:', errorText);
-        alert('Сервер отказал в инициализации платежа. См. console.');
-        return;
-      }
-
-      const data = (await res.json()) as { paymentUrl?: string; paymentToken?: string };
-
-      if (data.paymentUrl) {
-        sessionStorage.setItem('paymentReturnType', 'deposit');
-        window.location.assign(data.paymentUrl);
-        return;
-      }
-
-      if (data.paymentToken) {
-        sessionStorage.setItem('paymentReturnType', 'deposit');
-        const iframeId = (import.meta.env.VITE_PAYMOB_IFRAME_ID as string | undefined) || '1007120';
-        const url = `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${data.paymentToken}`;
-        window.location.assign(url);
-        return;
-      }
-
-      console.error('Unexpected response payload:', data);
-      alert('Сервер не вернул ссылку/токен для оплаты.');
-    } catch (err) {
-      console.error('Worker deposit exception:', err);
-      alert('Ошибка при подготовке платежа. Попробуйте позже.');
-    } finally {
-      setIsPaymentLoading(false);
     }
   };
 
@@ -896,7 +627,7 @@ const Profile: React.FC = () => {
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-amber-400/90">
             🎯 My Active Missions
           </h2>
-          {(myActiveJobs || []).length === 0 && (myActiveMissions || []).filter((m) => m.worker_id && m.status === 'in_progress').length === 0 ? (
+          {(myActiveJobs || []).length === 0 ? (
             <p className="text-slate-500 text-sm italic">You haven&apos;t taken any missions yet. Pick one from the marketplace and pay the deposit.</p>
           ) : (
             <div className="space-y-4">
@@ -930,88 +661,6 @@ const Profile: React.FC = () => {
                     {job.description && (
                       <p className="text-xs text-slate-400 mt-2">{job.description}</p>
                     )}
-                  </div>
-                );
-              })}
-              {(myActiveMissions || [])
-                .filter((mission) => mission.worker_id && mission.status === 'in_progress')
-                .map((mission) => {
-                const { missionLabel, targetUsd, depositEgp } = computeMissionMeta(mission);
-                const isHome = missionLabel === 'HOME';
-                const icon = isHome ? '🏠' : '🌆';
-                const badgeColor = isHome ? 'bg-amber-400/10 text-amber-300 border-amber-500/30' : 'bg-emerald-400/10 text-emerald-300 border-emerald-500/30';
-                const started = !!mission.work_started_at;
-                const inReview = mission.status === 'in_review';
-                const isUploading = photoUploadingMissionId === mission.id;
-                const isStarting = startMissionLoadingId === mission.id;
-                return (
-                  <div
-                    key={mission.id}
-                    className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5"
-                  >
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(mission.id)}</span>
-                      <span className="text-[10px] text-slate-500">{new Date(mission.created_at).toLocaleDateString()}</span>
-                    </div>
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-3 border border-emerald-500/40">
-                      🟢 In Progress
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{icon}</span>
-                        <div>
-                          <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
-                            {missionLabel} Mission
-                          </p>
-                          <p className="text-xl font-black mt-1">{targetUsd > 0 ? `${targetUsd}$` : 'Custom bid'}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[9px] text-slate-500 uppercase tracking-widest">Deposit Paid</p>
-                        <p className="text-sm font-bold text-amber-400">{depositEgp > 0 ? `${depositEgp} EGP` : '—'}</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 pt-4 border-t border-white/10 space-y-3">
-                      {!started && (
-                        <button
-                          type="button"
-                          onClick={() => handleStartMission(mission)}
-                          disabled={isStarting}
-                          className="w-full py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-sm uppercase tracking-wider shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:brightness-110 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          {isStarting ? 'Starting...' : 'Start Mission'}
-                        </button>
-                      )}
-                      {started && !inReview && (
-                        <>
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-slate-500">Время:</span>
-                            <MissionTimer startedAt={mission.work_started_at!} />
-                          </div>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            id={`photo-finish-${mission.id}`}
-                            onChange={(e) => {
-                              const f = e.target.files?.[0];
-                              if (f) handleSubmitFinishedPhoto(mission.id, f);
-                              e.target.value = '';
-                            }}
-                          />
-                          <label
-                            htmlFor={`photo-finish-${mission.id}`}
-                            className={`flex items-center justify-center gap-2 w-full py-3 rounded-full font-black text-sm uppercase tracking-wider transition-all cursor-pointer ${isUploading ? 'bg-slate-600 text-slate-400 cursor-wait' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30 shadow-[0_0_16px_rgba(251,191,36,0.3)]'}`}
-                          >
-                            {isUploading ? 'Uploading...' : '📸 Finish & Upload Report'}
-                          </label>
-                        </>
-                      )}
-                      {inReview && (
-                        <p className="text-amber-400/90 text-sm font-medium">Waiting for owner to verify</p>
-                      )}
-                    </div>
                   </div>
                 );
               })}
@@ -1140,76 +789,6 @@ const Profile: React.FC = () => {
 
         </div>
       </div>
-
-      {/* MODAL: mission details for worker */}
-      {selectedMission && (
-        <div
-          className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={handleCloseMission}
-        >
-          <div
-            className="relative z-[100000] w-full max-w-md rounded-3xl bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={handleCloseMission}
-              className="absolute right-4 top-4 text-slate-500 hover:text-white text-sm font-bold disabled:opacity-40"
-              disabled={isPaymentLoading}
-            >
-              ✕
-            </button>
-
-            {(() => {
-              const { missionLabel, targetUsd, depositEgp } = computeMissionMeta(selectedMission);
-              return (
-                <>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-1">
-                    Mission details
-                  </p>
-                  <h3 className="text-2xl font-black tracking-tight mb-4">
-                    {missionLabel} MISSION
-                  </h3>
-
-                  <div className="space-y-3 mb-6 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 uppercase text-[10px] tracking-widest">
-                        Reward
-                      </span>
-                      <span className="font-bold">{targetUsd > 0 ? `${targetUsd}$` : 'Custom bid'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 uppercase text-[10px] tracking-widest">
-                        Worker deposit
-                      </span>
-                      <span className="font-bold text-emerald-400">{depositEgp > 0 ? `${depositEgp} EGP` : '—'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 uppercase text-[10px] tracking-widest">
-                        Status
-                      </span>
-                      <span className="font-semibold">{selectedMission.status.toUpperCase()}</span>
-                    </div>
-                  </div>
-                </>
-              );
-            })()}
-
-            <button
-              type="button"
-              onClick={handleAcceptMission}
-              disabled={isPaymentLoading}
-              className="w-full py-4 rounded-full bg-emerald-500 text-black font-black text-sm uppercase tracking-[0.2em] shadow-[0_0_24px_rgba(52,211,153,0.6)] hover:brightness-110 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isPaymentLoading ? 'Preparing secure payment...' : 'Pay deposit & take mission'}
-            </button>
-
-            <p className="mt-3 text-[10px] text-slate-500 text-center uppercase tracking-wider">
-              Deposit processed via secure Paymob gateway.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Verification required modal */}
       {showVerificationPrompt && (
