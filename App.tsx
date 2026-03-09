@@ -109,6 +109,7 @@ const App: React.FC = () => {
             currentAmount={amount}
             currentType={orderType}
             hasFullAccess={!!session}
+            currentUserId={session?.user?.id || null}
             showPayment={showPayment}
             onRequestPayment={({ lat, lng, amount: a, type: t }) => {
               setTargetCoords({ lat, lng });

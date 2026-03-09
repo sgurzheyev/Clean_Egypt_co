@@ -97,6 +97,31 @@ const Profile: React.FC = () => {
       } else {
         alert('Оплата прошла успешно! Твоя пирамида создана.');
       }
+
+      // Пытаемся синхронизировать worker_deposit через payment_pending
+      const paymobOrderId = params.get('id');
+      if (paymobOrderId) {
+        (async () => {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.user?.id) return;
+            const { data: pending } = await supabase
+              .from('payment_pending')
+              .select('pyramid_id, type')
+              .eq('paymob_order_id', paymobOrderId)
+              .maybeSingle();
+            if (pending && pending.type === 'worker_deposit') {
+              await supabase
+                .from('pyramids')
+                .update({ status: 'in_progress', worker_id: session.user.id })
+                .eq('id', pending.pyramid_id);
+            }
+          } catch (e) {
+            console.error('Failed to sync worker_deposit from payment_pending:', e);
+          }
+        })();
+      }
+
       window.history.replaceState({}, '', window.location.pathname);
     }
 
@@ -482,10 +507,10 @@ const Profile: React.FC = () => {
                   </div>
                 ))}
               </div>
-            ) : myPyramids.length === 0 ? (
+            ) : (myPyramids || []).length === 0 ? (
               <p className="text-slate-500 text-sm italic">You haven't created any requests yet.</p>
             ) : (
-              (myPyramids || []).map((p) => (
+              (myPyramids || []).filter((p) => (p.mission_type || 'city') === 'home').map((p) => (
                 <div key={p.id} className="bg-slate-800/70 backdrop-blur-sm border border-white/10 rounded-2xl p-4">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(p.id)}</span>
@@ -566,11 +591,13 @@ const Profile: React.FC = () => {
         {/* MY ACTIVE MISSIONS (где я рабочий — оплатил депозит) */}
         <section className="mb-10 text-white">
           <h2 className="text-xl font-black mb-4 text-amber-400">🎯 MY ACTIVE MISSIONS</h2>
-          {myActiveMissions.length === 0 ? (
+          {(myActiveMissions || []).filter((m) => m.worker_id && m.status === 'in_progress').length === 0 ? (
             <p className="text-slate-500 text-sm italic">Ты ещё не взял ни одной миссии. Выбери миссию в маркетплейсе и оплати депозит.</p>
           ) : (
             <div className="space-y-4">
-              {(myActiveMissions || []).map((mission) => {
+              {(myActiveMissions || [])
+                .filter((mission) => mission.worker_id && mission.status === 'in_progress')
+                .map((mission) => {
                 const { missionLabel, targetUsd, depositEgp } = computeMissionMeta(mission);
                 const isHome = missionLabel === 'HOME';
                 const icon = isHome ? '🏠' : '🌆';
@@ -654,6 +681,37 @@ const Profile: React.FC = () => {
           )}
         </section>
 
+        {/* MY CITY DONATIONS */}
+        <section className="mb-10 text-white">
+          <h2 className="text-xl font-black mb-4 flex items-center gap-2">
+            🏙️ MY CITY DONATIONS
+          </h2>
+          <div className="space-y-4">
+            {loading ? (
+              <p className="text-slate-500 text-sm italic">Загружаем ваши городские пирамиды...</p>
+            ) : (myPyramids || []).filter((p) => (p.mission_type || 'city') === 'city').length === 0 ? (
+              <p className="text-slate-500 text-sm italic">У тебя ещё нет CITY донатов в городе.</p>
+            ) : (
+              (myPyramids || [])
+                .filter((p) => (p.mission_type || 'city') === 'city')
+                .map((p) => (
+                  <div key={p.id} className="bg-slate-800/70 backdrop-blur-sm border border-cyan-500/40 rounded-2xl p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(p.id)}</span>
+                      <span className="text-[10px] text-slate-500">{new Date(p.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-cyan-300 font-bold mb-1">
+                      CITY DONATION
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      Твоя городская пирамида на карте. Рабочие смогут взять её в GLOBAL MARKETPLACE.
+                    </p>
+                  </div>
+                ))
+            )}
+          </div>
+        </section>
+
         {/* MARKETPLACE (CITY WORK & BIDDING) — pointer-events-auto чтобы карточки были кликабельны */}
         <section className="text-white pointer-events-auto relative z-10">
           <h2 className="text-xl font-black mb-2 text-teal-400">🌍 GLOBAL MARKETPLACE</h2>
@@ -682,15 +740,17 @@ const Profile: React.FC = () => {
             <p className="text-sm text-red-400 mb-4">{marketError}</p>
           )}
 
-          {!marketLoading && !marketError && marketplaceJobs.length === 0 && (
+          {!marketLoading && !marketError && (marketplaceJobs || []).filter((job) => job.status === 'pending').length === 0 && (
             <p className="text-sm text-slate-500 italic">
               Пока нет активных миссий. Загляни позже — города скоро проснутся.
             </p>
           )}
 
-          {!marketLoading && !marketError && (marketplaceJobs || []).length > 0 && (
+          {!marketLoading && !marketError && (marketplaceJobs || []).filter((job) => job.status === 'pending').length > 0 && (
             <div className="grid grid-cols-1 gap-4 pointer-events-auto">
-              {(marketplaceJobs || []).map((job) => {
+              {(marketplaceJobs || [])
+                .filter((job) => job.status === 'pending' && job.worker_id == null && job.creator_id !== userProfile?.id)
+                .map((job) => {
                 const { missionLabel, targetUsd, depositEgp } = computeMissionMeta(job);
                 const isHome = missionLabel === 'HOME';
                 const icon = isHome ? '🏠' : '🌆';

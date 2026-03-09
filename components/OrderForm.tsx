@@ -20,6 +20,8 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
     if (onOrderStarted) onOrderStarted(); // ВКЛЮЧАЕМ "УСТАНОВКУ СОЕДИНЕНИЯ"
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const creatorId = session?.user?.id ?? null;
       // 1. Сначала сохраняем лид (email) в базу, даже если оплата не пройдет
       const { error } = await supabase.from('pyramids').insert([
         {
@@ -27,7 +29,8 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
           mission_type: type,
           current_amount: amount,
           user_email: email, // СОХРАНЯЕМ В ЛАПЫ
-          status: 'pending_payment'
+          status: 'pending_payment',
+          creator_id: creatorId
         }
       ]);
 

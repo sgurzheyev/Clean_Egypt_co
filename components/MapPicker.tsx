@@ -56,6 +56,7 @@ export interface PyramidOnMap {
   target_amount: number;
   mission_type: 'home' | 'city' | string;
   status: string;
+  worker_id?: string | null;
   label?: string;
 }
 
@@ -67,6 +68,7 @@ export interface MapPickerProps {
   currentAmount: number;
   currentType: 'home' | 'city';
   hasFullAccess?: boolean;
+  currentUserId?: string | null;
   /** Вызов при «Перейти к оплате» в paywall: открыть PaymentOverlay с этими данными (редирект в /profile только после успешной оплаты). */
   onRequestPayment?: (params: { lat: number; lng: number; amount: number; type: 'home' | 'city' }) => void;
   /** true = окно оплаты открыто; карта скрывается (display: none), чтобы не перехватывать touch в iframe. */
@@ -80,6 +82,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   currentAmount,
   currentType,
   hasFullAccess = false,
+  currentUserId = null,
   onRequestPayment,
   showPayment = false,
 }) => {
@@ -106,9 +109,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const fetchPyramids = useCallback(async () => {
     const { data, error } = await supabase
       .from('pyramids')
-      .select('id, location, target_amount, mission_type, status')
-      .neq('status', 'completed')
-      .limit(200);
+      .select('id, location, target_amount, mission_type, status, worker_id')
+      .in('status', ['pending', 'completed', 'in_progress'])
+      .order('created_at', { ascending: false })
+      .limit(500);
 
     if (error) {
       console.error('MapPicker fetch pyramids:', error);
@@ -126,6 +130,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         target_amount: row.target_amount ?? 0,
         mission_type: row.mission_type ?? 'city',
         status: row.status ?? '',
+        worker_id: row.worker_id ?? null,
         label: undefined,
       });
     }
@@ -174,6 +179,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
     (e: React.MouseEvent, pyramid: PyramidOnMap) => {
       e.stopPropagation();
       e.preventDefault();
+
+      if (pyramid.status === 'in_progress') {
+        if (pyramid.worker_id && currentUserId && pyramid.worker_id === currentUserId) {
+          alert('Это твоя активная миссия. Зайди в профиль → MY ACTIVE MISSIONS, чтобы завершить и загрузить фото.');
+        } else {
+          alert('Эту миссию уже выполняет другой рабочий.');
+        }
+        return;
+      }
+
       if (hasFullAccess) {
         navigate('/profile');
         return;
@@ -234,14 +249,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
 
         {/* Пирамиды из Supabase (миссии/заказы) */}
-        {pyramidsFromDb.map((p) => (
+        {(pyramidsFromDb || []).map((p) => {
+          const isInProgress = p.status === 'in_progress';
+          const markerWrapperClass = isInProgress
+            ? 'cursor-pointer outline-none pointer-events-auto shadow-[0_0_20px_rgba(251,191,36,0.9)]'
+            : 'cursor-pointer outline-none pointer-events-auto';
+          return (
           <Marker key={p.id} latitude={p.lat} longitude={p.lng} anchor="bottom">
             <div
               role="button"
               tabIndex={0}
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); handlePyramidClick(e, p); }}
               onKeyDown={(e) => e.key === 'Enter' && handlePyramidClick(e as any, p)}
-              className="cursor-pointer outline-none pointer-events-auto"
+              className={markerWrapperClass}
             >
               <PyramidMarker
                 amount={p.target_amount}
@@ -250,7 +270,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               />
             </div>
           </Marker>
-        ))}
+        );})}
 
         {/* Legacy orders из App (таблица orders) */}
         {orders?.map((order) => (
