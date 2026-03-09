@@ -280,6 +280,110 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return () => window.removeEventListener('paymentSuccess', onPaymentSuccess);
   }, [fetchJobs]);
 
+  const PENDING_SUBMIT_KEY = 'cleaneypt_pending_submit';
+
+  const executePaymentFlow = useCallback(
+    async (payload: {
+      amount: number;
+      taskType: TaskType;
+      location: { lat: number; lng: number };
+      description: string;
+    }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) return;
+
+      const res = await fetch('/api/paymob-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'job_creation',
+          userId: session.user.id,
+          amount: payload.amount,
+          taskType: payload.taskType,
+          location_lat: payload.location.lat,
+          location_lng: payload.location.lng,
+          description: payload.description || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Payment init failed (${res.status})`);
+      }
+
+      const data = (await res.json()) as {
+        paymentUrl?: string;
+        paymentToken?: string;
+      };
+
+      if (data.paymentUrl) {
+        sessionStorage.setItem('paymentReturnType', 'job_creation');
+        window.location.assign(data.paymentUrl);
+        return;
+      }
+      if (data.paymentToken) {
+        sessionStorage.setItem('paymentReturnType', 'job_creation');
+        const iframeId =
+          (import.meta.env.VITE_PAYMOB_IFRAME_ID as string | undefined) || '1007120';
+        const url = `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${data.paymentToken}`;
+        window.location.assign(url);
+      } else {
+        throw new Error('No payment URL or token received.');
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    const run = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) return;
+
+      const raw = localStorage.getItem(PENDING_SUBMIT_KEY);
+      if (!raw) return;
+
+      try {
+        const saved = JSON.parse(raw) as {
+          taskType?: TaskType;
+          amount?: string | number;
+          location_lat?: number;
+          location_lng?: number;
+          description?: string;
+        };
+        const amount = typeof saved.amount === 'number' ? saved.amount : parseFloat(String(saved.amount || '0').replace(',', '.'));
+        if (isNaN(amount) || amount <= 0) {
+          localStorage.removeItem(PENDING_SUBMIT_KEY);
+          return;
+        }
+        if (typeof saved.location_lat !== 'number' || typeof saved.location_lng !== 'number') {
+          localStorage.removeItem(PENDING_SUBMIT_KEY);
+          return;
+        }
+
+        localStorage.removeItem(PENDING_SUBMIT_KEY);
+
+        setTaskType(saved.taskType || 'city');
+        setTaskTypeSelected(saved.taskType || 'city');
+        setOrderAmount(String(amount));
+        setSelectedLocation({ lat: saved.location_lat, lng: saved.location_lng });
+        setOrderDescription(saved.description || '');
+        setOrderError(null);
+        setOrderSuccess(null);
+
+        await executePaymentFlow({
+          amount,
+          taskType: (saved.taskType as TaskType) || 'city',
+          location: { lat: saved.location_lat, lng: saved.location_lng },
+          description: saved.description || '',
+        });
+      } catch (e) {
+        console.error('Pending submit restore error:', e);
+        localStorage.removeItem(PENDING_SUBMIT_KEY);
+      }
+    };
+    run();
+  }, [executePaymentFlow]);
+
   const handleMapClick = useCallback(
     (event: any) => {
       if (!event?.lngLat) return;
@@ -428,6 +532,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
       } = await supabase.auth.getSession();
 
       if (!session?.user?.id) {
+        localStorage.setItem(
+          PENDING_SUBMIT_KEY,
+          JSON.stringify({
+            taskType,
+            amount,
+            location_lat: selectedLocation.lat,
+            location_lng: selectedLocation.lng,
+            description: orderDescription || '',
+          })
+        );
         setOrderSubmitting(false);
         setShowAuthModal(true);
         setAuthEmail('');
@@ -436,48 +550,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      const creatorId = session.user.id;
-
-      const res = await fetch('/api/paymob-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'job_creation',
-          userId: creatorId,
-          amount,
-          taskType,
-          location_lat: selectedLocation.lat,
-          location_lng: selectedLocation.lng,
-          description: orderDescription || undefined,
-        }),
+      await executePaymentFlow({
+        amount,
+        taskType,
+        location: selectedLocation,
+        description: orderDescription || '',
       });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `Payment init failed (${res.status})`);
-      }
-
-      const data = (await res.json()) as {
-        paymentUrl?: string;
-        paymentToken?: string;
-      };
-
-      if (data.paymentUrl) {
-        sessionStorage.setItem('paymentReturnType', 'job_creation');
-        window.location.assign(data.paymentUrl);
-        return;
-      }
-
-      if (data.paymentToken) {
-        sessionStorage.setItem('paymentReturnType', 'job_creation');
-        const iframeId =
-          (import.meta.env.VITE_PAYMOB_IFRAME_ID as string | undefined) || '1007120';
-        const url = `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${data.paymentToken}`;
-        window.location.assign(url);
-        return;
-      }
-
-      throw new Error('No payment URL or token received.');
     } catch (err) {
       console.error('Job submit exception:', err);
       setOrderError(
