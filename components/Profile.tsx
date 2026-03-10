@@ -556,7 +556,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
             </button>
           </div>
         </div>
-        <div className="px-5 py-6">
+        <div className="px-5 pt-6 pb-24">
           <div className="w-full max-w-md mx-auto">
         {/* HEADER: Welcome + Wallet */}
         <header className="mb-8 text-white">
