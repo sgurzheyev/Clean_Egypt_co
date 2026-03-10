@@ -19,6 +19,10 @@ interface Job {
   status: string;
   description?: string | null;
   created_at: string;
+  started_at?: string | null;
+  worker_before_photos?: string[] | null;
+  worker_after_photos?: string[] | null;
+  is_disputed?: boolean | null;
 }
 
 interface Bid {
@@ -49,6 +53,28 @@ const shortId = (id: unknown): string => {
   }
 };
 
+function JobTimer({ startedAt }: { startedAt: string }) {
+  const [elapsed, setElapsed] = useState('');
+  useEffect(() => {
+    const format = (ms: number) => {
+      const s = Math.floor(ms / 1000);
+      const m = Math.floor(s / 60);
+      const h = Math.floor(m / 60);
+      if (h > 0) return `${h}h ${m % 60}m`;
+      if (m > 0) return `${m}m ${s % 60}s`;
+      return `${s}s`;
+    };
+    const tick = () => {
+      const start = new Date(startedAt).getTime();
+      setElapsed(format(Date.now() - start));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+  return <span className="tabular-nums text-emerald-400 font-bold">{elapsed}</span>;
+}
+
 const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session }) => {
   const [balance, setBalance] = useState(0);
   const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);
@@ -63,6 +89,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [paymentSyncing, setPaymentSyncing] = useState(false);
+  const [reviewJob, setReviewJob] = useState<Job | null>(null);
   const [taskType, setTaskType] = useState<'city' | 'home'>('city');
   const [orderAmount, setOrderAmount] = useState('');
   const [orderLocation, setOrderLocation] = useState('');
@@ -73,12 +100,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Worker finish-mission modal
-  const [finishJob, setFinishJob] = useState<Job | null>(null);
-  const [finishPhoto, setFinishPhoto] = useState<File | null>(null);
-  const [finishSubmitting, setFinishSubmitting] = useState(false);
-  const [finishError, setFinishError] = useState<string | null>(null);
-  const [finishSuccess, setFinishSuccess] = useState<string | null>(null);
+  // Worker proof-of-work modal (before/after photos)
+  const [proofJob, setProofJob] = useState<Job | null>(null);
+  const [proofPhase, setProofPhase] = useState<'before' | 'after'>('before');
+  const [proofFiles, setProofFiles] = useState<File[]>([]);
+  const [proofSubmitting, setProofSubmitting] = useState(false);
+  const [proofError, setProofError] = useState<string | null>(null);
+  const [proofSuccess, setProofSuccess] = useState<string | null>(null);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -173,7 +201,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
 
       const { data: homeJobsData } = await supabase
         .from('jobs')
-        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at')
+        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at, worker_before_photos, worker_after_photos, started_at, is_disputed')
         .eq('creator_id', userId)
         .eq('task_type', 'home')
         .order('created_at', { ascending: false });
@@ -181,7 +209,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
 
       const { data: cityJobsData } = await supabase
         .from('jobs')
-        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at')
+        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at, worker_before_photos, worker_after_photos, started_at, is_disputed')
         .eq('creator_id', userId)
         .eq('task_type', 'city')
         .order('created_at', { ascending: false });
@@ -189,7 +217,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
 
       const { data: activeJobsData } = await supabase
         .from('jobs')
-        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at')
+        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at, worker_before_photos, worker_after_photos, started_at, is_disputed')
         .eq('worker_id', userId)
         .in('status', ['in_progress', 'completed', 'finished'])
         .order('created_at', { ascending: false });
@@ -228,7 +256,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
 
       const { data, error } = await supabase
         .from('jobs')
-        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at')
+        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at, worker_before_photos, worker_after_photos, started_at, is_disputed')
         .eq('status', 'pending')
         .is('worker_id', null)
         .order('created_at', { ascending: false })
@@ -383,64 +411,78 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const openFinishModal = (job: Job) => {
-    setFinishJob(job);
-    setFinishPhoto(null);
-    setFinishError(null);
-    setFinishSuccess(null);
+  const openProofModal = (job: Job, phase: 'before' | 'after') => {
+    setProofJob(job);
+    setProofPhase(phase);
+    setProofFiles([]);
+    setProofError(null);
+    setProofSuccess(null);
   };
 
-  const closeFinishModal = () => {
-    if (finishSubmitting) return;
-    setFinishJob(null);
-    setFinishPhoto(null);
-    setFinishError(null);
-    setFinishSuccess(null);
+  const closeProofModal = () => {
+    if (proofSubmitting) return;
+    setProofJob(null);
+    setProofFiles([]);
+    setProofError(null);
+    setProofSuccess(null);
   };
 
-  const submitFinishMission = async (e: React.FormEvent) => {
+  const submitProof = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFinishError(null);
-    setFinishSuccess(null);
-    if (!finishJob) return;
-    if (!finishPhoto) {
-      setFinishError('Please upload a completion photo to finish the mission.');
+    setProofError(null);
+    setProofSuccess(null);
+    if (!proofJob) return;
+    if (!proofFiles.length) {
+      setProofError("Please upload photos before continuing.");
       return;
     }
 
     try {
-      setFinishSubmitting(true);
+      setProofSubmitting(true);
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user?.id) throw new Error('You must be signed in.');
 
-      // 1) Upload proof photo
-      const ext = finishPhoto.name.split('.').pop() || 'jpg';
-      const fileName = `job_${finishJob.id}_finish_${session.user.id}_${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from('order-photos')
-        .upload(fileName, finishPhoto, { upsert: false });
-      if (uploadError) throw uploadError;
-
-      // 2) Mark job completed (try to persist the photo url if column exists; fallback otherwise)
-      const { data: { publicUrl } } = supabase.storage.from('order-photos').getPublicUrl(fileName);
-      const updateWithUrl = await supabase
-        .from('jobs')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .update({ status: 'completed', completed_photo_url: publicUrl } as any)
-        .eq('id', finishJob.id);
-      if (updateWithUrl.error) {
-        const updateBare = await supabase.from('jobs').update({ status: 'completed' }).eq('id', finishJob.id);
-        if (updateBare.error) throw updateBare.error;
+      const uploadedUrls: string[] = [];
+      for (const file of proofFiles) {
+        const ext = file.name.split('.').pop() || 'jpg';
+        const fileName = `job_${proofJob.id}_${proofPhase}_${session.user.id}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from('order-photos')
+          .upload(fileName, file, { upsert: false });
+        if (uploadError) throw uploadError;
+        const { data: { publicUrl } } = supabase.storage.from('order-photos').getPublicUrl(fileName);
+        uploadedUrls.push(publicUrl);
       }
 
-      setFinishSuccess('Success! Waiting for client to release payment.');
+      if (proofPhase === 'before') {
+        const { error: updateErr } = await supabase
+          .from('jobs')
+          .update({
+            worker_before_photos: uploadedUrls,
+            started_at: new Date().toISOString(),
+          })
+          .eq('id', proofJob.id);
+        if (updateErr) throw updateErr;
+        setProofSuccess('Before photos uploaded. Mission started.');
+      } else {
+        const { error: updateErr } = await supabase
+          .from('jobs')
+          .update({
+            worker_after_photos: uploadedUrls,
+            status: 'completed',
+          })
+          .eq('id', proofJob.id);
+        if (updateErr) throw updateErr;
+        setProofSuccess('80% Proof complete. For 100% Proof & fast payout, send video proof to Telegram Team Checker.');
+      }
+
       await fetchProfileData();
       await fetchMarketplaceJobs();
     } catch (err: any) {
-      console.error('Finish mission error:', err);
-      setFinishError(err?.message || 'Failed to finish mission. Please try again.');
+      console.error('Proof upload error:', err);
+      setProofError(err?.message || 'Failed to upload photos. Please try again.');
     } finally {
-      setFinishSubmitting(false);
+      setProofSubmitting(false);
     }
   };
 
@@ -790,13 +832,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                       <div className="mt-4">
                         <button
                           type="button"
-                          onClick={() => handleConfirmReleasePay(job)}
+                          onClick={() => setReviewJob(job)}
                           className="w-full py-3 rounded-full bg-emerald-500 text-black font-black text-xs uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:brightness-110 transition-all active:scale-95"
                         >
-                          Confirm & Release Pay
+                          Review & Release Pay
                         </button>
                         <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
-                          Worker submitted completion photo. Confirm to release payment.
+                          Worker submitted completion photos. Review before confirming or disputing.
                         </p>
                       </div>
                     )}
@@ -848,6 +890,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                           <p className="text-xl font-black mt-1">${job.amount}</p>
                         </div>
                       </div>
+                      {job.started_at && (
+                        <div className="text-right">
+                          <p className="text-[9px] text-slate-500 uppercase tracking-widest">Time Elapsed</p>
+                          <JobTimer startedAt={job.started_at} />
+                        </div>
+                      )}
                     </div>
                     {job.description && (
                       <p className="text-xs text-slate-400 mt-2">{job.description}</p>
@@ -863,7 +911,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                       </button>
                       <button
                         type="button"
-                        onClick={() => openFinishModal(job)}
+                        onClick={() => openProofModal(job, job.started_at ? 'after' : 'before')}
                         disabled={job.status !== 'in_progress'}
                         className={`w-full py-3 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 ${
                           job.status === 'in_progress'
@@ -871,7 +919,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                             : 'bg-white/5 text-slate-500 cursor-not-allowed'
                         }`}
                       >
-                        Finish mission
+                        {job.started_at ? "Upload 'After' photos & Finish" : "Upload 'Before' photos & Start"}
                       </button>
                     </div>
 
@@ -921,13 +969,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                     <div className="mt-4">
                       <button
                         type="button"
-                        onClick={() => handleConfirmReleasePay(job)}
+                        onClick={() => setReviewJob(job)}
                         className="w-full py-3 rounded-full bg-emerald-500 text-black font-black text-xs uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:brightness-110 transition-all active:scale-95"
                       >
-                        Confirm & Release Pay
+                        Review & Release Pay
                       </button>
                       <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
-                        Worker marked job completed. Confirm to release payment.
+                        Worker marked job completed. Review before confirming or disputing.
                       </p>
                     </div>
                   )}
@@ -1079,11 +1127,118 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
         </div>
       )}
 
-      {/* Worker modal: finish mission with photo */}
-      {finishJob && (
+      {/* Client review modal: compare before/after & confirm or dispute */}
+      {reviewJob && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setReviewJob(null)}
+        >
+          <div
+            className="w-full max-w-3xl rounded-3xl bg-black/90 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-1">
+                  Review proof of work
+                </p>
+                <h3 className="text-xl font-black text-white">
+                  {reviewJob.task_type.toUpperCase()} • ${reviewJob.amount}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReviewJob(null)}
+                className="text-slate-400 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="rounded-2xl bg-black/50 border border-white/10 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
+                  Before photos
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(reviewJob.worker_before_photos || []).length === 0 && (
+                    <p className="text-xs text-slate-500 italic">
+                      Worker did not upload before photos.
+                    </p>
+                  )}
+                  {(reviewJob.worker_before_photos || []).map((url) => (
+                    <div key={url} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
+                      <img src={url} alt="Before" className="w-full h-24 object-cover" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-black/50 border border-white/10 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
+                  After photos
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(reviewJob.worker_after_photos || []).length === 0 && (
+                    <p className="text-xs text-slate-500 italic">
+                      Worker did not upload after photos.
+                    </p>
+                  )}
+                  {(reviewJob.worker_after_photos || []).map((url) => (
+                    <div key={url} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
+                      <img src={url} alt="After" className="w-full h-24 object-cover" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-400 mb-4">
+              80% Proof is based on photos. For 100% Proof & dispute resolution, our Telegram Team Checker may request video proof.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={async () => {
+                  await handleConfirmReleasePay(reviewJob);
+                  setReviewJob(null);
+                }}
+                className="flex-1 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-sm uppercase tracking-[0.2em] shadow-[0_0_24px_rgba(52,211,153,0.6)] transition-all active:scale-95"
+              >
+                Confirm & Pay
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const { error } = await supabase
+                      .from('jobs')
+                      .update({ is_disputed: true, status: 'disputed' })
+                      .eq('id', reviewJob.id);
+                    if (error) throw error;
+                    await fetchProfileData();
+                    alert('Dispute opened. Support (Muhamed) will review photos and Telegram video.');
+                  } catch (err: any) {
+                    console.error('Dispute error:', err);
+                    alert(err?.message || 'Failed to open dispute.');
+                  } finally {
+                    setReviewJob(null);
+                  }
+                }}
+                className="flex-1 py-3 rounded-full bg-red-500/20 border border-red-500/60 text-red-300 hover:bg-red-500/30 hover:text-red-200 font-black text-sm uppercase tracking-[0.2em] transition-all active:scale-95"
+              >
+                Open Dispute
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Worker PoW modal: before/after photos */}
+      {proofJob && (
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-          onClick={closeFinishModal}
+          onClick={closeProofModal}
           aria-hidden="false"
         >
           <div
@@ -1092,12 +1247,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
           >
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-lg font-black uppercase tracking-[0.18em] text-white">
-                Finish mission
+                {proofPhase === 'before' ? "Upload 'Before' photos & Start" : "Upload 'After' photos & Finish"}
               </h3>
               <button
                 type="button"
-                onClick={closeFinishModal}
-                disabled={finishSubmitting}
+                onClick={closeProofModal}
+                disabled={proofSubmitting}
                 className="text-slate-400 hover:text-white text-lg font-bold disabled:opacity-40 transition-colors"
               >
                 ✕
@@ -1109,55 +1264,64 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                 Mission
               </p>
               <p className="text-white font-bold">
-                {finishJob.task_type.toUpperCase()} • ${finishJob.amount}
+                {proofJob.task_type.toUpperCase()} • ${proofJob.amount}
               </p>
-              {finishJob.description && (
-                <p className="text-xs text-slate-400 mt-1">{finishJob.description}</p>
+              {proofJob.description && (
+                <p className="text-xs text-slate-400 mt-1">{proofJob.description}</p>
               )}
             </div>
 
-            <form onSubmit={submitFinishMission} className="space-y-4">
+            <form onSubmit={submitProof} className="space-y-4">
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                  Upload completion photo (required)
+                  {proofPhase === 'before'
+                    ? "Upload 'Before' photos (required)"
+                    : "Upload 'After' photos (required)"}
                 </label>
                 <label className="flex h-[56px] items-center justify-center rounded-2xl border border-dashed border-amber-500/50 bg-amber-500/10 text-[11px] text-amber-200 cursor-pointer hover:border-amber-400 hover:bg-amber-500/15 transition-all">
-                  {finishPhoto ? 'Photo selected' : 'Tap to upload photo'}
+                  {proofFiles.length > 0 ? `${proofFiles.length} photo(s) selected` : 'Tap to upload photos'}
                   <input
                     type="file"
                     accept="image/*"
+                    multiple
                     className="hidden"
                     onChange={(e) => {
-                      const f = e.target.files?.[0] || null;
-                      setFinishPhoto(f);
-                      setFinishError(null);
-                      setFinishSuccess(null);
+                      const files = Array.from(e.target.files || []).slice(0, 10);
+                      setProofFiles(files);
+                      setProofError(null);
+                      setProofSuccess(null);
                     }}
                   />
                 </label>
               </div>
 
-              {finishError && (
-                <p className="text-xs text-red-400 font-medium">{finishError}</p>
+              {proofError && (
+                <p className="text-xs text-red-400 font-medium">{proofError}</p>
               )}
-              {finishSuccess && (
-                <p className="text-xs text-emerald-400 font-medium">{finishSuccess}</p>
+              {proofSuccess && (
+                <p className="text-xs text-emerald-400 font-medium">{proofSuccess}</p>
               )}
 
               <button
                 type="submit"
-                disabled={finishSubmitting}
+                disabled={proofSubmitting}
                 className={`w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all ${
-                  finishSubmitting
+                  proofSubmitting
                     ? 'opacity-60 cursor-wait bg-amber-500/30 text-amber-200'
                     : 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.7)] hover:brightness-110 active:scale-95'
                 }`}
               >
-                {finishSubmitting ? 'Submitting...' : 'Submit & mark completed'}
+                {proofSubmitting
+                  ? 'Submitting...'
+                  : proofPhase === 'before'
+                    ? "Submit & start mission"
+                    : "Submit & mark completed"}
               </button>
 
               <p className="text-[10px] text-slate-500 text-center uppercase tracking-wider">
-                After you submit, the client must confirm to release payment.
+                {proofPhase === 'before'
+                  ? 'After you submit, the mission timer will start.'
+                  : 'After you submit, the client must confirm to release payment.'}
               </p>
             </form>
           </div>

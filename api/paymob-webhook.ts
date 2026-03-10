@@ -89,7 +89,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // 2b. Job creation: insert job from job_payment_pending
       const { data: jobPending } = await supabase
         .from('job_payment_pending')
-        .select('creator_id, task_type, amount, location_lat, location_lng, description')
+        .select('creator_id, task_type, amount, location_lat, location_lng, description, creator_photos')
         .eq('paymob_order_id', paymobOrderId)
         .maybeSingle();
 
@@ -101,6 +101,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           location_lat: jobPending.location_lat,
           location_lng: jobPending.location_lng,
           description: jobPending.description,
+          creator_photos: jobPending.creator_photos || null,
           status: 'pending',
         });
         if (jobErr) throw new Error("Supabase Error (job_creation): " + jobErr.message);

@@ -205,7 +205,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [taskType, setTaskType] = useState<TaskType>('city');
   const [orderAmount, setOrderAmount] = useState('');
   const [orderDescription, setOrderDescription] = useState('');
-  const [orderPhoto, setOrderPhoto] = useState<File | null>(null);
+  const [orderPhotos, setOrderPhotos] = useState<File[]>([]);
+  const [uploadingProof, setUploadingProof] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
@@ -284,6 +285,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       taskType: TaskType;
       location: { lat: number; lng: number };
       description: string;
+      creatorPhotos?: string[];
     }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user?.id) return;
@@ -299,6 +301,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           location_lat: payload.location.lat,
           location_lng: payload.location.lng,
           description: payload.description || undefined,
+          creator_photos: payload.creatorPhotos && payload.creatorPhotos.length > 0 ? payload.creatorPhotos : undefined,
         }),
       });
 
@@ -511,11 +514,35 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
+      // 1) Upload creator proof photos (if any)
+      let creatorPhotoUrls: string[] | undefined;
+      if (orderPhotos.length > 0) {
+        setUploadingProof(true);
+        const uploaded: string[] = [];
+        for (const file of orderPhotos) {
+          const ext = file.name.split('.').pop() || 'jpg';
+          const fileName = `creator_${session.user.id}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: uploadError } = await supabase.storage
+            .from('order-photos')
+            .upload(fileName, file, { upsert: false });
+          if (uploadError) {
+            throw uploadError;
+          }
+          const { data: { publicUrl } } = supabase.storage
+            .from('order-photos')
+            .getPublicUrl(fileName);
+          uploaded.push(publicUrl);
+        }
+        creatorPhotoUrls = uploaded;
+      }
+
+      // 2) Kick off Paymob flow with creator_photos attached to pending job
       await executePaymentFlow({
         amount,
         taskType,
         location: selectedLocation,
         description: orderDescription || '',
+        creatorPhotos: creatorPhotoUrls,
       });
     } catch (err) {
       console.error('Job submit exception:', err);
@@ -523,6 +550,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         err instanceof Error ? err.message : 'Unexpected error. Please try again.'
       );
     } finally {
+      setUploadingProof(false);
       setOrderSubmitting(false);
     }
   };
@@ -677,18 +705,32 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
                     Upload photo
                   </label>
-                  <label className="flex h-[52px] items-center justify-center rounded-2xl border border-dashed border-slate-600 bg-black/30 text-[11px] text-slate-400 cursor-pointer hover:border-teal-400 hover:text-teal-300 transition-all">
-                    {orderPhoto ? 'Photo selected' : 'Tap to add reference photo'}
+                <label className="flex h-[52px] items-center justify-center rounded-2xl border border-dashed border-slate-600 bg-black/30 text-[11px] text-slate-400 cursor-pointer hover:border-teal-400 hover:text-teal-300 transition-all">
+                  {orderPhotos.length > 0 ? `${orderPhotos.length} photo(s) selected` : 'Tap to add reference photos (up to 10)'}
                     <input
                       type="file"
                       accept="image/*"
+                    multiple
                       className="hidden"
                       onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setOrderPhoto(file);
+                      const files = Array.from(e.target.files || []).slice(0, 10);
+                      setOrderPhotos(files);
                       }}
                     />
                   </label>
+                {orderPhotos.length > 0 && (
+                  <div className="mt-2">
+                    {orderPhotos.length <= 4 ? (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-500/10 border border-amber-400/50 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
+                        Low Proof Work (Worker takes at own risk)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-400/50 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+                        High Proof Work
+                      </span>
+                    )}
+                  </div>
+                )}
                 </div>
               </div>
 
@@ -718,14 +760,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
               <button
                 type="submit"
-                disabled={orderSubmitting}
+                disabled={orderSubmitting || uploadingProof}
                 className={`w-full mt-1 rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all ${
                   taskType === 'city'
                     ? 'bg-emerald-400 text-black shadow-[0_0_24px_rgba(52,211,153,0.7)] hover:brightness-110'
                     : 'bg-amber-400 text-black shadow-[0_0_24px_rgba(251,191,36,0.7)] hover:brightness-110'
-                } ${orderSubmitting ? 'opacity-60 cursor-wait' : 'active:scale-95'}`}
+                } ${orderSubmitting || uploadingProof ? 'opacity-60 cursor-wait' : 'active:scale-95'}`}
               >
-                {orderSubmitting ? 'Processing...' : 'Submit Task & Pay'}
+                {uploadingProof
+                  ? 'Uploading Proof Photos...'
+                  : orderSubmitting
+                    ? 'Processing...'
+                    : 'Submit Task & Pay'}
               </button>
             </form>
           </div>

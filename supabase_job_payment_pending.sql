@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS job_payment_pending (
   location_lat numeric NOT NULL,
   location_lng numeric NOT NULL,
   description text,
+  creator_photos text[],
   created_at timestamptz DEFAULT now()
 );
 

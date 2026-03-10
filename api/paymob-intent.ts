@@ -40,6 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       location_lat?: number;
       location_lng?: number;
       description?: string;
+      creator_photos?: string[];
     };
 
     const exchangeRate = 50;
@@ -71,6 +72,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           location_lat,
           location_lng,
           description: description || null,
+          creator_photos: Array.isArray((req.body as any).creator_photos)
+            ? (req.body as any).creator_photos
+            : null,
         })
         .select('id')
         .single();
