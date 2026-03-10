@@ -727,7 +727,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
           </form>
         </header>
 
-        {/* MY HOME REQUESTS (from jobs table) */}
+        {/* MY HOME REQUESTS (from jobs table, excluding finished) */}
         <section className="mb-10 text-white">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-300">
             🏠 My Home Requests
@@ -748,10 +748,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                   </div>
                 ))}
               </div>
-            ) : (myHomeJobs || []).length === 0 ? (
+            ) : (myHomeJobs || []).filter((job) => job.status !== 'finished').length === 0 ? (
               <p className="text-slate-500 text-sm italic">You haven&apos;t created any home requests yet.</p>
             ) : (
-              (myHomeJobs || []).map((job) => {
+              (myHomeJobs || [])
+                .filter((job) => job.status !== 'finished')
+                .map((job) => {
                 const bids = (jobBidsById[job.id] || []).filter((b) => b.status === 'pending');
                 return (
                   <div key={job.id} className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5">
@@ -849,16 +851,18 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
           </div>
         </section>
 
-        {/* MY ACTIVE MISSIONS (from jobs where worker_id = me) */}
+        {/* MY ACTIVE MISSIONS (from jobs where worker_id = me, excluding finished) */}
         <section className="mb-10 text-white">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-amber-400/90">
             🎯 My Active Missions
           </h2>
-          {(myActiveJobs || []).length === 0 ? (
+          {(myActiveJobs || []).filter((job) => job.status !== 'finished').length === 0 ? (
             <p className="text-slate-500 text-sm italic">You haven&apos;t taken any missions yet. Pick one from the marketplace and pay the deposit.</p>
           ) : (
             <div className="space-y-4">
-              {(myActiveJobs || []).map((job) => {
+              {(myActiveJobs || [])
+                .filter((job) => job.status !== 'finished')
+                .map((job) => {
                 const isHome = job.task_type === 'home';
                 const icon = isHome ? '🏠' : '🌆';
                 const badgeColor = isHome ? 'bg-amber-400/10 text-amber-300 border-amber-500/30' : 'bg-emerald-400/10 text-emerald-300 border-emerald-500/30';
@@ -940,7 +944,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
           )}
         </section>
 
-        {/* MY CITY DONATIONS (from jobs table) */}
+        {/* MY CITY DONATIONS (from jobs table, excluding finished) */}
         <section className="mb-10 text-white">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-300">
             🏙️ My City Donations
@@ -948,10 +952,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
           <div className="space-y-4">
             {loading ? (
               <p className="text-slate-500 text-sm italic">Loading city donations...</p>
-            ) : (myCityJobs || []).length === 0 ? (
+            ) : (myCityJobs || []).filter((job) => job.status !== 'finished').length === 0 ? (
               <p className="text-slate-500 text-sm italic">You have no city donations yet.</p>
             ) : (
-              (myCityJobs || []).map((job) => (
+              (myCityJobs || [])
+                .filter((job) => job.status !== 'finished')
+                .map((job) => (
                 <div key={job.id} className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
@@ -1124,6 +1130,90 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* CLEANING HISTORY (finished jobs for creator or cleaner) */}
+      {userProfile && (
+        <div className="px-5 pb-10">
+          <section className="mb-10 text-white">
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-400">
+              📜 My Cleaning History
+            </h2>
+            <div className="space-y-4">
+              {(() => {
+                const uid = userProfile.id;
+                const finishedJobs: Job[] = [
+                  ...(myHomeJobs || []),
+                  ...(myCityJobs || []),
+                  ...(myActiveJobs || []),
+                ].filter(
+                  (job, idx, arr) =>
+                    job.status === 'finished' &&
+                    (job.creator_id === uid || job.worker_id === uid) &&
+                    arr.findIndex((j) => j.id === job.id) === idx
+                );
+
+                if (finishedJobs.length === 0) {
+                  return (
+                    <p className="text-slate-500 text-sm italic">
+                      No finished jobs yet. Completed missions will appear here.
+                    </p>
+                  );
+                }
+
+                return finishedJobs.map((job) => {
+                  const isCreator = job.creator_id === uid;
+                  const roleLabel = isCreator ? 'Creator' : 'Cleaner';
+                  const isHome = job.task_type === 'home';
+                  const icon = isHome ? '🏠' : '🌆';
+                  const createdDate = new Date(job.created_at).toLocaleDateString();
+                  return (
+                    <div
+                      key={job.id}
+                      className="rounded-3xl bg-black/50 backdrop-blur-xl border border-white/5 p-5 opacity-80"
+                    >
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] text-slate-600 font-mono">
+                          #{shortId(job.id)}
+                        </span>
+                        <span className="text-[10px] text-slate-600">
+                          {createdDate}
+                        </span>
+                      </div>
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-700/40 text-slate-200 text-[10px] font-bold uppercase tracking-wider mb-3 border border-slate-500/60">
+                        Finished
+                      </div>
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl opacity-90">{icon}</span>
+                          <div>
+                            <p className="text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border border-white/10 text-slate-200">
+                              {job.task_type} Mission
+                            </p>
+                            <p className="text-xl font-black mt-1 text-slate-100">
+                              ${job.amount}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[9px] text-slate-500 uppercase tracking-widest">
+                            Role
+                          </p>
+                          <p className="text-xs font-bold text-slate-200">
+                            {roleLabel}
+                          </p>
+                        </div>
+                      </div>
+                      {job.description && (
+                        <p className="text-xs text-slate-400 mt-1">{job.description}</p>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </section>
         </div>
       )}
 
