@@ -1230,10 +1230,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           onClick={() => setReviewJob(null)}
         >
           <div
-            className="w-full max-w-3xl rounded-3xl bg-black/90 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
+            className="w-full max-w-3xl max-h-[85vh] flex flex-col rounded-3xl bg-black/90 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-start mb-4">
+            {/* Header — fixed at top */}
+            <div className="flex-shrink-0 flex justify-between items-start p-6 pb-2">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-1">
                   Review proof of work
@@ -1251,90 +1252,95 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div className="rounded-2xl bg-black/50 border border-white/10 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
-                  Before photos
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {(reviewJob.worker_before_photos || []).length === 0 && (
-                    <p className="text-xs text-slate-500 italic">
-                      Worker did not upload before photos.
-                    </p>
-                  )}
-                  {(reviewJob.worker_before_photos || []).map((url) => (
-                    <div key={url} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
-                      <img src={url} alt="Before" className="w-full h-24 object-cover" />
-                    </div>
-                  ))}
+            {/* Scrollable photo grid + disclaimer */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="rounded-2xl bg-black/50 border border-white/10 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
+                    Before photos
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(reviewJob.worker_before_photos || []).length === 0 && (
+                      <p className="text-xs text-slate-500 italic">
+                        Worker did not upload before photos.
+                      </p>
+                    )}
+                    {(reviewJob.worker_before_photos || []).map((url) => (
+                      <div key={url} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
+                        <img src={url} alt="Before" className="w-full h-24 object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-black/50 border border-white/10 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
+                    After photos
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(reviewJob.worker_after_photos || []).length === 0 && (
+                      <p className="text-xs text-slate-500 italic">
+                        Worker did not upload after photos.
+                      </p>
+                    )}
+                    {(reviewJob.worker_after_photos || []).map((url) => (
+                      <div key={url} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
+                        <img src={url} alt="After" className="w-full h-24 object-cover" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div className="rounded-2xl bg-black/50 border border-white/10 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
-                  After photos
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {(reviewJob.worker_after_photos || []).length === 0 && (
-                    <p className="text-xs text-slate-500 italic">
-                      Worker did not upload after photos.
-                    </p>
-                  )}
-                  {(reviewJob.worker_after_photos || []).map((url) => (
-                    <div key={url} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
-                      <img src={url} alt="After" className="w-full h-24 object-cover" />
-                    </div>
-                  ))}
-                </div>
-              </div>
+
+              <p className="text-[11px] text-slate-400">
+                80% Proof is based on photos. For 100% Proof & dispute resolution, our Telegram Team Checker may request video proof.
+              </p>
             </div>
 
-            <p className="text-[11px] text-slate-400 mb-4">
-              80% Proof is based on photos. For 100% Proof & dispute resolution, our Telegram Team Checker may request video proof.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={async () => {
-                  await handleConfirmReleasePay(reviewJob);
-                  setReviewJob(null);
-                }}
-                className="flex-1 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-sm uppercase tracking-[0.2em] shadow-[0_0_24px_rgba(52,211,153,0.6)] transition-all active:scale-95"
-              >
-                Confirm & Pay
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    const { error } = await supabase
-                      .from('jobs')
-                      .update({ is_disputed: true, status: 'disputed' })
-                      .eq('id', reviewJob.id);
-                    if (error) throw error;
-                    await fetchProfileData();
-                    // Best-effort Telegram notify; ignore errors
-                    try {
-                      await fetch('/api/notify-dispute', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ jobId: reviewJob.id }),
-                      });
-                    } catch {
-                      // ignore
-                    }
-                    alert('Dispute opened. Support (Muhamed) will review photos and Telegram video.');
-                  } catch (err: any) {
-                    console.error('Dispute error:', err);
-                    alert(err?.message || 'Failed to open dispute.');
-                  } finally {
+            {/* Sticky action buttons — always visible at bottom */}
+            <div className="flex-shrink-0 sticky bottom-0 bg-black/90 backdrop-blur-md pt-4 pb-6 px-6 z-10 border-t border-gray-800">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleConfirmReleasePay(reviewJob);
                     setReviewJob(null);
-                  }
-                }}
-                className="flex-1 py-3 rounded-full bg-red-500/20 border border-red-500/60 text-red-300 hover:bg-red-500/30 hover:text-red-200 font-black text-sm uppercase tracking-[0.2em] transition-all active:scale-95"
-              >
-                Open Dispute
-              </button>
+                  }}
+                  className="flex-1 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-sm uppercase tracking-[0.2em] shadow-[0_0_24px_rgba(52,211,153,0.6)] transition-all active:scale-95"
+                >
+                  Confirm & Pay
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const { error } = await supabase
+                        .from('jobs')
+                        .update({ is_disputed: true, status: 'disputed' })
+                        .eq('id', reviewJob.id);
+                      if (error) throw error;
+                      await fetchProfileData();
+                      try {
+                        await fetch('/api/notify-dispute', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ jobId: reviewJob.id }),
+                        });
+                      } catch {
+                        // ignore
+                      }
+                      alert('Dispute opened. Support (Muhamed) will review photos and Telegram video.');
+                    } catch (err: any) {
+                      console.error('Dispute error:', err);
+                      alert(err?.message || 'Failed to open dispute.');
+                    } finally {
+                      setReviewJob(null);
+                    }
+                  }}
+                  className="flex-1 py-3 rounded-full bg-red-500/20 border border-red-500/60 text-red-300 hover:bg-red-500/30 hover:text-red-200 font-black text-sm uppercase tracking-[0.2em] transition-all active:scale-95"
+                >
+                  Open Dispute
+                </button>
+              </div>
             </div>
           </div>
         </div>

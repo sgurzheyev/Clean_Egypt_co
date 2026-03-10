@@ -43,29 +43,62 @@
     filter: invert(1); /* Чтобы иконки были белыми на темном фоне */
 }
 
-/* Luxury pyramid marker — faceted gemstone shape */
-.pyramid-shape {
+/* Luxury pyramid marker — faceted gemstone shape (base) */
+.pyramid-shape-city,
+.pyramid-shape-home {
   clip-path: polygon(50% 100%, 8% 18%, 50% 0%, 92% 18%);
+  background-size: 300% 300%;
+}
+
+/* City — RED/CORAL neon gradient */
+.pyramid-shape-city {
   background: linear-gradient(
     145deg,
-    #0f172a 0%,
-    #1e40af 18%,
-    #3b82f6 35%,
-    #6366f1 52%,
-    #7c3aed 70%,
-    #a855f7 88%,
-    #c084fc 100%
+    #dc2626 0%,
+    #ef4444 25%,
+    #f87171 50%,
+    #f97316 75%,
+    #fb923c 100%
   );
-  background-size: 300% 300%;
-  animation: pyramid-gradient 7s ease-in-out infinite;
+  animation: city-gradient 7s ease-in-out infinite;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
     inset -1px -1px 0 rgba(0, 0, 0, 0.25),
-    0 0 28px rgba(99, 102, 241, 0.35),
+    0 0 24px rgba(239, 68, 68, 0.4),
     0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
-@keyframes pyramid-gradient {
+@keyframes city-gradient {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  33% {
+    background-position: 100% 50%;
+  }
+  66% {
+    background-position: 50% 100%;
+  }
+}
+
+/* Home — NEON YELLOW/GOLD gradient */
+.pyramid-shape-home {
+  background: linear-gradient(
+    145deg,
+    #ca8a04 0%,
+    #eab308 25%,
+    #facc15 50%,
+    #fde047 75%,
+    #fef08a 100%
+  );
+  animation: home-gradient 7s ease-in-out infinite;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.2),
+    0 0 24px rgba(250, 204, 21, 0.45),
+    0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes home-gradient {
   0%, 100% {
     background-position: 0% 50%;
   }
@@ -78,11 +111,21 @@
 }
 
 /* Soft pulse and glow at pyramid base */
-.pyramid-glow {
+.pyramid-glow-city {
   background: radial-gradient(
     ellipse 80% 50% at 50% 100%,
-    rgba(99, 102, 241, 0.5) 0%,
-    rgba(124, 58, 237, 0.3) 30%,
+    rgba(239, 68, 68, 0.5) 0%,
+    rgba(249, 115, 22, 0.3) 30%,
+    rgba(0, 0, 0, 0) 70%
+  );
+  animation: pyramid-breathe 3s ease-in-out infinite;
+}
+
+.pyramid-glow-home {
+  background: radial-gradient(
+    ellipse 80% 50% at 50% 100%,
+    rgba(250, 204, 21, 0.5) 0%,
+    rgba(234, 179, 8, 0.3) 30%,
     rgba(0, 0, 0, 0) 70%
   );
   animation: pyramid-breathe 3s ease-in-out infinite;
