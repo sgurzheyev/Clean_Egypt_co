@@ -1305,6 +1305,16 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                       .eq('id', reviewJob.id);
                     if (error) throw error;
                     await fetchProfileData();
+                    // Best-effort Telegram notify; ignore errors
+                    try {
+                      await fetch('/api/notify-dispute', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ jobId: reviewJob.id }),
+                      });
+                    } catch {
+                      // ignore
+                    }
                     alert('Dispute opened. Support (Muhamed) will review photos and Telegram video.');
                   } catch (err: any) {
                     console.error('Dispute error:', err);

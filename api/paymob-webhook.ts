@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { sendTelegramAlert } from '../lib/telegram';
 import crypto from 'crypto';
 
 // Server-side Supabase client (service role). Never use VITE_* for this.
@@ -94,7 +95,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .maybeSingle();
 
       if (jobPending) {
-        const { error: jobErr } = await supabase.from('jobs').insert({
+        const { data: insertedJobs, error: jobErr } = await supabase.from('jobs').insert({
           creator_id: jobPending.creator_id,
           task_type: jobPending.task_type,
           amount: jobPending.amount,
@@ -103,10 +104,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           description: jobPending.description,
           creator_photos: jobPending.creator_photos || null,
           status: 'pending',
-        });
+        }).select('id').limit(1);
         if (jobErr) throw new Error("Supabase Error (job_creation): " + jobErr.message);
         await supabase.from('job_payment_pending').delete().eq('paymob_order_id', paymobOrderId);
         console.log(`Job created for Paymob order ${paymobOrderId}`);
+
+        // Notify Telegram admin about new funded mission (best-effort, non-blocking)
+        const msg =
+          `🟢 <b>NEW MISSION FUNDED!</b>\n` +
+          `Amount: ${jobPending.amount}\n` +
+          `Type: ${jobPending.task_type}\n` +
+          `Location: ${jobPending.location_lat}, ${jobPending.location_lng}`;
+        // Fire and forget; internal try/catch in helper
+        await sendTelegramAlert(msg);
+
         return res.status(200).send('OK');
       }
 
