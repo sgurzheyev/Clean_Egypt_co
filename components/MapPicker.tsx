@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import Map, { Marker, NavigationControl, GeolocateControl, MapRef } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import imageCompression from 'browser-image-compression';
 import { supabase } from '../lib/supabaseClient';
 import JobMarker from './JobMarker';
 
@@ -561,12 +562,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      // 1) Upload creator proof photos (if any)
+      // 1) Compress and upload creator proof photos (if any)
       let creatorPhotoUrls: string[] | undefined;
       if (orderPhotos.length > 0) {
         setUploadingProof(true);
         const uploaded: string[] = [];
+        const compressionOptions = {
+          maxSizeMB: 0.8,
+          maxWidthOrHeight: 1920,
+          useWebWorker: true,
+        };
+        const compressedFiles: File[] = [];
         for (const file of orderPhotos) {
+          try {
+            const compressed = await imageCompression(file, compressionOptions);
+            compressedFiles.push(compressed);
+          } catch (err) {
+            console.warn('Compression failed for', file.name, err);
+            compressedFiles.push(file);
+          }
+        }
+        for (const file of compressedFiles) {
           const ext = file.name.split('.').pop() || 'jpg';
           const fileName = `creator_${session.user.id}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
           const { error: uploadError } = await supabase.storage
@@ -820,11 +836,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   disabled={orderSubmitting || uploadingProof || !selectedLocation}
                   className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-not-allowed active:scale-[0.98]"
                 >
-                  {uploadingProof
-                    ? 'Uploading Proof Photos...'
-                    : orderSubmitting
-                      ? 'Processing...'
-                      : 'Submit Task & Pay'}
+                  {uploadingProof || orderSubmitting
+                    ? 'Processing...'
+                    : 'Submit Task & Pay'}
                 </button>
               </div>
             </form>
