@@ -556,8 +556,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
             </button>
           </div>
         </div>
-        <div className="px-5 py-6 flex flex-col items-center">
-          <div className="w-full max-w-md">
+        <div className="px-5 py-6">
+          <div className="w-full max-w-md mx-auto">
         {/* HEADER: Welcome + Wallet */}
         <header className="mb-8 text-white">
           <p className="text-sm text-slate-400 uppercase tracking-[0.2em]">
@@ -1136,6 +1136,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
       {/* CLEANING HISTORY (finished jobs for creator or cleaner) */}
       {userProfile && (
         <div className="px-5 pb-10">
+          <div className="w-full max-w-md mx-auto">
           <section className="mb-10 text-white">
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-400">
               📜 My Cleaning History
@@ -1214,6 +1215,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
               })()}
             </div>
           </section>
+          </div>
         </div>
       )}
 
