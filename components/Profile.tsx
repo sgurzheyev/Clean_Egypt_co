@@ -543,25 +543,27 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       />
       {/* Sliding drawer — Gemini-style animated border on outer edge */}
       <div
-        className="relative w-full max-w-lg h-full animate-slide-in-right animated-border animated-border-drawer overflow-hidden"
+        className="relative w-full max-w-lg h-full flex flex-col animate-slide-in-right animated-border animated-border-drawer overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="animated-border-inner w-full h-full overflow-y-auto bg-gradient-to-b from-slate-950 via-[#020617] to-slate-950 flex flex-col">
-        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 bg-black/80 backdrop-blur-xl border-b border-white/10">
-          <h1 className="text-lg font-bold text-white">Your Account</h1>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-              aria-label="Close"
-            >
-              ✕
-            </button>
+        <div className="animated-border-inner w-full h-full flex flex-col overflow-hidden bg-gradient-to-b from-slate-950 via-[#020617] to-slate-950">
+          {/* Header — fixed at top, never scrolls */}
+          <div className="flex-shrink-0 sticky top-0 z-20 flex items-center justify-between px-5 py-4 pb-4 bg-[#020617]/95 backdrop-blur border-b border-gray-800">
+            <h1 className="text-lg font-bold text-white">Your Account</h1>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
           </div>
-        </div>
-        <div className="px-5 pt-6 pb-24">
-          <div className="w-full max-w-md mx-auto">
+          {/* Scrollable content — job cards and forms */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4 pb-24">
+          <div className="w-full max-w-md mx-auto flex flex-col gap-6">
         {/* HEADER: Welcome + Wallet */}
         <header className="mb-8 text-white">
           <p className="text-sm text-slate-400 uppercase tracking-[0.2em]">
@@ -600,8 +602,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 onClick={() => setTaskType('city')}
                 className={`px-4 py-2 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all ${
                   taskType === 'city'
-                    ? 'bg-[#34d399] text-black'
-                    : 'bg-transparent text-slate-400 hover:text-[#34d399]'
+                    ? 'bg-[#22c55e] text-black'
+                    : 'bg-transparent text-slate-400 hover:text-[#22c55e]'
                 }`}
               >
                 City Cleaning
@@ -611,8 +613,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 onClick={() => setTaskType('home')}
                 className={`px-4 py-2 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all ${
                   taskType === 'home'
-                    ? 'bg-[#22d3ee] text-black'
-                    : 'bg-transparent text-slate-400 hover:text-[#22d3ee]'
+                    ? 'bg-[#f59e0b] text-black'
+                    : 'bg-transparent text-slate-400 hover:text-[#f59e0b]'
                 }`}
               >
                 Home Cleaning
@@ -719,7 +721,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
             )}
 
-            <div className={`w-full mt-1 animated-border rounded-full ${orderSubmitting ? 'opacity-60' : ''}`}>
+            <div className={`w-full mt-1 rounded-full ${taskType === 'city' ? 'animated-border-city' : 'animated-border-home'} ${orderSubmitting ? 'opacity-60' : ''}`}>
               <button
                 type="submit"
                 disabled={orderSubmitting}
@@ -738,11 +740,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           </h2>
           <div className="space-y-4">
             {loading ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {[1, 2].map((s) => (
                   <div
                     key={s}
-                    className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5 animate-pulse"
+                    className="bg-slate-900/60 rounded-xl border border-white/5 p-4 animate-pulse"
                   >
                     <div className="flex justify-between items-center mb-3">
                       <div className="h-4 w-16 bg-slate-700 rounded-full" />
@@ -760,7 +762,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 .map((job) => {
                 const bids = (jobBidsById[job.id] || []).filter((b) => b.status === 'pending');
                 return (
-                  <div key={job.id} className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5">
+                  <div key={job.id} className="bg-slate-900/60 rounded-xl border border-white/5 p-4">
                     <div className="flex justify-between items-start mb-2">
                       <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">#{shortId(job.id)}</span>
                       <span className="text-[10px] text-slate-500 uppercase tracking-wider">{new Date(job.created_at).toLocaleDateString()}</span>
@@ -816,7 +818,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                               className="flex items-center justify-between gap-3 py-2 px-3 rounded-xl bg-black/40 border border-white/5"
                             >
                               <span className="text-sm font-black text-amber-400">${bid.bid_amount}</span>
-                              <div className="animated-border rounded-full">
+                              <div className="rounded-full animated-border-home">
                                 <button
                                   type="button"
                                   onClick={() => handleAcceptBid(job, bid)}
@@ -881,7 +883,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 return (
                   <div
                     key={job.id}
-                    className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5"
+                    className="bg-slate-900/60 rounded-xl border border-white/5 p-4"
                   >
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
@@ -895,9 +897,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         <span className="text-2xl">{icon}</span>
                         <div>
                           <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
-                            {job.task_type} Mission
+                            {job.task_type.toUpperCase()} Mission
                           </p>
-                          <p className="text-xl font-black mt-1">${job.amount}</p>
+                          <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>${job.amount}</p>
                         </div>
                       </div>
                       {job.started_at && (
@@ -964,7 +966,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               (myCityJobs || [])
                 .filter((job) => job.status !== 'finished')
                 .map((job) => (
-                <div key={job.id} className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5">
+                <div key={job.id} className="bg-slate-900/60 rounded-xl border border-white/5 p-4">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
                     <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
@@ -1013,7 +1015,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               {[1, 2, 3].map((skeleton) => (
                 <div
                   key={skeleton}
-                  className="rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5 animate-pulse"
+                  className="bg-slate-900/60 rounded-xl border border-white/5 p-4 animate-pulse"
                 >
                   <div className="h-3 w-24 bg-slate-700 rounded-full mb-3" />
                   <div className="h-6 w-32 bg-slate-600 rounded-full mb-4" />
@@ -1040,9 +1042,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 .map((job) => {
                 const isHome = job.task_type === 'home';
                 const icon = isHome ? '🏠' : '🌆';
-                const                 badgeColor = isHome
-                  ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
-                  : 'bg-emerald-500/10 text-[#34d399] border-emerald-500/30';
+                const badgeColor = isHome
+                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
 
                 return (
                   <button
@@ -1056,14 +1058,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     }}
                     className="group w-full text-left cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all relative z-10"
                   >
-                    <div className="relative z-10 rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5 overflow-hidden transition-all duration-200 group-hover:border-[#34d399]/50">
+                    <div className={`relative z-10 bg-slate-900/60 rounded-xl border border-white/5 p-4 overflow-hidden transition-all duration-200 ${isHome ? 'group-hover:border-amber-500/50' : 'group-hover:border-emerald-500/50'}`}>
                       <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
                         <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
                       </div>
-                      {/* Декоративный градиент — pointer-events-none, не блокирует клики */}
                       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" aria-hidden>
-                        <div className="absolute -inset-32 bg-[radial-gradient(circle_at_top,_rgba(52,211,153,0.15),_transparent_60%)]" />
+                        <div className={`absolute -inset-32 ${isHome ? 'bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.12),_transparent_60%)]' : 'bg-[radial-gradient(circle_at_top,_rgba(52,211,153,0.12),_transparent_60%)]'}`} />
                       </div>
 
                       <div className="relative z-10 flex justify-between items-center">
@@ -1075,12 +1076,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
                               {job.task_type.toUpperCase()} Mission
                             </p>
-                            <p className="text-2xl font-black tracking-tight mt-1">${job.amount}</p>
+                            <p className={`text-2xl font-black tracking-tight mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>${job.amount}</p>
                           </div>
                         </div>
                         <div className="relative z-10 text-right">
                           <p className="text-[9px] text-slate-500 mb-1 uppercase tracking-widest">View on Map</p>
-                          <p className="text-xs font-bold text-[#34d399] group-hover:text-[#10b981]">→</p>
+                          <p className={`text-xs font-bold ${isHome ? 'text-amber-400 group-hover:text-amber-300' : 'text-emerald-400 group-hover:text-emerald-300'}`}>→</p>
                         </div>
                       </div>
                     </div>
@@ -1128,7 +1129,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   return (
                     <div
                       key={job.id}
-                      className="rounded-3xl bg-black/50 backdrop-blur-xl border border-white/5 p-5 opacity-80"
+                      className="bg-slate-900/60 rounded-xl border border-white/5 p-4 opacity-90"
                     >
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-[10px] text-slate-600 font-mono">
@@ -1145,10 +1146,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         <div className="flex items-center gap-3">
                           <span className="text-2xl opacity-90">{icon}</span>
                           <div>
-                            <p className="text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border border-white/10 text-slate-200">
-                              {job.task_type} Mission
+                            <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${isHome ? 'border-amber-500/30 text-amber-300' : 'border-emerald-500/30 text-emerald-400'}`}>
+                              {job.task_type.toUpperCase()} Mission
                             </p>
-                            <p className="text-xl font-black mt-1 text-slate-100">
+                            <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>
                               ${job.amount}
                             </p>
                           </div>
@@ -1303,7 +1304,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             {/* Sticky action buttons — always visible at bottom */}
             <div className="flex-shrink-0 sticky bottom-0 bg-black/90 backdrop-blur-md pt-4 pb-6 px-6 z-10 border-t border-gray-800">
               <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1 animated-border rounded-full">
+                <div className={`flex-1 rounded-full ${reviewJob?.task_type === 'home' ? 'animated-border-home' : 'animated-border-city'}`}>
                   <button
                     type="button"
                     onClick={async () => {
@@ -1420,7 +1421,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 <p className="text-xs text-emerald-400 font-medium">{proofSuccess}</p>
               )}
 
-              <div className={`w-full animated-border rounded-full ${proofSubmitting ? 'opacity-60' : ''}`}>
+              <div className={`w-full rounded-full ${proofJob?.task_type === 'home' ? 'animated-border-home' : 'animated-border-city'} ${proofSubmitting ? 'opacity-60' : ''}`}>
                 <button
                   type="submit"
                   disabled={proofSubmitting}

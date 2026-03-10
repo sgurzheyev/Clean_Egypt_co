@@ -420,26 +420,47 @@ const MapPicker: React.FC<MapPickerProps> = ({
     [onLocationSelect]
   );
 
-  const handleMarkerClick = useCallback(
-    async (job: JobOnMap) => {
-      if (job.task_type !== 'home') return;
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.user?.id) {
-        onRequestAuth?.();
-        return;
+  const [selectedMission, setSelectedMission] = useState<JobOnMap | null>(null);
+  const [isAccepting, setIsAccepting] = useState(false);
+
+  const handleMarkerClick = useCallback((job: JobOnMap) => {
+    setSelectedMission(job);
+  }, []);
+
+  const handleCloseMissionBriefing = useCallback(() => {
+    setSelectedMission(null);
+  }, []);
+
+  const handleAcceptMission = useCallback(
+    async (jobId: string) => {
+      setIsAccepting(true);
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const user = session?.user;
+        if (!user?.id) {
+          onRequestAuth?.();
+          return;
+        }
+        const { error } = await supabase
+          .from('jobs')
+          .update({ status: 'in_progress', worker_id: user.id })
+          .eq('id', jobId);
+
+        if (error) {
+          alert(error.message || 'Failed to accept mission. Please try again.');
+          return;
+        }
+        await fetchJobs();
+        handleCloseMissionBriefing();
+      } catch (err: any) {
+        alert(err?.message || 'Something went wrong. Please try again.');
+      } finally {
+        setIsAccepting(false);
       }
-      if (job.creator_id === session.user.id) {
-        alert('You cannot bid on your own job.');
-        return;
-      }
-      setBidJob(job);
-      setBidAmount('');
-      setBidError(null);
-      setBidSuccess(null);
     },
-    [onRequestAuth]
+    [fetchJobs, handleCloseMissionBriefing, onRequestAuth]
   );
 
   const handleCloseBidModal = useCallback(() => {
@@ -775,7 +796,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
               )}
 
-              <div className={`w-full mt-1 animated-border rounded-full ${orderSubmitting || uploadingProof || !selectedLocation ? 'opacity-60' : ''}`}>
+              <div className={`w-full mt-1 rounded-full ${taskType === 'city' ? 'animated-border-city' : 'animated-border-home'} ${orderSubmitting || uploadingProof || !selectedLocation ? 'opacity-60' : ''}`}>
                 <button
                   type="submit"
                   disabled={orderSubmitting || uploadingProof || !selectedLocation}
@@ -866,7 +887,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <p className="text-xs text-emerald-400 font-medium">{bidSuccess}</p>
               )}
 
-              <div className={`animated-border rounded-full ${bidSubmitting ? 'opacity-60' : ''}`}>
+              <div className={`rounded-full animated-border-home ${bidSubmitting ? 'opacity-60' : ''}`}>
                 <button
                   type="submit"
                   disabled={bidSubmitting}
@@ -876,6 +897,74 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 </button>
               </div>
             </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mission Briefing — bottom sheet when pyramid marker clicked */}
+      {selectedMission && (
+        <div
+          className="absolute inset-0 z-[95] flex items-end justify-center"
+          aria-hidden="false"
+        >
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={handleCloseMissionBriefing}
+            aria-hidden="true"
+          />
+          <div
+            className="relative w-full max-w-xl rounded-t-3xl bg-[#020617]/98 backdrop-blur-xl border-t border-x border-white/10 shadow-2xl p-6 animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-500">
+                MISSION BRIEFING
+              </h2>
+              <button
+                type="button"
+                onClick={handleCloseMissionBriefing}
+                className="p-2 -m-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{selectedMission.task_type === 'home' ? '🏠' : '🌆'}</span>
+                <div>
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${selectedMission.task_type === 'city' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {selectedMission.task_type === 'city' ? 'City Cleaning' : 'Home Cleaning'}
+                  </p>
+                  <p className="text-xs text-slate-500 font-mono">
+                    {selectedMission.location_lat.toFixed(5)}, {selectedMission.location_lng.toFixed(5)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="py-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">Reward</p>
+                <p className={`text-4xl sm:text-5xl font-black tracking-tight ${selectedMission.task_type === 'city' ? 'text-emerald-400' : 'text-amber-400'}`} style={{ textShadow: selectedMission.task_type === 'city' ? '0 0 24px rgba(52, 211, 153, 0.6)' : '0 0 24px rgba(251, 191, 36, 0.6)' }}>
+                  ${selectedMission.amount}
+                </p>
+              </div>
+
+              {selectedMission.description && (
+                <p className="text-sm text-slate-400">{selectedMission.description}</p>
+              )}
+            </div>
+
+            <div className={`w-full rounded-full ${selectedMission.task_type === 'city' ? 'animated-border-city' : 'animated-border-home'} ${isAccepting ? 'opacity-60' : ''}`}>
+              <button
+                type="button"
+                onClick={() => handleAcceptMission(selectedMission.id)}
+                disabled={isAccepting}
+                className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:cursor-wait"
+              >
+                {isAccepting ? 'Accepting...' : 'Clean My Wallet'}
+              </button>
             </div>
           </div>
         </div>

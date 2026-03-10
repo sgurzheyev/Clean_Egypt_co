@@ -88,6 +88,51 @@
   z-index: 0;
 }
 
+/* Task-specific borders: City = Green, Home = Yellow/Orange */
+.animated-border-city {
+  position: relative;
+  padding: 2px;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.animated-border-city::before {
+  content: '';
+  position: absolute;
+  inset: -100%;
+  width: 300%;
+  height: 300%;
+  left: 50%;
+  top: 50%;
+  margin-left: -150%;
+  margin-top: -150%;
+  background: conic-gradient(from 0deg, #15803d, #22c55e, #4ade80, #15803d);
+  animation: gemini-spin 4s linear infinite;
+  z-index: 0;
+}
+
+.animated-border-home {
+  position: relative;
+  padding: 2px;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.animated-border-home::before {
+  content: '';
+  position: absolute;
+  inset: -100%;
+  width: 300%;
+  height: 300%;
+  left: 50%;
+  top: 50%;
+  margin-left: -150%;
+  margin-top: -150%;
+  background: conic-gradient(from 0deg, #ca8a04, #f59e0b, #f97316, #ca8a04);
+  animation: gemini-spin 4s linear infinite;
+  z-index: 0;
+}
+
 /* Inner: dark background masks center, reveals gradient as border */
 .animated-border-inner {
   position: relative;
@@ -126,22 +171,21 @@
   background-size: 300% 300%;
 }
 
-/* City — NEON GREEN / ACID GREEN (UV accent) */
+/* City — Green to Neon Green (matches .animated-border-city) */
 .pyramid-shape-city {
   background: linear-gradient(
     145deg,
-    #059669 0%,
-    #10b981 25%,
-    #34d399 50%,
-    #00ffcc 75%,
-    #5eead4 100%
+    #15803d 0%,
+    #22c55e 40%,
+    #4ade80 70%,
+    #22c55e 100%
   );
   animation: city-gradient 7s ease-in-out infinite;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.2),
     inset -1px -1px 0 rgba(0, 0, 0, 0.25),
-    0 0 20px rgba(52, 211, 153, 0.4),
-    0 6px 24px rgba(0, 0, 0, 0.5);
+    0 0 14px rgba(34, 197, 94, 0.4),
+    0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
 @keyframes city-gradient {
@@ -156,22 +200,21 @@
   }
 }
 
-/* Home — BRIGHT CYAN / BLUE */
+/* Home — Yellow to Orange (matches .animated-border-home) */
 .pyramid-shape-home {
   background: linear-gradient(
     145deg,
-    #0891b2 0%,
-    #06b6d4 25%,
-    #22d3ee 50%,
-    #67e8f9 75%,
-    #a5f3fc 100%
+    #ca8a04 0%,
+    #f59e0b 40%,
+    #f97316 70%,
+    #f59e0b 100%
   );
   animation: home-gradient 7s ease-in-out infinite;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.25),
     inset -1px -1px 0 rgba(0, 0, 0, 0.2),
-    0 0 20px rgba(34, 211, 238, 0.4),
-    0 6px 24px rgba(0, 0, 0, 0.5);
+    0 0 14px rgba(249, 115, 22, 0.4),
+    0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
 @keyframes home-gradient {
@@ -190,8 +233,8 @@
 .pyramid-glow-city {
   background: radial-gradient(
     ellipse 80% 50% at 50% 100%,
-    rgba(52, 211, 153, 0.5) 0%,
-    rgba(16, 185, 129, 0.3) 30%,
+    rgba(34, 197, 94, 0.5) 0%,
+    rgba(22, 163, 74, 0.3) 30%,
     rgba(0, 0, 0, 0) 70%
   );
   animation: pyramid-breathe 3s ease-in-out infinite;
@@ -200,8 +243,8 @@
 .pyramid-glow-home {
   background: radial-gradient(
     ellipse 80% 50% at 50% 100%,
-    rgba(34, 211, 238, 0.5) 0%,
-    rgba(6, 182, 212, 0.3) 30%,
+    rgba(249, 115, 22, 0.5) 0%,
+    rgba(245, 158, 11, 0.3) 30%,
     rgba(0, 0, 0, 0) 70%
   );
   animation: pyramid-breathe 3s ease-in-out infinite;

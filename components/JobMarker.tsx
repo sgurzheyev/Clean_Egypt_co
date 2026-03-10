@@ -23,6 +23,7 @@ const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label, onClick
 
   const pyramidShapeClass = isHome ? 'pyramid-shape-home' : 'pyramid-shape-city';
   const pyramidGlowClass = isHome ? 'pyramid-glow-home' : 'pyramid-glow-city';
+  const pillBorderClass = isHome ? 'animated-border-home' : 'animated-border-city';
 
   return (
     <button
@@ -35,17 +36,18 @@ const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label, onClick
       style={{ transform: `scale(${scale})`, transformOrigin: 'bottom center' }}
       aria-label={`${orderType} mission $${amount}`}
     >
-      {/* Floating pill label — above pyramid (Gemini-style animated border) */}
+      {/* Floating pill label — task-colored animated border */}
       <div
         className={[
-          'absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full z-20',
-          'animated-border rounded-full',
+          'absolute -top-0.5 left-1/2 -translate-x-1/2 -translate-y-full z-20',
+          'rounded-full',
+          pillBorderClass,
           'transition-transform duration-300 ease-out',
           entered ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0',
           'group-hover:scale-105',
         ].join(' ')}
       >
-        <div className="animated-border-inner px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-[0.12em] min-w-[2rem] text-white bg-[#020617]">
+        <div className="animated-border-inner px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.1em] min-w-[1.75rem] text-white bg-[#020617]">
           ${amount}
         </div>
       </div>
@@ -61,14 +63,14 @@ const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label, onClick
       >
         {/* Base glow — soft pulse, hover/breathe */}
         <div
-          className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-16 h-4 rounded-full pointer-events-none ${pyramidGlowClass}`}
+          className={`absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full pointer-events-none ${pyramidGlowClass}`}
           aria-hidden
         />
 
-        {/* Faceted pyramid — gemstone shape */}
-        <div className={`relative w-14 h-16 flex items-start justify-center pt-1.5 ${pyramidShapeClass}`}>
+        {/* Faceted pyramid — gemstone shape (small base) */}
+        <div className={`relative w-7 h-9 flex items-start justify-center pt-0.5 ${pyramidShapeClass}`}>
           {/* Icon — centered in top facet */}
-          <span className="text-base leading-none drop-shadow-[0_0_4px_rgba(0,0,0,0.8)] z-10">
+          <span className="text-[10px] leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.8)] z-10">
             {icon}
           </span>
         </div>
