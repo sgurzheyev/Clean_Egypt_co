@@ -133,6 +133,29 @@
   z-index: 0;
 }
 
+/* Rainbow/Gemini draft pin border */
+.animated-border-rainbow {
+  position: relative;
+  padding: 2px;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.animated-border-rainbow::before {
+  content: '';
+  position: absolute;
+  inset: -100%;
+  width: 300%;
+  height: 300%;
+  left: 50%;
+  top: 50%;
+  margin-left: -150%;
+  margin-top: -150%;
+  background: conic-gradient(from 0deg, #4285f4, #9b72cb, #d96570, #fbbc04, #4285f4);
+  animation: gemini-spin 4s linear infinite;
+  z-index: 0;
+}
+
 /* Inner: dark background masks center, reveals gradient as border */
 .animated-border-inner {
   position: relative;
@@ -166,9 +189,20 @@
 
 /* Luxury pyramid marker — faceted gemstone shape (base) */
 .pyramid-shape-city,
-.pyramid-shape-home {
+.pyramid-shape-home,
+.pyramid-shape-draft {
   clip-path: polygon(50% 100%, 8% 18%, 50% 0%, 92% 18%);
   background-size: 300% 300%;
+}
+
+/* Draft — Rainbow/Gemini multi-color */
+.pyramid-shape-draft {
+  background: linear-gradient(to bottom right, #4285f4, #9b72cb, #d96570, #fbbc04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.2),
+    0 0 16px rgba(155, 114, 203, 0.5),
+    0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
 /* City — Green to Neon Green (matches .animated-border-city) */
@@ -245,6 +279,16 @@
     ellipse 80% 50% at 50% 100%,
     rgba(249, 115, 22, 0.5) 0%,
     rgba(245, 158, 11, 0.3) 30%,
+    rgba(0, 0, 0, 0) 70%
+  );
+  animation: pyramid-breathe 3s ease-in-out infinite;
+}
+
+.pyramid-glow-draft {
+  background: radial-gradient(
+    ellipse 80% 50% at 50% 100%,
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(155, 114, 203, 0.3) 30%,
     rgba(0, 0, 0, 0) 70%
   );
   animation: pyramid-breathe 3s ease-in-out infinite;

@@ -632,10 +632,28 @@ const MapPicker: React.FC<MapPickerProps> = ({
             <JobMarker
               amount={job.amount}
               orderType={job.task_type === 'home' ? 'home' : 'city'}
-              onClick={() => handleMarkerClick(job)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMarkerClick(job);
+              }}
             />
           </Marker>
         ))}
+
+        {/* Draft pin — rainbow pyramid when user drops a pin on the map */}
+        {selectedLocation && (
+          <Marker
+            latitude={selectedLocation.lat}
+            longitude={selectedLocation.lng}
+            anchor="bottom"
+          >
+            <JobMarker
+              amount={0}
+              orderType="city"
+              isDraft
+            />
+          </Marker>
+        )}
       </Map>
 
       {/* Minimalist overlays — wrapper is pointer-events-none so map stays interactive */}
