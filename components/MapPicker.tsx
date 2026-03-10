@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import Map, { Marker, NavigationControl, GeolocateControl } from 'react-map-gl';
+import Map, { Marker, NavigationControl, GeolocateControl, MapRef } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '../lib/supabaseClient';
+import JobMarker from './JobMarker';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -24,6 +25,8 @@ interface MapPickerProps {
   selectedCoords?: { lat: number; lng: number } | null;
   onAvatarClick?: () => void;
   onRequestAuth?: () => void;
+  flyToTarget?: { lat: number; lng: number } | null;
+  onFlyToComplete?: () => void;
   orders?: any[]; // legacy, ignored
   currentAmount?: number; // legacy
   currentType?: 'home' | 'city'; // legacy
@@ -186,7 +189,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
   selectedCoords = null,
   onAvatarClick,
   onRequestAuth,
+  flyToTarget,
+  onFlyToComplete,
 }) => {
+  const mapRef = React.useRef<MapRef>(null);
   const [viewState, setViewState] = useState({
     latitude: 27.2579,
     longitude: 33.8116,
@@ -282,6 +288,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
     window.addEventListener('paymentSuccess', onPaymentSuccess);
     return () => window.removeEventListener('paymentSuccess', onPaymentSuccess);
   }, [fetchJobs]);
+
+  // Fly to job location when requested from Profile "View on Map"
+  useEffect(() => {
+    if (!flyToTarget || !mapRef.current) return;
+    const map = mapRef.current.getMap();
+    if (!map) return;
+    map.flyTo({
+      center: [flyToTarget.lng, flyToTarget.lat],
+      zoom: 16,
+      essential: true,
+      duration: 2000,
+    });
+    onFlyToComplete?.();
+  }, [flyToTarget, onFlyToComplete]);
 
   const PENDING_SUBMIT_KEY = 'cleaneypt_pending_submit';
 
@@ -565,9 +585,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     <div className="w-full h-screen relative bg-black overflow-hidden">
       {/* Full-screen 3D map — no blocking overlays */}
       <Map
-        ref={(ref) => {
-          // keep react-map-gl ref stable
-        }}
+        ref={mapRef}
         {...viewState}
         onMove={(evt) => setViewState(evt.viewState)}
         onClick={handleMapClick}
@@ -582,33 +600,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
         />
         <NavigationControl position="bottom-right" showCompass={false} />
 
-        {/* Job markers as pills */}
-        {(jobs || []).map((job) => {
-          const isCity = job.task_type === 'city';
-          const pillClasses = isCity
-            ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-black'
-            : 'bg-gradient-to-r from-amber-300 to-amber-500 text-black';
-
-          return (
-            <Marker
-              key={job.id}
-              latitude={job.location_lat}
-              longitude={job.location_lng}
-              anchor="bottom"
-            >
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleMarkerClick(job);
-                }}
-                className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-[0.16em] shadow-lg cursor-pointer select-none transition-transform hover:scale-110 active:scale-95 ${pillClasses}`}
-              >
-                ${job.amount}
-              </button>
-            </Marker>
-          );
-        })}
+        {/* Job markers — luxury pyramids */}
+        {(jobs || []).map((job) => (
+          <Marker
+            key={job.id}
+            latitude={job.location_lat}
+            longitude={job.location_lng}
+            anchor="bottom"
+          >
+            <JobMarker
+              amount={job.amount}
+              orderType={job.task_type === 'home' ? 'home' : 'city'}
+              onClick={() => handleMarkerClick(job)}
+            />
+          </Marker>
+        ))}
       </Map>
 
       {/* Minimalist overlays — wrapper is pointer-events-none so map stays interactive */}

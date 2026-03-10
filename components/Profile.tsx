@@ -6,6 +6,7 @@ interface ProfileProps {
   isOpen: boolean;
   onClose: () => void;
   session: any;
+  onNavigateToJob?: (lat: number, lng: number) => void;
 }
 
 interface Job {
@@ -42,7 +43,7 @@ interface ProfileRow {
   full_name?: string | null;
 }
 
-const SUPPORT_TELEGRAM = 'https://t.me/cleanegypt';
+const SUPPORT_TELEGRAM = 'https://t.me/CleanEgypt_Admin_Bot';
 
 const shortId = (id: unknown): string => {
   if (id == null) return 'N/A';
@@ -75,7 +76,7 @@ function JobTimer({ startedAt }: { startedAt: string }) {
   return <span className="tabular-nums text-emerald-400 font-bold">{elapsed}</span>;
 }
 
-const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session }) => {
+const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, onNavigateToJob }) => {
   const [balance, setBalance] = useState(0);
   const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);
   const [myCityJobs, setMyCityJobs] = useState<Job[]>([]);
@@ -478,6 +479,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
 
       await fetchProfileData();
       await fetchMarketplaceJobs();
+
+      setTimeout(() => closeProofModal(), 2500);
     } catch (err: any) {
       console.error('Proof upload error:', err);
       setProofError(err?.message || 'Failed to upload photos. Please try again.');
@@ -795,7 +798,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                       <div className="mt-4 p-4 rounded-2xl bg-red-500/10 border border-red-500/30">
                         <p className="text-red-300 text-sm font-medium mb-2">Mission in dispute. Contact support:</p>
                         <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer" className="text-emerald-400 font-bold underline hover:text-emerald-300">
-                          {SUPPORT_TELEGRAM}
+                          @CleanEgypt_Admin_Bot
                         </a>
                       </div>
                     )}
@@ -1042,7 +1045,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                   <button
                     key={job.id}
                     type="button"
-                    onClick={onClose}
+                    onClick={() => {
+                      if (onNavigateToJob && typeof job.location_lat === 'number' && typeof job.location_lng === 'number') {
+                        onNavigateToJob(job.location_lat, job.location_lng);
+                      }
+                      onClose();
+                    }}
                     className="group w-full text-left cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all relative z-10"
                   >
                     <div className="relative z-10 rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5 overflow-hidden transition-all duration-200 group-hover:border-emerald-500/40 group-hover:shadow-[0_0_24px_rgba(52,211,153,0.25)]">

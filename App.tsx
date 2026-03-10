@@ -10,6 +10,7 @@ const App: React.FC = () => {
   const location = useLocation();
   const [session, setSession] = useState<any>(null);
   const [showProfileOverlay, setShowProfileOverlay] = useState(false);
+  const [flyToTarget, setFlyToTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [showAuthOverlay, setShowAuthOverlay] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentSuccessType, setPaymentSuccessType] = useState<'job' | 'deposit'>('job');
@@ -60,6 +61,8 @@ const App: React.FC = () => {
           selectedCoords={null}
           onAvatarClick={handleAvatarClick}
           onRequestAuth={() => setShowAuthOverlay(true)}
+          flyToTarget={flyToTarget}
+          onFlyToComplete={() => setFlyToTarget(null)}
         />
       </div>
 
@@ -68,6 +71,10 @@ const App: React.FC = () => {
         isOpen={showProfileOverlay}
         onClose={handleCloseProfile}
         session={session}
+        onNavigateToJob={(lat, lng) => {
+          setFlyToTarget({ lat, lng });
+          handleCloseProfile();
+        }}
       />
 
       {/* Auth overlay */}
