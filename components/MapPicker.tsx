@@ -272,7 +272,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [fetchJobs]);
 
   useEffect(() => {
-    const onPaymentSuccess = () => fetchJobs();
+    const onPaymentSuccess = () => {
+      // Initial refresh
+      fetchJobs();
+      // Simple polling to wait for webhook to finish inserting the job
+      setTimeout(() => fetchJobs(), 1500);
+      setTimeout(() => fetchJobs(), 4000);
+    };
     window.addEventListener('paymentSuccess', onPaymentSuccess);
     return () => window.removeEventListener('paymentSuccess', onPaymentSuccess);
   }, [fetchJobs]);
