@@ -14,6 +14,8 @@ interface Job {
   worker_id: string | null;
   task_type: 'city' | 'home' | string;
   amount: number;
+  location_lat?: number | null;
+  location_lng?: number | null;
   status: string;
   description?: string | null;
   created_at: string;
@@ -70,6 +72,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  // Worker finish-mission modal
+  const [finishJob, setFinishJob] = useState<Job | null>(null);
+  const [finishPhoto, setFinishPhoto] = useState<File | null>(null);
+  const [finishSubmitting, setFinishSubmitting] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
+  const [finishSuccess, setFinishSuccess] = useState<string | null>(null);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -164,7 +173,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
 
       const { data: homeJobsData } = await supabase
         .from('jobs')
-        .select('id, creator_id, worker_id, task_type, amount, status, description, created_at')
+        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at')
         .eq('creator_id', userId)
         .eq('task_type', 'home')
         .order('created_at', { ascending: false });
@@ -172,7 +181,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
 
       const { data: cityJobsData } = await supabase
         .from('jobs')
-        .select('id, creator_id, worker_id, task_type, amount, status, description, created_at')
+        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at')
         .eq('creator_id', userId)
         .eq('task_type', 'city')
         .order('created_at', { ascending: false });
@@ -180,9 +189,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
 
       const { data: activeJobsData } = await supabase
         .from('jobs')
-        .select('id, creator_id, worker_id, task_type, amount, status, description, created_at')
+        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at')
         .eq('worker_id', userId)
-        .in('status', ['in_progress', 'in_review'])
+        .in('status', ['in_progress', 'completed', 'finished'])
         .order('created_at', { ascending: false });
       setMyActiveJobs((activeJobsData || []) as Job[]);
 
@@ -219,7 +228,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
 
       const { data, error } = await supabase
         .from('jobs')
-        .select('id, creator_id, worker_id, task_type, amount, status, description, created_at')
+        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at')
         .eq('status', 'pending')
         .is('worker_id', null)
         .order('created_at', { ascending: false })
@@ -360,6 +369,116 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
     } catch (err) {
       console.error(err);
       alert('Failed to delete. Please try again.');
+    }
+  };
+
+  const openNavigate = (job: Job) => {
+    const lat = job.location_lat;
+    const lng = job.location_lng;
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      alert('This job does not have coordinates yet.');
+      return;
+    }
+    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openFinishModal = (job: Job) => {
+    setFinishJob(job);
+    setFinishPhoto(null);
+    setFinishError(null);
+    setFinishSuccess(null);
+  };
+
+  const closeFinishModal = () => {
+    if (finishSubmitting) return;
+    setFinishJob(null);
+    setFinishPhoto(null);
+    setFinishError(null);
+    setFinishSuccess(null);
+  };
+
+  const submitFinishMission = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFinishError(null);
+    setFinishSuccess(null);
+    if (!finishJob) return;
+    if (!finishPhoto) {
+      setFinishError('Please upload a completion photo to finish the mission.');
+      return;
+    }
+
+    try {
+      setFinishSubmitting(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) throw new Error('You must be signed in.');
+
+      // 1) Upload proof photo
+      const ext = finishPhoto.name.split('.').pop() || 'jpg';
+      const fileName = `job_${finishJob.id}_finish_${session.user.id}_${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('order-photos')
+        .upload(fileName, finishPhoto, { upsert: false });
+      if (uploadError) throw uploadError;
+
+      // 2) Mark job completed (try to persist the photo url if column exists; fallback otherwise)
+      const { data: { publicUrl } } = supabase.storage.from('order-photos').getPublicUrl(fileName);
+      const updateWithUrl = await supabase
+        .from('jobs')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .update({ status: 'completed', completed_photo_url: publicUrl } as any)
+        .eq('id', finishJob.id);
+      if (updateWithUrl.error) {
+        const updateBare = await supabase.from('jobs').update({ status: 'completed' }).eq('id', finishJob.id);
+        if (updateBare.error) throw updateBare.error;
+      }
+
+      setFinishSuccess('Success! Waiting for client to release payment.');
+      await fetchProfileData();
+      await fetchMarketplaceJobs();
+    } catch (err: any) {
+      console.error('Finish mission error:', err);
+      setFinishError(err?.message || 'Failed to finish mission. Please try again.');
+    } finally {
+      setFinishSubmitting(false);
+    }
+  };
+
+  const handleConfirmReleasePay = async (job: Job) => {
+    if (!job.worker_id) {
+      alert('No worker assigned to this job yet.');
+      return;
+    }
+    if (!window.confirm('Confirm completion and release payment to the worker?')) return;
+    try {
+      const exchangeRate = 50;
+      const payoutEgp = Math.round((job.amount || 0) * exchangeRate);
+
+      const { data: workerProfile, error: workerErr } = await supabase
+        .from('profiles')
+        .select('id, balance_egp')
+        .eq('id', job.worker_id)
+        .maybeSingle();
+      if (workerErr) throw workerErr;
+
+      const currentBalance = (workerProfile?.balance_egp ?? 0) as number;
+      const { error: balanceErr } = await supabase
+        .from('profiles')
+        .update({ balance_egp: currentBalance + payoutEgp })
+        .eq('id', job.worker_id);
+      if (balanceErr) throw balanceErr;
+
+      const { error: jobErr } = await supabase
+        .from('jobs')
+        .update({ status: 'finished' })
+        .eq('id', job.id);
+      if (jobErr) throw jobErr;
+
+      await fetchProfileData();
+      alert('Payment released.');
+    } catch (err: any) {
+      console.error('Release pay error:', err);
+      alert(err?.message || 'Failed to release payment.');
     }
   };
 
@@ -601,6 +720,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                     <div className="flex justify-between items-start mb-3">
                       <span className={`text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider ${
                         job.status === 'in_progress' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' :
+                        job.status === 'completed' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' :
+                        job.status === 'finished' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' :
                         job.status === 'disputed' ? 'bg-red-500/20 text-red-400 border border-red-500/40' :
                         'bg-white/10 text-slate-400 border border-white/10'
                       }`}>
@@ -663,6 +784,22 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                     {job.status === 'pending' && bids.length === 0 && (
                       <p className="text-slate-500 text-xs italic mt-2">No bids yet. Workers can bid from the map.</p>
                     )}
+
+                    {/* Client actions */}
+                    {job.status === 'completed' && job.worker_id && (
+                      <div className="mt-4">
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmReleasePay(job)}
+                          className="w-full py-3 rounded-full bg-emerald-500 text-black font-black text-xs uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:brightness-110 transition-all active:scale-95"
+                        >
+                          Confirm & Release Pay
+                        </button>
+                        <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
+                          Worker submitted completion photo. Confirm to release payment.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -683,6 +820,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                 const isHome = job.task_type === 'home';
                 const icon = isHome ? '🏠' : '🌆';
                 const badgeColor = isHome ? 'bg-amber-400/10 text-amber-300 border-amber-500/30' : 'bg-emerald-400/10 text-emerald-300 border-emerald-500/30';
+                const statusPill =
+                  job.status === 'in_progress'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                    : job.status === 'completed'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                      : 'bg-white/10 text-slate-400 border border-white/10';
                 return (
                   <div
                     key={job.id}
@@ -692,8 +835,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                       <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
                       <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
                     </div>
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-3 border border-emerald-500/40">
-                      🟢 In Progress
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-3 ${statusPill}`}>
+                      {job.status === 'in_progress' ? '🟢 In Progress' : job.status === 'completed' ? '🟠 Completed' : job.status.toUpperCase()}
                     </div>
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-3">
@@ -708,6 +851,39 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                     </div>
                     {job.description && (
                       <p className="text-xs text-slate-400 mt-2">{job.description}</p>
+                    )}
+
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => openNavigate(job)}
+                        className="w-full py-3 rounded-full border border-emerald-500/50 text-emerald-300 hover:text-emerald-200 hover:border-emerald-400/70 bg-black/40 backdrop-blur-md text-[11px] font-black uppercase tracking-[0.2em] transition-all active:scale-95"
+                      >
+                        Navigate
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openFinishModal(job)}
+                        disabled={job.status !== 'in_progress'}
+                        className={`w-full py-3 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 ${
+                          job.status === 'in_progress'
+                            ? 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.6)] hover:brightness-110'
+                            : 'bg-white/5 text-slate-500 cursor-not-allowed'
+                        }`}
+                      >
+                        Finish mission
+                      </button>
+                    </div>
+
+                    {job.status === 'completed' && (
+                      <p className="mt-3 text-[10px] text-amber-300 uppercase tracking-wider">
+                        Waiting for client to confirm & release payment
+                      </p>
+                    )}
+                    {job.status === 'finished' && (
+                      <p className="mt-3 text-[10px] text-emerald-300 uppercase tracking-wider">
+                        Payment released
+                      </p>
                     )}
                   </div>
                 );
@@ -740,6 +916,21 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                   <p className="text-xs text-slate-400">
                     Your donation on the map. Workers can pick it up in the marketplace.
                   </p>
+
+                  {job.status === 'completed' && job.worker_id && (
+                    <div className="mt-4">
+                      <button
+                        type="button"
+                        onClick={() => handleConfirmReleasePay(job)}
+                        className="w-full py-3 rounded-full bg-emerald-500 text-black font-black text-xs uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:brightness-110 transition-all active:scale-95"
+                      >
+                        Confirm & Release Pay
+                      </button>
+                      <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
+                        Worker marked job completed. Confirm to release payment.
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))
             )}
@@ -884,6 +1075,91 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Worker modal: finish mission with photo */}
+      {finishJob && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={closeFinishModal}
+          aria-hidden="false"
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-black/90 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-lg font-black uppercase tracking-[0.18em] text-white">
+                Finish mission
+              </h3>
+              <button
+                type="button"
+                onClick={closeFinishModal}
+                disabled={finishSubmitting}
+                className="text-slate-400 hover:text-white text-lg font-bold disabled:opacity-40 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="rounded-2xl bg-black/40 border border-white/10 px-4 py-3 mb-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
+                Mission
+              </p>
+              <p className="text-white font-bold">
+                {finishJob.task_type.toUpperCase()} • ${finishJob.amount}
+              </p>
+              {finishJob.description && (
+                <p className="text-xs text-slate-400 mt-1">{finishJob.description}</p>
+              )}
+            </div>
+
+            <form onSubmit={submitFinishMission} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                  Upload completion photo (required)
+                </label>
+                <label className="flex h-[56px] items-center justify-center rounded-2xl border border-dashed border-amber-500/50 bg-amber-500/10 text-[11px] text-amber-200 cursor-pointer hover:border-amber-400 hover:bg-amber-500/15 transition-all">
+                  {finishPhoto ? 'Photo selected' : 'Tap to upload photo'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] || null;
+                      setFinishPhoto(f);
+                      setFinishError(null);
+                      setFinishSuccess(null);
+                    }}
+                  />
+                </label>
+              </div>
+
+              {finishError && (
+                <p className="text-xs text-red-400 font-medium">{finishError}</p>
+              )}
+              {finishSuccess && (
+                <p className="text-xs text-emerald-400 font-medium">{finishSuccess}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={finishSubmitting}
+                className={`w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all ${
+                  finishSubmitting
+                    ? 'opacity-60 cursor-wait bg-amber-500/30 text-amber-200'
+                    : 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.7)] hover:brightness-110 active:scale-95'
+                }`}
+              >
+                {finishSubmitting ? 'Submitting...' : 'Submit & mark completed'}
+              </button>
+
+              <p className="text-[10px] text-slate-500 text-center uppercase tracking-wider">
+                After you submit, the client must confirm to release payment.
+              </p>
+            </form>
           </div>
         </div>
       )}
