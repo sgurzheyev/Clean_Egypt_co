@@ -1,13 +1,13 @@
 import React from 'react';
 
 // Интерфейс данных маркера на основе твоей SQL структуры
-interface PyramidMarkerProps {
+interface JobMarkerProps {
   amount: number;       // Сумма заказа ($1 - $500)
   orderType: 'home' | 'city'; // Тип: Дом (золото) или Город (градиент)
   label?: string;       // Текст задания
 }
 
-const PyramidMarker: React.FC<PyramidMarkerProps> = ({ amount, orderType, label }) => {
+const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label }) => {
   
   // 1. Расчет РАЗМЕРА: от 20px (минимум) до 120px (максимум для $500)
   // Масштабируем так, чтобы "жирные" заказы были реально огромными на карте
@@ -95,4 +95,4 @@ const PyramidMarker: React.FC<PyramidMarkerProps> = ({ amount, orderType, label 
   );
 };
 
-export default PyramidMarker;
+export default JobMarker;

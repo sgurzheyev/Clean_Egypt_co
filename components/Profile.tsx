@@ -992,7 +992,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
         </section>
 
         {/* GLOBAL MARKETPLACE */}
-        <section className="text-white pointer-events-auto relative z-10">
+        <section className="mb-10 text-white pointer-events-auto relative z-10">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-emerald-400/90">
             🌍 Global Marketplace
           </h2>
@@ -1080,63 +1080,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
           )}
         </section>
 
-          </div>
-        </div>
-      </div>
-
-      {/* Verification required modal */}
-      {showVerificationPrompt && (
-        <div
-          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
-          onClick={() => setShowVerificationPrompt(false)}
-        >
-          <div
-            className="relative z-[9999] w-full max-w-md rounded-3xl bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-white font-bold text-lg mb-2">Verification Required</p>
-            <p className="text-slate-400 text-sm mb-6">
-              {userProfile?.verification_status === 'pending'
-                ? 'Your documents are under review. Check your profile for status updates.'
-                : 'Only verified workers (with ID verification) can take home missions.'}
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowVerificationPrompt(false)}
-                className="flex-1 py-3 rounded-full border border-white/20 text-slate-400 hover:text-white font-bold text-sm transition-colors"
-              >
-                Close
-              </button>
-              {userProfile?.verification_status !== 'pending' ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowVerificationPrompt(false);
-                    navigate('/verify');
-                  }}
-                  className="flex-1 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-sm shadow-[0_0_20px_rgba(52,211,153,0.5)] transition-colors"
-                >
-                  Verify Now
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="flex-1 py-3 rounded-full bg-white/10 text-slate-500 font-black text-sm cursor-not-allowed"
-                >
-                  Documents Pending
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CLEANING HISTORY (finished jobs for creator or cleaner) */}
-      {userProfile && (
-        <div className="px-5 pb-10">
-          <div className="w-full max-w-md mx-auto">
+        {/* CLEANING HISTORY (finished jobs for creator or cleaner) */}
+        {userProfile && (
           <section className="mb-10 text-white">
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-400">
               📜 My Cleaning History
@@ -1215,6 +1160,57 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session })
               })()}
             </div>
           </section>
+        )}
+
+          </div>
+        </div>
+      </div>
+
+      {/* Verification required modal */}
+      {showVerificationPrompt && (
+        <div
+          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+          onClick={() => setShowVerificationPrompt(false)}
+        >
+          <div
+            className="relative z-[9999] w-full max-w-md rounded-3xl bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-white font-bold text-lg mb-2">Verification Required</p>
+            <p className="text-slate-400 text-sm mb-6">
+              {userProfile?.verification_status === 'pending'
+                ? 'Your documents are under review. Check your profile for status updates.'
+                : 'Only verified workers (with ID verification) can take home missions.'}
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowVerificationPrompt(false)}
+                className="flex-1 py-3 rounded-full border border-white/20 text-slate-400 hover:text-white font-bold text-sm transition-colors"
+              >
+                Close
+              </button>
+              {userProfile?.verification_status !== 'pending' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowVerificationPrompt(false);
+                    navigate('/verify');
+                  }}
+                  className="flex-1 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-sm shadow-[0_0_20px_rgba(52,211,153,0.5)] transition-colors"
+                >
+                  Verify Now
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="flex-1 py-3 rounded-full bg-white/10 text-slate-500 font-black text-sm cursor-not-allowed"
+                >
+                  Documents Pending
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
