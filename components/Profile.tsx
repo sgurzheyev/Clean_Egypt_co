@@ -541,11 +541,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         onClick={onClose}
         aria-hidden="true"
       />
-      {/* Sliding drawer */}
+      {/* Sliding drawer — Gemini-style animated border on outer edge */}
       <div
-        className="relative w-full max-w-lg h-full overflow-y-auto bg-gradient-to-b from-slate-950 via-black to-slate-950 shadow-2xl animate-slide-in-right"
+        className="relative w-full max-w-lg h-full animate-slide-in-right animated-border animated-border-drawer overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="animated-border-inner w-full h-full overflow-y-auto bg-gradient-to-b from-slate-950 via-[#020617] to-slate-950 flex flex-col">
         <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 bg-black/80 backdrop-blur-xl border-b border-white/10">
           <h1 className="text-lg font-bold text-white">Your Account</h1>
           <div className="flex items-center gap-2">
@@ -599,8 +600,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 onClick={() => setTaskType('city')}
                 className={`px-4 py-2 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all ${
                   taskType === 'city'
-                    ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-black shadow-[0_0_18px_rgba(16,185,129,0.6)]'
-                    : 'bg-transparent text-slate-400 hover:text-emerald-300'
+                    ? 'bg-[#34d399] text-black'
+                    : 'bg-transparent text-slate-400 hover:text-[#34d399]'
                 }`}
               >
                 City Cleaning
@@ -610,21 +611,23 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 onClick={() => setTaskType('home')}
                 className={`px-4 py-2 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all ${
                   taskType === 'home'
-                    ? 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_18px_rgba(251,191,36,0.6)]'
-                    : 'bg-transparent text-slate-400 hover:text-amber-200'
+                    ? 'bg-[#22d3ee] text-black'
+                    : 'bg-transparent text-slate-400 hover:text-[#22d3ee]'
                 }`}
               >
                 Home Cleaning
               </button>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[11px] text-slate-300 hover:text-white hover:border-emerald-500/40 hover:shadow-[0_0_16px_rgba(16,185,129,0.25)] transition-all flex items-center gap-2 font-bold uppercase tracking-[0.16em]"
-            >
-              <span>🗺️</span>
-              <span>Close & Back to Map</span>
-            </button>
+            <div className="animated-border rounded-full">
+              <button
+                type="button"
+                onClick={onClose}
+                className="animated-border-inner px-4 py-2.5 rounded-full text-[11px] text-white bg-[#020617] hover:brightness-110 transition-all flex items-center gap-2 font-bold uppercase tracking-[0.16em]"
+              >
+                <span>🗺️</span>
+                <span>Close & Back to Map</span>
+              </button>
+            </div>
           </div>
 
           <form
@@ -716,17 +719,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
             )}
 
-            <button
-              type="submit"
-              disabled={orderSubmitting}
-              className={`w-full mt-1 rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all ${
-                taskType === 'city'
-                  ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-black shadow-[0_0_24px_rgba(16,185,129,0.7)] hover:brightness-110'
-                  : 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.7)] hover:brightness-110'
-              } ${orderSubmitting ? 'opacity-60 cursor-wait' : 'active:scale-95'}`}
-            >
-              {orderSubmitting ? 'Processing...' : 'Submit Task & Pay'}
-            </button>
+            <div className={`w-full mt-1 animated-border rounded-full ${orderSubmitting ? 'opacity-60' : ''}`}>
+              <button
+                type="submit"
+                disabled={orderSubmitting}
+                className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-wait active:scale-[0.98]"
+              >
+                {orderSubmitting ? 'Processing...' : 'Submit Task & Pay'}
+              </button>
+            </div>
           </form>
         </header>
 
@@ -815,13 +816,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                               className="flex items-center justify-between gap-3 py-2 px-3 rounded-xl bg-black/40 border border-white/5"
                             >
                               <span className="text-sm font-black text-amber-400">${bid.bid_amount}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleAcceptBid(job, bid)}
-                                className="px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.16em] bg-emerald-500 text-black shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:brightness-110 transition-all active:scale-95"
-                              >
-                                Accept bid
-                              </button>
+                              <div className="animated-border rounded-full">
+                                <button
+                                  type="button"
+                                  onClick={() => handleAcceptBid(job, bid)}
+                                  className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
+                                >
+                                  Accept bid
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1037,9 +1040,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 .map((job) => {
                 const isHome = job.task_type === 'home';
                 const icon = isHome ? '🏠' : '🌆';
-                const badgeColor = isHome
-                  ? 'bg-amber-400/10 text-amber-300 border-amber-500/30'
-                  : 'bg-emerald-400/10 text-emerald-300 border-emerald-500/30';
+                const                 badgeColor = isHome
+                  ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
+                  : 'bg-emerald-500/10 text-[#34d399] border-emerald-500/30';
 
                 return (
                   <button
@@ -1053,7 +1056,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     }}
                     className="group w-full text-left cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all relative z-10"
                   >
-                    <div className="relative z-10 rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5 overflow-hidden transition-all duration-200 group-hover:border-emerald-500/40 group-hover:shadow-[0_0_24px_rgba(52,211,153,0.25)]">
+                    <div className="relative z-10 rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5 overflow-hidden transition-all duration-200 group-hover:border-[#34d399]/50">
                       <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
                         <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
@@ -1077,7 +1080,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </div>
                         <div className="relative z-10 text-right">
                           <p className="text-[9px] text-slate-500 mb-1 uppercase tracking-widest">View on Map</p>
-                          <p className="text-xs font-bold text-emerald-400 group-hover:text-emerald-300">→</p>
+                          <p className="text-xs font-bold text-[#34d399] group-hover:text-[#10b981]">→</p>
                         </div>
                       </div>
                     </div>
@@ -1171,6 +1174,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         )}
 
           </div>
+        </div>
         </div>
       </div>
 
@@ -1299,16 +1303,18 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             {/* Sticky action buttons — always visible at bottom */}
             <div className="flex-shrink-0 sticky bottom-0 bg-black/90 backdrop-blur-md pt-4 pb-6 px-6 z-10 border-t border-gray-800">
               <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await handleConfirmReleasePay(reviewJob);
-                    setReviewJob(null);
-                  }}
-                  className="flex-1 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-sm uppercase tracking-[0.2em] shadow-[0_0_24px_rgba(52,211,153,0.6)] transition-all active:scale-95"
-                >
-                  Confirm & Pay
-                </button>
+                <div className="flex-1 animated-border rounded-full">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await handleConfirmReleasePay(reviewJob);
+                      setReviewJob(null);
+                    }}
+                    className="animated-border-inner w-full rounded-full py-3 text-white bg-[#020617] font-black text-sm uppercase tracking-[0.2em] hover:brightness-110 transition-all active:scale-[0.98]"
+                  >
+                    Confirm & Pay
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={async () => {
@@ -1414,21 +1420,19 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 <p className="text-xs text-emerald-400 font-medium">{proofSuccess}</p>
               )}
 
-              <button
-                type="submit"
-                disabled={proofSubmitting}
-                className={`w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all ${
-                  proofSubmitting
-                    ? 'opacity-60 cursor-wait bg-amber-500/30 text-amber-200'
-                    : 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.7)] hover:brightness-110 active:scale-95'
-                }`}
-              >
-                {proofSubmitting
-                  ? 'Submitting...'
-                  : proofPhase === 'before'
-                    ? "Submit & start mission"
-                    : "Submit & mark completed"}
-              </button>
+              <div className={`w-full animated-border rounded-full ${proofSubmitting ? 'opacity-60' : ''}`}>
+                <button
+                  type="submit"
+                  disabled={proofSubmitting}
+                  className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-wait active:scale-[0.98]"
+                >
+                  {proofSubmitting
+                    ? 'Submitting...'
+                    : proofPhase === 'before'
+                      ? "Submit & start mission"
+                      : "Submit & mark completed"}
+                </button>
+              </div>
 
               <p className="text-[10px] text-slate-500 text-center uppercase tracking-wider">
                 {proofPhase === 'before'

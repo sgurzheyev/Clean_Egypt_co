@@ -43,6 +43,82 @@
     filter: invert(1); /* Чтобы иконки были белыми на темном фоне */
 }
 
+/* ===== UV NEON PALETTE & GEMINI-STYLE ANIMATED BORDER ===== */
+:root {
+  --uv-bg: #020617;
+  --uv-bg-elevated: #0f172a;
+  --uv-accent: #34d399;
+  --uv-accent-bright: #10b981;
+  --uv-neon-cyan: #00ffcc;
+}
+
+@keyframes gemini-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Wrapper: thin border area, clips the spinning gradient */
+.animated-border {
+  position: relative;
+  padding: 2px;
+  border-radius: 9999px; /* pill shape by default; override with rounded-2xl etc. */
+  overflow: hidden;
+}
+
+.animated-border::before {
+  content: '';
+  position: absolute;
+  inset: -100%;
+  width: 300%;
+  height: 300%;
+  left: 50%;
+  top: 50%;
+  margin-left: -150%;
+  margin-top: -150%;
+  background: conic-gradient(
+    from 0deg,
+    #4285f4,
+    #9b72cb,
+    #d96570,
+    #fbbc04,
+    #4285f4
+  );
+  animation: gemini-spin 4s linear infinite;
+  z-index: 0;
+}
+
+/* Inner: dark background masks center, reveals gradient as border */
+.animated-border-inner {
+  position: relative;
+  z-index: 1;
+  border-radius: inherit;
+  background: var(--uv-bg-elevated);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Rectangular variant (e.g. modals) */
+.animated-border-rect {
+  border-radius: 1.5rem;
+}
+
+.animated-border-rect .animated-border-inner {
+  border-radius: calc(1.5rem - 2px);
+}
+
+/* Drawer variant (rounded left edge only) */
+.animated-border-drawer {
+  border-radius: 1.5rem 0 0 1.5rem;
+}
+
+.animated-border-drawer .animated-border-inner {
+  border-radius: calc(1.5rem - 2px) 0 0 calc(1.5rem - 2px);
+}
+
 /* Luxury pyramid marker — faceted gemstone shape (base) */
 .pyramid-shape-city,
 .pyramid-shape-home {
@@ -50,22 +126,22 @@
   background-size: 300% 300%;
 }
 
-/* City — RED/CORAL neon gradient */
+/* City — NEON GREEN / ACID GREEN (UV accent) */
 .pyramid-shape-city {
   background: linear-gradient(
     145deg,
-    #dc2626 0%,
-    #ef4444 25%,
-    #f87171 50%,
-    #f97316 75%,
-    #fb923c 100%
+    #059669 0%,
+    #10b981 25%,
+    #34d399 50%,
+    #00ffcc 75%,
+    #5eead4 100%
   );
   animation: city-gradient 7s ease-in-out infinite;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.2),
     inset -1px -1px 0 rgba(0, 0, 0, 0.25),
-    0 0 24px rgba(239, 68, 68, 0.4),
-    0 8px 32px rgba(0, 0, 0, 0.5);
+    0 0 20px rgba(52, 211, 153, 0.4),
+    0 6px 24px rgba(0, 0, 0, 0.5);
 }
 
 @keyframes city-gradient {
@@ -80,22 +156,22 @@
   }
 }
 
-/* Home — NEON YELLOW/GOLD gradient */
+/* Home — BRIGHT CYAN / BLUE */
 .pyramid-shape-home {
   background: linear-gradient(
     145deg,
-    #ca8a04 0%,
-    #eab308 25%,
-    #facc15 50%,
-    #fde047 75%,
-    #fef08a 100%
+    #0891b2 0%,
+    #06b6d4 25%,
+    #22d3ee 50%,
+    #67e8f9 75%,
+    #a5f3fc 100%
   );
   animation: home-gradient 7s ease-in-out infinite;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
     inset -1px -1px 0 rgba(0, 0, 0, 0.2),
-    0 0 24px rgba(250, 204, 21, 0.45),
-    0 8px 32px rgba(0, 0, 0, 0.5);
+    0 0 20px rgba(34, 211, 238, 0.4),
+    0 6px 24px rgba(0, 0, 0, 0.5);
 }
 
 @keyframes home-gradient {
@@ -114,8 +190,8 @@
 .pyramid-glow-city {
   background: radial-gradient(
     ellipse 80% 50% at 50% 100%,
-    rgba(239, 68, 68, 0.5) 0%,
-    rgba(249, 115, 22, 0.3) 30%,
+    rgba(52, 211, 153, 0.5) 0%,
+    rgba(16, 185, 129, 0.3) 30%,
     rgba(0, 0, 0, 0) 70%
   );
   animation: pyramid-breathe 3s ease-in-out infinite;
@@ -124,8 +200,8 @@
 .pyramid-glow-home {
   background: radial-gradient(
     ellipse 80% 50% at 50% 100%,
-    rgba(250, 204, 21, 0.5) 0%,
-    rgba(234, 179, 8, 0.3) 30%,
+    rgba(34, 211, 238, 0.5) 0%,
+    rgba(6, 182, 212, 0.3) 30%,
     rgba(0, 0, 0, 0) 70%
   );
   animation: pyramid-breathe 3s ease-in-out infinite;

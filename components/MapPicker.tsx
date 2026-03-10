@@ -775,25 +775,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
               )}
 
-              <button
-                type="submit"
-                disabled={orderSubmitting || uploadingProof || !selectedLocation}
-                className={`w-full mt-1 rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all ${
-                  taskType === 'city'
-                    ? 'bg-emerald-400 text-black shadow-[0_0_24px_rgba(52,211,153,0.7)] hover:brightness-110'
-                    : 'bg-amber-400 text-black shadow-[0_0_24px_rgba(251,191,36,0.7)] hover:brightness-110'
-                } ${
-                  orderSubmitting || uploadingProof || !selectedLocation
-                    ? 'opacity-60 cursor-not-allowed'
-                    : 'active:scale-95'
-                }`}
-              >
-                {uploadingProof
-                  ? 'Uploading Proof Photos...'
-                  : orderSubmitting
-                    ? 'Processing...'
-                    : 'Submit Task & Pay'}
-              </button>
+              <div className={`w-full mt-1 animated-border rounded-full ${orderSubmitting || uploadingProof || !selectedLocation ? 'opacity-60' : ''}`}>
+                <button
+                  type="submit"
+                  disabled={orderSubmitting || uploadingProof || !selectedLocation}
+                  className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-not-allowed active:scale-[0.98]"
+                >
+                  {uploadingProof
+                    ? 'Uploading Proof Photos...'
+                    : orderSubmitting
+                      ? 'Processing...'
+                      : 'Submit Task & Pay'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -807,9 +801,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
           aria-hidden="false"
         >
           <div
-            className="w-full max-w-md rounded-3xl bg-black/85 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
+            className="w-full max-w-md animated-border animated-border-rect rounded-3xl"
             onClick={(e) => e.stopPropagation()}
           >
+            <div
+              className="animated-border-inner w-full rounded-3xl bg-[#020617]/95 backdrop-blur-xl p-6"
+            >
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-lg font-black uppercase tracking-[0.18em] text-white">
                 Place bid
@@ -869,14 +866,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <p className="text-xs text-emerald-400 font-medium">{bidSuccess}</p>
               )}
 
-              <button
-                type="submit"
-                disabled={bidSubmitting}
-                className="w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.7)] hover:brightness-110 transition-all disabled:opacity-60 disabled:cursor-wait active:scale-95"
-              >
-                {bidSubmitting ? 'Placing bid...' : 'Place bid'}
-              </button>
+              <div className={`animated-border rounded-full ${bidSubmitting ? 'opacity-60' : ''}`}>
+                <button
+                  type="submit"
+                  disabled={bidSubmitting}
+                  className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all disabled:cursor-wait active:scale-[0.98]"
+                >
+                  {bidSubmitting ? 'Placing bid...' : 'Place bid'}
+                </button>
+              </div>
             </form>
+            </div>
           </div>
         </div>
       )}

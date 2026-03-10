@@ -35,19 +35,19 @@ const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label, onClick
       style={{ transform: `scale(${scale})`, transformOrigin: 'bottom center' }}
       aria-label={`${orderType} mission $${amount}`}
     >
-      {/* Floating pill label — above pyramid */}
+      {/* Floating pill label — above pyramid (Gemini-style animated border) */}
       <div
         className={[
           'absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full z-20',
-          'px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-[0.12em] min-w-[2rem]',
-          'text-white bg-black/60 backdrop-blur-md border border-white/15',
-          'shadow-[0_2px_12px_rgba(0,0,0,0.5),0_0_1px_rgba(255,255,255,0.1)]',
+          'animated-border rounded-full',
           'transition-transform duration-300 ease-out',
           entered ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0',
           'group-hover:scale-105',
         ].join(' ')}
       >
-        ${amount}
+        <div className="animated-border-inner px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-[0.12em] min-w-[2rem] text-white bg-[#020617]">
+          ${amount}
+        </div>
       </div>
 
       {/* Pyramid container — anchor at tip (bottom) */}

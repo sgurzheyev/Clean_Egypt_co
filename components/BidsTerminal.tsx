@@ -71,7 +71,8 @@ const BidsTerminal: React.FC<BidsTerminalProps> = ({ onclose, onShowTryFree }) =
   };
 
   return (
-    <div className="w-full max-w-md mx-auto bg-[#0a0a0a]/95 backdrop-blur-2xl text-white p-6 font-sans rounded-3xl border border-zinc-800 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
+    <div className="w-full max-w-md mx-auto animated-border animated-border-rect relative overflow-hidden">
+      <div className="animated-border-inner w-full bg-[#020617]/95 backdrop-blur-2xl text-white p-6 font-sans rounded-3xl relative overflow-hidden">
       
       {/* ЭКРАН ЗАГРУЗКИ / ОШИБКИ */}
       {isSubmitting && (
@@ -142,12 +143,14 @@ const BidsTerminal: React.FC<BidsTerminalProps> = ({ onclose, onShowTryFree }) =
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="w-full py-5 bg-gradient-to-r from-[#00f2ff] to-[#7000ff] text-white font-black uppercase rounded-2xl hover:scale-[0.98] active:scale-95 transition-all shadow-[0_0_30px_rgba(0,242,255,0.3)] mt-4"
-          >
-            CLEAN MY WALLET 🚀
-          </button>
+          <div className="w-full mt-4 animated-border rounded-2xl">
+            <button
+              type="submit"
+              className="animated-border-inner w-full py-5 text-white bg-[#020617] font-black uppercase rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all"
+            >
+              CLEAN MY WALLET 🚀
+            </button>
+          </div>
         </form>
 
         <div className="space-y-3 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
@@ -162,6 +165,7 @@ const BidsTerminal: React.FC<BidsTerminalProps> = ({ onclose, onShowTryFree }) =
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   );
