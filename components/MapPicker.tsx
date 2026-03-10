@@ -703,6 +703,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         : 'Tap on the 3D map to select'}
                     </p>
                   </div>
+                  {!selectedLocation && (
+                    <p className="mt-1 text-[10px] text-amber-300 uppercase tracking-[0.18em]">
+                      Please tap on the map to set a location.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -766,12 +771,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
               <button
                 type="submit"
-                disabled={orderSubmitting || uploadingProof}
+                disabled={orderSubmitting || uploadingProof || !selectedLocation}
                 className={`w-full mt-1 rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all ${
                   taskType === 'city'
                     ? 'bg-emerald-400 text-black shadow-[0_0_24px_rgba(52,211,153,0.7)] hover:brightness-110'
                     : 'bg-amber-400 text-black shadow-[0_0_24px_rgba(251,191,36,0.7)] hover:brightness-110'
-                } ${orderSubmitting || uploadingProof ? 'opacity-60 cursor-wait' : 'active:scale-95'}`}
+                } ${
+                  orderSubmitting || uploadingProof || !selectedLocation
+                    ? 'opacity-60 cursor-not-allowed'
+                    : 'active:scale-95'
+                }`}
               >
                 {uploadingProof
                   ? 'Uploading Proof Photos...'
