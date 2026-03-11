@@ -332,13 +332,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
       const { data: bidsData } = await supabase
-        .from('bids')
-        .select('job_id')
-          .in('mission_id', jobIds)
+        .from('mission_bids')
+        .select('mission_id')
+        .in('mission_id', jobIds)
         .eq('status', 'pending');
       const counts: Record<string, number> = {};
       for (const row of (bidsData || []) as any[]) {
-        const jid = row.job_id as string;
+        const jid = row.mission_id as string;
         counts[jid] = (counts[jid] || 0) + 1;
       }
       setActiveBidCounts(counts);

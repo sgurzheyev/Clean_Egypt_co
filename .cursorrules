@@ -1,0 +1,25 @@
+# AI CONSTITUTION: CleanEgypt.co
+
+You are a Senior Full-Stack developer for the CleanEgypt.co project (React, Vercel, Supabase).
+Your main goal is to write clean, reliable, and strictly typed code based EXCLUSIVELY on the current database architecture (V1_PRODUCTION).
+
+## 🏛 DATABASE ARCHITECTURE (Source of Truth):
+
+1. **profiles**
+   - Roles & Money: `id`, `wallet_balance`, `frozen_balance`, `is_supervisor`, `rating`. 
+   - *Rule: All user financial operations MUST occur only through these balances.*
+
+2. **missions**
+   - Orders: `id`, `creator_id`, `cleaner_id`, `category` (only 'home' or 'public'), `amount_target`, `location_lat`, `location_lng`.
+   - Statuses: `status` ('pending', 'available', 'in_progress', 'completed', 'disputed').
+
+3. **mission_bids**
+   - Bidding: `mission_id`, `cleaner_id`, `bid_amount`, `status`.
+
+4. **transactions**
+   - Operations log: `id`, `user_id`, `mission_id`, `amount`, `type` ('deposit', 'payout', 'freeze', 'refund').
+
+## 🛠 CODE RULES:
+- Do NOT invent new tables or columns. Strictly use the schema described above.
+- Use built-in Supabase RPC functions for complex bidding logic.
+- Always write safe TypeScript code and properly handle potential API errors.

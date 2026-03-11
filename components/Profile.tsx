@@ -18,6 +18,7 @@ interface Job {
   location_lat?: number | null;
   location_lng?: number | null;
   status: string;
+  title?: string | null;
   description?: string | null;
   created_at: string;
   started_at?: string | null;
@@ -250,7 +251,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: cityJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, started_at, is_disputed')
         .eq('creator_id', userId)
         .eq('category', 'public')
         .order('created_at', { ascending: false });
@@ -270,7 +271,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       ];
       if (pendingJobIds.length > 0) {
         const { data: bidsData } = await supabase
-          .from('bids')
+          .from('mission_bids')
           .select('id, mission_id, worker_id, bid_amount, status, created_at')
           .in('mission_id', pendingJobIds);
         const byJob: Record<string, Bid[]> = {};
@@ -403,19 +404,19 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         .eq('id', job.id);
       if (jobErr) throw jobErr;
 
-      await supabase.from('bids').update({ status: 'accepted' }).eq('id', bid.id);
+      await supabase.from('mission_bids').update({ status: 'accepted' }).eq('id', bid.id);
 
       const { data: otherBids } = await supabase
-        .from('bids')
+        .from('mission_bids')
         .select('id')
-        .eq('job_id', job.id)
+        .eq('mission_id', job.id)
         .neq('id', bid.id)
         .eq('status', 'pending');
       if (otherBids && otherBids.length > 0) {
         await supabase
-          .from('bids')
+          .from('mission_bids')
           .update({ status: 'rejected' })
-          .eq('job_id', job.id)
+          .eq('mission_id', job.id)
           .neq('id', bid.id);
       }
 
@@ -994,7 +995,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           )}
         </section>
 
-        {/* MY CITY DONATIONS (from jobs table, excluding finished) */}
+        {/* MY CITY DONATIONS (from missions table, excluding finished) */}
         <section className="mb-10 text-white">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-300">
             🏙️ My City Donations
@@ -1007,19 +1008,47 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             ) : (
               (myCityJobs || [])
                 .filter((job) => job.status !== 'finished')
-                .map((job) => (
-                <div key={job.id} className="bg-slate-900/60 rounded-xl border border-white/5 p-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
-                    <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
-                  </div>
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-400 font-bold mb-1">
-                    City Donation
-                  </p>
-                  <p className="text-sm font-bold text-emerald-400 mb-1">${job.amount_target}</p>
-                  <p className="text-xs text-slate-400">
-                    Your donation on the map. Workers can pick it up in the marketplace.
-                  </p>
+                .map((job) => {
+                  const hasCoords =
+                    typeof job.location_lat === 'number' && typeof job.location_lng === 'number';
+                  const displayTitle = (job.title && job.title.trim().length > 0)
+                    ? job.title
+                    : 'City Donation';
+                  return (
+                    <div key={job.id} className="bg-slate-900/60 rounded-xl border border-white/5 p-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
+                        <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 mb-1">
+                        <div className="flex-1">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-400 font-bold mb-1">
+                            {displayTitle}
+                          </p>
+                          <p className="text-sm font-bold text-emerald-400 mb-1">
+                            ${job.amount_target}
+                          </p>
+                        </div>
+                        {/* VIEW ON MAP */}
+                        {hasCoords && onNavigateToJob && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onNavigateToJob(job.location_lat!, job.location_lng!);
+                              onClose();
+                            }}
+                            className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-400 hover:text-emerald-300"
+                          >
+                            <span>View on map</span>
+                            <span>↗</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-slate-400">
+                        Your donation on the map. Workers can pick it up in the marketplace.
+                      </p>
 
                   {(() => {
                     const bids = (jobBidsById[job.id] || []).filter((b) => b.status === 'pending');
@@ -1056,22 +1085,23 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     );
                   })()}
 
-                  {job.status === 'completed' && job.cleaner_id && (
-                    <div className="mt-4">
-                      <button
-                        type="button"
-                        onClick={() => setReviewJob(job)}
-                        className="w-full py-3 rounded-full bg-emerald-500 text-black font-black text-xs uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:brightness-110 transition-all active:scale-95"
-                      >
-                        Review & Release Pay
-                      </button>
-                      <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
-                        Worker marked job completed. Review before confirming or disputing.
-                      </p>
+                      {job.status === 'completed' && job.cleaner_id && (
+                        <div className="mt-4">
+                          <button
+                            type="button"
+                            onClick={() => setReviewJob(job)}
+                            className="w-full py-3 rounded-full bg-emerald-500 text-black font-black text-xs uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:brightness-110 transition-all active:scale-95"
+                          >
+                            Review & Release Pay
+                          </button>
+                          <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
+                            Worker marked job completed. Review before confirming or disputing.
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))
+                  );
+                })
             )}
           </div>
         </section>
