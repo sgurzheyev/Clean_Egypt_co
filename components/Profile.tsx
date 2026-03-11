@@ -303,10 +303,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'job_creation',
+          type: 'mission_creation',
+          task_type: taskType === 'city' ? 'public' : 'private',
+          amount_egp: amount,
           userId: creatorId,
-          amount,
-          taskType,
+          // TODO: wire actual map location; using fallback center for now
           location_lat: 27.2579,
           location_lng: 33.8116,
           description: orderDescription || undefined,
@@ -324,13 +325,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       };
 
       if (data.paymentUrl) {
-        sessionStorage.setItem('paymentReturnType', 'job_creation');
+        sessionStorage.setItem('paymentReturnType', 'mission_creation');
         window.location.assign(data.paymentUrl);
         return;
       }
 
       if (data.paymentToken) {
-        sessionStorage.setItem('paymentReturnType', 'job_creation');
+        sessionStorage.setItem('paymentReturnType', 'mission_creation');
         const iframeId =
           (import.meta.env.VITE_PAYMOB_IFRAME_ID as string | undefined) || '1007120';
         const url = `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${data.paymentToken}`;

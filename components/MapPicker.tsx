@@ -356,14 +356,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'job_creation',
+          type: 'mission_creation',
+          task_type: payload.taskType === 'city' ? 'public' : 'private',
+          amount_egp: payload.amount,
           userId: session.user.id,
-          amount: payload.amount,
-          taskType: payload.taskType,
           location_lat: payload.location.lat,
           location_lng: payload.location.lng,
           description: payload.description || undefined,
-          creator_photos: payload.creatorPhotos && payload.creatorPhotos.length > 0 ? payload.creatorPhotos : undefined,
+          creator_photos:
+            payload.creatorPhotos && payload.creatorPhotos.length > 0
+              ? payload.creatorPhotos
+              : undefined,
         }),
       });
 
@@ -378,12 +381,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
       };
 
       if (data.paymentUrl) {
-        sessionStorage.setItem('paymentReturnType', 'job_creation');
+        sessionStorage.setItem('paymentReturnType', 'mission_creation');
         window.location.assign(data.paymentUrl);
         return;
       }
       if (data.paymentToken) {
-        sessionStorage.setItem('paymentReturnType', 'job_creation');
+        sessionStorage.setItem('paymentReturnType', 'mission_creation');
         const iframeId =
           (import.meta.env.VITE_PAYMOB_IFRAME_ID as string | undefined) || '1007120';
         const url = `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${data.paymentToken}`;

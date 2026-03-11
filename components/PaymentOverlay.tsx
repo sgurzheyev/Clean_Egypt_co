@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../services/supabase';
 
 interface PaymentOverlayProps {
   onClose: (pyramidId?: string) => void;
@@ -34,28 +35,45 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
 
     window.addEventListener('message', handlePaymobMsg);
 
-    fetch('/api/paymob-intent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lat, lng, amount, type }),
-    })
-      .then((res) => {
+    (async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const currentUserId = session?.user?.id;
+        if (!currentUserId) {
+          setFetchError(true);
+          return;
+        }
+
+        const res = await fetch('/api/paymob-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'mission_creation',
+            task_type: type === 'city' ? 'public' : 'private',
+            amount_egp: amount,
+            userId: currentUserId,
+            location_lat: lat,
+            location_lng: lng,
+          }),
+        });
+
         if (!res.ok) throw new Error('API unreachable');
-        return res.json();
-      })
-      .then((data) => {
+        const data = await res.json();
+
         if (data.paymentToken) {
           setToken(data.paymentToken);
           if (data.missionId) setPyramidId(data.missionId);
         } else {
           throw new Error('Token missing');
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error('Paymob Error:', err);
         onClose();
         setFetchError(true);
-      });
+      }
+    })();
 
     return () => window.removeEventListener('message', handlePaymobMsg);
   }, [lat, lng, amount, type, navigate, onSuccess, onClose, pyramidId]);
