@@ -39,7 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Missing required fields for mission creation' });
       }
 
-      // Создаем миссию в статусе pending (ожидает оплаты)
+      // Create mission in 'pending' status so it appears on the map immediately
       const { data: newMission, error: missionError } = await supabase
         .from('missions')
         .insert({
@@ -48,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           amount_target: finalAmountEgp,
           location_lat,
           location_lng,
-          status: 'collecting', // or 'pending' depending on your logic
+          status: 'pending',
           description: description || null,
           photo_urls: creator_photos || [],
         })
@@ -61,6 +61,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       missionIdForMetadata = newMission.id;
+
+      // Create a notification for the mission creator
+      const { error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: userId,
+          title: 'Mission Created!',
+          message: `Your mission in ${category} is now live on the map.`,
+          mission_id: missionIdForMetadata,
+        });
+
+      if (notificationError) {
+        // Log but do not fail the whole flow if notification creation fails
+        console.error('Notification insert error:', notificationError.message);
+      }
     }
     // --- 2. HANDLE WORKER DEPOSIT ---
     else if (type === 'worker_deposit') {
