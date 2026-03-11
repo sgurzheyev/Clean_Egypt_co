@@ -240,12 +240,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [bidError, setBidError] = useState<string | null>(null);
   const [bidSuccess, setBidSuccess] = useState<string | null>(null);
 
-  // Fetch pending jobs from Supabase
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) =>
+      setCurrentUserId(session?.user?.id ?? null)
+    );
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUserId(session?.user?.id ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Fetch pending and in_progress jobs from Supabase
   const fetchJobs = useCallback(async () => {
     const { data, error } = await supabase
       .from('jobs')
       .select('id, task_type, amount, location_lat, location_lng, status, worker_id, creator_id, description')
-      .eq('status', 'pending')
+      .in('status', ['pending', 'in_progress'])
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -637,24 +648,35 @@ const MapPicker: React.FC<MapPickerProps> = ({
         />
         <NavigationControl position="bottom-right" showCompass={false} />
 
-        {/* Job markers — luxury pyramids */}
-        {(jobs || []).map((job) => (
-          <Marker
-            key={job.id}
-            latitude={job.location_lat}
-            longitude={job.location_lng}
-            anchor="bottom"
-          >
-            <JobMarker
-              amount={job.amount}
-              orderType={job.task_type === 'home' ? 'home' : 'city'}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleMarkerClick(job);
-              }}
-            />
-          </Marker>
-        ))}
+        {/* Job markers — luxury pyramids (pending for all; in_progress only for assigned worker) */}
+        {(jobs || [])
+          .filter((job) => {
+            if (job.status === 'pending') return true;
+            if (job.status === 'in_progress') return job.worker_id === currentUserId;
+            return false;
+          })
+          .map((job) => {
+            const isMyActiveMission = job.status === 'in_progress' && job.worker_id === currentUserId;
+            return (
+              <Marker
+                key={job.id}
+                latitude={job.location_lat}
+                longitude={job.location_lng}
+                anchor="bottom"
+              >
+                <JobMarker
+                  amount={job.amount}
+                  orderType={job.task_type === 'home' ? 'home' : 'city'}
+                  label={isMyActiveMission ? 'MY MISSION' : undefined}
+                  isActive={isMyActiveMission}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMarkerClick(job);
+                  }}
+                />
+              </Marker>
+            );
+          })}
 
         {/* Draft pin — rainbow pyramid when user drops a pin on the map */}
         {selectedLocation && (
@@ -950,9 +972,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-start mb-4">
-              <h2 className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-500">
-                MISSION BRIEFING
-              </h2>
+              <div>
+                <h2 className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-500">
+                  MISSION BRIEFING
+                </h2>
+                {selectedMission.status === 'in_progress' && selectedMission.worker_id === currentUserId && (
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-sky-400 mt-1">Your active mission</p>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={handleCloseMissionBriefing}
@@ -988,16 +1015,28 @@ const MapPicker: React.FC<MapPickerProps> = ({
               )}
             </div>
 
-            <div className={`w-full rounded-full ${selectedMission.task_type === 'city' ? 'animated-border-city' : 'animated-border-home'} ${isAccepting ? 'opacity-60' : ''}`}>
-              <button
-                type="button"
-                onClick={() => handleAcceptMission(selectedMission.id)}
-                disabled={isAccepting}
-                className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:cursor-wait"
-              >
-                {isAccepting ? 'Accepting...' : 'Clean My Wallet'}
-              </button>
-            </div>
+            {selectedMission.status === 'in_progress' && selectedMission.worker_id === currentUserId ? (
+              <div className="w-full rounded-full animated-border-city">
+                <button
+                  type="button"
+                  onClick={() => handleCloseMissionBriefing()}
+                  className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
+                >
+                  Start Work / Upload Proof
+                </button>
+              </div>
+            ) : (
+              <div className={`w-full rounded-full ${selectedMission.task_type === 'city' ? 'animated-border-city' : 'animated-border-home'} ${isAccepting ? 'opacity-60' : ''}`}>
+                <button
+                  type="button"
+                  onClick={() => handleAcceptMission(selectedMission.id)}
+                  disabled={isAccepting}
+                  className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:cursor-wait"
+                >
+                  {isAccepting ? 'Accepting...' : 'Clean My Wallet'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

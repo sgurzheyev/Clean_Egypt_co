@@ -294,6 +294,34 @@
   animation: pyramid-breathe 3s ease-in-out infinite;
 }
 
+/* Active mission (worker's own in_progress) — pulsing white/blue glow */
+.pyramid-glow-active {
+  background: radial-gradient(
+    ellipse 80% 50% at 50% 100%,
+    rgba(96, 165, 250, 0.6) 0%,
+    rgba(255, 255, 255, 0.3) 30%,
+    rgba(0, 0, 0, 0) 70%
+  );
+  animation: pyramid-breathe 2s ease-in-out infinite;
+}
+
+.job-marker-active-pyramid {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 0 16px rgba(96, 165, 250, 0.6),
+    0 0 24px rgba(255, 255, 255, 0.25);
+  animation: active-pulse 2s ease-in-out infinite;
+}
+
+.job-marker-active-pill {
+  box-shadow: 0 0 12px rgba(96, 165, 250, 0.5);
+}
+
+@keyframes active-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.15); }
+}
+
 @keyframes pyramid-breathe {
   0%, 100% {
     opacity: 0.8;

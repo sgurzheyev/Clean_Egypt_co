@@ -6,9 +6,10 @@ interface JobMarkerProps {
   label?: string;
   onClick?: (e: React.MouseEvent) => void;
   isDraft?: boolean;
+  isActive?: boolean;
 }
 
-const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label, onClick, isDraft = false }) => {
+const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label, onClick, isDraft = false, isActive = false }) => {
   const [entered, setEntered] = useState(false);
 
   useEffect(() => {
@@ -22,8 +23,9 @@ const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label, onClick
   const scale = isDraft ? 1 : 0.7 + (Math.min(amount, 100) / 100) * 0.8;
 
   const pyramidShapeClass = isDraft ? 'pyramid-shape-draft' : (isHome ? 'pyramid-shape-home' : 'pyramid-shape-city');
-  const pyramidGlowClass = isDraft ? 'pyramid-glow-draft' : (isHome ? 'pyramid-glow-home' : 'pyramid-glow-city');
+  const pyramidGlowClass = isActive ? 'pyramid-glow-active' : (isDraft ? 'pyramid-glow-draft' : (isHome ? 'pyramid-glow-home' : 'pyramid-glow-city'));
   const pillBorderClass = isDraft ? 'animated-border-rainbow' : (isHome ? 'animated-border-home' : 'animated-border-city');
+  const pillContent = isDraft ? 'NEW' : (isActive ? (label || 'MY MISSION') : `$${amount}`);
 
   return (
     <button
@@ -42,13 +44,14 @@ const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label, onClick
           'absolute -top-0.5 left-1/2 -translate-x-1/2 -translate-y-full z-20',
           'rounded-full',
           pillBorderClass,
+          isActive && 'job-marker-active-pill',
           'transition-transform duration-300 ease-out',
           entered ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0',
           'group-hover:scale-105',
         ].join(' ')}
       >
         <div className="animated-border-inner px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.1em] min-w-[1.75rem] text-white bg-[#020617]">
-          {isDraft ? 'NEW' : `$${amount}`}
+          {pillContent}
         </div>
       </div>
 
@@ -68,7 +71,7 @@ const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label, onClick
         />
 
         {/* Faceted pyramid — gemstone shape (small base) */}
-        <div className={`relative w-7 h-9 flex items-start justify-center pt-0.5 ${pyramidShapeClass}`}>
+        <div className={`relative w-7 h-9 flex items-start justify-center pt-0.5 ${pyramidShapeClass} ${isActive ? 'job-marker-active-pyramid' : ''}`}>
           {/* Icon — centered in top facet */}
           <span className="text-[10px] leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.8)] z-10">
             {icon}
