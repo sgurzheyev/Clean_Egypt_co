@@ -16,7 +16,7 @@ interface JobOnMap {
   location_lat: number;
   location_lng: number;
   status: string;
-  worker_id?: string | null;
+  winner_id?: string | null;
   creator_id?: string | null;
   description?: string | null;
   photo_urls?: string[] | null;
@@ -258,7 +258,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const fetchMissions = useCallback(async () => {
     const { data, error } = await supabase
       .from('missions')
-      .select('id, category, amount_target, location_lat, location_lng, status, worker_id, creator_id, description, photo_urls')
+      .select('id, category, amount_target, location_lat, location_lng, status, winner_id, creator_id, description, photo_urls')
       .in('status', ['pending', 'in_progress'])
       .order('created_at', { ascending: false })
       .limit(500);
@@ -695,11 +695,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
         {(jobs || [])
           .filter((job) => {
             if (job.status === 'pending') return true;
-            if (job.status === 'in_progress') return job.worker_id === currentUserId;
+            if (job.status === 'in_progress') return job.winner_id === currentUserId;
             return false;
           })
           .map((job) => {
-            const isMyActiveMission = job.status === 'in_progress' && job.worker_id === currentUserId;
+            const isMyActiveMission = job.status === 'in_progress' && job.winner_id === currentUserId;
             const bidCount = activeBidCounts[job.id] || 0;
             const orderType = job.category === 'home' ? 'home' : 'city';
             return (
@@ -1022,7 +1022,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <h2 className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-500">
                   MISSION BRIEFING
                 </h2>
-                {selectedMission.status === 'in_progress' && selectedMission.worker_id === currentUserId && (
+                {selectedMission.status === 'in_progress' && selectedMission.winner_id === currentUserId && (
                   <p className="text-[10px] font-bold uppercase tracking-wider text-sky-400 mt-1">Your active mission</p>
                 )}
               </div>
@@ -1061,7 +1061,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               )}
             </div>
 
-            {selectedMission.status === 'in_progress' && selectedMission.worker_id === currentUserId ? (
+            {selectedMission.status === 'in_progress' && selectedMission.winner_id === currentUserId ? (
               <div className="w-full rounded-full animated-border-city">
                 <button
                   type="button"

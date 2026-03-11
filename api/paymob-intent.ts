@@ -19,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const {
       type, // 'mission_creation' or 'worker_deposit'
-      task_type, // 'public' or 'private'
+      category, // 'public' | 'home' | 'office'
       amount_egp,
       location_lat,
       location_lng,
@@ -35,7 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // --- 1. HANDLE MISSION CREATION ---
     if (type === 'mission_creation') {
-      if (!userId || !task_type || !finalAmountEgp || !location_lat || !location_lng) {
+      if (!userId || !category || !finalAmountEgp || !location_lat || !location_lng) {
         return res.status(400).json({ error: 'Missing required fields for mission creation' });
       }
 
@@ -44,8 +44,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .from('missions')
         .insert({
           creator_id: userId,
-          task_type: task_type,
-          amount_egp: finalAmountEgp,
+          category,
+          amount_target: finalAmountEgp,
           location_lat,
           location_lng,
           status: 'collecting', // or 'pending' depending on your logic
