@@ -29,14 +29,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       creator_photos,
     } = req.body;
 
-    const exchangeRate = 50; // Use if conversion from USD is needed, but we assume EGP for now based on 'amount_egp'
-    let finalAmountEgp = amount_egp;
+    // Normalize and validate numeric fields
+    const finalAmountEgp = Number(amount_egp);
+    const latNum = typeof location_lat === 'number' ? location_lat : Number(location_lat);
+    const lngNum = typeof location_lng === 'number' ? location_lng : Number(location_lng);
     let missionIdForMetadata: string;
 
     // --- 1. HANDLE MISSION CREATION ---
     if (type === 'mission_creation') {
-      if (!userId || !category || !finalAmountEgp || !location_lat || !location_lng) {
-        return res.status(400).json({ error: 'Missing required fields for mission creation' });
+      if (!userId || !category) {
+        return res.status(400).json({ error: 'Missing required fields for mission creation (userId/category)' });
+      }
+      if (!Number.isFinite(finalAmountEgp) || finalAmountEgp <= 0) {
+        return res.status(400).json({ error: 'Invalid or missing amount_egp for mission creation' });
+      }
+      if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+        return res.status(400).json({ error: 'Invalid or missing location_lat/location_lng for mission creation' });
       }
 
       // Create mission in 'pending' status so it appears on the map immediately
@@ -46,8 +54,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           creator_id: userId,
           category,
           amount_target: finalAmountEgp,
-          location_lat,
-          location_lng,
+          location_lat: latNum,
+          location_lng: lngNum,
           status: 'pending',
           description: description || null,
           photo_urls: creator_photos || [],

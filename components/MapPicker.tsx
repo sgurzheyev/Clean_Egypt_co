@@ -22,6 +22,49 @@ interface JobOnMap {
   photo_urls?: string[] | null;
 }
 
+function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
+  const [value, setValue] = useState(50);
+  const photos = mission.photo_urls || [];
+  if (photos.length === 0) {
+    return (
+      <p className="mt-4 text-xs text-slate-400">
+        No before/after photos available for this mission yet.
+      </p>
+    );
+  }
+  const splitIndex = Math.ceil(photos.length / 2);
+  const before = photos[0] || photos[splitIndex - 1] || photos[0];
+  const after = photos[splitIndex] || photos[photos.length - 1] || photos[0];
+
+  return (
+    <div className="mt-5">
+      <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-white/10 bg-slate-900">
+        <img src={before} alt="Before" className="absolute inset-0 h-full w-full object-cover" />
+        <div
+          className="absolute inset-0 overflow-hidden border-l border-amber-300/70 shadow-[0_0_30px_rgba(251,191,36,0.5)]"
+          style={{ width: `${value}%` }}
+        >
+          <img src={after} alt="After" className="h-full w-full object-cover" />
+        </div>
+        <div className="absolute inset-x-0 bottom-3 flex justify-center">
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={value}
+            onChange={(e) => setValue(Number(e.target.value))}
+            className="w-48 accent-amber-300"
+          />
+        </div>
+      </div>
+      <div className="mt-2 flex justify-between text-[10px] text-slate-500 uppercase tracking-[0.18em]">
+        <span>Before</span>
+        <span>After</span>
+      </div>
+    </div>
+  );
+}
+
 interface MapPickerProps {
   onLocationSelect: (lat: number, lng: number) => void;
   selectedCoords?: { lat: number; lng: number } | null;
@@ -259,7 +302,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const { data, error } = await supabase
       .from('missions')
       .select('id, category, amount_target, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls')
-      .in('status', ['pending', 'in_progress'])
+      .in('status', ['pending', 'in_progress', 'completed'])
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -461,14 +504,24 @@ const MapPicker: React.FC<MapPickerProps> = ({
   );
 
   const [selectedMission, setSelectedMission] = useState<JobOnMap | null>(null);
+  const [hallOfFameMission, setHallOfFameMission] = useState<JobOnMap | null>(null);
+  const [hallOfFameCleanerName, setHallOfFameCleanerName] = useState<string | null>(null);
+  const [hallOfFameHeroes, setHallOfFameHeroes] = useState<string[]>([]);
   const [isAccepting, setIsAccepting] = useState(false);
   const [showBidInput, setShowBidInput] = useState(false);
   const [missionBidAmount, setMissionBidAmount] = useState<string>('');
 
   const handleMarkerClick = useCallback((job: JobOnMap) => {
-    setSelectedMission(job);
-    setShowBidInput(false);
-    setMissionBidAmount(String(job.amount_target ?? ''));
+    if (job.status === 'completed') {
+      setHallOfFameMission(job);
+      setSelectedMission(null);
+      setShowBidInput(false);
+      setMissionBidAmount('');
+    } else {
+      setSelectedMission(job);
+      setShowBidInput(false);
+      setMissionBidAmount(String(job.amount_target ?? ''));
+    }
   }, []);
 
   const handleCloseMissionBriefing = useCallback(() => {
@@ -476,6 +529,43 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setShowBidInput(false);
     setMissionBidAmount('');
   }, []);
+
+  const handleCloseHallOfFame = useCallback(() => {
+    setHallOfFameMission(null);
+    setHallOfFameCleanerName(null);
+    setHallOfFameHeroes([]);
+  }, []);
+
+  useEffect(() => {
+    const loadHallOfFameMeta = async () => {
+      if (!hallOfFameMission?.cleaner_id) {
+        setHallOfFameCleanerName(null);
+        setHallOfFameHeroes([]);
+        return;
+      }
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, id')
+          .eq('id', hallOfFameMission.cleaner_id)
+          .maybeSingle();
+        const cleanerName =
+          (profile as any)?.full_name || (profile as any)?.id || 'an Eco-Hero';
+        setHallOfFameCleanerName(cleanerName);
+
+        // Placeholder for future "eco-heroes" (donors) list.
+        // This can be wired to a mission_donations table later.
+        setHallOfFameHeroes([]);
+      } catch (e) {
+        console.error('Failed to load Hall of Fame metadata', e);
+        setHallOfFameCleanerName(null);
+        setHallOfFameHeroes([]);
+      }
+    };
+    if (hallOfFameMission) {
+      loadHallOfFameMeta();
+    }
+  }, [hallOfFameMission]);
 
   const handleSubmitMissionBid = useCallback(async () => {
     if (!selectedMission) return;
@@ -731,11 +821,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
         />
         <NavigationControl position="bottom-right" showCompass={false} />
 
-        {/* Job markers — luxury pyramids (pending for all; in_progress only for assigned worker) */}
+        {/* Job markers — luxury pyramids (pending for all; in_progress only for assigned worker; completed as Hall of Fame) */}
         {(jobs || [])
           .filter((job) => {
             if (job.status === 'pending') return true;
             if (job.status === 'in_progress') return job.cleaner_id === currentUserId;
+            if (job.status === 'completed') return true;
             return false;
           })
           .map((job) => {
@@ -752,7 +843,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <JobMarker
                   amount={job.amount_target}
                   orderType={orderType}
-                  label={isMyActiveMission ? 'MY MISSION' : undefined}
+                  label={job.status === 'completed' ? '★' : isMyActiveMission ? 'MY MISSION' : undefined}
                   isActive={isMyActiveMission}
                   bidCount={job.status === 'pending' ? bidCount : 0}
                   onClick={(e) => {
@@ -1042,7 +1133,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
-      {/* Mission Briefing — bottom sheet when pyramid marker clicked */}
+      {/* Mission Briefing — bottom sheet when active pyramid marker clicked */}
       {selectedMission && (
         <div
           className="absolute inset-0 z-[95] flex items-end justify-center"
@@ -1090,10 +1181,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
               </div>
 
               <div className="py-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">Reward</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
+                  Reward
+                </p>
                 <p className={`text-4xl sm:text-5xl font-black tracking-tight ${selectedMission.category === 'public' ? 'text-emerald-400' : 'text-amber-400'}`} style={{ textShadow: selectedMission.category === 'public' ? '0 0 24px rgba(52, 211, 153, 0.6)' : '0 0 24px rgba(251, 191, 36, 0.6)' }}>
                   ${selectedMission.amount_target}
                 </p>
+                {(activeBidCounts[selectedMission.id] || 0) > 0 && (
+                  <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-sky-400">
+                    Locked Deposit: You have active bids on this mission.
+                  </p>
+                )}
               </div>
 
               {selectedMission.description && (
@@ -1158,6 +1256,74 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Hall of Fame modal for completed missions */}
+      {hallOfFameMission && (
+        <div
+          className="absolute inset-0 z-[96] flex items-center justify-center"
+          aria-hidden="false"
+        >
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={handleCloseHallOfFame}
+            aria-hidden="true"
+          />
+          <div
+            className="relative w-full max-w-2xl mx-4 rounded-3xl bg-[#020617]/98 backdrop-blur-2xl border border-white/10 shadow-2xl p-6 sm:p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.35em] text-amber-300/80">
+                  Hall of Fame
+                </p>
+                <h2 className="mt-2 text-lg sm:text-2xl font-extrabold tracking-tight text-white">
+                  This place was cleaned by{' '}
+                  <span className="text-amber-300">
+                    {hallOfFameCleanerName || 'an Eco-Hero'}
+                  </span>
+                  !
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseHallOfFame}
+                className="p-2 -m-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Before / After slider */}
+            <HallOfFameSlider mission={hallOfFameMission} />
+
+            {/* Eco-Heroes list */}
+            <div className="mt-6">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
+                Eco-Heroes
+              </p>
+              {hallOfFameHeroes.length === 0 ? (
+                <p className="text-xs text-slate-400">
+                  Donations data for this mission will appear here once connected. For now,
+                  consider everyone who supported this cleanup an Eco-Hero.
+                </p>
+              ) : (
+                <ul className="flex flex-wrap gap-2">
+                  {hallOfFameHeroes.map((name) => (
+                    <li
+                      key={name}
+                      className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-400/40 text-[11px] text-emerald-300 font-semibold"
+                    >
+                      {name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
       )}

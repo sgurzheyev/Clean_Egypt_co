@@ -19,10 +19,10 @@ const WorkerPortal = () => {
     try {
       // 1. Грузим баланс рабочего
       const { data: wData } = await supabase
-        .from('worker_balances')
-        .select('*')
+        .from('profiles')
+        .select('id, balance_egp, frozen_balance')
         .eq('telegram_id', TEST_TELEGRAM_ID)
-        .single();
+        .maybeSingle();
       setWorker(wData);
 
       // 2. Грузим детали пирамиды (задания)
@@ -73,10 +73,14 @@ const WorkerPortal = () => {
 
       if (dbErr) throw dbErr;
 
-      // 3. Обновляем баланс рабочего
-      await supabase.from('worker_balances').update({
-        balance_egp: worker.balance_egp - deposit
-      }).eq('telegram_id', TEST_TELEGRAM_ID);
+      // 3. Обновляем баланс рабочего (lock deposit in frozen_balance)
+      await supabase
+        .from('profiles')
+        .update({
+          balance_egp: worker.balance_egp - deposit,
+          frozen_balance: (worker.frozen_balance ?? 0) + deposit,
+        })
+        .eq('id', worker.id);
 
       alert(`🚀 WORK STARTED! ${deposit} EGP locked.`);
       fetchData();
