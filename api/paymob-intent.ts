@@ -50,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           location_lng,
           status: 'collecting', // or 'pending' depending on your logic
           description: description || null,
-          creator_photos: creator_photos || [],
+          photo_urls: creator_photos || [],
         })
         .select('id')
         .single();
