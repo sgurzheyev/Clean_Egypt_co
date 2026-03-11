@@ -7,9 +7,10 @@ interface JobMarkerProps {
   onClick?: (e: React.MouseEvent) => void;
   isDraft?: boolean;
   isActive?: boolean;
+  bidCount?: number;
 }
 
-const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label, onClick, isDraft = false, isActive = false }) => {
+const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label, onClick, isDraft = false, isActive = false, bidCount = 0 }) => {
   const [entered, setEntered] = useState(false);
 
   useEffect(() => {
@@ -51,7 +52,12 @@ const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label, onClick
         ].join(' ')}
       >
         <div className="animated-border-inner px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.1em] min-w-[1.75rem] text-white bg-[#020617]">
-          {pillContent}
+          <span className="inline-flex items-center gap-1">
+            <span>{pillContent}</span>
+            {!isDraft && !isActive && bidCount > 0 && (
+              <span className="text-[9px] font-black opacity-90">{`+${bidCount}`}</span>
+            )}
+          </span>
         </div>
       </div>
 

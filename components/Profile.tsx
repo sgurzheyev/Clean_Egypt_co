@@ -224,14 +224,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         .order('created_at', { ascending: false });
       setMyActiveJobs((activeJobsData || []) as Job[]);
 
-      const pendingHomeJobIds = ((homeJobsData || []) as Job[])
-        .filter((j) => j.status === 'pending')
-        .map((j) => j.id);
-      if (pendingHomeJobIds.length > 0) {
+      const pendingJobIds = [
+        ...(((homeJobsData || []) as Job[]).filter((j) => j.status === 'pending').map((j) => j.id)),
+        ...(((cityJobsData || []) as Job[]).filter((j) => j.status === 'pending').map((j) => j.id)),
+      ];
+      if (pendingJobIds.length > 0) {
         const { data: bidsData } = await supabase
           .from('bids')
           .select('id, job_id, worker_id, bid_amount, status, created_at')
-          .in('job_id', pendingHomeJobIds);
+          .in('job_id', pendingJobIds);
         const byJob: Record<string, Bid[]> = {};
         for (const bid of (bidsData || []) as Bid[]) {
           if (!byJob[bid.job_id]) byJob[bid.job_id] = [];
@@ -978,6 +979,41 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   <p className="text-xs text-slate-400">
                     Your donation on the map. Workers can pick it up in the marketplace.
                   </p>
+
+                  {(() => {
+                    const bids = (jobBidsById[job.id] || []).filter((b) => b.status === 'pending');
+                    if (job.status !== 'pending') return null;
+                    return (
+                      <div className="mt-3">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
+                          Active bids: <span className="text-emerald-400">{bids.length}</span>
+                        </p>
+                        {bids.length > 0 ? (
+                          <div className="space-y-2">
+                            {bids.map((bid) => (
+                              <div
+                                key={bid.id}
+                                className="flex items-center justify-between gap-3 py-2 px-3 rounded-xl bg-black/40 border border-white/5"
+                              >
+                                <span className="text-sm font-black text-emerald-400">${bid.bid_amount}</span>
+                                <div className="rounded-full animated-border-city">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAcceptBid(job, bid)}
+                                    className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
+                                  >
+                                    Accept bid
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-slate-500 text-xs italic">No bids yet.</p>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {job.status === 'completed' && job.worker_id && (
                     <div className="mt-4">

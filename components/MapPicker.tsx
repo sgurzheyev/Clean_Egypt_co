@@ -240,6 +240,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [bidError, setBidError] = useState<string | null>(null);
   const [bidSuccess, setBidSuccess] = useState<string | null>(null);
 
+  const [activeBidCounts, setActiveBidCounts] = useState<Record<string, number>>({});
+
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) =>
@@ -277,6 +279,28 @@ const MapPicker: React.FC<MapPickerProps> = ({
     ) as JobOnMap[];
 
     setJobs(list);
+
+    // Fetch active bid counts (pending bids) for marker badges
+    try {
+      const jobIds = (list || []).map((j) => j.id);
+      if (jobIds.length === 0) {
+        setActiveBidCounts({});
+        return;
+      }
+      const { data: bidsData } = await supabase
+        .from('bids')
+        .select('job_id')
+        .in('job_id', jobIds)
+        .eq('status', 'pending');
+      const counts: Record<string, number> = {};
+      for (const row of (bidsData || []) as any[]) {
+        const jid = row.job_id as string;
+        counts[jid] = (counts[jid] || 0) + 1;
+      }
+      setActiveBidCounts(counts);
+    } catch {
+      // best-effort
+    }
   }, []);
 
   useEffect(() => {
@@ -434,46 +458,65 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const [selectedMission, setSelectedMission] = useState<JobOnMap | null>(null);
   const [isAccepting, setIsAccepting] = useState(false);
+  const [showBidInput, setShowBidInput] = useState(false);
+  const [missionBidAmount, setMissionBidAmount] = useState<string>('');
 
   const handleMarkerClick = useCallback((job: JobOnMap) => {
     setSelectedMission(job);
+    setShowBidInput(false);
+    setMissionBidAmount(String(job.amount ?? ''));
   }, []);
 
   const handleCloseMissionBriefing = useCallback(() => {
     setSelectedMission(null);
+    setShowBidInput(false);
+    setMissionBidAmount('');
   }, []);
 
-  const handleAcceptMission = useCallback(
-    async (jobId: string) => {
-      setIsAccepting(true);
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        const user = session?.user;
-        if (!user?.id) {
-          onRequestAuth?.();
-          return;
-        }
-        const { error } = await supabase
-          .from('jobs')
-          .update({ status: 'in_progress', worker_id: user.id })
-          .eq('id', jobId);
-
-        if (error) {
-          alert(error.message || 'Failed to accept mission. Please try again.');
-          return;
-        }
-        await fetchJobs();
-        handleCloseMissionBriefing();
-      } catch (err: any) {
-        alert(err?.message || 'Something went wrong. Please try again.');
-      } finally {
-        setIsAccepting(false);
+  const handleSubmitMissionBid = useCallback(async () => {
+    if (!selectedMission) return;
+    setIsAccepting(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user?.id) {
+        onRequestAuth?.();
+        return;
       }
-    },
-    [fetchJobs, handleCloseMissionBriefing, onRequestAuth]
-  );
+      if (selectedMission.creator_id && selectedMission.creator_id === user.id) {
+        alert('You cannot bid on your own job.');
+        return;
+      }
+      const amt = parseFloat((missionBidAmount || '').replace(',', '.'));
+      if (isNaN(amt) || amt <= 0) {
+        alert('Please enter a positive USD amount.');
+        return;
+      }
+
+      // Existing table: bids(job_id, worker_id, bid_amount, status)
+      const { error } = await supabase.from('bids').insert([
+        {
+          job_id: selectedMission.id,
+          worker_id: user.id,
+          bid_amount: amt,
+          status: 'pending',
+        },
+      ]);
+      if (error) {
+        alert(error.message || 'Failed to place bid. Please try again.');
+        return;
+      }
+
+      await fetchJobs();
+      handleCloseMissionBriefing();
+    } catch (err: any) {
+      alert(err?.message || 'Something went wrong. Please try again.');
+    } finally {
+      setIsAccepting(false);
+    }
+  }, [fetchJobs, handleCloseMissionBriefing, missionBidAmount, onRequestAuth, selectedMission]);
 
   const handleCloseBidModal = useCallback(() => {
     if (!bidSubmitting) {
@@ -657,6 +700,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           })
           .map((job) => {
             const isMyActiveMission = job.status === 'in_progress' && job.worker_id === currentUserId;
+            const bidCount = activeBidCounts[job.id] || 0;
             return (
               <Marker
                 key={job.id}
@@ -669,6 +713,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   orderType={job.task_type === 'home' ? 'home' : 'city'}
                   label={isMyActiveMission ? 'MY MISSION' : undefined}
                   isActive={isMyActiveMission}
+                  bidCount={job.status === 'pending' ? bidCount : 0}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleMarkerClick(job);
@@ -1026,15 +1071,50 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 </button>
               </div>
             ) : (
-              <div className={`w-full rounded-full ${selectedMission.task_type === 'city' ? 'animated-border-city' : 'animated-border-home'} ${isAccepting ? 'opacity-60' : ''}`}>
-                <button
-                  type="button"
-                  onClick={() => handleAcceptMission(selectedMission.id)}
-                  disabled={isAccepting}
-                  className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:cursor-wait"
+              <div className="space-y-3">
+                {showBidInput && (
+                  <div className="rounded-2xl bg-black/40 border border-white/10 px-4 py-3">
+                    <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
+                      Your bid (USD)
+                    </label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min="0"
+                      value={missionBidAmount}
+                      onChange={(e) => setMissionBidAmount(e.target.value)}
+                      className={`w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none ${
+                        selectedMission.task_type === 'city'
+                          ? 'focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
+                          : 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500'
+                      }`}
+                      placeholder={`Default: $${selectedMission.amount}`}
+                    />
+                  </div>
+                )}
+
+                <div
+                  className={`w-full rounded-full ${
+                    selectedMission.task_type === 'city' ? 'animated-border-city' : 'animated-border-home'
+                  } ${isAccepting ? 'opacity-60' : ''}`}
                 >
-                  {isAccepting ? 'Accepting...' : 'Clean My Wallet'}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!showBidInput) {
+                        setShowBidInput(true);
+                        if (!missionBidAmount) setMissionBidAmount(String(selectedMission.amount ?? ''));
+                        return;
+                      }
+                      handleSubmitMissionBid();
+                    }}
+                    disabled={isAccepting}
+                    className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:cursor-wait"
+                  >
+                    {isAccepting ? 'PLACING...' : showBidInput ? 'PLACE BID' : 'MAKE A BID'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
