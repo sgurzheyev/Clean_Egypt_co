@@ -499,6 +499,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
+      // Check wallet balance: must have at least 50% of bid amount
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('balance_egp')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (profileError) {
+        console.error('Balance check failed:', profileError.message);
+      } else {
+        const balance = (profile?.balance_egp ?? 0) as number;
+        const required = 0.5 * amt;
+        if (balance < required) {
+          alert(
+            `Insufficient wallet balance.\nYou need at least 50% of your bid amount available.\nRequired: ${required.toFixed(
+              2
+            )} EGP, Current: ${balance.toFixed(2)} EGP.`
+          );
+          return;
+        }
+      }
+
       // Use RPC to place mission bid (handles balance/frozen_balance internally)
       const { error } = await supabase.rpc('place_mission_bid', {
         mission_id: selectedMission.id,
@@ -549,19 +570,38 @@ const MapPicker: React.FC<MapPickerProps> = ({
         setBidError('You must be signed in to place a bid.');
         return;
       }
+      const userId = session.user.id;
 
-      const { error } = await supabase.from('bids').insert([
-        {
-          job_id: bidJob.id,
-          worker_id: session.user.id,
-          bid_amount: amount,
-          status: 'pending',
-        },
-      ]);
+      // Check wallet balance before bidding (must have at least 50% of bid amount)
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('balance_egp')
+        .eq('id', userId)
+        .maybeSingle();
+      if (profileError) {
+        console.error('Balance check failed:', profileError.message);
+      } else {
+        const balance = (profile?.balance_egp ?? 0) as number;
+        const required = 0.5 * amount;
+        if (balance < required) {
+          setBidError(
+            `Insufficient wallet balance. You need at least 50% of your bid amount. Required: ${required.toFixed(
+              2
+            )} EGP, Current: ${balance.toFixed(2)} EGP.`
+          );
+          return;
+        }
+      }
+
+      // Use RPC so backend enforces bidding logic on missions table
+      const { error } = await supabase.rpc('place_mission_bid', {
+        mission_id: bidJob.id,
+        amount_egp: amount,
+      });
 
       if (error) {
         console.error('Error placing bid:', error.message);
-        setBidError('Could not place bid. Please try again.');
+        setBidError(error.message || 'Could not place bid. Please try again.');
         return;
       }
 

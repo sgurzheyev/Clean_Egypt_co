@@ -100,6 +100,46 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  // Real-time wallet balance subscription
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const setup = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      channel = supabase
+        .channel(`profiles-balance-${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${userId}`,
+          },
+          (payload: any) => {
+            const newRow = payload.new as ProfileRow | undefined;
+            if (newRow && typeof newRow.balance_egp === 'number') {
+              setBalance(newRow.balance_egp);
+            }
+          }
+        )
+        .subscribe();
+    };
+
+    setup();
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, []);
+
   // Worker proof-of-work modal (before/after photos)
   const [proofJob, setProofJob] = useState<Job | null>(null);
   const [proofPhase, setProofPhase] = useState<'before' | 'after'>('before');
