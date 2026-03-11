@@ -11,14 +11,15 @@ type TaskType = 'city' | 'home';
 
 interface JobOnMap {
   id: string;
-  task_type: TaskType | string;
-  amount: number;
+  category: 'public' | 'home' | 'office' | string;
+  amount_target: number;
   location_lat: number;
   location_lng: number;
   status: string;
   worker_id?: string | null;
   creator_id?: string | null;
   description?: string | null;
+  photo_urls?: string[] | null;
 }
 
 interface MapPickerProps {
@@ -253,11 +254,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch pending and in_progress jobs from Supabase
-  const fetchJobs = useCallback(async () => {
+  // Fetch pending and in_progress missions from Supabase
+  const fetchMissions = useCallback(async () => {
     const { data, error } = await supabase
-      .from('jobs')
-      .select('id, task_type, amount, location_lat, location_lng, status, worker_id, creator_id, description')
+      .from('missions')
+      .select('id, category, amount_target, location_lat, location_lng, status, worker_id, creator_id, description, photo_urls')
       .in('status', ['pending', 'in_progress'])
       .order('created_at', { ascending: false })
       .limit(500);
@@ -290,7 +291,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const { data: bidsData } = await supabase
         .from('bids')
         .select('job_id')
-        .in('job_id', jobIds)
+          .in('mission_id', jobIds)
         .eq('status', 'pending');
       const counts: Record<string, number> = {};
       for (const row of (bidsData || []) as any[]) {
@@ -304,26 +305,26 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, []);
 
   useEffect(() => {
-    fetchJobs();
-  }, [fetchJobs]);
+    fetchMissions();
+  }, [fetchMissions]);
 
   useEffect(() => {
-    const handleFocus = () => fetchJobs();
+    const handleFocus = () => fetchMissions();
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [fetchJobs]);
+  }, [fetchMissions]);
 
   useEffect(() => {
     const onPaymentSuccess = () => {
       // Initial refresh
-      fetchJobs();
-      // Simple polling to wait for webhook to finish inserting the job
-      setTimeout(() => fetchJobs(), 1500);
-      setTimeout(() => fetchJobs(), 4000);
+      fetchMissions();
+      // Simple polling to wait for webhook to finish inserting the mission
+      setTimeout(() => fetchMissions(), 1500);
+      setTimeout(() => fetchMissions(), 4000);
     };
     window.addEventListener('paymentSuccess', onPaymentSuccess);
     return () => window.removeEventListener('paymentSuccess', onPaymentSuccess);
-  }, [fetchJobs]);
+  }, [fetchMissions]);
 
   // Fly to job location when requested from Profile "View on Map"
   useEffect(() => {
@@ -357,7 +358,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'mission_creation',
-          task_type: payload.taskType === 'city' ? 'public' : 'private',
+          category: payload.taskType === 'city' ? 'public' : 'home',
           amount_egp: payload.amount,
           userId: session.user.id,
           location_lat: payload.location.lat,
@@ -467,7 +468,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const handleMarkerClick = useCallback((job: JobOnMap) => {
     setSelectedMission(job);
     setShowBidInput(false);
-    setMissionBidAmount(String(job.amount ?? ''));
+    setMissionBidAmount(String(job.amount_target ?? ''));
   }, []);
 
   const handleCloseMissionBriefing = useCallback(() => {
@@ -508,14 +509,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      await fetchJobs();
+      await fetchMissions();
       handleCloseMissionBriefing();
     } catch (err: any) {
       alert(err?.message || 'Something went wrong. Please try again.');
     } finally {
       setIsAccepting(false);
     }
-  }, [fetchJobs, handleCloseMissionBriefing, missionBidAmount, onRequestAuth, selectedMission]);
+  }, [fetchMissions, handleCloseMissionBriefing, missionBidAmount, onRequestAuth, selectedMission]);
 
   const handleCloseBidModal = useCallback(() => {
     if (!bidSubmitting) {
@@ -566,7 +567,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       setBidSuccess('Bid placed successfully.');
       setBidAmount('');
-      await fetchJobs();
+      await fetchMissions();
       setTimeout(() => {
         handleCloseBidModal();
       }, 1200);
@@ -700,6 +701,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           .map((job) => {
             const isMyActiveMission = job.status === 'in_progress' && job.worker_id === currentUserId;
             const bidCount = activeBidCounts[job.id] || 0;
+            const orderType = job.category === 'home' ? 'home' : 'city';
             return (
               <Marker
                 key={job.id}
@@ -708,8 +710,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 anchor="bottom"
               >
                 <JobMarker
-                  amount={job.amount}
-                  orderType={job.task_type === 'home' ? 'home' : 'city'}
+                  amount={job.amount_target}
+                  orderType={orderType}
                   label={isMyActiveMission ? 'MY MISSION' : undefined}
                   isActive={isMyActiveMission}
                   bidCount={job.status === 'pending' ? bidCount : 0}
@@ -946,7 +948,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   Target amount
                 </p>
                 <p className="text-xl font-black text-amber-400">
-                  ${bidJob.amount}
+                  ${bidJob.amount_target}
                 </p>
               </div>
               {bidJob.description && (
@@ -1036,10 +1038,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
             <div className="space-y-4 mb-6">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{selectedMission.task_type === 'home' ? '🏠' : '🌆'}</span>
+                <span className="text-2xl">{selectedMission.category === 'home' ? '🏠' : '🌆'}</span>
                 <div>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${selectedMission.task_type === 'city' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {selectedMission.task_type === 'city' ? 'City Cleaning' : 'Home Cleaning'}
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${selectedMission.category === 'public' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {selectedMission.category === 'public' ? 'City Cleaning' : 'Home Cleaning'}
                   </p>
                   <p className="text-xs text-slate-500 font-mono">
                     {selectedMission.location_lat.toFixed(5)}, {selectedMission.location_lng.toFixed(5)}
@@ -1049,8 +1051,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
               <div className="py-4">
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">Reward</p>
-                <p className={`text-4xl sm:text-5xl font-black tracking-tight ${selectedMission.task_type === 'city' ? 'text-emerald-400' : 'text-amber-400'}`} style={{ textShadow: selectedMission.task_type === 'city' ? '0 0 24px rgba(52, 211, 153, 0.6)' : '0 0 24px rgba(251, 191, 36, 0.6)' }}>
-                  ${selectedMission.amount}
+                <p className={`text-4xl sm:text-5xl font-black tracking-tight ${selectedMission.category === 'public' ? 'text-emerald-400' : 'text-amber-400'}`} style={{ textShadow: selectedMission.category === 'public' ? '0 0 24px rgba(52, 211, 153, 0.6)' : '0 0 24px rgba(251, 191, 36, 0.6)' }}>
+                  ${selectedMission.amount_target}
                 </p>
               </div>
 
@@ -1084,18 +1086,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       value={missionBidAmount}
                       onChange={(e) => setMissionBidAmount(e.target.value)}
                       className={`w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none ${
-                        selectedMission.task_type === 'city'
+                        selectedMission.category === 'public'
                           ? 'focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
                           : 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500'
                       }`}
-                      placeholder={`Default: $${selectedMission.amount}`}
+                      placeholder={`Default: $${selectedMission.amount_target}`}
                     />
                   </div>
                 )}
 
                 <div
                   className={`w-full rounded-full ${
-                    selectedMission.task_type === 'city' ? 'animated-border-city' : 'animated-border-home'
+                    selectedMission.category === 'public' ? 'animated-border-city' : 'animated-border-home'
                   } ${isAccepting ? 'opacity-60' : ''}`}
                 >
                   <button
@@ -1103,7 +1105,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     onClick={() => {
                       if (!showBidInput) {
                         setShowBidInput(true);
-                        if (!missionBidAmount) setMissionBidAmount(String(selectedMission.amount ?? ''));
+                        if (!missionBidAmount) setMissionBidAmount(String(selectedMission.amount_target ?? ''));
                         return;
                       }
                       handleSubmitMissionBid();

@@ -13,16 +13,15 @@ interface Job {
   id: string;
   creator_id: string | null;
   worker_id: string | null;
-  task_type: 'city' | 'home' | string;
-  amount: number;
+  category: 'public' | 'home' | 'office' | string;
+  amount_target: number;
   location_lat?: number | null;
   location_lng?: number | null;
   status: string;
   description?: string | null;
   created_at: string;
   started_at?: string | null;
-  worker_before_photos?: string[] | null;
-  worker_after_photos?: string[] | null;
+  photo_urls?: string[] | null;
   is_disputed?: boolean | null;
 }
 
@@ -201,24 +200,24 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       }
 
       const { data: homeJobsData } = await supabase
-        .from('jobs')
-        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at, worker_before_photos, worker_after_photos, started_at, is_disputed')
+        .from('missions')
+        .select('id, creator_id, worker_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
         .eq('creator_id', userId)
-        .eq('task_type', 'home')
+        .eq('category', 'home')
         .order('created_at', { ascending: false });
       setMyHomeJobs((homeJobsData || []) as Job[]);
 
       const { data: cityJobsData } = await supabase
-        .from('jobs')
-        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at, worker_before_photos, worker_after_photos, started_at, is_disputed')
+        .from('missions')
+        .select('id, creator_id, worker_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
         .eq('creator_id', userId)
-        .eq('task_type', 'city')
+        .eq('category', 'public')
         .order('created_at', { ascending: false });
       setMyCityJobs((cityJobsData || []) as Job[]);
 
       const { data: activeJobsData } = await supabase
-        .from('jobs')
-        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at, worker_before_photos, worker_after_photos, started_at, is_disputed')
+        .from('missions')
+        .select('id, creator_id, worker_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
         .eq('worker_id', userId)
         .in('status', ['in_progress', 'completed', 'finished'])
         .order('created_at', { ascending: false });
@@ -257,8 +256,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       setMarketplaceError(null);
 
       const { data, error } = await supabase
-        .from('jobs')
-        .select('id, creator_id, worker_id, task_type, amount, location_lat, location_lng, status, description, created_at, worker_before_photos, worker_after_photos, started_at, is_disputed')
+        .from('missions')
+        .select('id, creator_id, worker_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
         .eq('status', 'pending')
         .is('worker_id', null)
         .order('created_at', { ascending: false })
@@ -304,7 +303,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'mission_creation',
-          task_type: taskType === 'city' ? 'public' : 'private',
+          category: taskType === 'city' ? 'public' : 'home',
           amount_egp: amount,
           userId: creatorId,
           // TODO: wire actual map location; using fallback center for now
@@ -354,10 +353,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     if (!window.confirm(`Accept bid of $${bid.bid_amount} from this worker?`)) return;
     try {
       const { error: jobErr } = await supabase
-        .from('jobs')
+        .from('missions')
         .update({
           worker_id: bid.worker_id,
-          amount: bid.bid_amount,
+          amount_target: bid.bid_amount,
           status: 'in_progress',
         })
         .eq('id', job.id);
@@ -389,7 +388,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const handleDeleteJob = async (jobId: string) => {
     if (!window.confirm('Delete this request? This action cannot be undone.')) return;
     try {
-      const { error } = await supabase.from('jobs').delete().eq('id', jobId);
+      const { error } = await supabase.from('missions').delete().eq('id', jobId);
       if (error) throw error;
       setMyHomeJobs((prev) => prev.filter((j) => j.id !== jobId));
       setJobBidsById((prev) => {
@@ -459,9 +458,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       if (proofPhase === 'before') {
         const { error: updateErr } = await supabase
-          .from('jobs')
+          .from('missions')
           .update({
-            worker_before_photos: uploadedUrls,
+            photo_urls: [...(proofJob.photo_urls || []), ...uploadedUrls],
             started_at: new Date().toISOString(),
           })
           .eq('id', proofJob.id);
@@ -469,9 +468,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         setProofSuccess('Before photos uploaded. Mission started.');
       } else {
         const { error: updateErr } = await supabase
-          .from('jobs')
+          .from('missions')
           .update({
-            worker_after_photos: uploadedUrls,
+            photo_urls: [...(proofJob.photo_urls || []), ...uploadedUrls],
             status: 'completed',
           })
           .eq('id', proofJob.id);
@@ -499,7 +498,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     if (!window.confirm('Confirm completion and release payment to the worker?')) return;
     try {
       const exchangeRate = 50;
-      const payoutEgp = Math.round((job.amount || 0) * exchangeRate);
+      const payoutEgp = Math.round((job.amount_target || 0) * exchangeRate);
 
       const { data: workerProfile, error: workerErr } = await supabase
         .from('profiles')
@@ -516,7 +515,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       if (balanceErr) throw balanceErr;
 
       const { error: jobErr } = await supabase
-        .from('jobs')
+        .from('missions')
         .update({ status: 'finished' })
         .eq('id', job.id);
       if (jobErr) throw jobErr;
@@ -793,7 +792,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     </div>
 
                     <p className="text-sm text-slate-300 mb-1">
-                      <span className="text-amber-400 font-bold">${job.amount}</span>
+                      <span className="text-amber-400 font-bold">${job.amount_target}</span>
                       {job.description && (
                         <span className="ml-2 text-slate-400">— {job.description}</span>
                       )}
@@ -873,7 +872,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               {(myActiveJobs || [])
                 .filter((job) => job.status !== 'finished')
                 .map((job) => {
-                const isHome = job.task_type === 'home';
+                const isHome = job.category === 'home';
                 const icon = isHome ? '🏠' : '🌆';
                 const badgeColor = isHome ? 'bg-amber-400/10 text-amber-300 border-amber-500/30' : 'bg-emerald-400/10 text-emerald-300 border-emerald-500/30';
                 const statusPill =
@@ -899,9 +898,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         <span className="text-2xl">{icon}</span>
                         <div>
                           <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
-                            {job.task_type.toUpperCase()} Mission
+                            {job.category.toUpperCase()} Mission
                           </p>
-                          <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>${job.amount}</p>
+                          <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>${job.amount_target}</p>
                         </div>
                       </div>
                       {job.started_at && (
@@ -976,7 +975,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-400 font-bold mb-1">
                     City Donation
                   </p>
-                  <p className="text-sm font-bold text-emerald-400 mb-1">${job.amount}</p>
+                  <p className="text-sm font-bold text-emerald-400 mb-1">${job.amount_target}</p>
                   <p className="text-xs text-slate-400">
                     Your donation on the map. Workers can pick it up in the marketplace.
                   </p>
@@ -1077,7 +1076,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               {(marketplaceJobs || [])
                 .filter((job) => job.status === 'pending' && job.worker_id == null)
                 .map((job) => {
-                const isHome = job.task_type === 'home';
+                const isHome = job.category === 'home';
                 const icon = isHome ? '🏠' : '🌆';
                 const badgeColor = isHome
                   ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
@@ -1111,9 +1110,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           </div>
                           <div>
                             <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
-                              {job.task_type.toUpperCase()} Mission
+                              {job.category.toUpperCase()} Mission
                             </p>
-                            <p className={`text-2xl font-black tracking-tight mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>${job.amount}</p>
+                            <p className={`text-2xl font-black tracking-tight mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>${job.amount_target}</p>
                           </div>
                         </div>
                         <div className="relative z-10 text-right">
@@ -1160,7 +1159,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 return finishedJobs.map((job) => {
                   const isCreator = job.creator_id === uid;
                   const roleLabel = isCreator ? 'Creator' : 'Cleaner';
-                  const isHome = job.task_type === 'home';
+                const isHome = job.category === 'home';
                   const icon = isHome ? '🏠' : '🌆';
                   const createdDate = new Date(job.created_at).toLocaleDateString();
                   return (
@@ -1184,10 +1183,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <span className="text-2xl opacity-90">{icon}</span>
                           <div>
                             <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${isHome ? 'border-amber-500/30 text-amber-300' : 'border-emerald-500/30 text-emerald-400'}`}>
-                              {job.task_type.toUpperCase()} Mission
+                              {job.category.toUpperCase()} Mission
                             </p>
                             <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>
-                              ${job.amount}
+                              ${job.amount_target}
                             </p>
                           </div>
                         </div>
@@ -1282,7 +1281,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   Review proof of work
                 </p>
                 <h3 className="text-xl font-black text-white">
-                  {reviewJob.task_type.toUpperCase()} • ${reviewJob.amount}
+                  {reviewJob.category.toUpperCase()} • ${reviewJob.amount_target}
                 </h3>
               </div>
               <button
@@ -1296,18 +1295,18 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
             {/* Scrollable photo grid + disclaimer */}
             <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className="rounded-2xl bg-black/50 border border-white/10 p-4">
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
                     Before photos
                   </p>
                   <div className="grid grid-cols-2 gap-2">
-                    {(reviewJob.worker_before_photos || []).length === 0 && (
+                    {(!reviewJob.photo_urls || reviewJob.photo_urls.length === 0) && (
                       <p className="text-xs text-slate-500 italic">
                         Worker did not upload before photos.
                       </p>
                     )}
-                    {(reviewJob.worker_before_photos || []).map((url) => (
+                    {(reviewJob.photo_urls || []).map((url) => (
                       <div key={url} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
                         <img src={url} alt="Before" className="w-full h-24 object-cover" />
                       </div>
@@ -1319,12 +1318,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     After photos
                   </p>
                   <div className="grid grid-cols-2 gap-2">
-                    {(reviewJob.worker_after_photos || []).length === 0 && (
+                    {/* In the new schema, we store all photos in photo_urls; keep a single gallery for now */}
+                    {(!reviewJob.photo_urls || reviewJob.photo_urls.length === 0) && (
                       <p className="text-xs text-slate-500 italic">
                         Worker did not upload after photos.
                       </p>
                     )}
-                    {(reviewJob.worker_after_photos || []).map((url) => (
+                    {(reviewJob.photo_urls || []).map((url) => (
                       <div key={url} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
                         <img src={url} alt="After" className="w-full h-24 object-cover" />
                       </div>
@@ -1341,7 +1341,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             {/* Sticky action buttons — always visible at bottom */}
             <div className="flex-shrink-0 sticky bottom-0 bg-black/90 backdrop-blur-md pt-4 pb-6 px-6 z-10 border-t border-gray-800">
               <div className="flex flex-col sm:flex-row gap-3">
-                <div className={`flex-1 rounded-full ${reviewJob?.task_type === 'home' ? 'animated-border-home' : 'animated-border-city'}`}>
+                <div className={`flex-1 rounded-full ${reviewJob?.category === 'home' ? 'animated-border-home' : 'animated-border-city'}`}>
                   <button
                     type="button"
                     onClick={async () => {
@@ -1358,7 +1358,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   onClick={async () => {
                     try {
                       const { error } = await supabase
-                        .from('jobs')
+                        .from('missions')
                         .update({ is_disputed: true, status: 'disputed' })
                         .eq('id', reviewJob.id);
                       if (error) throw error;
@@ -1420,7 +1420,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 Mission
               </p>
               <p className="text-white font-bold">
-                {proofJob.task_type.toUpperCase()} • ${proofJob.amount}
+                {proofJob.category.toUpperCase()} • ${proofJob.amount_target}
               </p>
               {proofJob.description && (
                 <p className="text-xs text-slate-400 mt-1">{proofJob.description}</p>
@@ -1458,7 +1458,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 <p className="text-xs text-emerald-400 font-medium">{proofSuccess}</p>
               )}
 
-              <div className={`w-full rounded-full ${proofJob?.task_type === 'home' ? 'animated-border-home' : 'animated-border-city'} ${proofSubmitting ? 'opacity-60' : ''}`}>
+              <div className={`w-full rounded-full ${proofJob?.category === 'home' ? 'animated-border-home' : 'animated-border-city'} ${proofSubmitting ? 'opacity-60' : ''}`}>
                 <button
                   type="submit"
                   disabled={proofSubmitting}

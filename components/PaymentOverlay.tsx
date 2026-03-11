@@ -51,7 +51,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: 'mission_creation',
-            task_type: type === 'city' ? 'public' : 'private',
+            category: type === 'city' ? 'public' : 'home',
             amount_egp: amount,
             userId: currentUserId,
             location_lat: lat,
