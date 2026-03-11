@@ -12,7 +12,7 @@ interface ProfileProps {
 interface Job {
   id: string;
   creator_id: string | null;
-  winner_id: string | null;
+  cleaner_id: string | null;
   category: 'public' | 'home' | 'office' | string;
   amount_target: number;
   location_lat?: number | null;
@@ -201,7 +201,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: homeJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, worker_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
         .eq('creator_id', userId)
         .eq('category', 'home')
         .order('created_at', { ascending: false });
@@ -209,7 +209,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: cityJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, worker_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
         .eq('creator_id', userId)
         .eq('category', 'public')
         .order('created_at', { ascending: false });
@@ -217,8 +217,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: activeJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, winner_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
-        .eq('winner_id', userId)
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
+        .eq('cleaner_id', userId)
         .in('status', ['in_progress', 'completed', 'finished'])
         .order('created_at', { ascending: false });
       setMyActiveJobs((activeJobsData || []) as unknown as Job[]);
@@ -257,9 +257,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data, error } = await supabase
         .from('missions')
-        .select('id, creator_id, winner_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
         .eq('status', 'pending')
-        .is('winner_id', null)
+        .is('cleaner_id', null)
         .order('created_at', { ascending: false })
         .limit(20);
 
@@ -355,7 +355,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       const { error: jobErr } = await supabase
         .from('missions')
         .update({
-          winner_id: bid.worker_id,
+          cleaner_id: bid.worker_id,
           amount_target: bid.bid_amount,
           status: 'in_progress',
         })
@@ -491,7 +491,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   };
 
   const handleConfirmReleasePay = async (job: Job) => {
-    if (!job.winner_id) {
+    if (!job.cleaner_id) {
       alert('No worker assigned to this job yet.');
       return;
     }
@@ -503,7 +503,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       const { data: workerProfile, error: workerErr } = await supabase
         .from('profiles')
         .select('id, balance_egp')
-        .eq('id', job.winner_id)
+        .eq('id', job.cleaner_id)
         .maybeSingle();
       if (workerErr) throw workerErr;
 
@@ -511,7 +511,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       const { error: balanceErr } = await supabase
         .from('profiles')
         .update({ balance_egp: currentBalance + payoutEgp })
-        .eq('id', job.winner_id);
+        .eq('id', job.cleaner_id);
       if (balanceErr) throw balanceErr;
 
       const { error: jobErr } = await supabase
@@ -839,7 +839,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     )}
 
                     {/* Client actions */}
-                    {job.status === 'completed' && job.winner_id && (
+                    {job.status === 'completed' && job.cleaner_id && (
                       <div className="mt-4">
                         <button
                           type="button"
@@ -860,7 +860,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           </div>
         </section>
 
-        {/* MY ACTIVE MISSIONS (from missions where winner_id = me, excluding finished) */}
+        {/* MY ACTIVE MISSIONS (from missions where cleaner_id = me, excluding finished) */}
         <section className="mb-10 text-white">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-amber-400/90">
             🎯 My Active Missions
@@ -1015,7 +1015,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     );
                   })()}
 
-                  {job.status === 'completed' && job.winner_id && (
+                  {job.status === 'completed' && job.cleaner_id && (
                     <div className="mt-4">
                       <button
                         type="button"
@@ -1074,7 +1074,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           {!marketLoading && !marketError && (marketplaceJobs || []).filter((job) => job.status === 'pending').length > 0 && (
             <div className="grid grid-cols-1 gap-4 pointer-events-auto">
               {(marketplaceJobs || [])
-                .filter((job) => job.status === 'pending' && job.winner_id == null)
+                .filter((job) => job.status === 'pending' && job.cleaner_id == null)
                 .map((job) => {
                 const isHome = job.category === 'home';
                 const icon = isHome ? '🏠' : '🌆';
@@ -1144,7 +1144,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 ].filter(
                   (job, idx, arr) =>
                     job.status === 'finished' &&
-                    (job.creator_id === uid || job.winner_id === uid) &&
+                    (job.creator_id === uid || job.cleaner_id === uid) &&
                     arr.findIndex((j) => j.id === job.id) === idx
                 );
 
