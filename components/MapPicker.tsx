@@ -495,15 +495,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      // Existing table: bids(job_id, worker_id, bid_amount, status)
-      const { error } = await supabase.from('bids').insert([
-        {
-          job_id: selectedMission.id,
-          worker_id: user.id,
-          bid_amount: amt,
-          status: 'pending',
-        },
-      ]);
+      // Use RPC to place mission bid (handles balance/frozen_balance internally)
+      const { error } = await supabase.rpc('place_mission_bid', {
+        mission_id: selectedMission.id,
+        amount_egp: amt,
+      });
       if (error) {
         alert(error.message || 'Failed to place bid. Please try again.');
         return;
