@@ -20,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const {
       type, // 'mission_creation' or 'worker_deposit'
       category, // 'public' | 'home' | 'office'
-      amount_egp,
+      amount_target,
       location_lat,
       location_lng,
       userId,
@@ -30,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } = req.body;
 
     // Normalize and validate numeric fields
-    const finalAmountEgp = Number(amount_egp);
+    const finalAmountTarget = Number(amount_target);
     const latNum = typeof location_lat === 'number' ? location_lat : Number(location_lat);
     const lngNum = typeof location_lng === 'number' ? location_lng : Number(location_lng);
     let missionIdForMetadata: string;
@@ -40,8 +40,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!userId || !category) {
         return res.status(400).json({ error: 'Missing required fields for mission creation (userId/category)' });
       }
-      if (!Number.isFinite(finalAmountEgp) || finalAmountEgp <= 0) {
-        return res.status(400).json({ error: 'Invalid or missing amount_egp for mission creation' });
+      if (!Number.isFinite(finalAmountTarget) || finalAmountTarget <= 0) {
+        return res.status(400).json({ error: 'Invalid or missing amount_target for mission creation' });
       }
       if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
         return res.status(400).json({ error: 'Invalid or missing location_lat/location_lng for mission creation' });
@@ -53,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .insert({
           creator_id: userId,
           category,
-          amount_target: finalAmountEgp,
+          amount_target: finalAmountTarget,
           location_lat: latNum,
           location_lng: lngNum,
           status: 'pending',
@@ -87,7 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     // --- 2. HANDLE WORKER DEPOSIT ---
     else if (type === 'worker_deposit') {
-      if (!missionId || !userId || !finalAmountEgp) {
+      if (!missionId || !userId || !finalAmountTarget) {
         return res.status(400).json({ error: 'Missing fields for deposit' });
       }
       missionIdForMetadata = missionId;

@@ -402,7 +402,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         body: JSON.stringify({
           type: 'mission_creation',
           category: payload.taskType === 'city' ? 'public' : 'home',
-          amount_egp: payload.amount,
+          amount_target: payload.amount,
           userId: session.user.id,
           location_lat: payload.location.lat,
           location_lng: payload.location.lng,
@@ -626,7 +626,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // Use RPC to place mission bid (handles balance/frozen_balance internally)
       const { error } = await supabase.rpc('place_mission_bid', {
         mission_id: selectedMission.id,
-        amount_egp: amt,
+        amount_target: amt,
       });
       if (error) {
         alert(error.message || 'Failed to place bid. Please try again.');
@@ -699,7 +699,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // Use RPC so backend enforces bidding logic on missions table
       const { error } = await supabase.rpc('place_mission_bid', {
         mission_id: bidJob.id,
-        amount_egp: amount,
+        amount_target: amount,
       });
 
       if (error) {

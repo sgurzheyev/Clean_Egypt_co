@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { sendTelegramAlert } from '../lib/telegram';
 import crypto from 'crypto';
 
 // Server-side Supabase client (service role)
@@ -13,17 +12,52 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
+interface PaymobWebhookObj {
+  amount_cents: number;
+  created_at: string;
+  currency: string;
+  error_occured: boolean;
+  has_parent_transaction: boolean;
+  id: number;
+  integration_id: number;
+  is_3d_secure: boolean;
+  is_auth: boolean;
+  is_capture: boolean;
+  is_refunded: boolean;
+  is_standalone_payment: boolean;
+  pending: boolean;
+  source_data: {
+    pan: string;
+    sub_type: string;
+    type: string;
+  };
+  success: boolean;
+  order: {
+    merchant_order_id?: string;
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+  if (req.method !== 'POST') {
+    return res.status(405).send('Method Not Allowed');
+  }
 
   try {
-    const { obj } = req.body;
-    const hmacReceived = req.query.hmac as string;
+    const obj = req.body?.obj as PaymobWebhookObj | undefined;
+    const hmacReceived = (req.query.hmac as string) || '';
 
-    // 1. ПРОВЕРКА ПОДПИСИ HMAC (Защита от фейковых оплат)
+    if (!obj) {
+      console.error('Paymob webhook: missing obj in body');
+      return res.status(200).send('Missing payload');
+    }
+
+    // 1. Verify HMAC signature
     const secret = process.env.PAYMOB_HMAC;
-    
-    // Формируем строку строго по документации PayMob (алфавитный порядок ключей)
+    if (!secret) {
+      console.error('PAYMOB_HMAC is not configured');
+      return res.status(200).send('Webhook misconfigured');
+    }
+
     const dataToHash = [
       obj.amount_cents,
       obj.created_at,
@@ -41,95 +75,125 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       obj.source_data.pan,
       obj.source_data.sub_type,
       obj.source_data.type,
-      obj.success
+      obj.success,
     ].join('');
 
-    const hashed = crypto
-      .createHmac('sha512', secret!)
-      .update(dataToHash)
-      .digest('hex');
+    const hashed = crypto.createHmac('sha512', secret).update(dataToHash).digest('hex');
 
-    if (hashed !== hmacReceived) {
-      console.error('ОШИБКА: Неверная подпись HMAC!');
+    if (!hmacReceived || hashed !== hmacReceived) {
+      console.error('Paymob webhook: invalid HMAC signature');
       return res.status(401).send('Unauthorized');
     }
 
-    // 2. ОБРАБОТКА УСПЕШНОЙ ОПЛАТЫ
-    if (obj.success === true) {
-      const merchantOrderId = obj.order.merchant_order_id; // e.g. "mission_creation:uuid_1234"
-      const amountPaidEgp = obj.amount_cents / 100;
-
-      // Извлекаем тип операции и ID миссии из merchant_order_id, который мы сформировали в paymob-intent
-      const [type, metadata] = merchantOrderId.split(':');
-      const missionId = metadata ? metadata.split('_')[0] : null;
-
-      if (!missionId) {
-        throw new Error(`Невозможно извлечь missionId из merchant_order_id: ${merchantOrderId}`);
-      }
-
-      // --- СЦЕНАРИЙ А: Создание новой миссии (клиент или меценат оплатил) ---
-      if (type === 'mission_creation') {
-        // Миссия уже была создана в интенте в статусе 'collecting' или 'pending'
-        // Теперь мы просто подтверждаем, что деньги пришли, и переводим ее в статус поиска уборщика
-        
-        const { data: mission, error: updateErr } = await supabase
-          .from('missions')
-          .update({ 
-            status: 'pending', // Теперь она доступна для ставок
-            collected_amount: amountPaidEgp // Записываем, сколько реально собрано
-          })
-          .eq('id', missionId)
-          .select('task_type, amount_egp, location_lat, location_lng')
-          .single();
-
-        if (updateErr) throw new Error("Supabase Error (update mission status): " + updateErr.message);
-
-        console.log(`Миссия ${missionId} успешно оплачена на сумму ${amountPaidEgp} EGP.`);
-
-        // Отправляем уведомление в Telegram (fire and forget)
-        if (mission) {
-          const msg = `🟢 <b>NEW MISSION FUNDED!</b>\nAmount: ${amountPaidEgp} EGP\nType: ${mission.task_type}\nLocation: ${mission.location_lat}, ${mission.location_lng}`;
-          sendTelegramAlert(msg).catch(err => console.error("Telegram alert failed:", err));
-        }
-
-        return res.status(200).send('OK');
-      }
-
-      // --- СЦЕНАРИЙ Б: Уборщик пополняет свой баланс (для депозитов) ---
-      if (type === 'worker_deposit') {
-        // Ищем кому принадлежит эта попытка пополнения
-        // В интенте мы передали userId вместо missionId в метаданные для этого типа? 
-        // Важно: если в paymob-intent мы передавали missionId, то пополнение баланса нужно делать хитрее.
-        // Предположим, missionId здесь - это user_id уборщика.
-
-        const userId = missionId; 
-
-        // Вызываем RPC для безопасного зачисления на баланс
-        // Тебе понадобится создать эту RPC функцию, если ее еще нет, или просто сделать UPDATE (менее секьюрно, но работает)
-        const { error: balanceErr } = await supabase.rpc('increment_balance', {
-          p_user_id: userId,
-          p_amount: amountPaidEgp
-        });
-
-        // Альтернативный простой вариант (если нет RPC):
-        // const { error: balanceErr } = await supabase
-        //  .from('profiles')
-        //  .update({ balance_egp: supabase.sql`balance_egp + ${amountPaidEgp}` })
-        //  .eq('id', userId);
-
-        if (balanceErr) throw new Error("Supabase Error (add to balance): " + balanceErr.message);
-
-        console.log(`Баланс уборщика ${userId} пополнен на ${amountPaidEgp} EGP.`);
-        return res.status(200).send('OK');
-      }
+    // 2. Process successful payments only
+    if (!obj.success) {
+      return res.status(200).send('Ignored (not successful)');
     }
 
-    // Если оплата не success, просто возвращаем 200, чтобы PayMob отстал
-    return res.status(200).send('OK');
+    const merchantOrderId = obj.order?.merchant_order_id;
+    if (!merchantOrderId) {
+      console.error('Paymob webhook: missing merchant_order_id');
+      return res.status(200).send('Missing merchant_order_id');
+    }
 
+    // merchant_order_id format: "<type>:<idPart>_<timestamp>"
+    const [type, rest] = merchantOrderId.split(':');
+    const idPart = rest ? rest.split('_')[0] : undefined;
+
+    if (!type || !idPart) {
+      console.error('Paymob webhook: cannot parse merchant_order_id', merchantOrderId);
+      return res.status(200).send('Bad merchant_order_id');
+    }
+
+    const amountPaid = obj.amount_cents / 100;
+
+    // --- Scenario A: Mission creation payment ---
+    if (type === 'mission_creation') {
+      const missionId = idPart;
+
+      // 1) Update mission status from "pending" to "available"
+      const { data: mission, error: missionErr } = await supabase
+        .from('missions')
+        .update({ status: 'available' })
+        .eq('id', missionId)
+        .select('id, creator_id')
+        .maybeSingle();
+
+      if (missionErr) {
+        console.error('Paymob webhook: failed to update mission status', missionErr.message);
+        // Return 200 so Paymob stops retrying; we will inspect logs and fix manually if needed.
+        return res.status(200).send('Mission update failed');
+      }
+
+      if (!mission || !mission.creator_id) {
+        console.error('Paymob webhook: mission not found or missing creator_id', missionId);
+        return res.status(200).send('Mission not found');
+      }
+
+      // 2) Record transaction for the mission creation deposit
+      const { error: txErr } = await supabase.from('transactions').insert({
+        user_id: mission.creator_id,
+        mission_id: missionId,
+        amount: amountPaid,
+        type: 'deposit',
+      });
+
+      if (txErr) {
+        console.error('Paymob webhook: failed to insert mission transaction', txErr.message);
+        // Still return 200; logging is enough for backoffice reconciliation.
+      }
+
+      return res.status(200).send('OK');
+    }
+
+    // --- Scenario B: Wallet top-up (worker_deposit) ---
+    // Any wallet top-ups simply increment profiles.wallet_balance and are logged in transactions.
+    if (type === 'worker_deposit') {
+      const userId = idPart;
+
+      // Increment wallet_balance safely
+      const { data: profile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('wallet_balance')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profileErr) {
+        console.error('Paymob webhook: failed to load profile for top-up', profileErr.message);
+        return res.status(200).send('Profile load failed');
+      }
+
+      const currentBalance = (profile?.wallet_balance ?? 0) as number;
+
+      const { error: updateErr } = await supabase
+        .from('profiles')
+        .update({ wallet_balance: currentBalance + amountPaid })
+        .eq('id', userId);
+
+      if (updateErr) {
+        console.error('Paymob webhook: failed to update wallet_balance', updateErr.message);
+        return res.status(200).send('Wallet update failed');
+      }
+
+      const { error: txErr } = await supabase.from('transactions').insert({
+        user_id: userId,
+        mission_id: null,
+        amount: amountPaid,
+        type: 'wallet_topup',
+      });
+
+      if (txErr) {
+        console.error('Paymob webhook: failed to insert wallet transaction', txErr.message);
+      }
+
+      return res.status(200).send('OK');
+    }
+
+    // For any other types, just acknowledge
+    return res.status(200).send('Type ignored');
   } catch (error: any) {
-    console.error('Webhook Error:', error.message);
-    // Всегда возвращаем 200 для PayMob, даже при внутренних ошибках логики, иначе он будет долбить сервер ретраями
+    console.error('Paymob webhook: unhandled error', error?.message || error);
+    // Always return 200 so Paymob does not keep retrying indefinitely.
     return res.status(200).send('Handled with errors');
   }
 }

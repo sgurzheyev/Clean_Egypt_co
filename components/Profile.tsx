@@ -36,7 +36,8 @@ interface Bid {
 
 interface ProfileRow {
   id: string;
-  balance_egp: number | null;
+  wallet_balance: number | null;
+  frozen_balance: number | null;
   is_verified?: boolean;
   verification_status?: string | null;
   full_name?: string | null;
@@ -123,8 +124,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           },
           (payload: any) => {
             const newRow = payload.new as ProfileRow | undefined;
-            if (newRow && typeof newRow.balance_egp === 'number') {
-              setBalance(newRow.balance_egp);
+            if (newRow && typeof newRow.wallet_balance === 'number') {
+              setBalance(newRow.wallet_balance);
             }
           }
         )
@@ -229,14 +230,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, wallet_balance, frozen_balance, is_verified, verification_status, full_name')
         .eq('id', userId)
         .maybeSingle();
 
       const profileRow = profile as ProfileRow | null;
       setUserProfile(profileRow ?? null);
       if (profileRow) {
-        setBalance(profileRow.balance_egp ?? 0);
+        setBalance(profileRow.wallet_balance ?? 0);
       }
 
       const { data: homeJobsData } = await supabase
@@ -344,7 +345,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         body: JSON.stringify({
           type: 'mission_creation',
           category: taskType === 'city' ? 'public' : 'home',
-          amount_egp: amount,
+          amount_target: amount,
           userId: creatorId,
           // TODO: wire actual map location; using fallback center for now
           location_lat: 27.2579,
@@ -542,15 +543,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: workerProfile, error: workerErr } = await supabase
         .from('profiles')
-        .select('id, balance_egp')
+        .select('id, wallet_balance')
         .eq('id', job.cleaner_id)
         .maybeSingle();
       if (workerErr) throw workerErr;
 
-      const currentBalance = (workerProfile?.balance_egp ?? 0) as number;
+      const currentBalance = (workerProfile?.wallet_balance ?? 0) as number;
       const { error: balanceErr } = await supabase
         .from('profiles')
-        .update({ balance_egp: currentBalance + payoutEgp })
+        .update({ wallet_balance: currentBalance + payoutEgp })
         .eq('id', job.cleaner_id);
       if (balanceErr) throw balanceErr;
 
