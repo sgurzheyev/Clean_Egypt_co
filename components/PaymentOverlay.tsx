@@ -85,7 +85,6 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
     }
   }, [fetchError, navigate]);
 
-  const depositEgp = amount * 25;
   const paymobUrl = useMemo(
     () => (token ? `https://accept.paymob.com/api/acceptance/iframes/1007120?payment_token=${token}` : ''),
     [token]
@@ -124,7 +123,9 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
               <h2 className="text-white text-lg font-black tracking-tighter uppercase italic">
                 Clean<span className="text-cyan-400">Egypt</span>
               </h2>
-              <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">${amount} · {depositEgp} EGP</p>
+              <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">
+                ${amount}
+              </p>
             </div>
           </div>
 

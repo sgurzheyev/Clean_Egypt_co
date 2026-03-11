@@ -605,21 +605,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // Check wallet balance: must have at least 50% of bid amount
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('balance_egp')
+        .select('wallet_balance, phone_number')
         .eq('id', user.id)
         .maybeSingle();
       if (profileError) {
         console.error('Balance check failed:', profileError.message);
       } else {
-        const balance = (profile?.balance_egp ?? 0) as number;
+        const balance = (profile?.wallet_balance ?? 0) as number;
         const required = 0.5 * amt;
         if (balance < required) {
           alert(
-            `Insufficient wallet balance.\nYou need at least 50% of your bid amount available.\nRequired: ${required.toFixed(
+            `Insufficient wallet balance.\nYou need at least 50% of your bid amount available.\nRequired: $${required.toFixed(
               2
-            )} EGP, Current: ${balance.toFixed(2)} EGP.`
+            )}, Current: $${balance.toFixed(2)}.`
           );
           return;
+        }
+
+        if (!profile?.phone_number || String(profile.phone_number).trim().length === 0) {
+          alert(
+            'Tip: Add your WhatsApp number in your Profile so we can notify you about mission updates.'
+          );
         }
       }
 
@@ -678,19 +684,26 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // Check wallet balance before bidding (must have at least 50% of bid amount)
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('balance_egp')
+        .select('wallet_balance, phone_number')
         .eq('id', userId)
         .maybeSingle();
       if (profileError) {
         console.error('Balance check failed:', profileError.message);
       } else {
-        const balance = (profile?.balance_egp ?? 0) as number;
+        const balance = (profile?.wallet_balance ?? 0) as number;
         const required = 0.5 * amount;
         if (balance < required) {
           setBidError(
-            `Insufficient wallet balance. You need at least 50% of your bid amount. Required: ${required.toFixed(
+            `Insufficient wallet balance. You need at least 50% of your bid amount. Required: $${required.toFixed(
               2
-            )} EGP, Current: ${balance.toFixed(2)} EGP.`
+            )}, Current: $${balance.toFixed(2)}.`
+          );
+          return;
+        }
+
+        if (!profile?.phone_number || String(profile.phone_number).trim().length === 0) {
+          setBidError(
+            'Tip: Add your WhatsApp number in your Profile so we can notify you about mission updates.'
           );
           return;
         }

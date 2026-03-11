@@ -20,7 +20,7 @@ const WorkerPortal = () => {
       // 1. Грузим баланс рабочего
       const { data: wData } = await supabase
         .from('profiles')
-        .select('id, balance_egp, frozen_balance')
+        .select('id, wallet_balance, frozen_balance')
         .eq('telegram_id', TEST_TELEGRAM_ID)
         .maybeSingle();
       setWorker(wData);
@@ -49,8 +49,8 @@ const WorkerPortal = () => {
     const jobPrice = pyramid.job_type === 'home' ? pyramid.final_price_egp : (pyramid.current_amount_usd * 50);
     const deposit = jobPrice * 0.5;
 
-    if (worker.balance_egp < deposit) {
-      alert(`🛑 LOW BALANCE! Need ${deposit} EGP deposit.`);
+    if (worker.wallet_balance < deposit) {
+      alert(`🛑 LOW BALANCE! Need $${deposit} deposit.`);
       return;
     }
 
@@ -77,7 +77,7 @@ const WorkerPortal = () => {
       await supabase
         .from('profiles')
         .update({
-          balance_egp: worker.balance_egp - deposit,
+          wallet_balance: worker.wallet_balance - deposit,
           frozen_balance: (worker.frozen_balance ?? 0) + deposit,
         })
         .eq('id', worker.id);
@@ -124,10 +124,13 @@ const WorkerPortal = () => {
     <div className="min-h-screen bg-slate-900 text-white p-4 font-sans ltr">
       <div className="max-w-md mx-auto">
         
-        {/* БАЛАНС */}
+        {/* БАЛАНС (legacy worker portal, USD) */}
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-700 mb-6">
           <p className="text-teal-400 font-bold uppercase text-[10px] tracking-[2px]">Your Wallet</p>
-          <p className="text-4xl font-black">{worker?.balance_egp} <span className="text-sm font-normal text-slate-400">EGP</span></p>
+          <p className="text-4xl font-black">
+            {worker?.wallet_balance}{' '}
+            <span className="text-sm font-normal text-slate-400">USD</span>
+          </p>
         </div>
 
         {/* КАРТОЧКА ЗАДАЧИ */}

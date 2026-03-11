@@ -42,6 +42,8 @@ interface ProfileRow {
   is_verified?: boolean;
   verification_status?: string | null;
   full_name?: string | null;
+  phone_number?: string | null;
+  telegram_username?: string | null;
 }
 
 const SUPPORT_TELEGRAM = 'https://t.me/CleanEgypt_Admin_Bot';
@@ -100,6 +102,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [telegramUsername, setTelegramUsername] = useState('');
   const navigate = useNavigate();
 
   // Real-time wallet balance subscription
@@ -153,6 +162,50 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const handleLogout = async () => {
     await supabase.auth.signOut();
     onClose();
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    if (!newPassword || !confirmPassword) {
+      setPasswordError('Please fill in both password fields.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    try {
+      setPasswordSubmitting(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setPasswordError('You must be logged in to change your password.');
+        return;
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (error) {
+        setPasswordError(error.message || 'Failed to update password.');
+        return;
+      }
+
+      setPasswordSuccess('Password updated successfully.');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      setPasswordError(err?.message || 'Failed to update password.');
+    } finally {
+      setPasswordSubmitting(false);
+    }
   };
 
   const verifyJobPaymentAndRefetch = useCallback(async () => {
@@ -231,7 +284,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, wallet_balance, frozen_balance, is_verified, verification_status, full_name')
+        .select('id, wallet_balance, frozen_balance, is_verified, verification_status, full_name, phone_number, telegram_username')
         .eq('id', userId)
         .maybeSingle();
 
@@ -239,6 +292,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       setUserProfile(profileRow ?? null);
       if (profileRow) {
         setBalance(profileRow.wallet_balance ?? 0);
+        setPhoneNumber(profileRow.phone_number ?? '');
+        setTelegramUsername(profileRow.telegram_username ?? '');
       }
 
       const { data: homeJobsData } = await supabase
@@ -625,7 +680,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </p>
             <p className="text-3xl font-black text-white">
               {balance}{' '}
-              <span className="text-sm font-medium text-slate-400">EGP</span>
+              <span className="text-sm font-medium text-slate-400">USD</span>
             </p>
           </div>
 
@@ -637,6 +692,123 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           >
             Logout
           </button>
+
+          {/* CONTACT INFORMATION */}
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session?.user?.id) return;
+                const updates: Partial<ProfileRow> = {
+                  phone_number: phoneNumber || null,
+                  telegram_username: telegramUsername || null,
+                };
+                await supabase
+                  .from('profiles')
+                  .update(updates)
+                  .eq('id', session.user.id);
+              } catch (err) {
+                console.error('Contact info update error:', err);
+              }
+            }}
+            className="mt-4 rounded-3xl bg-black/50 backdrop-blur-xl border border-white/10 p-4 space-y-3"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+              Contact Information
+            </p>
+            <p className="text-[11px] text-slate-500">
+              Add WhatsApp and Telegram so we can reach you about missions and payouts.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                  Phone (WhatsApp)
+                </label>
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                  placeholder="+20 1X XXX XXXX"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                  Telegram Username
+                </label>
+                <input
+                  type="text"
+                  value={telegramUsername}
+                  onChange={(e) => setTelegramUsername(e.target.value)}
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                  placeholder="@username"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                className="inline-flex items-center px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-[0.18em] bg-slate-800 text-slate-100 hover:bg-slate-700 transition-all"
+              >
+                Save Contact
+              </button>
+            </div>
+          </form>
+
+          {/* CHANGE PASSWORD (works for magic-link users who want a password) */}
+          <form
+            onSubmit={handleChangePassword}
+            className="mt-4 rounded-3xl bg-black/50 backdrop-blur-xl border border-white/10 p-4 space-y-3"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+              Change Password
+            </p>
+            <p className="text-[11px] text-slate-500">
+              You can set a password even if you signed in via Magic Link.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                  placeholder="At least 8 characters"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                  placeholder="Re-enter password"
+                />
+              </div>
+            </div>
+            {passwordError && (
+              <p className="text-[11px] text-red-400 font-medium">{passwordError}</p>
+            )}
+            {passwordSuccess && (
+              <p className="text-[11px] text-emerald-400 font-medium">{passwordSuccess}</p>
+            )}
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={passwordSubmitting}
+                className="inline-flex items-center px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-[0.18em] bg-emerald-500 text-black hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait transition-all"
+              >
+                {passwordSubmitting ? 'Updating...' : 'Save Password'}
+              </button>
+            </div>
+          </form>
 
           <div className="mt-6 mb-4 flex items-center justify-between gap-3">
             <div className="inline-flex gap-2 rounded-full bg-slate-900/80 border border-white/5 p-1">
