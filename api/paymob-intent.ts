@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-// Server-side Supabase client (service role). Never use VITE_* for this.
+// Server-side Supabase client (service role)
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -9,7 +9,6 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
   throw new Error('Missing server env vars: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY');
 }
 
-// Uses SERVICE_ROLE_KEY to bypass RLS for secure server writes.
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -19,141 +18,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const {
-      lat,
-      lng,
-      amount = 1,
-      type = 'egypt',
-      missionId,
-      userId,
-      taskType,
+      type, // 'mission_creation' or 'worker_deposit'
+      task_type, // 'public' or 'private'
+      amount_egp,
       location_lat,
       location_lng,
+      userId,
+      missionId, // needed for deposits
       description,
-    } = req.body as {
-      lat?: number;
-      lng?: number;
-      amount?: number;
-      type?: string;
-      missionId?: string;
-      userId?: string;
-      taskType?: 'city' | 'home';
-      location_lat?: number;
-      location_lng?: number;
-      description?: string;
-      creator_photos?: string[];
-    };
+      creator_photos,
+    } = req.body;
 
-    const exchangeRate = 50;
-    let amountInEgp: number;
-    let pyramidIdForMetadata: string;
+    const exchangeRate = 50; // Use if conversion from USD is needed, but we assume EGP for now based on 'amount_egp'
+    let finalAmountEgp = amount_egp;
+    let missionIdForMetadata: string;
 
-    if (type === 'job_creation') {
-      if (!userId || typeof userId !== 'string') {
-        return res.status(400).json({ error: 'userId is required for job_creation' });
-      }
-      if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
-        return res.status(400).json({ error: 'amount must be a positive number (USD)' });
-      }
-      if (!taskType || !['city', 'home'].includes(taskType)) {
-        return res.status(400).json({ error: 'taskType must be city or home' });
-      }
-      if (typeof location_lat !== 'number' || typeof location_lng !== 'number') {
-        return res.status(400).json({ error: 'location_lat and location_lng are required' });
+    // --- 1. HANDLE MISSION CREATION ---
+    if (type === 'mission_creation') {
+      if (!userId || !task_type || !finalAmountEgp || !location_lat || !location_lng) {
+        return res.status(400).json({ error: 'Missing required fields for mission creation' });
       }
 
-      amountInEgp = amount * exchangeRate;
-
-      const { data: pendingJob, error: jobPendingError } = await supabase
-        .from('job_payment_pending')
+      // Создаем миссию в статусе pending (ожидает оплаты)
+      const { data: newMission, error: missionError } = await supabase
+        .from('missions')
         .insert({
           creator_id: userId,
-          task_type: taskType,
-          amount,
+          task_type: task_type,
+          amount_egp: finalAmountEgp,
           location_lat,
           location_lng,
+          status: 'collecting', // or 'pending' depending on your logic
           description: description || null,
-          creator_photos: Array.isArray((req.body as any).creator_photos)
-            ? (req.body as any).creator_photos
-            : null,
+          creator_photos: creator_photos || [],
         })
         .select('id')
         .single();
 
-      if (jobPendingError) {
-        console.error('job_payment_pending insert error:', jobPendingError.message);
-        return res.status(500).json({ error: 'Failed to register job payment intent' });
-      }
-
-      pyramidIdForMetadata = pendingJob.id;
-    } else if (type === 'worker_deposit') {
-      if (!missionId) {
-        return res.status(400).json({ error: 'missionId is required for worker_deposit' });
-      }
-      if (!userId || typeof userId !== 'string') {
-        return res.status(400).json({ error: 'userId is required for worker_deposit' });
-      }
-      if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
-        return res.status(400).json({ error: 'amount must be a positive number (EGP) for worker_deposit' });
-      }
-
-      // Verify mission exists (avoid creating Paymob orders for random IDs)
-      const { data: mission, error: missionError } = await supabase
-        .from('pyramids')
-        .select('id')
-        .eq('id', missionId)
-        .maybeSingle();
-
       if (missionError) {
-        console.error('Supabase Mission Fetch Error:', missionError.message);
-        return res.status(500).json({ error: 'Failed to fetch mission' });
+        console.error('Mission insert error:', missionError.message);
+        return res.status(500).json({ error: 'Failed to create mission in database' });
       }
 
-      if (!mission) {
-        return res.status(404).json({ error: 'Mission not found' });
+      missionIdForMetadata = newMission.id;
+    }
+    // --- 2. HANDLE WORKER DEPOSIT ---
+    else if (type === 'worker_deposit') {
+      if (!missionId || !userId || !finalAmountEgp) {
+        return res.status(400).json({ error: 'Missing fields for deposit' });
       }
-
-      amountInEgp = amount; // already EGP from frontend
-      pyramidIdForMetadata = missionId;
+      missionIdForMetadata = missionId;
     } else {
-      if (typeof lat !== 'number' || typeof lng !== 'number') {
-        return res.status(400).json({ error: 'lat and lng are required' });
-      }
-      if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
-        return res.status(400).json({ error: 'amount must be a positive number' });
-      }
-
-      amountInEgp = amount * exchangeRate;
-
-      // 2. ЗАПИСЬ В SUPABASE: Создаем предварительную запись пирамиды
-      const { data: pyramid, error: dbError } = await supabase
-        .from('pyramids')
-        .insert([
-          {
-            location: `POINT(${lng} ${lat})`,
-            status: 'pending',
-            glow_intensity: 0.2,
-            current_amount: 0,
-            target_amount: amount,
-            mission_type: type,
-          },
-        ])
-        .select()
-        .single();
-
-      if (dbError) {
-        console.error('Supabase Insert Error:', dbError.message);
-        throw new Error('Database insert failed: ' + dbError.message);
-      }
-
-      pyramidIdForMetadata = pyramid.id;
-
-      // 5. СВЯЗКА: Сохраняем полученный paymob_order_id в нашу таблицу pyramids
-      // (делаем ниже, когда получим order id)
+       return res.status(400).json({ error: 'Invalid payment type' });
     }
 
-    const amountCents = Math.round(amountInEgp * 100).toString();
+    const amountCents = Math.round(finalAmountEgp * 100).toString();
 
-    // 3. AUTH PAYMOB: Получаем токен авторизации
+    // --- 3. PAYMOB AUTH ---
     const authRes = await fetch('https://accept.paymob.com/api/auth/tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -162,10 +83,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const authData = await authRes.json();
     if (!authData.token) throw new Error("Paymob Auth Failed");
 
-    const merchantOrderId =
-      type === 'job_creation'
-        ? `job:${pyramidIdForMetadata}_${Date.now()}`
-        : `${type}:${pyramidIdForMetadata}_${Date.now()}`;
+    // --- 4. PAYMOB ORDER ---
+    const merchantOrderId = `${type}:${missionIdForMetadata}_${Date.now()}`;
 
     const orderRes = await fetch('https://accept.paymob.com/api/ecommerce/orders', {
       method: 'POST',
@@ -184,41 +103,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!paymobOrderId) throw new Error("Paymob Order Creation Failed");
 
-    if (type === 'job_creation') {
-      const { error: jobUpdateErr } = await supabase
-        .from('job_payment_pending')
-        .update({ paymob_order_id: paymobOrderId.toString() })
-        .eq('id', pyramidIdForMetadata);
-      if (jobUpdateErr) {
-        console.error('job_payment_pending update error:', jobUpdateErr.message);
-        return res.status(500).json({ error: 'Failed to link Paymob order' });
-      }
-    } else if (type === 'worker_deposit') {
-      const { error: pendingError } = await supabase
-        .from('payment_pending')
-        .insert({
-          paymob_order_id: paymobOrderId.toString(),
-          pyramid_id: pyramidIdForMetadata,
-          user_id: userId,
-          type: 'worker_deposit',
-        });
-
-      if (pendingError) {
-        console.error('payment_pending insert error:', pendingError.message);
-        return res.status(500).json({ error: 'Failed to register payment intent' });
-      }
-    } else {
-      const { error: updateError } = await supabase
-        .from('pyramids')
-        .update({ paymob_order_id: paymobOrderId.toString() })
-        .eq('id', pyramidIdForMetadata);
-
-      if (updateError) {
-        console.error('Supabase Update Error:', updateError.message);
-      }
-    }
-
-    // 6. GET PAYMENT KEY: Генерируем ключ для Iframe
+    // --- 5. PAYMOB PAYMENT KEY ---
     const keyRes = await fetch('https://accept.paymob.com/api/acceptance/payment_keys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -228,23 +113,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         expiration: 3600,
         order_id: paymobOrderId,
         billing_data: {
-          first_name: "Sergio",
-          last_name: "Gurgini",
-          email: "sergio@cleanegypt.co",
+          first_name: "Sergio", // In a real app, pull from profile
+          last_name: "CleanEgypt",
+          email: "support@cleanegypt.co",
           phone_number: "01000000000",
-          apartment: "NA", floor: "NA", street: "Hurghada",
-          building: "NA", shipping_method: "NA", postal_code: "NA", city: "Hurghada",
-          country: "EG", state: "Red Sea"
+          apartment: "NA", floor: "NA", street: "NA",
+          building: "NA", shipping_method: "NA", postal_code: "NA", city: "NA",
+          country: "EG", state: "NA"
         },
         currency: "EGP",
         integration_id: Number(process.env.PAYMOB_INTEGRATION_ID)
       })
     });
-    
+   
     const keyData = await keyRes.json();
-    
+   
     if (!keyData.token) {
-        console.error("Paymob Acceptance Error:", keyData);
         throw new Error("Failed to get payment token");
     }
 
@@ -253,12 +137,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${keyData.token}`
       : null;
 
-    // Возвращаем токен/ссылку на фронтенд для загрузки Iframe; missionId нужен для очистки при отмене
+    // Return token to frontend
     return res.status(200).json({
       paymentToken: keyData.token,
       paymentUrl,
-      mode: type === 'worker_deposit' ? 'worker_deposit' : 'pyramid_creation',
-      missionId: pyramidIdForMetadata,
+      mode: type,
+      missionId: missionIdForMetadata,
     });
 
   } catch (error: any) {

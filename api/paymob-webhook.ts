@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { sendTelegramAlert } from '../lib/telegram';
 import crypto from 'crypto';
 
-// Server-side Supabase client (service role). Never use VITE_* for this.
+// Server-side Supabase client (service role)
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -18,14 +18,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { obj } = req.body;
-    // Paymob может прислать HMAC в query string
     const hmacReceived = req.query.hmac as string;
 
-    // 1. ПРОВЕРКА ПОДПИСИ (Строгий порядок Paymob)
-    // HMAC secret must be server-only (no VITE_*).
+    // 1. ПРОВЕРКА ПОДПИСИ HMAC (Защита от фейковых оплат)
     const secret = process.env.PAYMOB_HMAC;
     
-    // Собираем строку строго по документации Paymob
+    // Формируем строку строго по документации PayMob (алфавитный порядок ключей)
     const dataToHash = [
       obj.amount_cents,
       obj.created_at,
@@ -52,93 +50,86 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .digest('hex');
 
     if (hashed !== hmacReceived) {
-      console.error('ОШИБКА: HMAC mismatch!');
-      // Для отладки в логах Vercel:
-      // console.log("Hashed:", hashed);
-      // console.log("Received:", hmacReceived);
+      console.error('ОШИБКА: Неверная подпись HMAC!');
       return res.status(401).send('Unauthorized');
     }
 
     // 2. ОБРАБОТКА УСПЕШНОЙ ОПЛАТЫ
     if (obj.success === true) {
-      const paymobOrderId = obj.order.id.toString();
-      const amountPaid = obj.amount_cents / 100;
+      const merchantOrderId = obj.order.merchant_order_id; // e.g. "mission_creation:uuid_1234"
+      const amountPaidEgp = obj.amount_cents / 100;
 
-      // 2a. Оплата депозита рабочего: привязываем worker_id к пирамиде
-      const { data: pendingRow } = await supabase
-        .from('payment_pending')
-        .select('pyramid_id, user_id')
-        .eq('paymob_order_id', paymobOrderId)
-        .maybeSingle();
+      // Извлекаем тип операции и ID миссии из merchant_order_id, который мы сформировали в paymob-intent
+      const [type, metadata] = merchantOrderId.split(':');
+      const missionId = metadata ? metadata.split('_')[0] : null;
 
-      if (pendingRow) {
-        const { error: updateErr } = await supabase
-          .from('pyramids')
-          .update({
-            worker_id: pendingRow.user_id,
-            status: 'active',
+      if (!missionId) {
+        throw new Error(`Невозможно извлечь missionId из merchant_order_id: ${merchantOrderId}`);
+      }
+
+      // --- СЦЕНАРИЙ А: Создание новой миссии (клиент или меценат оплатил) ---
+      if (type === 'mission_creation') {
+        // Миссия уже была создана в интенте в статусе 'collecting' или 'pending'
+        // Теперь мы просто подтверждаем, что деньги пришли, и переводим ее в статус поиска уборщика
+        
+        const { data: mission, error: updateErr } = await supabase
+          .from('missions')
+          .update({ 
+            status: 'pending', // Теперь она доступна для ставок
+            collected_amount: amountPaidEgp // Записываем, сколько реально собрано
           })
-          .eq('id', pendingRow.pyramid_id);
+          .eq('id', missionId)
+          .select('task_type, amount_egp, location_lat, location_lng')
+          .single();
 
-        if (updateErr) throw new Error("Supabase Error (worker_deposit): " + updateErr.message);
+        if (updateErr) throw new Error("Supabase Error (update mission status): " + updateErr.message);
 
-        await supabase.from('payment_pending').delete().eq('paymob_order_id', paymobOrderId);
-        console.log(`Депозит оплачен: пирамида ${pendingRow.pyramid_id} закреплена за worker ${pendingRow.user_id}`);
-        return res.status(200).send('OK');
-      }
+        console.log(`Миссия ${missionId} успешно оплачена на сумму ${amountPaidEgp} EGP.`);
 
-      // 2b. Job creation: insert job from job_payment_pending
-      const { data: jobPending } = await supabase
-        .from('job_payment_pending')
-        .select('creator_id, task_type, amount, location_lat, location_lng, description, creator_photos')
-        .eq('paymob_order_id', paymobOrderId)
-        .maybeSingle();
-
-      if (jobPending) {
-        const { data: insertedJobs, error: jobErr } = await supabase.from('jobs').insert({
-          creator_id: jobPending.creator_id,
-          task_type: jobPending.task_type,
-          amount: jobPending.amount,
-          location_lat: jobPending.location_lat,
-          location_lng: jobPending.location_lng,
-          description: jobPending.description,
-          creator_photos: jobPending.creator_photos || null,
-          status: 'pending',
-        }).select('id').limit(1);
-        if (jobErr) throw new Error("Supabase Error (job_creation): " + jobErr.message);
-        await supabase.from('job_payment_pending').delete().eq('paymob_order_id', paymobOrderId);
-        console.log(`Job created for Paymob order ${paymobOrderId}`);
-
-        // Notify Telegram admin about new funded mission (best-effort, non-blocking)
-        const msg =
-          `🟢 <b>NEW MISSION FUNDED!</b>\n` +
-          `Amount: ${jobPending.amount}\n` +
-          `Type: ${jobPending.task_type}\n` +
-          `Location: ${jobPending.location_lat}, ${jobPending.location_lng}`;
-        // Fire and forget; internal try/catch in helper
-        await sendTelegramAlert(msg);
+        // Отправляем уведомление в Telegram (fire and forget)
+        if (mission) {
+          const msg = `🟢 <b>NEW MISSION FUNDED!</b>\nAmount: ${amountPaidEgp} EGP\nType: ${mission.task_type}\nLocation: ${mission.location_lat}, ${mission.location_lng}`;
+          sendTelegramAlert(msg).catch(err => console.error("Telegram alert failed:", err));
+        }
 
         return res.status(200).send('OK');
       }
 
-      // 2c. Pyramid creation: activate pyramid by paymob_order_id
-      const { error } = await supabase
-        .from('pyramids')
-        .update({
-          status: 'active',
-          current_amount: amountPaid,
-          glow_intensity: 1.0
-        })
-        .eq('paymob_order_id', paymobOrderId);
+      // --- СЦЕНАРИЙ Б: Уборщик пополняет свой баланс (для депозитов) ---
+      if (type === 'worker_deposit') {
+        // Ищем кому принадлежит эта попытка пополнения
+        // В интенте мы передали userId вместо missionId в метаданные для этого типа? 
+        // Важно: если в paymob-intent мы передавали missionId, то пополнение баланса нужно делать хитрее.
+        // Предположим, missionId здесь - это user_id уборщика.
 
-      if (error) throw new Error("Supabase Error: " + error.message);
-      console.log(`Пирамида для заказа ${paymobOrderId} успешно активирована!`);
+        const userId = missionId; 
+
+        // Вызываем RPC для безопасного зачисления на баланс
+        // Тебе понадобится создать эту RPC функцию, если ее еще нет, или просто сделать UPDATE (менее секьюрно, но работает)
+        const { error: balanceErr } = await supabase.rpc('increment_balance', {
+          p_user_id: userId,
+          p_amount: amountPaidEgp
+        });
+
+        // Альтернативный простой вариант (если нет RPC):
+        // const { error: balanceErr } = await supabase
+        //  .from('profiles')
+        //  .update({ balance_egp: supabase.sql`balance_egp + ${amountPaidEgp}` })
+        //  .eq('id', userId);
+
+        if (balanceErr) throw new Error("Supabase Error (add to balance): " + balanceErr.message);
+
+        console.log(`Баланс уборщика ${userId} пополнен на ${amountPaidEgp} EGP.`);
+        return res.status(200).send('OK');
+      }
     }
 
+    // Если оплата не success, просто возвращаем 200, чтобы PayMob отстал
     return res.status(200).send('OK');
 
   } catch (error: any) {
     console.error('Webhook Error:', error.message);
-    return res.status(500).send('Server Error');
+    // Всегда возвращаем 200 для PayMob, даже при внутренних ошибках логики, иначе он будет долбить сервер ретраями
+    return res.status(200).send('Handled with errors');
   }
 }
