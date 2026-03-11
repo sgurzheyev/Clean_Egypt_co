@@ -544,6 +544,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
       try {
+        // Load cleaner name
         const { data: profile } = await supabase
           .from('profiles')
           .select('full_name, id')
@@ -553,9 +554,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
           (profile as any)?.full_name || (profile as any)?.id || 'an Eco-Hero';
         setHallOfFameCleanerName(cleanerName);
 
-        // Placeholder for future "eco-heroes" (donors) list.
-        // This can be wired to a mission_donations table later.
-        setHallOfFameHeroes([]);
+        // Load Eco-Hero donors from mission_donors_view
+        const { data: donors, error: donorsError } = await supabase
+          .from('mission_donors_view')
+          .select('donor_name')
+          .eq('mission_id', hallOfFameMission.id);
+
+        if (donorsError) {
+          console.error('Failed to load mission donors', donorsError.message);
+          setHallOfFameHeroes([]);
+        } else {
+          const names = (donors || [])
+            .map((row: any) => row.donor_name)
+            .filter((n: any) => typeof n === 'string' && n.trim().length > 0);
+          setHallOfFameHeroes(names);
+        }
       } catch (e) {
         console.error('Failed to load Hall of Fame metadata', e);
         setHallOfFameCleanerName(null);
