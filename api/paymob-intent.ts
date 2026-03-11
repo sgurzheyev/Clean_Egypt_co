@@ -95,7 +95,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        return res.status(400).json({ error: 'Invalid payment type' });
     }
 
-    const amountCents = Math.round(finalAmountEgp * 100).toString();
+    const amountCents = Math.round(finalAmountTarget * 100).toString();
 
     // --- 3. PAYMOB AUTH ---
     const authRes = await fetch('https://accept.paymob.com/api/auth/tokens', {
