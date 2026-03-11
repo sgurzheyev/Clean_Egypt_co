@@ -697,19 +697,32 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           <form
             onSubmit={async (e) => {
               e.preventDefault();
+              console.log('Saving contact info...', { phoneNumber, telegramUsername });
               try {
                 const { data: { session } } = await supabase.auth.getSession();
-                if (!session?.user?.id) return;
-                const updates: Partial<ProfileRow> = {
+                if (!session?.user?.id) {
+                  console.log('No session user found, aborting contact save.');
+                  alert('You must be logged in to save contact info.');
+                  return;
+                }
+                const updates = {
                   phone_number: phoneNumber || null,
                   telegram_username: telegramUsername || null,
                 };
-                await supabase
+                const { error } = await supabase
                   .from('profiles')
                   .update(updates)
                   .eq('id', session.user.id);
-              } catch (err) {
-                console.error('Contact info update error:', err);
+                if (error) {
+                  console.error('Contact info update error:', error);
+                  alert(error.message || 'Failed to save contact information.');
+                  return;
+                }
+                console.log('Contact info saved successfully.');
+                alert('Contact saved!');
+              } catch (err: any) {
+                console.error('Contact info update error (exception):', err);
+                alert(err?.message || 'Failed to save contact information.');
               }
             }}
             className="mt-4 rounded-3xl bg-black/50 backdrop-blur-xl border border-white/10 p-4 space-y-3"
