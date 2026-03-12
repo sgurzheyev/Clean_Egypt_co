@@ -23,7 +23,6 @@ interface JobOnMap {
   photo_urls?: string[] | null;
   after_photo_urls?: string[] | null;
   created_at?: string | null;
-  updated_at?: string | null;
 }
 
 function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
@@ -305,7 +304,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const fetchMissions = useCallback(async () => {
     const { data, error } = await supabase
       .from('missions')
-      .select('id, category, amount_target, current_funding, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls, after_photo_urls, created_at, updated_at')
+      .select('id, category, amount_target, current_funding, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls, after_photo_urls, created_at')
       .in('status', ['pending', 'available', 'funding', 'in_progress', 'completed'])
       .order('created_at', { ascending: false })
       .limit(500);
@@ -957,7 +956,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             if (job.status === 'funding') return true;
             if (job.status === 'in_progress') return true;
             if (job.status === 'completed') {
-              const ts = job.updated_at || job.created_at;
+              const ts = job.created_at;
               if (!ts) return false;
               const completedAt = new Date(ts).getTime();
               if (!Number.isFinite(completedAt)) return false;
@@ -974,7 +973,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           if (job.status === 'funding') return true;
           if (job.status === 'in_progress') return true;
           if (job.status === 'completed') {
-            const ts = job.updated_at || job.created_at;
+            const ts = job.created_at;
             if (!ts) return false;
             const completedAt = new Date(ts).getTime();
             if (!Number.isFinite(completedAt)) return false;
@@ -990,7 +989,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             if (job.status === 'funding') return true;
             if (job.status === 'in_progress') return true;
             if (job.status === 'completed') {
-              const ts = job.updated_at || job.created_at;
+              const ts = job.created_at;
               if (!ts) return false;
               const completedAt = new Date(ts).getTime();
               if (!Number.isFinite(completedAt)) return false;
