@@ -11,17 +11,23 @@ Your main goal is to write clean, reliable, and strictly typed code based EXCLUS
    - *Rule: All user financial operations MUST occur only through these balances.*
 
 2. **missions**
-   - Orders: `id`, `creator_id`, `cleaner_id`, `category` (only 'home' or 'public'), `amount_target`, `location_lat`, `location_lng`.
-   - Details: `title`, `description`, `photo_urls`.
-   - Statuses: `status` ('pending', 'available', 'in_progress', 'completed', 'disputed').
+   - Core: `id`, `creator_id`, `cleaner_id`, `category` (only 'home' or 'public'), `location_lat`, `location_lng`.
+   - Crowdfunding & Finances: 
+     - `amount_target` (The requested amount by the creator or cleaner).
+     - `current_funding` (NEW: The total amount donated/raised so far for 'public' missions).
+   - Photos: `photo_urls` (BEFORE photos), `after_photo_urls` (AFTER photos).
+   - Statuses: `status` ('pending', 'available', 'funding', 'in_progress', 'completed', 'disputed').
 
 3. **mission_bids**
-   - Bidding: `mission_id`, `cleaner_id`, `bid_amount`, `status`.
+   - Bidding: `id`, `mission_id`, `cleaner_id`, `bid_amount`, `status`.
 
 4. **transactions**
-   - Operations log: `id`, `user_id`, `mission_id`, `amount`, `type` ('deposit', 'payout', 'freeze', 'refund').
+   - Operations log: `id`, `user_id`, `mission_id`, `amount`, `type` ('deposit', 'payout', 'freeze', 'refund', 'donation').
 
-## 🛠 CODE RULES:
-- Do NOT invent new tables or columns. Strictly use the schema described above.
-- Use built-in Supabase RPC functions for complex bidding logic.
-- Always write safe TypeScript code and properly handle potential API errors.
+## 🛠 CORE BUSINESS LOGIC:
+- **Home Missions:** Direct peer-to-peer. Client sets a price, cleaner accepts or bids.
+- **Public/City Missions (Crowdfunding):** - Multiple users can "donate" to a public mission (increasing `current_funding`).
+  - A cleaner can press "Do it for $X" (placing a bid).
+  - If `bid_amount > current_funding`, show the cleaner a prompt: "Add own money to close deal ($Difference)" OR "Wait until fills up donation".
+  - If the cleaner adds their own money, deduct from their `wallet_balance` and start the mission.
+  - Do NOT invent new tables or columns outside of this scope without asking. Use built-in Supabase RPC functions for complex balance logic.

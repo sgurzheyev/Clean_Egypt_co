@@ -13,6 +13,7 @@ interface JobOnMap {
   id: string;
   category: 'public' | 'home' | 'office' | string;
   amount_target: number;
+  current_funding?: number | null;
   location_lat: number;
   location_lng: number;
   status: string;
@@ -302,7 +303,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const fetchMissions = useCallback(async () => {
     const { data, error } = await supabase
       .from('missions')
-      .select('id, category, amount_target, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls, after_photo_urls')
+      .select('id, category, amount_target, current_funding, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls, after_photo_urls')
       .in('status', ['pending', 'in_progress', 'completed'])
       .order('created_at', { ascending: false })
       .limit(500);
@@ -511,6 +512,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [isAccepting, setIsAccepting] = useState(false);
   const [showBidInput, setShowBidInput] = useState(false);
   const [missionBidAmount, setMissionBidAmount] = useState<string>('');
+  const [showCrowdfundConfirm, setShowCrowdfundConfirm] = useState(false);
+  const [crowdfundBidAmount, setCrowdfundBidAmount] = useState<number | null>(null);
 
   const handleMarkerClick = useCallback((job: JobOnMap) => {
     if (job.status === 'completed') {
@@ -530,6 +533,47 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setShowBidInput(false);
     setMissionBidAmount('');
   }, []);
+
+  const closeCrowdfundConfirm = useCallback(() => {
+    setShowCrowdfundConfirm(false);
+    setCrowdfundBidAmount(null);
+  }, []);
+
+  const handleCoFundMission = useCallback(
+    async (missionId: string, bidAmount: number) => {
+      const { error } = await supabase.rpc('co_fund_and_accept_mission', {
+        p_mission_id: missionId,
+        p_bid_amount: bidAmount,
+      });
+      if (error) throw error;
+    },
+    []
+  );
+
+  const placePendingBid = useCallback(
+    async (missionId: string, bidAmount: number) => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user?.id) {
+        onRequestAuth?.();
+        return;
+      }
+
+      // Place pending bid in mission_bids
+      const { error } = await supabase.from('mission_bids').insert({
+        mission_id: missionId,
+        cleaner_id: user.id,
+        bid_amount: bidAmount,
+        status: 'pending',
+      });
+      if (error) {
+        throw error;
+      }
+    },
+    [onRequestAuth]
+  );
 
   const handleCloseHallOfFame = useCallback(() => {
     setHallOfFameMission(null);
@@ -612,6 +656,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
+      // Crowdfunding logic for public missions:
+      // If bid > current_funding, ask whether to top-up or wait.
+      if (selectedMission.category === 'public') {
+        const currentFunding = Number(selectedMission.current_funding ?? 0);
+        if (Number.isFinite(currentFunding) && amt > currentFunding) {
+          setCrowdfundBidAmount(amt);
+          setShowCrowdfundConfirm(true);
+          return;
+        }
+      }
+
       // Check wallet balance: must have at least 50% of bid amount
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -639,15 +694,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
       }
 
-      // Use RPC to place mission bid (handles balance/frozen_balance internally)
-      const { error } = await supabase.rpc('place_mission_bid', {
-        mission_id: selectedMission.id,
-        amount_target: amt,
-      });
-      if (error) {
-        alert(error.message || 'Failed to place bid. Please try again.');
-        return;
-      }
+      // Default behavior: place a pending bid
+      await placePendingBid(selectedMission.id, amt);
 
       await fetchMissions();
       handleCloseMissionBriefing();
@@ -656,7 +704,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
     } finally {
       setIsAccepting(false);
     }
-  }, [fetchMissions, handleCloseMissionBriefing, missionBidAmount, onRequestAuth, selectedMission]);
+  }, [
+    fetchMissions,
+    handleCloseMissionBriefing,
+    missionBidAmount,
+    onRequestAuth,
+    placePendingBid,
+    selectedMission,
+  ]);
 
   const handleCloseBidModal = useCallback(() => {
     if (!bidSubmitting) {
@@ -691,6 +746,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
       const userId = session.user.id;
 
+      // Crowdfunding logic for public missions (bid modal)
+      if (bidJob.category === 'public') {
+        const currentFunding = Number(bidJob.current_funding ?? 0);
+        if (Number.isFinite(currentFunding) && amount > currentFunding) {
+          setCrowdfundBidAmount(amount);
+          setSelectedMission(bidJob);
+          setShowCrowdfundConfirm(true);
+          return;
+        }
+      }
+
       // Check wallet balance before bidding (must have at least 50% of bid amount)
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -719,17 +785,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
       }
 
-      // Use RPC so backend enforces bidding logic on missions table
-      const { error } = await supabase.rpc('place_mission_bid', {
-        mission_id: bidJob.id,
-        amount_target: amount,
-      });
-
-      if (error) {
-        console.error('Error placing bid:', error.message);
-        setBidError(error.message || 'Could not place bid. Please try again.');
-        return;
-      }
+      await placePendingBid(bidJob.id, amount);
 
       setBidSuccess('Bid placed successfully.');
       setBidAmount('');
@@ -1292,6 +1348,116 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Crowdfunding confirm modal (public missions) */}
+      {showCrowdfundConfirm && selectedMission && (
+        <div className="absolute inset-0 z-[97] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={closeCrowdfundConfirm}
+            aria-hidden="true"
+          />
+          <div
+            className="relative w-full max-w-lg rounded-3xl bg-[#020617]/95 backdrop-blur-2xl border border-white/10 shadow-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-500">
+                  Confirmation
+                </p>
+                <h3 className="mt-2 text-lg font-extrabold text-white">
+                  This is a crowdfunding mission
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeCrowdfundConfirm}
+                className="p-2 -m-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {(() => {
+              const bid = Number(crowdfundBidAmount ?? 0);
+              const funded = Number(selectedMission.current_funding ?? 0);
+              const diff = Math.max(0, bid - funded);
+              return (
+                <>
+                  <p className="text-sm text-slate-300">
+                    Your bid is <span className="font-black text-amber-300">${bid.toFixed(2)}</span>. Current funding is{' '}
+                    <span className="font-black text-emerald-300">${funded.toFixed(2)}</span>.
+                  </p>
+                  <p className="mt-2 text-[11px] text-slate-500">
+                    Choose how you want to proceed:
+                  </p>
+
+                  <div className="mt-5 grid grid-cols-1 gap-3">
+                    <button
+                      type="button"
+                      disabled={isAccepting}
+                      onClick={async () => {
+                        if (!selectedMission) return;
+                        if (!crowdfundBidAmount) return;
+                        try {
+                          setIsAccepting(true);
+                          await handleCoFundMission(selectedMission.id, crowdfundBidAmount);
+                          alert('Success! You co-funded this mission and closed the deal.');
+                          await fetchMissions();
+                          closeCrowdfundConfirm();
+                          handleCloseMissionBriefing();
+                        } catch (e: any) {
+                          alert(e?.message || 'Failed to co-fund mission. Please try again.');
+                        } finally {
+                          setIsAccepting(false);
+                        }
+                      }}
+                      className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-4 text-left hover:border-amber-400/50 hover:bg-black/50 transition-all disabled:opacity-60 disabled:cursor-wait"
+                    >
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">
+                        Add ${diff.toFixed(2)} to close deal
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        This difference will be deducted from your wallet balance.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isAccepting}
+                      onClick={async () => {
+                        if (!selectedMission) return;
+                        if (!crowdfundBidAmount) return;
+                        try {
+                          setIsAccepting(true);
+                          await placePendingBid(selectedMission.id, crowdfundBidAmount);
+                          await fetchMissions();
+                          closeCrowdfundConfirm();
+                          handleCloseMissionBriefing();
+                        } catch (e: any) {
+                          alert(e?.message || 'Failed to place bid. Please try again.');
+                        } finally {
+                          setIsAccepting(false);
+                        }
+                      }}
+                      className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-4 text-left hover:border-sky-400/50 hover:bg-black/50 transition-all disabled:opacity-60 disabled:cursor-wait"
+                    >
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-300">
+                        Wait until fills up donation
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Your bid will remain pending until donations reach your bid amount.
+                      </p>
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
