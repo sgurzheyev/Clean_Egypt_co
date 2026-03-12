@@ -572,6 +572,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
           alert(error.message || 'Failed to process donation. Please try again.');
           return;
         }
+        // Optimistically update local mission funding so UI reflects change immediately
+        setSelectedMission((prev) =>
+          prev
+            ? {
+                ...prev,
+                current_funding: Number(prev.current_funding || 0) + value,
+              }
+            : prev
+        );
         alert('Thank you for your donation!');
         setShowDonate(false);
         setDonateAmount('');
@@ -1303,7 +1312,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             aria-hidden="true"
           />
           <div
-            className="relative w-full max-w-xl rounded-t-3xl bg-[#020617]/98 backdrop-blur-xl border-t border-x border-white/10 shadow-2xl p-6 animate-slide-up"
+            className="relative w-full max-w-xl rounded-t-3xl bg-[#020617]/98 backdrop-blur-xl border-t border-x border-white/10 shadow-2xl p-6 pb-16 animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-start mb-4">
@@ -1340,11 +1349,29 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
               <div className="py-4">
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
-                  Reward
+                  {selectedMission.category === 'public' ? 'Current funding' : 'Reward'}
                 </p>
-                <p className={`text-4xl sm:text-5xl font-black tracking-tight ${selectedMission.category === 'public' ? 'text-emerald-400' : 'text-amber-400'}`} style={{ textShadow: selectedMission.category === 'public' ? '0 0 24px rgba(52, 211, 153, 0.6)' : '0 0 24px rgba(251, 191, 36, 0.6)' }}>
-                  ${selectedMission.amount_target}
+                <p
+                  className={`text-4xl sm:text-5xl font-black tracking-tight ${
+                    selectedMission.category === 'public' ? 'text-emerald-400' : 'text-amber-400'
+                  }`}
+                  style={{
+                    textShadow:
+                      selectedMission.category === 'public'
+                        ? '0 0 24px rgba(52, 211, 153, 0.6)'
+                        : '0 0 24px rgba(251, 191, 36, 0.6)',
+                  }}
+                >
+                  $
+                  {selectedMission.category === 'public'
+                    ? Number(selectedMission.current_funding || 0).toFixed(2)
+                    : Number(selectedMission.amount_target).toFixed(2)}
                 </p>
+                {selectedMission.category === 'public' && (
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Target Goal: ${Number(selectedMission.amount_target).toFixed(2)}
+                  </p>
+                )}
                 {(activeBidCounts[selectedMission.id] || 0) > 0 && (
                   <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-sky-400">
                     Locked Deposit: You have active bids on this mission.
@@ -1465,7 +1492,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                                 ${preset}
                               </button>
                             ))}
-                            <div className="flex-1 min-w-[120px] flex items-center gap-2">
+                            <div className="flex-1 min-w-[120px] space-y-2">
                               <input
                                 type="number"
                                 min="0"
@@ -1473,14 +1500,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
                                 inputMode="decimal"
                                 value={donateAmount}
                                 onChange={(e) => setDonateAmount(e.target.value)}
-                                className="flex-1 rounded-2xl bg-black/40 border border-white/10 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                                className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
                                 placeholder="Custom $ amount"
                               />
                               <button
                                 type="button"
                                 disabled={donating}
                                 onClick={() => handleDonate(parseFloat(donateAmount.replace(',', '.')))}
-                                className="px-3 py-1.5 rounded-full bg-emerald-500 text-[11px] font-black uppercase tracking-[0.16em] text-black hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait"
+                                className="w-full px-3 py-1.5 rounded-full bg-emerald-500 text-[11px] font-black uppercase tracking-[0.16em] text-black hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait mt-1.5"
                               >
                                 {donating ? 'Sending...' : 'Donate'}
                               </button>
