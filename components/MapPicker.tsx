@@ -966,6 +966,39 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }
             return false;
           })
+          .map((job, idx, arr) => job) // no-op to preserve structure
+        }
+        {console.log('Jobs passing filter:', (jobs || []).filter((job) => {
+          if (job.status === 'pending') return true;
+          if (job.status === 'available') return true;
+          if (job.status === 'funding') return true;
+          if (job.status === 'in_progress') return true;
+          if (job.status === 'completed') {
+            const ts = job.updated_at || job.created_at;
+            if (!ts) return false;
+            const completedAt = new Date(ts).getTime();
+            if (!Number.isFinite(completedAt)) return false;
+            const ageMs = Date.now() - completedAt;
+            return ageMs <= 24 * 60 * 60 * 1000;
+          }
+          return false;
+        }).length)}
+        {(jobs || [])
+          .filter((job) => {
+            if (job.status === 'pending') return true;
+            if (job.status === 'available') return true;
+            if (job.status === 'funding') return true;
+            if (job.status === 'in_progress') return true;
+            if (job.status === 'completed') {
+              const ts = job.updated_at || job.created_at;
+              if (!ts) return false;
+              const completedAt = new Date(ts).getTime();
+              if (!Number.isFinite(completedAt)) return false;
+              const ageMs = Date.now() - completedAt;
+              return ageMs <= 24 * 60 * 60 * 1000;
+            }
+            return false;
+          })
           .map((job) => {
             const isMyActiveMission = job.status === 'in_progress' && job.cleaner_id === currentUserId;
             const bidCount = activeBidCounts[job.id] || 0;

@@ -44,7 +44,8 @@ const JobMarker: React.FC<JobMarkerProps> = ({
       ? 'pyramid-shape-completed'
       : variant === 'in_progress'
         ? 'pyramid-shape-inprogress'
-        : (isHome ? 'pyramid-shape-home' : 'pyramid-shape-city');
+        : (isHome ? 'pyramid-shape-home' : 'pyramid-shape-city'); // default = original green/yellow
+
   const pyramidGlowClass = isActive
     ? 'pyramid-glow-active'
     : isDraft
@@ -53,14 +54,15 @@ const JobMarker: React.FC<JobMarkerProps> = ({
         ? 'pyramid-glow-completed'
         : variant === 'in_progress'
           ? 'pyramid-glow-inprogress'
-          : (isHome ? 'pyramid-glow-home' : 'pyramid-glow-city');
+          : (isHome ? 'pyramid-glow-home' : 'pyramid-glow-city'); // default glow
+
   const pillBorderClass = isDraft
     ? 'animated-border-rainbow'
     : variant === 'completed'
       ? 'animated-border-completed'
       : variant === 'in_progress'
         ? 'animated-border-inprogress'
-        : (isHome ? 'animated-border-home' : 'animated-border-city');
+        : (isHome ? 'animated-border-home' : 'animated-border-city'); // default border
   const pillContent = isDraft
     ? 'NEW'
     : variant === 'completed'
