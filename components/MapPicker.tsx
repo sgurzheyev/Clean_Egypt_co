@@ -20,21 +20,22 @@ interface JobOnMap {
   creator_id?: string | null;
   description?: string | null;
   photo_urls?: string[] | null;
+  after_photo_urls?: string[] | null;
 }
 
 function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
   const [value, setValue] = useState(50);
-  const photos = mission.photo_urls || [];
-  if (photos.length === 0) {
+  const beforePhotos = mission.photo_urls || [];
+  const afterPhotos = mission.after_photo_urls || [];
+  if (beforePhotos.length === 0 && afterPhotos.length === 0) {
     return (
       <p className="mt-4 text-xs text-slate-400">
         No before/after photos available for this mission yet.
       </p>
     );
   }
-  const splitIndex = Math.ceil(photos.length / 2);
-  const before = photos[0] || photos[splitIndex - 1] || photos[0];
-  const after = photos[splitIndex] || photos[photos.length - 1] || photos[0];
+  const before = beforePhotos[0] || afterPhotos[0];
+  const after = afterPhotos[0] || beforePhotos[0];
 
   return (
     <div className="mt-5">
@@ -301,7 +302,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const fetchMissions = useCallback(async () => {
     const { data, error } = await supabase
       .from('missions')
-      .select('id, category, amount_target, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls')
+      .select('id, category, amount_target, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls, after_photo_urls')
       .in('status', ['pending', 'in_progress', 'completed'])
       .order('created_at', { ascending: false })
       .limit(500);
@@ -544,14 +545,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
       try {
-        // Load cleaner name
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, id')
-          .eq('id', hallOfFameMission.cleaner_id)
+        // Load cleaner name (joined via missions -> profiles)
+        const { data: missionRow, error: missionErr } = await supabase
+          .from('missions')
+          .select('id, cleaner:profiles!cleaner_id(full_name, telegram_username)')
+          .eq('id', hallOfFameMission.id)
           .maybeSingle();
+
+        if (missionErr) {
+          console.error('Failed to load cleaner profile via join', missionErr.message);
+        }
+
+        const cleaner = (missionRow as any)?.cleaner as
+          | { full_name?: string | null; telegram_username?: string | null }
+          | null
+          | undefined;
         const cleanerName =
-          (profile as any)?.full_name || (profile as any)?.id || 'an Eco-Hero';
+          cleaner?.full_name || cleaner?.telegram_username || 'an Eco-Hero';
         setHallOfFameCleanerName(cleanerName);
 
         // Load Eco-Hero donors from mission_donors_view

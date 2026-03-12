@@ -14,6 +14,7 @@ interface Mission {
   created_at: string;
   started_at?: string | null;
   photo_urls?: string[] | null;
+  after_photo_urls?: string[] | null;
   is_disputed?: boolean | null;
 }
 
@@ -63,7 +64,7 @@ const SupervisorDashboard: React.FC = () => {
       const { data, error: missionsError } = await supabase
         .from('missions')
         .select(
-          'id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, description, created_at, started_at, photo_urls, is_disputed'
+          'id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, description, created_at, started_at, photo_urls, after_photo_urls, is_disputed'
         )
         .in('status', ['pending_verification', 'disputed'])
         .order('created_at', { ascending: false });
@@ -172,10 +173,8 @@ const SupervisorDashboard: React.FC = () => {
         ) : (
           <div className="space-y-4">
             {missions.map((mission) => {
-              const photos = mission.photo_urls || [];
-              const splitIndex = Math.ceil(photos.length / 2);
-              const beforePhotos = photos.slice(0, splitIndex);
-              const afterPhotos = photos.slice(splitIndex);
+              const beforePhotos = mission.photo_urls || [];
+              const afterPhotos = mission.after_photo_urls || [];
               const isCity = mission.category === 'public';
 
               return (

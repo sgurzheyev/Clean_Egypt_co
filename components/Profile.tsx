@@ -23,6 +23,7 @@ interface Job {
   created_at: string;
   started_at?: string | null;
   photo_urls?: string[] | null;
+  after_photo_urls?: string[] | null;
   is_disputed?: boolean | null;
 }
 
@@ -298,7 +299,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: homeJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed')
         .eq('creator_id', userId)
         .eq('category', 'home')
         .order('created_at', { ascending: false });
@@ -306,7 +307,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: cityJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, started_at, is_disputed')
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed')
         .eq('creator_id', userId)
         .eq('category', 'public')
         .order('created_at', { ascending: false });
@@ -314,7 +315,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: activeJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed')
         .eq('cleaner_id', userId)
         .in('status', ['in_progress', 'completed', 'finished'])
         .order('created_at', { ascending: false });
@@ -354,7 +355,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data, error } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, description, created_at, photo_urls, started_at, is_disputed')
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed')
         .eq('status', 'pending')
         .is('cleaner_id', null)
         .order('created_at', { ascending: false })
@@ -567,7 +568,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         const { error: updateErr } = await supabase
           .from('missions')
           .update({
-            photo_urls: [...(proofJob.photo_urls || []), ...uploadedUrls],
+            after_photo_urls: [...(proofJob.after_photo_urls || []), ...uploadedUrls],
             status: 'completed',
           })
           .eq('id', proofJob.id);
@@ -1574,13 +1575,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     After photos
                   </p>
                   <div className="grid grid-cols-2 gap-2">
-                    {/* In the new schema, we store all photos in photo_urls; keep a single gallery for now */}
-                    {(!reviewJob.photo_urls || reviewJob.photo_urls.length === 0) && (
+                    {(!reviewJob.after_photo_urls || reviewJob.after_photo_urls.length === 0) && (
                       <p className="text-xs text-slate-500 italic">
                         Worker did not upload after photos.
                       </p>
                     )}
-                    {(reviewJob.photo_urls || []).map((url) => (
+                    {(reviewJob.after_photo_urls || []).map((url) => (
                       <div key={url} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
                         <img src={url} alt="After" className="w-full h-24 object-cover" />
                       </div>
