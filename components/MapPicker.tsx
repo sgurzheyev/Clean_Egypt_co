@@ -306,7 +306,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const { data, error } = await supabase
       .from('missions')
       .select('id, category, amount_target, current_funding, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls, after_photo_urls, created_at, updated_at')
-      .in('status', ['pending', 'in_progress', 'completed'])
+      .in('status', ['pending', 'available', 'funding', 'in_progress', 'completed'])
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -516,6 +516,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [missionBidAmount, setMissionBidAmount] = useState<string>('');
   const [showCrowdfundConfirm, setShowCrowdfundConfirm] = useState(false);
   const [crowdfundBidAmount, setCrowdfundBidAmount] = useState<number | null>(null);
+  const [showDonate, setShowDonate] = useState(false);
+  const [donateAmount, setDonateAmount] = useState<string>('');
+  const [donating, setDonating] = useState(false);
 
   const handleMarkerClick = useCallback((job: JobOnMap) => {
     setSelectedMission(job);
@@ -527,6 +530,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setSelectedMission(null);
     setShowBidInput(false);
     setMissionBidAmount('');
+    setShowDonate(false);
+    setDonateAmount('');
   }, []);
 
   const closeCrowdfundConfirm = useCallback(() => {
@@ -543,6 +548,42 @@ const MapPicker: React.FC<MapPickerProps> = ({
       if (error) throw error;
     },
     []
+  );
+
+  const handleDonate = useCallback(
+    async (amount: number) => {
+      if (!selectedMission) return;
+      const value = Number(amount);
+      if (!Number.isFinite(value) || value <= 0) {
+        alert('Please enter a positive USD amount to donate.');
+        return;
+      }
+      try {
+        setDonating(true);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user?.id) {
+          onRequestAuth?.();
+          return;
+        }
+        const { error } = await supabase.rpc('donate_to_mission', {
+          p_mission_id: selectedMission.id,
+          p_amount: value,
+        });
+        if (error) {
+          alert(error.message || 'Failed to process donation. Please try again.');
+          return;
+        }
+        alert('Thank you for your donation!');
+        setShowDonate(false);
+        setDonateAmount('');
+        await fetchMissions();
+      } catch (e: any) {
+        alert(e?.message || 'Failed to process donation. Please try again.');
+      } finally {
+        setDonating(false);
+      }
+    },
+    [fetchMissions, onRequestAuth, selectedMission]
   );
 
   const placePendingBid = useCallback(
@@ -912,6 +953,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         {(jobs || [])
           .filter((job) => {
             if (job.status === 'pending') return true;
+            if (job.status === 'available') return true;
+            if (job.status === 'funding') return true;
             if (job.status === 'in_progress') return true;
             if (job.status === 'completed') {
               const ts = job.updated_at || job.created_at;
@@ -1332,7 +1375,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {showBidInput && (
                   <div className="rounded-2xl bg-black/40 border border-white/10 px-4 py-3">
                     <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
@@ -1376,6 +1419,63 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     {isAccepting ? 'PLACING...' : showBidInput ? 'PLACE BID' : 'MAKE A BID'}
                   </button>
                 </div>
+
+                {selectedMission.category === 'public' &&
+                  (selectedMission.status === 'pending' ||
+                    selectedMission.status === 'available' ||
+                    selectedMission.status === 'funding') && (
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDonate((prev) => !prev);
+                        }}
+                        className="w-full rounded-full bg-emerald-500/10 border border-emerald-400/40 px-4 py-3 text-sm font-black uppercase tracking-[0.24em] text-emerald-300 hover:bg-emerald-500/15 transition-all"
+                      >
+                        DONATE TO CAUSE
+                      </button>
+                      {showDonate && (
+                        <div className="rounded-2xl bg-black/40 border border-emerald-500/30 px-4 py-3 space-y-2">
+                          <p className="text-[11px] text-slate-300">
+                            Boost this mission&apos;s funding so cleaners can make stronger bids.
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {[1, 5, 10].map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                disabled={donating}
+                                onClick={() => handleDonate(preset)}
+                                className="px-3 py-1.5 rounded-full bg-emerald-500/20 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30 disabled:opacity-60 disabled:cursor-wait"
+                              >
+                                ${preset}
+                              </button>
+                            ))}
+                            <div className="flex-1 min-w-[120px] flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                inputMode="decimal"
+                                value={donateAmount}
+                                onChange={(e) => setDonateAmount(e.target.value)}
+                                className="flex-1 rounded-2xl bg-black/40 border border-white/10 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                                placeholder="Custom $ amount"
+                              />
+                              <button
+                                type="button"
+                                disabled={donating}
+                                onClick={() => handleDonate(parseFloat(donateAmount.replace(',', '.')))}
+                                className="px-3 py-1.5 rounded-full bg-emerald-500 text-[11px] font-black uppercase tracking-[0.16em] text-black hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait"
+                              >
+                                {donating ? 'Sending...' : 'Donate'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
               </div>
             )}
           </div>

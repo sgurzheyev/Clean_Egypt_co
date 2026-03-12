@@ -12,9 +12,7 @@ Your main goal is to write clean, reliable, and strictly typed code based EXCLUS
 
 2. **missions**
    - Core: `id`, `creator_id`, `cleaner_id`, `category` (only 'home' or 'public'), `location_lat`, `location_lng`.
-   - Crowdfunding & Finances: 
-     - `amount_target` (The requested amount by the creator or cleaner).
-     - `current_funding` (NEW: The total amount donated/raised so far for 'public' missions).
+   - Crowdfunding & Finances: `amount_target`, `current_funding` (Total amount donated for 'public' missions).
    - Photos: `photo_urls` (BEFORE photos), `after_photo_urls` (AFTER photos).
    - Statuses: `status` ('pending', 'available', 'funding', 'in_progress', 'completed', 'disputed').
 
@@ -24,10 +22,15 @@ Your main goal is to write clean, reliable, and strictly typed code based EXCLUS
 4. **transactions**
    - Operations log: `id`, `user_id`, `mission_id`, `amount`, `type` ('deposit', 'payout', 'freeze', 'refund', 'donation').
 
-## 🛠 CORE BUSINESS LOGIC:
-- **Home Missions:** Direct peer-to-peer. Client sets a price, cleaner accepts or bids.
-- **Public/City Missions (Crowdfunding):** - Multiple users can "donate" to a public mission (increasing `current_funding`).
-  - A cleaner can press "Do it for $X" (placing a bid).
-  - If `bid_amount > current_funding`, show the cleaner a prompt: "Add own money to close deal ($Difference)" OR "Wait until fills up donation".
-  - If the cleaner adds their own money, deduct from their `wallet_balance` and start the mission.
-  - Do NOT invent new tables or columns outside of this scope without asking. Use built-in Supabase RPC functions for complex balance logic.
+## 🛠 CORE BUSINESS LOGIC & RPCS:
+- **Never do multiple financial updates from the frontend.** ALWAYS use our established RPCs:
+  - `donate_to_mission(p_mission_id, p_amount)`: Deducts from user wallet, adds to `current_funding`, logs transaction.
+  - `co_fund_and_accept_mission(p_mission_id, p_bid_amount)`: Deducts diff from cleaner wallet, updates mission to `in_progress`, sets cleaner_id, logs transaction.
+  - `place_mission_bid(mission_id, amount_target)`: Freezes 50% deposit and creates a pending bid.
+
+## 🗺️ MAP & UI RULES:
+- **Map Filters:** Show `pending`, `available`, `funding`, `in_progress`, and `completed` (only if updated in the last 24 hours).
+- **Map Markers:** - Default/Green: `pending`, `available`, `funding`
+  - Blue/Glowing: `in_progress`
+  - Gold/Star: `completed` (Hall of Fame)
+- **Profile:** Mission History shows only `completed` missions where the user is creator or cleaner.
