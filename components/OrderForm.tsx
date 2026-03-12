@@ -90,6 +90,10 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
           HOME $5
         </button>
       </div>
+
+      <p className="mt-2 text-[10px] text-gray-500 text-center">
+        * Payment will be processed in EGP (approx. {Math.round(5 * 50)} EGP for a $5 mission).
+      </p>
     </div>
   );
 };

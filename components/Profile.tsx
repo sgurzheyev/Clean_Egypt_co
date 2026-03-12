@@ -47,6 +47,7 @@ interface ProfileRow {
   phone_number?: string | null;
   telegram_username?: string | null;
   rating?: number | null;
+  avatar_url?: string | null;
 }
 
 const SUPPORT_TELEGRAM = 'https://t.me/CleanEgypt_Admin_Bot';
@@ -118,6 +119,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [payoutMethod, setPayoutMethod] = useState<'InstaPay' | 'Vodafone Cash' | 'Card'>('InstaPay');
   const [payoutDetails, setPayoutDetails] = useState('');
   const [payoutSubmitting, setPayoutSubmitting] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const navigate = useNavigate();
 
   // Real-time wallet balance subscription
@@ -171,6 +173,52 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const handleLogout = async () => {
     await supabase.auth.signOut();
     onClose();
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setAvatarUploading(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        alert('You must be logged in to upload an avatar.');
+        return;
+      }
+      const userId = session.user.id;
+      const ext = file.name.split('.').pop() || 'jpg';
+      const filePath = `${userId}/${Date.now()}_${Math.random()
+        .toString(36)
+        .slice(2)}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: false });
+      if (uploadError) throw uploadError;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('avatars').getPublicUrl(filePath);
+
+      const { error: profileErr } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', userId);
+      if (profileErr) throw profileErr;
+
+      setUserProfile((prev) =>
+        prev ? { ...prev, avatar_url: publicUrl } : prev
+      );
+    } catch (err: any) {
+      console.error('Avatar upload error:', err);
+      alert(err?.message || 'Failed to upload avatar. Please try again.');
+    } finally {
+      setAvatarUploading(false);
+      // reset input value so the same file can be re-selected if needed
+      e.target.value = '';
+    }
   };
 
   const handleRequestPayout = async (e: React.FormEvent) => {
@@ -340,7 +388,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, wallet_balance, frozen_balance, is_verified, verification_status, full_name, phone_number, telegram_username, rating')
+        .select('id, wallet_balance, frozen_balance, is_verified, verification_status, full_name, phone_number, telegram_username, rating, avatar_url')
         .eq('id', userId)
         .maybeSingle();
 
@@ -727,32 +775,59 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           {/* Scrollable content — job cards and forms */}
           <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4 pb-24">
           <div className="w-full max-w-md mx-auto flex flex-col gap-6">
-        {/* HEADER: Welcome + Wallet */}
+        {/* HEADER: Avatar + Welcome + Wallet */}
         <header className="mb-8 text-white">
-          <p className="text-sm text-slate-400 uppercase tracking-[0.2em]">
-            Welcome {userProfile?.full_name || userEmail || 'Co-worker'}!
-          </p>
-          {userEmail && (
-            <p className="mt-1 text-[10px] text-slate-500 uppercase tracking-[0.18em]">
-              {userEmail}
-            </p>
-          )}
-
-          {/* Rating badge */}
-          {userProfile?.rating != null ? (
-            <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-400/40 px-2.5 py-0.5">
-              <span className="text-[11px] font-bold text-amber-300">
-                {userProfile.rating.toFixed(1)}
-              </span>
-              <span className="text-xs">⭐</span>
+          <div className="flex items-center gap-4">
+            <label className="relative inline-flex items-center justify-center h-14 w-14 rounded-full bg-gradient-to-br from-emerald-500/40 to-cyan-500/20 border border-white/20 shadow-[0_0_20px_rgba(16,185,129,0.4)] cursor-pointer overflow-hidden group">
+              {avatarUploading ? (
+                <div className="h-6 w-6 border-2 border-emerald-400/40 border-t-emerald-400 rounded-full animate-spin" />
+              ) : userProfile?.avatar_url ? (
+                <img
+                  src={userProfile.avatar_url}
+                  alt={userProfile.full_name || userEmail || 'Avatar'}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className="text-xl font-black uppercase text-emerald-300">
+                  {(userProfile?.full_name || userEmail || 'C')[0]}
+                </span>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[10px] uppercase tracking-[0.18em] text-emerald-300 font-bold transition-opacity">
+                Change
+              </div>
+            </label>
+            <div className="flex-1">
+              <p className="text-sm text-slate-400 uppercase tracking-[0.2em]">
+                Welcome {userProfile?.full_name || userEmail || 'Co-worker'}!
+              </p>
+              {userEmail && (
+                <p className="mt-1 text-[10px] text-slate-500 uppercase tracking-[0.18em]">
+                  {userEmail}
+                </p>
+              )}
+              {/* Rating badge */}
+              {userProfile?.rating != null ? (
+                <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-400/40 px-2.5 py-0.5">
+                  <span className="text-[11px] font-bold text-amber-300">
+                    {userProfile.rating.toFixed(1)}
+                  </span>
+                  <span className="text-xs">⭐</span>
+                </div>
+              ) : (
+                <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-slate-800/60 border border-slate-600/60 px-2.5 py-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-300">
+                    New Hero
+                  </span>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-slate-800/60 border border-slate-600/60 px-2.5 py-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-300">
-                New Hero
-              </span>
-            </div>
-          )}
+          </div>
 
           {/* Wallet — glass panel */}
           <div className="mt-6 rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5">
