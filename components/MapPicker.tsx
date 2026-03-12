@@ -949,24 +949,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         <NavigationControl position="bottom-right" showCompass={false} />
 
         {/* Job markers — luxury pyramids (pending for all; in_progress only for assigned worker; completed as Hall of Fame) */}
-        {(jobs || [])
-          .filter((job) => {
-            if (job.status === 'pending') return true;
-            if (job.status === 'available') return true;
-            if (job.status === 'funding') return true;
-            if (job.status === 'in_progress') return true;
-            if (job.status === 'completed') {
-              const ts = job.created_at;
-              if (!ts) return false;
-              const completedAt = new Date(ts).getTime();
-              if (!Number.isFinite(completedAt)) return false;
-              const ageMs = Date.now() - completedAt;
-              return ageMs <= 24 * 60 * 60 * 1000;
-            }
-            return false;
-          })
-          .map((job, idx, arr) => job) // no-op to preserve structure
-        }
         {console.log('Jobs passing filter:', (jobs || []).filter((job) => {
           if (job.status === 'pending') return true;
           if (job.status === 'available') return true;
