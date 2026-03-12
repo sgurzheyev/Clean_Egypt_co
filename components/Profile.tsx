@@ -113,6 +113,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [telegramUsername, setTelegramUsername] = useState('');
+  const [showPayoutModal, setShowPayoutModal] = useState(false);
+  const [payoutAmount, setPayoutAmount] = useState('');
+  const [payoutMethod, setPayoutMethod] = useState<'InstaPay' | 'Vodafone Cash' | 'Card'>('InstaPay');
+  const [payoutDetails, setPayoutDetails] = useState('');
+  const [payoutSubmitting, setPayoutSubmitting] = useState(false);
   const navigate = useNavigate();
 
   // Real-time wallet balance subscription
@@ -166,6 +171,53 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const handleLogout = async () => {
     await supabase.auth.signOut();
     onClose();
+  };
+
+  const handleRequestPayout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userProfile) return;
+    const amountNum = Number(payoutAmount);
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      alert('Please enter a positive payout amount.');
+      return;
+    }
+    if (amountNum > (userProfile.wallet_balance ?? 0)) {
+      alert('Payout amount cannot exceed your wallet balance.');
+      return;
+    }
+    if (!payoutDetails.trim()) {
+      alert('Please provide payment details (wallet, card, etc.).');
+      return;
+    }
+
+    try {
+      setPayoutSubmitting(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        alert('You must be logged in to request a payout.');
+        return;
+      }
+
+      const { error } = await supabase.rpc('request_payout', {
+        p_amount: amountNum,
+        p_method: payoutMethod,
+        p_details: payoutDetails.trim(),
+      });
+      if (error) {
+        alert(error.message || 'Failed to request payout. Please try again.');
+        return;
+      }
+
+      alert('Payout request sent! Your funds are now frozen until approval.');
+      setShowPayoutModal(false);
+      setPayoutAmount('');
+      setPayoutDetails('');
+      await fetchProfileData();
+    } catch (err: any) {
+      alert(err?.message || 'Failed to request payout. Please try again.');
+    } finally {
+      setPayoutSubmitting(false);
+    }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -704,13 +756,27 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
           {/* Wallet — glass panel */}
           <div className="mt-6 rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
-              Wallet
-            </p>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                Wallet
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowPayoutModal(true)}
+                className="text-[10px] font-bold uppercase tracking-[0.18em] px-3 py-1 rounded-full border border-white/20 text-slate-200 hover:bg-white/10 transition-all"
+              >
+                Withdraw
+              </button>
+            </div>
             <p className="text-3xl font-black text-white">
               {balance}{' '}
               <span className="text-sm font-medium text-slate-400">USD</span>
             </p>
+            {userProfile?.frozen_balance && userProfile.frozen_balance > 0 && (
+              <p className="mt-1 text-[11px] text-amber-300">
+                Frozen: ${Number(userProfile.frozen_balance).toFixed(2)}
+              </p>
+            )}
           </div>
 
           {/* LOGOUT — highly visible */}
@@ -1622,6 +1688,108 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payout request modal */}
+      {showPayoutModal && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+          onClick={() => setShowPayoutModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-[#020617]/95 border border-white/10 shadow-2xl p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-1">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                  Request Payout
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Withdraw part of your wallet balance to your preferred method.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPayoutModal(false)}
+                className="text-slate-400 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleRequestPayout} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                  Amount (USD)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={payoutAmount}
+                  onChange={(e) => setPayoutAmount(e.target.value)}
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                  placeholder="Enter amount to withdraw"
+                />
+                {userProfile && (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Available: ${Number(userProfile.wallet_balance ?? 0).toFixed(2)}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                  Method
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['InstaPay', 'Vodafone Cash', 'Card'] as const).map((method) => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setPayoutMethod(method)}
+                      className={`px-2 py-2 rounded-2xl text-[11px] font-bold uppercase tracking-[0.16em] ${
+                        payoutMethod === method
+                          ? 'bg-emerald-500 text-black'
+                          : 'bg-black/40 border border-white/10 text-slate-300 hover:bg-black/60'
+                      }`}
+                    >
+                      {method}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                  Payment Details
+                </label>
+                <input
+                  type="text"
+                  value={payoutDetails}
+                  onChange={(e) => setPayoutDetails(e.target.value)}
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                  placeholder={
+                    payoutMethod === 'InstaPay'
+                      ? 'InstaPay ID or link'
+                      : payoutMethod === 'Vodafone Cash'
+                        ? 'Vodafone Cash number'
+                        : 'Card / bank details'
+                  }
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={payoutSubmitting}
+                className="w-full mt-2 rounded-full bg-emerald-500 text-black text-[11px] font-black uppercase tracking-[0.2em] py-3 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait transition-all"
+              >
+                {payoutSubmitting ? 'Sending Request...' : 'Submit Payout Request'}
+              </button>
+            </form>
           </div>
         </div>
       )}
