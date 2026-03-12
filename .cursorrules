@@ -7,10 +7,12 @@ Your main goal is to write clean, reliable, and strictly typed code based EXCLUS
 
 1. **profiles**
    - Roles & Money: `id`, `wallet_balance`, `frozen_balance`, `is_supervisor`, `rating`. 
+   - Contact Info: `phone_number`, `telegram_username`.
    - *Rule: All user financial operations MUST occur only through these balances.*
 
 2. **missions**
    - Orders: `id`, `creator_id`, `cleaner_id`, `category` (only 'home' or 'public'), `amount_target`, `location_lat`, `location_lng`.
+   - Details: `title`, `description`, `photo_urls`.
    - Statuses: `status` ('pending', 'available', 'in_progress', 'completed', 'disputed').
 
 3. **mission_bids**

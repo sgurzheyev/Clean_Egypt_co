@@ -29,7 +29,7 @@ interface Job {
 interface Bid {
   id: string;
   mission_id: string;
-  worker_id: string;
+  cleaner_id: string;
   bid_amount: number;
   status: string;
   created_at?: string;
@@ -327,7 +327,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       if (pendingJobIds.length > 0) {
         const { data: bidsData } = await supabase
           .from('mission_bids')
-          .select('id, mission_id, worker_id, bid_amount, status, created_at')
+          .select('id, mission_id, cleaner_id, bid_amount, status, created_at')
           .in('mission_id', pendingJobIds);
         const byJob: Record<string, Bid[]> = {};
         for (const bid of (bidsData || []) as Bid[]) {
@@ -452,7 +452,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       const { error: jobErr } = await supabase
         .from('missions')
         .update({
-          cleaner_id: bid.worker_id,
+          cleaner_id: bid.cleaner_id,
           amount_target: bid.bid_amount,
           status: 'in_progress',
         })
