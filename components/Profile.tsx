@@ -25,6 +25,7 @@ interface Job {
   photo_urls?: string[] | null;
   after_photo_urls?: string[] | null;
   is_disputed?: boolean | null;
+  rating?: number | null;
 }
 
 interface Bid {
@@ -45,6 +46,7 @@ interface ProfileRow {
   full_name?: string | null;
   phone_number?: string | null;
   telegram_username?: string | null;
+  rating?: number | null;
 }
 
 const SUPPORT_TELEGRAM = 'https://t.me/CleanEgypt_Admin_Bot';
@@ -286,7 +288,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, wallet_balance, frozen_balance, is_verified, verification_status, full_name, phone_number, telegram_username')
+        .select('id, wallet_balance, frozen_balance, is_verified, verification_status, full_name, phone_number, telegram_username, rating')
         .eq('id', userId)
         .maybeSingle();
 
@@ -682,6 +684,22 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <p className="mt-1 text-[10px] text-slate-500 uppercase tracking-[0.18em]">
               {userEmail}
             </p>
+          )}
+
+          {/* Rating badge */}
+          {userProfile?.rating != null ? (
+            <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-400/40 px-2.5 py-0.5">
+              <span className="text-[11px] font-bold text-amber-300">
+                {userProfile.rating.toFixed(1)}
+              </span>
+              <span className="text-xs">⭐</span>
+            </div>
+          ) : (
+            <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-slate-800/60 border border-slate-600/60 px-2.5 py-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-300">
+                New Hero
+              </span>
+            </div>
           )}
 
           {/* Wallet — glass panel */}
@@ -1533,6 +1551,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <p className="text-xs font-bold text-slate-200">{roleLabel}</p>
                         </div>
                       </div>
+
+                      {typeof job.rating === 'number' && !Number.isNaN(job.rating) && (
+                        <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-slate-800/70 border border-amber-400/30 px-2 py-0.5">
+                          <span className="text-[10px] font-bold text-amber-300">
+                            {job.rating.toFixed(1)}
+                          </span>
+                          <span className="text-xs">⭐</span>
+                        </div>
+                      )}
 
                       {job.description && (
                         <p className="text-xs text-slate-400 mt-3">{job.description}</p>

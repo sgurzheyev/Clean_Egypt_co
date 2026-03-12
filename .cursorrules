@@ -4,33 +4,20 @@ You are a Senior Full-Stack developer for the CleanEgypt.co project (React, Verc
 Your main goal is to write clean, reliable, and strictly typed code based EXCLUSIVELY on the current database architecture (V1_PRODUCTION).
 
 ## 🏛 DATABASE ARCHITECTURE (Source of Truth):
-
-1. **profiles**
-   - Roles & Money: `id`, `wallet_balance`, `frozen_balance`, `is_supervisor`, `rating`. 
-   - Contact Info: `phone_number`, `telegram_username`.
-   - *Rule: All user financial operations MUST occur only through these balances.*
-
-2. **missions**
-   - Core: `id`, `creator_id`, `cleaner_id`, `category` (only 'home' or 'public'), `location_lat`, `location_lng`.
-   - Crowdfunding & Finances: `amount_target`, `current_funding` (Total amount donated for 'public' missions).
-   - Photos: `photo_urls` (BEFORE photos), `after_photo_urls` (AFTER photos).
-   - Statuses: `status` ('pending', 'available', 'funding', 'in_progress', 'completed', 'disputed').
-
-3. **mission_bids**
-   - Bidding: `id`, `mission_id`, `cleaner_id`, `bid_amount`, `status`.
-
-4. **transactions**
-   - Operations log: `id`, `user_id`, `mission_id`, `amount`, `type` ('deposit', 'payout', 'freeze', 'refund', 'donation').
+1. **profiles**: `id`, `wallet_balance`, `frozen_balance`, `is_supervisor`, `rating`. (All financial ops strictly use these balances).
+2. **missions**: `id`, `creator_id`, `cleaner_id`, `category` ('home' or 'public'), `location_lat`, `location_lng`, `created_at`, `amount_target`, `current_funding`, `photo_urls`, `after_photo_urls`, `status`.
+   *(CRITICAL: NO `updated_at` column exists. Never query it.)*
+3. **mission_bids**: `id`, `mission_id`, `cleaner_id`, `bid_amount`, `status`.
+4. **transactions**: `id`, `user_id`, `mission_id`, `amount`, `type`.
 
 ## 🛠 CORE BUSINESS LOGIC & RPCS:
-- **Never do multiple financial updates from the frontend.** ALWAYS use our established RPCs:
-  - `donate_to_mission(p_mission_id, p_amount)`: Deducts from user wallet, adds to `current_funding`, logs transaction.
-  - `co_fund_and_accept_mission(p_mission_id, p_bid_amount)`: Deducts diff from cleaner wallet, updates mission to `in_progress`, sets cleaner_id, logs transaction.
-  - `place_mission_bid(mission_id, amount_target)`: Freezes 50% deposit and creates a pending bid.
+- NEVER do direct frontend financial updates. ALWAYS use RPCs:
+  - `donate_to_mission(p_mission_id, p_amount)`
+  - `co_fund_and_accept_mission(p_mission_id, p_bid_amount)`
+  - `place_mission_bid(mission_id, amount_target)`
 
-## 🗺️ MAP & UI RULES:
-- **Map Filters:** Show `pending`, `available`, `funding`, `in_progress`, and `completed` (only if updated in the last 24 hours).
-- **Map Markers:** - Default/Green: `pending`, `available`, `funding`
-  - Blue/Glowing: `in_progress`
-  - Gold/Star: `completed` (Hall of Fame)
+## 🗺️ MAP & UI RULES (MOBILE-FIRST):
+- **Map Filters:** Show `pending`, `available`, `funding`, `in_progress`, and `completed` (only if `created_at` is within the last 24 hours).
+- **Map Markers:** Default/Green (`pending`, `funding`), Blue/Glowing (`in_progress`), Gold/Star (`completed`).
 - **Profile:** Mission History shows only `completed` missions where the user is creator or cleaner.
+- **Mobile UI:** Always use mobile-first Flexbox (e.g., stack inputs and buttons vertically on small screens) and add `pb-16` or similar Safe Area padding to bottom-fixed modals to prevent OS bar overlap.

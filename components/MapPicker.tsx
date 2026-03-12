@@ -518,6 +518,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [showDonate, setShowDonate] = useState(false);
   const [donateAmount, setDonateAmount] = useState<string>('');
   const [donating, setDonating] = useState(false);
+  const [selectedRating, setSelectedRating] = useState<number>(0);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewedMissions, setReviewedMissions] = useState<Set<string>>(new Set());
 
   const handleMarkerClick = useCallback((job: JobOnMap) => {
     setSelectedMission(job);
@@ -531,6 +534,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setMissionBidAmount('');
     setShowDonate(false);
     setDonateAmount('');
+    setSelectedRating(0);
   }, []);
 
   const closeCrowdfundConfirm = useCallback(() => {
@@ -592,6 +596,49 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
     },
     [fetchMissions, onRequestAuth, selectedMission]
+  );
+
+  const handleSubmitReview = useCallback(
+    async (rating: number) => {
+      if (!selectedMission || !selectedMission.cleaner_id) return;
+      if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+        alert('Please select a rating between 1 and 5 stars.');
+        return;
+      }
+      try {
+        setIsSubmittingReview(true);
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session?.user?.id) {
+          onRequestAuth?.();
+          return;
+        }
+
+        const { error } = await supabase.rpc('submit_review', {
+          p_mission_id: selectedMission.id,
+          p_cleaner_id: selectedMission.cleaner_id,
+          p_rating: rating,
+        });
+        if (error) {
+          alert(error.message || 'Failed to submit rating. Please try again.');
+          return;
+        }
+
+        alert('Thank you for rating the cleaner!');
+        setReviewedMissions((prev) => {
+          const next = new Set(prev);
+          next.add(selectedMission.id);
+          return next;
+        });
+        setSelectedRating(0);
+      } catch (e: any) {
+        alert(e?.message || 'Failed to submit rating. Please try again.');
+      } finally {
+        setIsSubmittingReview(false);
+      }
+    },
+    [onRequestAuth, selectedMission]
   );
 
   const placePendingBid = useCallback(
@@ -1385,19 +1432,61 @@ const MapPicker: React.FC<MapPickerProps> = ({
             </div>
 
             {selectedMission.status === 'completed' ? (
-              <div className="space-y-4">
-                <p className="text-sm text-amber-200 font-semibold">
-                  MISSION ACCOMPLISHED! Cleaned by our heroes and funded by the community.
-                </p>
-                <div className="w-full rounded-full animated-border-completed">
-                  <button
-                    type="button"
-                    onClick={() => setHallOfFameMission(selectedMission)}
-                    className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
-                  >
-                    View Photos
-                  </button>
+              <div className="space-y-5">
+                <div className="space-y-3">
+                  <p className="text-sm text-amber-200 font-semibold">
+                    MISSION ACCOMPLISHED! Cleaned by our heroes and funded by the community.
+                  </p>
+                  <div className="w-full rounded-full animated-border-completed">
+                    <button
+                      type="button"
+                      onClick={() => setHallOfFameMission(selectedMission)}
+                      className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
+                    >
+                      View Photos
+                    </button>
+                  </div>
                 </div>
+
+                {selectedMission.creator_id === currentUserId &&
+                  !reviewedMissions.has(selectedMission.id) && (
+                    <div className="rounded-2xl bg-black/50 border border-amber-500/40 p-4 space-y-3">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300">
+                        Rate the Cleaner
+                      </p>
+                      <p className="text-[11px] text-slate-300">
+                        Your rating helps reward the best Eco-Heroes.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => {
+                          const active = star <= selectedRating;
+                          return (
+                            <button
+                              key={star}
+                              type="button"
+                              disabled={isSubmittingReview}
+                              onClick={() => setSelectedRating(star)}
+                              className={`text-2xl transition-transform ${
+                                active ? 'text-amber-300' : 'text-slate-600'
+                              } ${active ? 'scale-110' : 'scale-100'} hover:scale-110`}
+                            >
+                              ⭐
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {selectedRating > 0 && (
+                        <button
+                          type="button"
+                          disabled={isSubmittingReview}
+                          onClick={() => handleSubmitReview(selectedRating)}
+                          className="mt-2 w-full rounded-full bg-amber-500 text-black text-[11px] font-black uppercase tracking-[0.18em] py-2.5 hover:bg-amber-400 disabled:opacity-60 disabled:cursor-wait transition-all"
+                        >
+                          {isSubmittingReview ? 'Submitting...' : 'Submit Rating'}
+                        </button>
+                      )}
+                    </div>
+                  )}
               </div>
             ) : selectedMission.status === 'in_progress' && selectedMission.cleaner_id !== currentUserId ? (
               <div className="space-y-3">
