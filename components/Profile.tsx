@@ -85,6 +85,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);
   const [myCityJobs, setMyCityJobs] = useState<Job[]>([]);
   const [myActiveJobs, setMyActiveJobs] = useState<Job[]>([]);
+  const [missionHistory, setMissionHistory] = useState<Job[]>([]);
   const [jobBidsById, setJobBidsById] = useState<Record<string, Bid[]>>({});
   const [marketplaceJobs, setMarketplaceJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -320,6 +321,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         .in('status', ['in_progress', 'completed', 'finished'])
         .order('created_at', { ascending: false });
       setMyActiveJobs((activeJobsData || []) as unknown as Job[]);
+
+      const { data: historyData } = await supabase
+        .from('missions')
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed')
+        .eq('status', 'completed')
+        .or(`creator_id.eq.${userId},cleaner_id.eq.${userId}`)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      setMissionHistory((historyData || []) as unknown as Job[]);
 
       const pendingJobIds = [
         ...(((homeJobsData || []) as unknown as Job[]).filter((j) => j.status === 'pending').map((j) => j.id)),
@@ -1464,6 +1474,74 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 });
               })()}
             </div>
+          </section>
+        )}
+
+        {/* MISSION HISTORY (completed missions for creator or cleaner) */}
+        {userProfile && (
+          <section className="mb-10 text-white">
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-300">
+              🏆 Mission History
+            </h2>
+            {loading ? (
+              <p className="text-slate-500 text-sm italic">Loading mission history...</p>
+            ) : (missionHistory || []).length === 0 ? (
+              <p className="text-slate-500 text-sm italic">No completed missions yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {(missionHistory || []).map((job) => {
+                  const uid = userProfile.id;
+                  const isCreator = job.creator_id === uid;
+                  const roleLabel = isCreator ? 'Creator' : 'Cleaner';
+                  const isHome = job.category === 'home';
+                  const icon = isHome ? '🏠' : '🌆';
+                  const badgeColor = isHome
+                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+                  const displayTitle =
+                    job.title && job.title.trim().length > 0
+                      ? job.title
+                      : isHome
+                        ? 'Home Mission'
+                        : 'City Mission';
+                  return (
+                    <div
+                      key={job.id}
+                      className="bg-slate-900/60 rounded-xl border border-white/5 p-4"
+                    >
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
+                        <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black/40 border border-white/10 text-xl">
+                            <span>{icon}</span>
+                          </div>
+                          <div>
+                            <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
+                              {displayTitle}
+                            </p>
+                            <p className={`text-2xl font-black tracking-tight mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>
+                              ${job.amount_target}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[9px] text-slate-500 uppercase tracking-widest">Role</p>
+                          <p className="text-xs font-bold text-slate-200">{roleLabel}</p>
+                        </div>
+                      </div>
+
+                      {job.description && (
+                        <p className="text-xs text-slate-400 mt-3">{job.description}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
         )}
 

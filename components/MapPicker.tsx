@@ -22,6 +22,8 @@ interface JobOnMap {
   description?: string | null;
   photo_urls?: string[] | null;
   after_photo_urls?: string[] | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
@@ -303,7 +305,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const fetchMissions = useCallback(async () => {
     const { data, error } = await supabase
       .from('missions')
-      .select('id, category, amount_target, current_funding, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls, after_photo_urls')
+      .select('id, category, amount_target, current_funding, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls, after_photo_urls, created_at, updated_at')
       .in('status', ['pending', 'in_progress', 'completed'])
       .order('created_at', { ascending: false })
       .limit(500);
@@ -516,16 +518,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [crowdfundBidAmount, setCrowdfundBidAmount] = useState<number | null>(null);
 
   const handleMarkerClick = useCallback((job: JobOnMap) => {
-    if (job.status === 'completed') {
-      setHallOfFameMission(job);
-      setSelectedMission(null);
-      setShowBidInput(false);
-      setMissionBidAmount('');
-    } else {
-      setSelectedMission(job);
-      setShowBidInput(false);
-      setMissionBidAmount(String(job.amount_target ?? ''));
-    }
+    setSelectedMission(job);
+    setShowBidInput(false);
+    setMissionBidAmount(String(job.amount_target ?? ''));
   }, []);
 
   const handleCloseMissionBriefing = useCallback(() => {
@@ -917,14 +912,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
         {(jobs || [])
           .filter((job) => {
             if (job.status === 'pending') return true;
-            if (job.status === 'in_progress') return job.cleaner_id === currentUserId;
-            if (job.status === 'completed') return true;
+            if (job.status === 'in_progress') return true;
+            if (job.status === 'completed') {
+              const ts = job.updated_at || job.created_at;
+              if (!ts) return false;
+              const completedAt = new Date(ts).getTime();
+              if (!Number.isFinite(completedAt)) return false;
+              const ageMs = Date.now() - completedAt;
+              return ageMs <= 24 * 60 * 60 * 1000;
+            }
             return false;
           })
           .map((job) => {
             const isMyActiveMission = job.status === 'in_progress' && job.cleaner_id === currentUserId;
             const bidCount = activeBidCounts[job.id] || 0;
             const orderType = job.category === 'home' ? 'home' : 'city';
+            const variant =
+              job.status === 'completed'
+                ? 'completed'
+                : job.status === 'in_progress'
+                  ? 'in_progress'
+                  : 'default';
             return (
               <Marker
                 key={job.id}
@@ -935,8 +943,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <JobMarker
                   amount={job.amount_target}
                   orderType={orderType}
-                  label={job.status === 'completed' ? '★' : isMyActiveMission ? 'MY MISSION' : undefined}
+                  label={job.status === 'completed' ? 'DONE' : isMyActiveMission ? 'MY MISSION' : undefined}
                   isActive={isMyActiveMission}
+                  variant={variant as any}
                   bidCount={job.status === 'pending' ? bidCount : 0}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1291,7 +1300,28 @@ const MapPicker: React.FC<MapPickerProps> = ({
               )}
             </div>
 
-            {selectedMission.status === 'in_progress' && selectedMission.cleaner_id === currentUserId ? (
+            {selectedMission.status === 'completed' ? (
+              <div className="space-y-4">
+                <p className="text-sm text-amber-200 font-semibold">
+                  MISSION ACCOMPLISHED! Cleaned by our heroes and funded by the community.
+                </p>
+                <div className="w-full rounded-full animated-border-completed">
+                  <button
+                    type="button"
+                    onClick={() => setHallOfFameMission(selectedMission)}
+                    className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
+                  >
+                    View Photos
+                  </button>
+                </div>
+              </div>
+            ) : selectedMission.status === 'in_progress' && selectedMission.cleaner_id !== currentUserId ? (
+              <div className="space-y-3">
+                <p className="text-sm text-sky-200 font-semibold">
+                  Work in progress. An Eco-Hero is currently cleaning this spot.
+                </p>
+              </div>
+            ) : selectedMission.status === 'in_progress' && selectedMission.cleaner_id === currentUserId ? (
               <div className="w-full rounded-full animated-border-city">
                 <button
                   type="button"

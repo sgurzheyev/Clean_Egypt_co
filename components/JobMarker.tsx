@@ -8,9 +8,19 @@ interface JobMarkerProps {
   isDraft?: boolean;
   isActive?: boolean;
   bidCount?: number;
+  variant?: 'default' | 'in_progress' | 'completed';
 }
 
-const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label, onClick, isDraft = false, isActive = false, bidCount = 0 }) => {
+const JobMarker: React.FC<JobMarkerProps> = ({
+  amount,
+  orderType,
+  label,
+  onClick,
+  isDraft = false,
+  isActive = false,
+  bidCount = 0,
+  variant = 'default',
+}) => {
   const [entered, setEntered] = useState(false);
 
   useEffect(() => {
@@ -19,14 +29,45 @@ const JobMarker: React.FC<JobMarkerProps> = ({ amount, orderType, label, onClick
   }, []);
 
   const isHome = orderType === 'home';
-  const icon = isDraft ? '📍' : (isHome ? '🏠' : '🌆');
+  const icon =
+    variant === 'completed'
+      ? '⭐'
+      : isDraft
+        ? '📍'
+        : (isHome ? '🏠' : '🌆');
 
   const scale = isDraft ? 1 : 0.7 + (Math.min(amount, 100) / 100) * 0.8;
 
-  const pyramidShapeClass = isDraft ? 'pyramid-shape-draft' : (isHome ? 'pyramid-shape-home' : 'pyramid-shape-city');
-  const pyramidGlowClass = isActive ? 'pyramid-glow-active' : (isDraft ? 'pyramid-glow-draft' : (isHome ? 'pyramid-glow-home' : 'pyramid-glow-city'));
-  const pillBorderClass = isDraft ? 'animated-border-rainbow' : (isHome ? 'animated-border-home' : 'animated-border-city');
-  const pillContent = isDraft ? 'NEW' : (isActive ? (label || 'MY MISSION') : `$${amount}`);
+  const pyramidShapeClass = isDraft
+    ? 'pyramid-shape-draft'
+    : variant === 'completed'
+      ? 'pyramid-shape-completed'
+      : variant === 'in_progress'
+        ? 'pyramid-shape-inprogress'
+        : (isHome ? 'pyramid-shape-home' : 'pyramid-shape-city');
+  const pyramidGlowClass = isActive
+    ? 'pyramid-glow-active'
+    : isDraft
+      ? 'pyramid-glow-draft'
+      : variant === 'completed'
+        ? 'pyramid-glow-completed'
+        : variant === 'in_progress'
+          ? 'pyramid-glow-inprogress'
+          : (isHome ? 'pyramid-glow-home' : 'pyramid-glow-city');
+  const pillBorderClass = isDraft
+    ? 'animated-border-rainbow'
+    : variant === 'completed'
+      ? 'animated-border-completed'
+      : variant === 'in_progress'
+        ? 'animated-border-inprogress'
+        : (isHome ? 'animated-border-home' : 'animated-border-city');
+  const pillContent = isDraft
+    ? 'NEW'
+    : variant === 'completed'
+      ? (label || 'DONE')
+      : isActive
+        ? (label || 'MY MISSION')
+        : `$${amount}`;
 
   return (
     <button

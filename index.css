@@ -133,6 +133,50 @@
   z-index: 0;
 }
 
+.animated-border-inprogress {
+  position: relative;
+  padding: 2px;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.animated-border-inprogress::before {
+  content: '';
+  position: absolute;
+  inset: -100%;
+  width: 300%;
+  height: 300%;
+  left: 50%;
+  top: 50%;
+  margin-left: -150%;
+  margin-top: -150%;
+  background: conic-gradient(from 0deg, #1d4ed8, #38bdf8, #60a5fa, #1d4ed8);
+  animation: gemini-spin 4s linear infinite;
+  z-index: 0;
+}
+
+.animated-border-completed {
+  position: relative;
+  padding: 2px;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.animated-border-completed::before {
+  content: '';
+  position: absolute;
+  inset: -100%;
+  width: 300%;
+  height: 300%;
+  left: 50%;
+  top: 50%;
+  margin-left: -150%;
+  margin-top: -150%;
+  background: conic-gradient(from 0deg, #b45309, #f59e0b, #fde68a, #b45309);
+  animation: gemini-spin 4s linear infinite;
+  z-index: 0;
+}
+
 /* Rainbow/Gemini draft pin border */
 .animated-border-rainbow {
   position: relative;
@@ -190,7 +234,9 @@
 /* Luxury pyramid marker — faceted gemstone shape (base) */
 .pyramid-shape-city,
 .pyramid-shape-home,
-.pyramid-shape-draft {
+.pyramid-shape-draft,
+.pyramid-shape-inprogress,
+.pyramid-shape-completed {
   clip-path: polygon(50% 100%, 8% 18%, 50% 0%, 92% 18%);
   background-size: 300% 300%;
 }
@@ -220,6 +266,26 @@
     inset -1px -1px 0 rgba(0, 0, 0, 0.25),
     0 0 14px rgba(34, 197, 94, 0.4),
     0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* In progress — blue glow */
+.pyramid-shape-inprogress {
+  background: linear-gradient(145deg, #1d4ed8 0%, #38bdf8 45%, #60a5fa 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.25),
+    0 0 18px rgba(56, 189, 248, 0.55),
+    0 6px 18px rgba(0, 0, 0, 0.6);
+}
+
+/* Completed — gold glow */
+.pyramid-shape-completed {
+  background: linear-gradient(145deg, #b45309 0%, #f59e0b 45%, #fde68a 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.25),
+    0 0 18px rgba(245, 158, 11, 0.55),
+    0 6px 18px rgba(0, 0, 0, 0.6);
 }
 
 @keyframes city-gradient {
@@ -292,6 +358,28 @@
     rgba(0, 0, 0, 0) 70%
   );
   animation: pyramid-breathe 3s ease-in-out infinite;
+}
+
+/* In progress — blue base glow */
+.pyramid-glow-inprogress {
+  background: radial-gradient(
+    ellipse 80% 50% at 50% 100%,
+    rgba(56, 189, 248, 0.55) 0%,
+    rgba(29, 78, 216, 0.25) 30%,
+    rgba(0, 0, 0, 0) 70%
+  );
+  animation: pyramid-breathe 2.6s ease-in-out infinite;
+}
+
+/* Completed — gold base glow */
+.pyramid-glow-completed {
+  background: radial-gradient(
+    ellipse 80% 50% at 50% 100%,
+    rgba(245, 158, 11, 0.55) 0%,
+    rgba(180, 83, 9, 0.25) 30%,
+    rgba(0, 0, 0, 0) 70%
+  );
+  animation: pyramid-breathe 3.2s ease-in-out infinite;
 }
 
 /* Active mission (worker's own in_progress) — pulsing white/blue glow */
