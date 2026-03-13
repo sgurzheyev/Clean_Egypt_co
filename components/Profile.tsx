@@ -120,6 +120,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [payoutDetails, setPayoutDetails] = useState('');
   const [payoutSubmitting, setPayoutSubmitting] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState('');
+  const [topUpSubmitting, setTopUpSubmitting] = useState(false);
   const navigate = useNavigate();
 
   // Real-time wallet balance subscription
@@ -265,6 +267,37 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       alert(err?.message || 'Failed to request payout. Please try again.');
     } finally {
       setPayoutSubmitting(false);
+    }
+  };
+
+  const handleTopUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amountNum = Number(topUpAmount);
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      alert('Please enter a positive amount to top up.');
+      return;
+    }
+    try {
+      setTopUpSubmitting(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        alert('You must be logged in to top up your wallet.');
+        return;
+      }
+      const { error } = await supabase.rpc('top_up_wallet', {
+        p_amount: amountNum,
+      });
+      if (error) {
+        alert(error.message || 'Failed to top up wallet. Please try again.');
+        return;
+      }
+      alert('Funds added successfully!');
+      setTopUpAmount('');
+      await fetchProfileData();
+    } catch (err: any) {
+      alert(err?.message || 'Failed to top up wallet. Please try again.');
+    } finally {
+      setTopUpSubmitting(false);
     }
   };
 
@@ -852,6 +885,31 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 Frozen: ${Number(userProfile.frozen_balance).toFixed(2)}
               </p>
             )}
+
+            {/* Top Up Wallet */}
+            <form onSubmit={handleTopUp} className="mt-5 space-y-2">
+              <label className="block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                Top Up Wallet
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  step="0.01"
+                  placeholder="Amount in USD"
+                  value={topUpAmount}
+                  onChange={(e) => setTopUpAmount(e.target.value)}
+                  className="flex-1 rounded-2xl bg-slate-900/80 border border-slate-700/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                />
+                <button
+                  type="submit"
+                  disabled={topUpSubmitting}
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.18em] bg-emerald-500/20 border border-emerald-400/70 text-emerald-300 hover:bg-emerald-500/30 hover:border-emerald-300 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                >
+                  {topUpSubmitting ? 'Adding...' : 'Top Up'}
+                </button>
+              </div>
+            </form>
           </div>
 
           {/* LOGOUT — highly visible */}

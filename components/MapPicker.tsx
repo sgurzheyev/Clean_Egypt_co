@@ -929,6 +929,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
+      // For City (public) missions, confirm $1 Scout Stake before proceeding
+      if (taskType === 'city') {
+        const confirmed = window.confirm(
+          'Placing a City Pin costs $1 (Scout Stake). You will earn 10% of the collected funds when it is cleaned. Proceed?'
+        );
+        if (!confirmed) {
+          setOrderSubmitting(false);
+          return;
+        }
+      }
+
       // 1) Compress and upload creator proof photos (if any)
       let creatorPhotoUrls: string[] | undefined;
       if (orderPhotos.length > 0) {
@@ -966,7 +977,36 @@ const MapPicker: React.FC<MapPickerProps> = ({
         creatorPhotoUrls = uploaded;
       }
 
-      // 2) Kick off Paymob flow with creator_photos attached to pending job
+      // 2) For City (public) missions, create mission via RPC with $1 Scout Stake
+      if (taskType === 'city') {
+        const { error } = await supabase.rpc('create_public_mission_with_fee', {
+          p_title: orderDescription || 'City Mission',
+          p_description: orderDescription || null,
+          p_amount_target: amount,
+          p_location_lat: selectedLocation.lat,
+          p_location_lng: selectedLocation.lng,
+          p_photo_urls: creatorPhotoUrls || [],
+        });
+
+        if (error) {
+          console.error('Create public mission error:', error);
+          setOrderError(
+            error.message ||
+              'Failed to create City mission. Please ensure you have at least $1 in your wallet and try again.'
+          );
+          return;
+        }
+
+        setOrderSuccess('City mission created! Your $1 Scout Stake has been locked.');
+        setOrderAmount('');
+        setOrderDescription('');
+        setOrderPhotos([]);
+        setSelectedLocation(null);
+        await fetchMissions();
+        return;
+      }
+
+      // 3) For Home missions, keep existing Paymob flow with creator photos
       await executePaymentFlow({
         amount,
         taskType,

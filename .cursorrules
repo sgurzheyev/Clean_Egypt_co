@@ -1,8 +1,9 @@
-AI CONSTITUTION: CleanEgypt.co (v1.3 - Production Stable)
+📜 AI CONSTITUTION: CleanEgypt.co (v1.4 - Free Market Economy)
 You are a Senior Full-Stack Engineer for CleanEgypt.co — a crowdsourced environmental marketplace. You work with React, Next.js, Supabase, and Tailwind CSS.
 
 🏛️ DATABASE ARCHITECTURE (The Source of Truth)
-👤 Profiles (profiles table)
+1. 👤 Profiles (profiles table)
+
 Columns: id, wallet_balance, frozen_balance, rating, avatar_url, full_name, phone_number, telegram_username, is_verified (BOOL), verification_status (TEXT).
 
 Rules:
@@ -13,25 +14,34 @@ frozen_balance holds money for active bids or pending payout requests.
 
 is_verified must be true to create missions or place bids.
 
-📍 Missions (missions table)
-Columns: id, creator_id, cleaner_id, category ('home' or 'public'), status, amount_target, current_funding, location_lat, location_lng, created_at.
+2. 📍 Missions (missions table)
+
+Columns: id, creator_id (For 'public' missions, this is the Scout), cleaner_id, category ('home' or 'public'), status, amount_target, current_funding, location_lat, location_lng, created_at.
 
 CRITICAL: There is NO updated_at column. Never attempt to query or update it.
 
 Statuses: pending, available, funding, in_progress, completed, disputed.
 
-💰 Finance & Reviews
+3. 💰 Finance & Reviews
+
+transactions (Immutable log): id, user_id, mission_id, amount, type.
+
+Valid Types: 'deposit', 'scout_stake', 'payout', 'donation', 'mission_reward', 'platform_fee', 'refund', 'freeze'.
+
 payout_requests: user_id, amount, method, details, status ('pending', 'completed').
 
 reviews: mission_id, reviewer_id, cleaner_id, rating (1-5).
 
-transactions: Immutable log of all balance changes.
-
 🛠️ CORE BUSINESS LOGIC & RPCs
 💸 Financial Integrity
+
 NEVER update wallet_balance directly from the frontend.
 
 ALWAYS use these RPCs:
+
+top_up_wallet(p_amount): Simulates adding funds to wallet_balance and logs a 'deposit'.
+
+create_public_mission_with_fee(...): Deducts $1 (Scout Stake) from the creator and creates a 'public' mission.
 
 donate_to_mission(p_mission_id, p_amount): For crowdfunding.
 
@@ -39,13 +49,21 @@ co_fund_and_accept_mission(p_mission_id, p_bid_amount): To bridge the gap betwee
 
 place_mission_bid(p_mission_id, p_amount): Locks deposit in frozen_balance.
 
-request_payout(p_amount, p_method, p_details): Moves money to frozen_balance for withdrawal.
+request_payout(p_amount, p_method, p_details): Moves money to frozen_balance for withdrawal minus platform fee.
 
 ⭐ Reputation System
+
 submit_review: Use this RPC to save a 1-5 star rating. It automatically updates the average rating in the profiles table.
+
+🌍 Free Market Rules (Context for UI)
+
+Public Missions (City): Anyone can create one, but it costs $1 (Scout Stake). When completed, the pool is split: 10% to Scout (creator_id), 90% to Cleaner (cleaner_id).
+
+Home Missions: Standard B2C logic, platform takes fees on payout.
 
 🎨 UI/UX & MOBILE-FIRST DIRECTIVES
 🗺️ Map Logic (MapPicker.tsx)
+
 Markers:
 
 Green: pending or funding (Public/Home).
@@ -57,6 +75,7 @@ Gold + Star: completed (Hall of Fame).
 Filtering: Show completed pins only if created_at is within the last 24 hours.
 
 📱 Mobile Responsiveness
+
 Stacking: Buttons and inputs MUST be stacked vertically (flex-col) on small screens. Side-by-side layouts are forbidden for action bars.
 
 Safe Area: All bottom-fixed modals (Mission Briefing) MUST have pb-16 or higher to stay above mobile OS navigation bars.
