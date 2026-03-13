@@ -17,6 +17,7 @@ interface Job {
   cleaner_id: string | null;
   category: 'public' | 'home' | 'office' | string;
   amount_target: number;
+  current_funding?: number | null;
   location_lat?: number | null;
   location_lng?: number | null;
   status: string;
@@ -1651,24 +1652,32 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <p className="text-sm text-red-400 mb-4">{marketError}</p>
           )}
 
-          {!marketLoading && !marketError && (marketplaceJobs || []).filter((job) => job.status === 'pending').length === 0 && (
+          {!marketLoading && !marketError && (marketplaceJobs || []).filter((job) =>
+            ['pending', 'available', 'funding'].includes(job.status) && job.cleaner_id == null
+          ).length === 0 && (
             <p className="text-sm text-slate-500 italic">
               No active missions yet. Check back soon.
             </p>
           )}
 
-          {!marketLoading && !marketError && (marketplaceJobs || []).filter((job) => job.status === 'pending').length > 0 && (
+          {!marketLoading && !marketError && (marketplaceJobs || []).filter((job) =>
+            ['pending', 'available', 'funding'].includes(job.status) && job.cleaner_id == null
+          ).length > 0 && (
             <div className="grid grid-cols-1 gap-4 pointer-events-auto">
               {(marketplaceJobs || [])
-                .filter((job) => job.status === 'pending' && job.cleaner_id == null)
+                .filter(
+                  (job) =>
+                    ['pending', 'available', 'funding'].includes(job.status) &&
+                    job.cleaner_id == null
+                )
                 .map((job) => {
-                const isHome = job.category === 'home';
-                const icon = isHome ? '🏠' : '🌆';
-                const badgeColor = isHome
-                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+                  const isHome = job.category === 'home';
+                  const icon = isHome ? '🏠' : '🌆';
+                  const badgeColor = isHome
+                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
 
-                return (
+                  return (
                   <button
                     key={job.id}
                     type="button"
@@ -1698,7 +1707,21 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
                               {job.category.toUpperCase()} Mission
                             </p>
-                            <p className={`text-2xl font-black tracking-tight mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>${job.amount_target}</p>
+                            <p
+                              className={`text-2xl font-black tracking-tight mt-1 ${
+                                isHome ? 'text-amber-400' : 'text-emerald-400'
+                              }`}
+                            >
+                              $
+                              {isHome
+                                ? Number(job.amount_target).toFixed(2)
+                                : Number(job.current_funding || 0).toFixed(2)}
+                            </p>
+                            {!isHome && (
+                              <p className="text-[10px] text-slate-500 mt-0.5">
+                                Target: ${Number(job.amount_target).toFixed(2)}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="relative z-10 text-right">
