@@ -171,6 +171,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [proofSubmitting, setProofSubmitting] = useState(false);
   const [proofError, setProofError] = useState<string | null>(null);
   const [proofSuccess, setProofSuccess] = useState<string | null>(null);
+  const [plasticKg, setPlasticKg] = useState<string>('0');
+  const [glassKg, setGlassKg] = useState<string>('0');
+  const [constructionKg, setConstructionKg] = useState<string>('0');
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -710,15 +713,32 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         if (updateErr) throw updateErr;
         setProofSuccess('Before photos uploaded. Mission started.');
       } else {
-        const { error: updateErr } = await supabase
-          .from('missions')
-          .update({
-            after_photo_urls: [...(proofJob.after_photo_urls || []), ...uploadedUrls],
-            status: 'completed',
-          })
-          .eq('id', proofJob.id);
-        if (updateErr) throw updateErr;
-        setProofSuccess('80% Proof complete. For 100% Proof & fast payout, send video proof to Telegram Team Checker.');
+        // AFTER photos: if public mission, run circular economy RPC with Eco-Report
+        if (proofJob.category === 'public') {
+          const plasticVal = Number(plasticKg) || 0;
+          const glassVal = Number(glassKg) || 0;
+          const constructionVal = Number(constructionKg) || 0;
+
+          const { error: rpcErr } = await supabase.rpc('complete_public_mission_with_report', {
+            p_mission_id: proofJob.id,
+            p_plastic_kg: plasticVal,
+            p_glass_kg: glassVal,
+            p_construction_kg: constructionVal,
+            p_after_photo_urls: [...(proofJob.after_photo_urls || []), ...uploadedUrls],
+          } as any);
+          if (rpcErr) throw rpcErr;
+          setProofSuccess('Mission Completed! Funds distributed.');
+        } else {
+          const { error: updateErr } = await supabase
+            .from('missions')
+            .update({
+              after_photo_urls: [...(proofJob.after_photo_urls || []), ...uploadedUrls],
+              status: 'completed',
+            })
+            .eq('id', proofJob.id);
+          if (updateErr) throw updateErr;
+          setProofSuccess('80% Proof complete. For 100% Proof & fast payout, send video proof to Telegram Team Checker.');
+        }
       }
 
       await fetchProfileData();
@@ -2112,6 +2132,65 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   />
                 </label>
               </div>
+
+              {/* Eco-Report for public missions on completion */}
+              {proofPhase === 'after' && proofJob.category === 'public' && (
+                <div className="grid grid-cols-1 gap-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                    Eco-Report (approx. kg collected)
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="flex items-center gap-1 text-[10px] font-semibold text-slate-300 mb-1">
+                        <span>🥤</span>
+                        <span className="uppercase tracking-[0.16em]">Plastic</span>
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.1"
+                        value={plasticKg}
+                        onChange={(e) => setPlasticKg(e.target.value)}
+                        className="w-full rounded-2xl bg-black/40 border border-emerald-500/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1 text-[10px] font-semibold text-slate-300 mb-1">
+                        <span>🪟</span>
+                        <span className="uppercase tracking-[0.16em]">Glass</span>
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.1"
+                        value={glassKg}
+                        onChange={(e) => setGlassKg(e.target.value)}
+                        className="w-full rounded-2xl bg-black/40 border border-cyan-500/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1 text-[10px] font-semibold text-slate-300 mb-1">
+                        <span>🧱</span>
+                        <span className="uppercase tracking-[0.16em]">Debris</span>
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.1"
+                        value={constructionKg}
+                        onChange={(e) => setConstructionKg(e.target.value)}
+                        className="w-full rounded-2xl bg-black/40 border border-amber-500/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    Not sure? Give your best estimate. This powers the Circular Economy leaderboard.
+                  </p>
+                </div>
+              )}
 
               {proofError && (
                 <p className="text-xs text-red-400 font-medium">{proofError}</p>
