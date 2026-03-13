@@ -532,7 +532,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       const { data, error } = await supabase
         .from('missions')
         .select('*')
-        .eq('status', 'available')
+        .in('status', ['available', 'funding', 'pending'])
         .order('created_at', { ascending: false })
         .limit(20);
 
