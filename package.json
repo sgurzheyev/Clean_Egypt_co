@@ -12,6 +12,7 @@
     "@google/genai": "^1.41.0",
     "@supabase/supabase-js": "^2.45.0",
     "browser-image-compression": "^2.0.2",
+    "lucide-react": "^0.577.0",
     "mapbox-gl": "^2.15.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

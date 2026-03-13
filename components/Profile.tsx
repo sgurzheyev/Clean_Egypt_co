@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import { Target } from 'lucide-react';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -1130,16 +1131,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 Home Cleaning
               </button>
             </div>
-            <div className="animated-border rounded-full">
-              <button
-                type="button"
-                onClick={onClose}
-                className="animated-border-inner px-4 py-2.5 rounded-full text-[11px] text-white bg-[#020617] hover:brightness-110 transition-all flex items-center gap-2 font-bold uppercase tracking-[0.16em]"
-              >
-                <span>🗺️</span>
-                <span>Close & Back to Map</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-all p-0 border-0 z-50 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 bg-[length:200%_auto] animate-[pulse_3s_ease-in-out_infinite]"
+            >
+              <Target className="w-7 h-7 text-white" />
+            </button>
           </div>
 
           <form
