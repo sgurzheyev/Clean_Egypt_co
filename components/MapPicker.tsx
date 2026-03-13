@@ -1594,7 +1594,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
               <div className="w-full rounded-full animated-border-city">
                 <button
                   type="button"
-                  onClick={() => handleCloseMissionBriefing()}
+                  onClick={() => {
+                    alert('Mission accepted! Redirecting to profile...');
+                    handleCloseMissionBriefing();
+                    onAvatarClick?.();
+                  }}
                   className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
                 >
                   Start Work / Upload Proof

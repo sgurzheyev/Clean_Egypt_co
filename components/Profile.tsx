@@ -503,7 +503,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data, error } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed')
+        .select('*')
         .eq('status', 'available')
         .order('created_at', { ascending: false })
         .limit(20);
