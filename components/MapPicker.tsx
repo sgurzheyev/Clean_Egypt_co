@@ -1211,11 +1211,67 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   </label>
                   <div className="flex items-center gap-2 rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5">
                     <span className="text-slate-400 text-sm">📍</span>
-                    <p className="flex-1 text-xs text-slate-300">
-                      {selectedLocation
-                        ? `${selectedLocation.lat.toFixed(4)}, ${selectedLocation.lng.toFixed(4)}`
-                        : 'Tap on the 3D map to select'}
-                    </p>
+                    <input
+                      type="text"
+                      value={
+                        selectedLocation
+                          ? `${selectedLocation.lat.toFixed(6)}, ${selectedLocation.lng.toFixed(6)}`
+                          : ''
+                      }
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        // allow manual editing; if looks like "lat, lng" try to parse
+                        if (value.includes(',')) {
+                          const [latStr, lngStr] = value.split(',').map((s) => s.trim());
+                          const latNum = parseFloat(latStr);
+                          const lngNum = parseFloat(lngStr);
+                          if (
+                            Number.isFinite(latNum) &&
+                            Number.isFinite(lngNum) &&
+                            latNum >= -90 &&
+                            latNum <= 90 &&
+                            lngNum >= -180 &&
+                            lngNum <= 180
+                          ) {
+                            setSelectedLocation({ lat: latNum, lng: lngNum });
+                            mapRef.current?.flyTo({
+                              center: [lngNum, latNum],
+                              zoom: 16,
+                              essential: true,
+                              duration: 1500,
+                            });
+                            return;
+                          }
+                        }
+                      }}
+                      onPaste={(e: React.ClipboardEvent<HTMLInputElement>) => {
+                        const text = e.clipboardData.getData('text');
+                        if (text && text.includes(',')) {
+                          e.preventDefault();
+                          const [latStr, lngStr] = text.split(',').map((s) => s.trim());
+                          const latNum = parseFloat(latStr);
+                          const lngNum = parseFloat(lngStr);
+                          if (
+                            Number.isFinite(latNum) &&
+                            Number.isFinite(lngNum) &&
+                            latNum >= -90 &&
+                            latNum <= 90 &&
+                            lngNum >= -180 &&
+                            lngNum <= 180
+                          ) {
+                            setSelectedLocation({ lat: latNum, lng: lngNum });
+                            mapRef.current?.flyTo({
+                              center: [lngNum, latNum],
+                              zoom: 16,
+                              essential: true,
+                              duration: 1500,
+                            });
+                          }
+                        }
+                      }}
+                      placeholder="Tap map or paste '27.320282, 33.708599'"
+                      className="flex-1 bg-transparent border-0 outline-none text-xs text-slate-300 placeholder:text-slate-500"
+                    />
                   </div>
                   {!selectedLocation && (
                     <p className="mt-1 text-[10px] text-amber-300 uppercase tracking-[0.18em]">
@@ -1429,7 +1485,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     {selectedMission.category === 'public' ? 'City Cleaning' : 'Home Cleaning'}
                   </p>
                   <p className="text-xs text-slate-500 font-mono">
-                    {selectedMission.location_lat.toFixed(5)}, {selectedMission.location_lng.toFixed(5)}
+                    {selectedMission.location_lat.toFixed(6)}, {selectedMission.location_lng.toFixed(6)}
                   </p>
                 </div>
               </div>
