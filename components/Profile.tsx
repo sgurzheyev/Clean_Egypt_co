@@ -27,6 +27,10 @@ interface Job {
   after_photo_urls?: string[] | null;
   is_disputed?: boolean | null;
   rating?: number | null;
+  cleaner?: {
+    full_name?: string | null;
+    telegram_username?: string | null;
+  } | null;
 }
 
 interface Bid {
@@ -463,7 +467,29 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: historyData } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed')
+        .select(
+          `
+          id,
+          creator_id,
+          cleaner_id,
+          category,
+          amount_target,
+          location_lat,
+          location_lng,
+          status,
+          title,
+          description,
+          created_at,
+          photo_urls,
+          after_photo_urls,
+          started_at,
+          is_disputed,
+          cleaner:profiles!missions_cleaner_id_fkey (
+            full_name,
+            telegram_username
+          )
+        `
+        )
         .eq('status', 'completed')
         .or(`creator_id.eq.${userId},cleaner_id.eq.${userId}`)
         .order('created_at', { ascending: false })
@@ -1773,10 +1799,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       : isHome
                         ? 'Home Mission'
                         : 'City Mission';
+                  const cleanerName = job.cleaner?.full_name || 'Eco-Hero';
+                  const cleanerHandle = job.cleaner?.telegram_username
+                    ? `(@${job.cleaner.telegram_username})`
+                    : '';
                   return (
                     <div
                       key={job.id}
-                      className="bg-slate-900/60 rounded-xl border border-white/5 p-4"
+                      className="bg-slate-900/60 rounded-2xl border border-white/5 p-4 shadow-[0_0_20px_rgba(15,23,42,0.8)]"
                     >
                       <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
@@ -1814,6 +1844,19 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
                       {job.description && (
                         <p className="text-xs text-slate-400 mt-3">{job.description}</p>
+                      )}
+
+                      {/* Cleaner info (no phone/WhatsApp for privacy) */}
+                      {job.cleaner_id && (
+                        <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400">
+                          <p className="uppercase tracking-[0.18em] text-slate-500">
+                            Cleaner
+                          </p>
+                          <p className="text-right">
+                            <span className="font-semibold text-slate-200">{cleanerName}</span>{' '}
+                            <span className="text-slate-400">{cleanerHandle}</span>
+                          </p>
+                        </div>
                       )}
                     </div>
                   );
