@@ -504,8 +504,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       const { data, error } = await supabase
         .from('missions')
         .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed')
-        .eq('status', 'pending')
-        .is('cleaner_id', null)
+        .eq('status', 'available')
         .order('created_at', { ascending: false })
         .limit(20);
 
@@ -513,8 +512,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         throw error;
       }
 
-      const list = (data || []).filter((j: Job) => j.creator_id !== session.user.id);
-      setMarketplaceJobs(list as Job[]);
+      setMarketplaceJobs((data || []) as Job[]);
     } catch (err) {
       console.error('Error fetching marketplace jobs:', err);
       setMarketplaceError('Failed to load marketplace. Please refresh.');
