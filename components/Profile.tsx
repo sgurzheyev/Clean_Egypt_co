@@ -730,12 +730,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
           // Telegram notification (non-blocking)
           try {
-            const botToken =
-              (process as any)?.env?.TELEGRAM_BOT_TOKEN ||
-              (process as any)?.env?.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
-            const chatId =
-              (process as any)?.env?.TELEGRAM_ADMIN_CHAT_ID ||
-              (process as any)?.env?.NEXT_PUBLIC_TELEGRAM_ADMIN_CHAT_ID;
+            const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN as string | undefined;
+            const chatId = import.meta.env.VITE_TELEGRAM_ADMIN_CHAT_ID as string | undefined;
+
+            console.log('TG Token exists:', !!botToken);
 
             if (botToken && chatId) {
               const messageText = [
@@ -759,7 +757,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 }),
               }).catch((err) => console.error('Telegram sendMessage failed:', err));
             } else {
-              console.error('Telegram env vars missing: TELEGRAM_BOT_TOKEN / TELEGRAM_ADMIN_CHAT_ID');
+              console.error('Telegram env vars missing: VITE_TELEGRAM_BOT_TOKEN / VITE_TELEGRAM_ADMIN_CHAT_ID');
             }
           } catch (err) {
             console.error('Telegram notification error:', err);
