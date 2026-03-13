@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { Target } from 'lucide-react';
+import imageCompression from 'browser-image-compression';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -716,14 +717,37 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       if (!session?.user?.id) throw new Error('You must be signed in.');
 
       const uploadedUrls: string[] = [];
+      const compressionOptions = {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+      };
       for (const file of proofFiles) {
-        const ext = file.name.split('.').pop() || 'jpg';
-        const fileName = `job_${proofJob.id}_${proofPhase}_${session.user.id}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        let fileToUpload: File = file;
+        try {
+          const compressed = await imageCompression(file, compressionOptions);
+          console.log('Proof photo compression:', {
+            name: file.name,
+            originalMB: (file.size / 1024 / 1024).toFixed(2),
+            compressedMB: (compressed.size / 1024 / 1024).toFixed(2),
+          });
+          fileToUpload = compressed as File;
+        } catch (compressErr) {
+          console.warn('Compression failed for proof photo:', file.name, compressErr);
+          fileToUpload = file;
+        }
+
+        const ext = fileToUpload.name.split('.').pop() || 'jpg';
+        const fileName = `job_${proofJob.id}_${proofPhase}_${session.user.id}_${Date.now()}_${Math.random()
+          .toString(36)
+          .slice(2)}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from('order-photos')
-          .upload(fileName, file, { upsert: false });
+          .upload(fileName, fileToUpload, { upsert: false });
         if (uploadError) throw uploadError;
-        const { data: { publicUrl } } = supabase.storage.from('order-photos').getPublicUrl(fileName);
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from('order-photos').getPublicUrl(fileName);
         uploadedUrls.push(publicUrl);
       }
 
