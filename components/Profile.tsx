@@ -727,6 +727,44 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             p_after_photo_urls: [...(proofJob.after_photo_urls || []), ...uploadedUrls],
           } as any);
           if (rpcErr) throw rpcErr;
+
+          // Telegram notification (non-blocking)
+          try {
+            const botToken =
+              (process as any)?.env?.TELEGRAM_BOT_TOKEN ||
+              (process as any)?.env?.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
+            const chatId =
+              (process as any)?.env?.TELEGRAM_ADMIN_CHAT_ID ||
+              (process as any)?.env?.NEXT_PUBLIC_TELEGRAM_ADMIN_CHAT_ID;
+
+            if (botToken && chatId) {
+              const messageText = [
+                '🚨 *ECO-REPORT / CleanEgypt* 🚨',
+                '',
+                `*Category:* public`,
+                `*Mission ID:* \`${proofJob.id}\``,
+                '',
+                `🥤 *Plastic:* ${plasticVal} kg`,
+                `🪟 *Glass:* ${glassVal} kg`,
+                `🧱 *Construction/Debris:* ${constructionVal} kg`,
+              ].join('\n');
+
+              fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: messageText,
+                  parse_mode: 'Markdown',
+                }),
+              }).catch((err) => console.error('Telegram sendMessage failed:', err));
+            } else {
+              console.error('Telegram env vars missing: TELEGRAM_BOT_TOKEN / TELEGRAM_ADMIN_CHAT_ID');
+            }
+          } catch (err) {
+            console.error('Telegram notification error:', err);
+          }
+
           setProofSuccess('Mission Completed! Funds distributed.');
         } else {
           const { error: updateErr } = await supabase
