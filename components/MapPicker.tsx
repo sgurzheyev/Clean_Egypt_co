@@ -1522,6 +1522,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 )}
               </div>
 
+              {selectedMission.photo_urls && selectedMission.photo_urls.length > 0 && (
+                <img
+                  src={selectedMission.photo_urls[0]}
+                  alt="Before (work scope)"
+                  className="w-full h-32 object-cover rounded-lg mb-3 shadow-md"
+                />
+              )}
+
               {selectedMission.description && (
                 <p className="text-sm text-slate-400">{selectedMission.description}</p>
               )}
