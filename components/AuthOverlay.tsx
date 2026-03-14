@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
+import { useTelegram } from '../src/hooks/useTelegram';
 
 interface AuthOverlayProps {
   isOpen: boolean;
@@ -8,11 +9,80 @@ interface AuthOverlayProps {
 }
 
 const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess }) => {
+  const { tgUser, isTMA } = useTelegram();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'signin' | 'magic'>('signin');
+  const [tmaAuthenticating, setTmaAuthenticating] = useState(false);
+
+  // Magic Login: Auto-login/signup for Telegram Mini App users
+  useEffect(() => {
+    if (!isOpen || !isTMA || !tgUser?.id) return;
+
+    let cancelled = false;
+    const run = async () => {
+      setTmaAuthenticating(true);
+      setError(null);
+      const tgEmail = `tg_${tgUser.id}@tma.cleanegypt.co`;
+      const tgPassword = `TmaAuth!_${tgUser.id}_secret`;
+
+      try {
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email: tgEmail,
+          password: tgPassword,
+        });
+
+        if (cancelled) return;
+        if (!signInErr) {
+          onSuccess();
+          onClose();
+          setTmaAuthenticating(false);
+          return;
+        }
+
+        // Login failed → try signup (user doesn't exist yet)
+        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+          email: tgEmail,
+          password: tgPassword,
+        });
+
+        if (cancelled) return;
+        if (signUpErr) {
+          setError(signUpErr.message || 'Telegram sign-up failed.');
+          setTmaAuthenticating(false);
+          return;
+        }
+
+        const session = signUpData?.session;
+        if (session?.user?.id) {
+          await supabase
+            .from('profiles')
+            .update({
+              full_name: tgUser.first_name ?? null,
+              telegram_username: tgUser.username ?? null,
+            })
+            .eq('id', session.user.id);
+        }
+
+        if (cancelled) return;
+        onSuccess();
+        onClose();
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.message || 'Telegram authentication failed.');
+        }
+      } finally {
+        if (!cancelled) setTmaAuthenticating(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, isTMA, tgUser?.id, tgUser?.first_name, tgUser?.username, onSuccess, onClose]);
 
   if (!isOpen) return null;
 
@@ -90,14 +160,21 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
           <button
             type="button"
             onClick={onClose}
-            disabled={isLoading}
+            disabled={isLoading || tmaAuthenticating}
             className="text-slate-400 hover:text-white text-lg font-bold disabled:opacity-40"
           >
             ✕
           </button>
         </div>
 
-        {mode === 'signin' ? (
+        {tmaAuthenticating ? (
+          <div className="py-8 text-center">
+            <div className="inline-block h-8 w-8 border-2 border-emerald-500/60 border-t-emerald-400 rounded-full animate-spin mb-4" />
+            <p className="text-sm text-slate-400 uppercase tracking-wider">
+              Authenticating via Telegram...
+            </p>
+          </div>
+        ) : mode === 'signin' ? (
           <form onSubmit={handlePasswordSignIn} className="space-y-4">
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
@@ -163,23 +240,25 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
           </form>
         )}
 
-        <div className="mt-4 space-y-3">
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={isLoading}
-            className="w-full rounded-full px-6 py-3 text-sm font-bold uppercase tracking-[0.2em] bg-white/10 border border-white/20 text-white hover:bg-white/15 disabled:opacity-60 transition-all"
-          >
-            Sign in with Google
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode(mode === 'signin' ? 'magic' : 'signin')}
-            className="w-full text-[10px] text-slate-500 hover:text-slate-300 uppercase tracking-wider"
-          >
-            {mode === 'signin' ? 'No password? Send magic link' : 'Back to password sign in'}
-          </button>
-        </div>
+        {!tmaAuthenticating && (
+          <div className="mt-4 space-y-3">
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={isLoading}
+              className="w-full rounded-full px-6 py-3 text-sm font-bold uppercase tracking-[0.2em] bg-white/10 border border-white/20 text-white hover:bg-white/15 disabled:opacity-60 transition-all"
+            >
+              Sign in with Google
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode(mode === 'signin' ? 'magic' : 'signin')}
+              className="w-full text-[10px] text-slate-500 hover:text-slate-300 uppercase tracking-wider"
+            >
+              {mode === 'signin' ? 'No password? Send magic link' : 'Back to password sign in'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
