@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import { Target } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
+import AdminDashboard from '../src/components/AdminDashboard';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -91,8 +92,12 @@ function JobTimer({ startedAt }: { startedAt: string }) {
   return <span className="tabular-nums text-emerald-400 font-bold">{elapsed}</span>;
 }
 
+const ADMIN_TELEGRAM = 'S_S_Sharoy';
+const ADMIN_EMAIL_KEYWORD = 'admin';
+
 const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, onNavigateToJob }) => {
   const { t, i18n } = useTranslation();
+  const [showAdmin, setShowAdmin] = useState(false);
   const [balance, setBalance] = useState(0);
   const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);
   const [myCityJobs, setMyCityJobs] = useState<Job[]>([]);
@@ -916,6 +921,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           {/* Scrollable content — job cards and forms */}
           <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4 pb-24">
           <div className="w-full max-w-md mx-auto flex flex-col gap-6">
+        {showAdmin ? (
+          <AdminDashboard onBack={() => setShowAdmin(false)} />
+        ) : (
+          <>
         {/* HEADER: Avatar + Welcome + Wallet */}
         <header className="mb-8 text-white">
           <div className="flex items-center gap-4">
@@ -1946,6 +1955,20 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           </section>
         )}
 
+        {/* Admin Panel button — only for admin */}
+        {((userProfile?.telegram_username === ADMIN_TELEGRAM) ||
+          (userEmail?.toLowerCase().includes(ADMIN_EMAIL_KEYWORD))) && (
+          <button
+            type="button"
+            onClick={() => setShowAdmin(true)}
+            className="w-full py-3 rounded-2xl font-black text-sm uppercase tracking-[0.2em] bg-amber-500/20 border border-amber-400/50 text-amber-300 hover:bg-amber-500/30 hover:border-amber-400/70 shadow-[0_0_20px_rgba(251,191,36,0.3)] transition-all"
+          >
+            👑 Admin Panel
+          </button>
+        )}
+
+          </>
+        )}
           </div>
         </div>
         </div>
