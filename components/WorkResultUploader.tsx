@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase'; // Убедись, что путь к твоему клиенту верный
+import { supabase } from '../lib/supabaseClient';
 
 interface Props {
   pyramidId: string;
