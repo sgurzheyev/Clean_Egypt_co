@@ -84,6 +84,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Log but do not fail the whole flow if notification creation fails
         console.error('Notification insert error:', notificationError.message);
       }
+
+      // Telegram notification (non-blocking)
+      try {
+        const botToken = process.env.TELEGRAM_BOT_TOKEN || process.env.VITE_TELEGRAM_BOT_TOKEN;
+        const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID || process.env.VITE_TELEGRAM_ADMIN_CHAT_ID;
+        const photos = creator_photos || [];
+        const hasPhoto = Array.isArray(photos) && photos.length > 0;
+        const caption = `🚨 *NEW MISSION* 🚨\n💰 Reward: $${finalAmountTarget}\n📝 Task: ${description || category}`;
+
+        if (botToken && chatId) {
+          if (hasPhoto) {
+            fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                photo: photos[0],
+                caption,
+                parse_mode: 'Markdown',
+              }),
+            }).catch((err) => console.error('Telegram sendPhoto failed:', err));
+          } else {
+            fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: caption,
+                parse_mode: 'Markdown',
+              }),
+            }).catch((err) => console.error('Telegram sendMessage failed:', err));
+          }
+        }
+      } catch (err) {
+        console.error('Telegram notification error:', err);
+      }
     }
     // --- 2. HANDLE WORKER DEPOSIT ---
     else if (type === 'worker_deposit') {

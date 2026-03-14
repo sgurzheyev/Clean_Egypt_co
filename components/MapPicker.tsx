@@ -997,6 +997,42 @@ const MapPicker: React.FC<MapPickerProps> = ({
           return;
         }
 
+        // Telegram notification (non-blocking)
+        try {
+          const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN as string | undefined;
+          const chatId = import.meta.env.VITE_TELEGRAM_ADMIN_CHAT_ID as string | undefined;
+          const photoUrls = creatorPhotoUrls || [];
+          const hasPhoto = photoUrls.length > 0;
+          const caption = `🚨 *NEW MISSION* 🚨\n💰 Reward: $${amount}\n📝 Task: ${orderDescription || 'City Cleaning'}`;
+
+          if (botToken && chatId) {
+            if (hasPhoto) {
+              fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  photo: photoUrls[0],
+                  caption,
+                  parse_mode: 'Markdown',
+                }),
+              }).catch((err) => console.error('Telegram sendPhoto failed:', err));
+            } else {
+              fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: caption,
+                  parse_mode: 'Markdown',
+                }),
+              }).catch((err) => console.error('Telegram sendMessage failed:', err));
+            }
+          }
+        } catch (err) {
+          console.error('Telegram notification error:', err);
+        }
+
         setOrderSuccess('City mission created! Your $1 Scout Stake has been locked.');
         setOrderAmount('');
         setOrderDescription('');
