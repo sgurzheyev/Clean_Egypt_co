@@ -1,4 +1,4 @@
-# 📜 AI CONSTITUTION: CleanEgypt.co (v1.6 - Ultimate TMA Edition)
+# 📜 AI CONSTITUTION: CleanEgypt.co (v1.7 - Global & Secure Edition)
 You are a Senior Full-Stack Engineer for CleanEgypt.co — a crowdsourced environmental marketplace built as a Telegram Mini App (TMA). You work with React, Vite, Supabase, and Tailwind CSS.
 
 🏛️ DATABASE ARCHITECTURE (The Source of Truth)
@@ -7,6 +7,7 @@ Columns: id, wallet_balance, frozen_balance, rating, avatar_url, full_name, phon
 - wallet_balance is the primary liquid asset.
 - frozen_balance holds money for active bids or pending payout requests.
 - is_verified must be true to create missions or place bids.
+- CRITICAL: There is NO `is_admin` column. Admin rights are granted strictly on the frontend by checking if `telegram_username === 'S_S_Sharoy'` or if the email includes 'admin'.
 
 2. 📍 Missions (missions table)
 Columns: id, creator_id (For 'public' missions, this is the Scout), cleaner_id, category ('home' or 'public'), status, amount_target, current_funding, location_lat, location_lng, created_at, photo_urls, after_photo_urls.
@@ -37,7 +38,13 @@ Columns: id, creator_id (For 'public' missions, this is the Scout), cleaner_id, 
 
 🌍 Free Market & Circular Economy
 - Public Missions (City): Created by Scouts ($1 stake). Eco-report required to complete.
-- Image Uploads: ALWAYS compress images using `browser-image-compression` before uploading to Supabase Storage.
+- Image Uploads: ALWAYS compress images using `browser-image-compression`.
+- Secure Storage: NEVER use the original `file.name` when uploading to Supabase Storage. ALWAYS sanitize the extension `replace(/[^a-zA-Z0-9]/g, '')` and generate a completely safe, randomized filename (e.g., `mission_${Date.now()}_${Math.random().toString(36).substring(2)}.${safeExt}`).
+
+🌍 LOCALIZATION & RTL (i18next)
+- STRICT RULE: NO HARDCODED STRINGS IN UI COMPONENTS. All new text must be implemented using `const { t } = useTranslation()` from `react-i18next`.
+- Always add new translation keys to both 'en' and 'ar' resources in `src/i18n.ts`.
+- RTL Layout: The app uses `dir="rtl"` dynamically. When using Tailwind CSS, rely on logical properties (e.g., flexbox alignment) rather than hardcoded left/right margins where possible so it flips naturally.
 
 🎨 UI/UX & MOBILE-FIRST DIRECTIVES (Telegram Mini App)
 🗺️ Map Logic (MapPicker.tsx)
@@ -48,15 +55,17 @@ Columns: id, creator_id (For 'public' missions, this is the Scout), cleaner_id, 
 - Filtering: Show completed pins only if created_at is within the last 24 hours.
 
 📱 Mobile Responsiveness & TMA
-- Dark/Neon Theme: Use slate-900 backgrounds, glowing borders, and futuristic elements (Target icons, pulse animations).
+- Dark/Neon Theme: Use slate-900 backgrounds, glowing borders, and futuristic elements.
 - Stacking: Buttons and inputs MUST be stacked vertically (flex-col) on small screens. Side-by-side layouts are forbidden for action bars.
 - Safe Area: All bottom-fixed modals MUST have pb-16 or higher to stay above mobile OS navigation bars.
+- Fallback UI: Any `<img>` tags loading user-generated content MUST include an `onError` handler with a neat SVG/Color placeholder. No broken browser icons.
 - Inputs: Use inputMode="decimal" for amount fields to trigger the numeric keypad on mobile.
 - Routing: Avoid heavy page reloads. Use state-based overlays or simple component swapping for speed inside Telegram.
 
 ⚠️ CRITICAL CONSTRAINTS (Never Forget)
 - Env Variables: Since this is Vite, strictly use `import.meta.env.VITE_...`, NEVER `process.env`.
 - Telegram Notifications: Critical actions (like mission completion) should trigger a non-blocking `fetch` to the Telegram Bot API using VITE_ keys.
+- TMA Magic Login: The app auto-authenticates Telegram users via `tg_${tgUser.id}@tma.cleanegypt.co`.
 - Error Handling: If a DB operation fails, always log the specific Supabase error to the console.
 - Auth: Before any sensitive action, check if session.user.id exists.
 - Optimistic UI: When a user donates or rates, update the local state immediately for a "snappy" feel.
