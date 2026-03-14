@@ -1559,11 +1559,24 @@ const MapPicker: React.FC<MapPickerProps> = ({
               </div>
 
               {selectedMission.photo_urls && selectedMission.photo_urls.length > 0 && (
-                <img
-                  src={selectedMission.photo_urls[0]}
-                  alt="Before (work scope)"
-                  className="w-full h-32 object-cover rounded-lg mb-3 shadow-md"
-                />
+                <div className="mb-3">
+                  <div className="flex overflow-x-auto snap-x snap-mandatory gap-2 pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                    {selectedMission.photo_urls.map((url, index) => (
+                      <div key={index} className="min-w-full snap-center shrink-0">
+                        <img
+                          src={url}
+                          alt={`Before (work scope) ${index + 1}`}
+                          className="w-full h-48 object-cover rounded-xl shadow-md"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  {selectedMission.photo_urls.length > 1 && (
+                    <p className="text-[10px] text-slate-400 text-center mt-2 uppercase tracking-wider">
+                      Swipe for more • {selectedMission.photo_urls.length} photos
+                    </p>
+                  )}
+                </div>
               )}
 
               {selectedMission.description && (
