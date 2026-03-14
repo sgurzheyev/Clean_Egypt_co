@@ -57,10 +57,12 @@ const VerificationPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       const ts = Date.now();
-      const extF = photoFront.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const extB = photoBack.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const fileNameFront = `${user.id}_${ts}_front.${extF}`;
-      const fileNameBack = `${user.id}_${ts}_back.${extB}`;
+      const rawExtF = photoFront.name.split('.').pop() || 'jpg';
+      const rawExtB = photoBack.name.split('.').pop() || 'jpg';
+      const extF = rawExtF.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'jpg';
+      const extB = rawExtB.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'jpg';
+      const fileNameFront = `mission_${ts}_${Math.random().toString(36).substring(2)}_front.${extF}`;
+      const fileNameBack = `mission_${ts}_${Math.random().toString(36).substring(2)}_back.${extB}`;
 
       const { error: uploadFrontError } = await supabase.storage
         .from(BUCKET_VERIFICATIONS)

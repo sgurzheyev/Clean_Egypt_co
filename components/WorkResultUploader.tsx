@@ -15,9 +15,10 @@ export const WorkResultUploader: React.FC<Props> = ({ pyramidId, onSuccess }) =>
       const file = event.target.files?.[0];
       if (!file) return;
 
-      // 1. Загрузка в Storage (бакет order-photos)
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${pyramidId}_after_${Date.now()}.${fileExt}`;
+      // 1. Загрузка в Storage (бакет order-photos) — safe filename, no original file.name in path
+      const rawExt = file.name.split('.').pop() || 'jpg';
+      const fileExt = rawExt.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'jpg';
+      const fileName = `mission_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage
         .from('order-photos')

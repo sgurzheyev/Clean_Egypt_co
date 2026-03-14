@@ -961,17 +961,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
           }
         }
         for (const file of compressedFiles) {
-          const ext = file.name.split('.').pop() || 'jpg';
-          const fileName = `creator_${session.user.id}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const rawExt = file.name.split('.').pop() || 'jpg';
+          const fileExt = rawExt.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'jpg';
+          const safeFileName = `mission_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
           const { error: uploadError } = await supabase.storage
             .from('order-photos')
-            .upload(fileName, file, { upsert: false });
+            .upload(safeFileName, file, { upsert: false });
           if (uploadError) {
             throw uploadError;
           }
           const { data: { publicUrl } } = supabase.storage
             .from('order-photos')
-            .getPublicUrl(fileName);
+            .getPublicUrl(safeFileName);
           uploaded.push(publicUrl);
         }
         creatorPhotoUrls = uploaded;
@@ -1566,7 +1567,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         <img
                           src={url}
                           alt={`Before (work scope) ${index + 1}`}
-                          className="w-full h-48 object-cover rounded-xl shadow-md"
+                          className="w-full h-48 object-cover rounded-xl shadow-md bg-slate-800"
+                          onError={(e) => {
+                            const el = e.currentTarget;
+                            el.onerror = null;
+                            el.src = 'data:image/svg+xml,' + encodeURIComponent(
+                              '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200"><rect fill="%23334155" width="400" height="200"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-size="14" font-family="system-ui">Image unavailable</text></svg>'
+                            );
+                            el.classList.add('object-contain');
+                          }}
                         />
                       </div>
                     ))}

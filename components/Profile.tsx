@@ -200,10 +200,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         return;
       }
       const userId = session.user.id;
-      const ext = file.name.split('.').pop() || 'jpg';
+      const rawExt = file.name.split('.').pop() || 'jpg';
+      const fileExt = rawExt.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'jpg';
       const filePath = `${userId}/${Date.now()}_${Math.random()
         .toString(36)
-        .slice(2)}.${ext}`;
+        .slice(2)}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
@@ -738,17 +739,16 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           fileToUpload = file;
         }
 
-        const ext = fileToUpload.name.split('.').pop() || 'jpg';
-        const fileName = `job_${proofJob.id}_${proofPhase}_${session.user.id}_${Date.now()}_${Math.random()
-          .toString(36)
-          .slice(2)}.${ext}`;
+        const rawExt = fileToUpload.name.split('.').pop() || 'jpg';
+        const fileExt = rawExt.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'jpg';
+        const safeFileName = `mission_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
         const { error: uploadError } = await supabase.storage
           .from('order-photos')
-          .upload(fileName, fileToUpload, { upsert: false });
+          .upload(safeFileName, fileToUpload, { upsert: false });
         if (uploadError) throw uploadError;
         const {
           data: { publicUrl },
-        } = supabase.storage.from('order-photos').getPublicUrl(fileName);
+        } = supabase.storage.from('order-photos').getPublicUrl(safeFileName);
         uploadedUrls.push(publicUrl);
       }
 
