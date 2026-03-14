@@ -5,6 +5,7 @@ import Profile from './components/Profile';
 import AuthOverlay from './components/AuthOverlay';
 import VerificationPage from './components/VerificationPage';
 import { supabase } from './services/supabase';
+import i18n from './src/i18n';
 
 const App: React.FC = () => {
   const location = useLocation();
@@ -18,6 +19,18 @@ const App: React.FC = () => {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
     supabase.auth.onAuthStateChange((_event, session) => setSession(session));
+  }, []);
+
+  useEffect(() => {
+    const apply = () => {
+      document.documentElement.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';
+      document.documentElement.lang = i18n.language;
+    };
+    apply();
+    i18n.on('languageChanged', apply);
+    return () => {
+      i18n.off('languageChanged', apply);
+    };
   }, []);
 
   useEffect(() => {

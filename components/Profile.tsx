@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { Target } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
+import { useTranslation } from 'react-i18next';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -91,6 +92,7 @@ function JobTimer({ startedAt }: { startedAt: string }) {
 }
 
 const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, onNavigateToJob }) => {
+  const { t, i18n } = useTranslation();
   const [balance, setBalance] = useState(0);
   const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);
   const [myCityJobs, setMyCityJobs] = useState<Job[]>([]);
@@ -968,18 +970,49 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
           </div>
 
+          {/* Language switcher */}
+          <div className="mt-4 flex items-center justify-between rounded-2xl bg-black/40 border border-white/10 px-4 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+              {t('language')}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => i18n.changeLanguage('en')}
+                className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.18em] border transition-all ${
+                  i18n.language === 'en'
+                    ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
+                    : 'bg-transparent border-white/15 text-slate-300 hover:bg-white/5'
+                }`}
+              >
+                {t('english')}
+              </button>
+              <button
+                type="button"
+                onClick={() => i18n.changeLanguage('ar')}
+                className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.18em] border transition-all ${
+                  i18n.language === 'ar'
+                    ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
+                    : 'bg-transparent border-white/15 text-slate-300 hover:bg-white/5'
+                }`}
+              >
+                {t('arabic')}
+              </button>
+            </div>
+          </div>
+
           {/* Wallet — glass panel */}
           <div className="mt-6 rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5">
             <div className="flex items-center justify-between mb-1">
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                Wallet
+                {t('walletBalance')}
               </p>
               <button
                 type="button"
                 onClick={() => setShowPayoutModal(true)}
                 className="text-[10px] font-bold uppercase tracking-[0.18em] px-3 py-1 rounded-full border border-white/20 text-slate-200 hover:bg-white/10 transition-all"
               >
-                Withdraw
+                {t('withdraw')}
               </button>
             </div>
             <p className="text-3xl font-black text-white">
@@ -995,7 +1028,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             {/* Top Up Wallet */}
             <form onSubmit={handleTopUp} className="mt-5 space-y-2">
               <label className="block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                Top Up Wallet
+                {t('topUpWallet')}
               </label>
               <div className="flex gap-2">
                 <input
@@ -1625,7 +1658,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         {/* GLOBAL MARKETPLACE */}
         <section className="mb-10 text-white pointer-events-auto relative z-10">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-emerald-400/90">
-            🌍 Global Marketplace
+            🌍 {t('globalMarketplace')}
           </h2>
           {paymentSyncing && (
             <p className="text-[11px] font-bold text-emerald-400 mb-3 animate-pulse">
