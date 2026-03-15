@@ -979,34 +979,34 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
           </div>
 
-          {/* Language switcher */}
-          <div className="mt-4 flex items-center justify-between rounded-2xl bg-black/40 border border-white/10 px-4 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+          {/* Language switcher — horizontal scrollable pills */}
+          <div className="mt-4 rounded-2xl bg-black/40 border border-white/10 px-4 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
               {t('language')}
             </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => i18n.changeLanguage('en')}
-                className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.18em] border transition-all ${
-                  i18n.language === 'en'
-                    ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
-                    : 'bg-transparent border-white/15 text-slate-300 hover:bg-white/5'
-                }`}
-              >
-                {t('english')}
-              </button>
-              <button
-                type="button"
-                onClick={() => i18n.changeLanguage('ar')}
-                className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.18em] border transition-all ${
-                  i18n.language === 'ar'
-                    ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
-                    : 'bg-transparent border-white/15 text-slate-300 hover:bg-white/5'
-                }`}
-              >
-                {t('arabic')}
-              </button>
+            <div className="flex overflow-x-auto gap-2 pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+              {[
+                { code: 'en', labelKey: 'english' as const },
+                { code: 'ar', labelKey: 'arabic' as const },
+                { code: 'ru', labelKey: 'russian' as const },
+                { code: 'de', labelKey: 'german' as const },
+              ].map(({ code, labelKey }) => {
+                const isActive = (i18n.language || '').startsWith(code);
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => i18n.changeLanguage(code)}
+                    className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.18em] border transition-all ${
+                      isActive
+                        ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
+                        : 'bg-transparent border-white/15 text-slate-300 hover:bg-white/5'
+                    }`}
+                  >
+                    {code === 'en' ? 'EN' : code === 'ar' ? 'AR' : code === 'ru' ? 'RU' : 'DE'}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
