@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabaseClient';
 import { Target } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
-import { useTelegram } from '../src/hooks/useTelegram';
 import AdminDashboard from '../src/components/AdminDashboard';
 
 interface ProfileProps {
@@ -95,8 +94,7 @@ function JobTimer({ startedAt }: { startedAt: string }) {
 
 const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, onNavigateToJob }) => {
   const { t, i18n } = useTranslation();
-  const { tgUser } = useTelegram();
-  const isAdmin = tgUser?.id?.toString() === '7374545100' || _session?.user?.email?.includes('admin');
+  const isAdmin = _session?.user?.email?.includes('6618910143') || _session?.user?.email?.includes('admin');
   const [showAdmin, setShowAdmin] = useState(false);
   const [balance, setBalance] = useState(0);
   const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);

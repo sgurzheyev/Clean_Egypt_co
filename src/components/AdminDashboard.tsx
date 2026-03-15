@@ -17,6 +17,8 @@ interface PendingApprovalRow {
   id: string;
   amount_target: number;
   cleaner_id: string | null;
+  status?: string;
+  after_photo_urls?: string[] | null;
 }
 
 interface TransactionRow {
@@ -44,15 +46,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const fetchPendingApprovals = async () => {
     const { data, error: err } = await supabase
       .from('missions')
-      .select('id, amount_target, cleaner_id')
-      .eq('status', 'completed')
+      .select('id, amount_target, cleaner_id, status, after_photo_urls')
+      .in('status', ['completed', 'in_progress', 'disputed'])
       .not('cleaner_id', 'is', null)
       .order('created_at', { ascending: false });
     if (err) {
       console.error('Pending approvals fetch error:', err);
       return;
     }
-    setPendingApprovals((data || []) as PendingApprovalRow[]);
+    const rows = (data || []) as PendingApprovalRow[];
+    const stuck = rows.filter(
+      (m) =>
+        m.status === 'completed' ||
+        (m.after_photo_urls && m.after_photo_urls.length > 0)
+    );
+    setPendingApprovals(stuck);
   };
 
   const fetchAll = async () => {
@@ -94,7 +102,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
       alert('No cleaner assigned to this mission.');
       return;
     }
-    if (!window.confirm('Are you sure you want to force-release the funds to the cleaner?')) return;
+    if (!window.confirm('Are you sure you want to force-release funds to the cleaner?')) return;
     setForcePayLoadingId(mission.id);
     try {
       const exchangeRate = 50;
@@ -180,10 +188,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             </div>
           </section>
 
-          {/* Pending Approvals (Force Pay) */}
+          {/* Stuck Missions (Action Required) */}
           <section className="rounded-2xl bg-black/40 border border-red-500/30 p-4">
             <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-400/90 mb-3">
-              ⚠️ Pending Approvals (Force Pay)
+              ⚠️ Stuck Missions (Action Required)
             </h3>
             <div className="max-h-48 overflow-y-auto space-y-2 pr-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
               {pendingApprovals.length === 0 ? (
@@ -195,9 +203,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                     className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-900/60 border border-white/5 px-3 py-2 text-[11px]"
                   >
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="font-mono text-slate-300">#{String(m.id).slice(0, 8)}</span>
-                      <span className="text-slate-400">${Number(m.amount_target).toFixed(2)}</span>
+                      <span className="font-mono text-slate-300">Mission: #{String(m.id).slice(0, 8)}</span>
                       <span className="text-slate-500">Cleaner: {String(m.cleaner_id || '').slice(0, 8)}</span>
+                      <span className="text-slate-400">${Number(m.amount_target).toFixed(2)}</span>
                     </div>
                     <button
                       type="button"
@@ -205,7 +213,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                       onClick={() => handleForcePay(m)}
                       className="shrink-0 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-500/20 border border-red-400/60 text-red-300 hover:bg-red-500/30 hover:border-red-400 disabled:opacity-60 disabled:cursor-wait transition-all shadow-[0_0_12px_rgba(239,68,68,0.3)]"
                     >
-                      {forcePayLoadingId === m.id ? '...' : 'Force Pay (Admin)'}
+                      {forcePayLoadingId === m.id ? '...' : 'Force Release Payment'}
                     </button>
                   </div>
                 ))
