@@ -95,7 +95,7 @@ function JobTimer({ startedAt }: { startedAt: string }) {
 
 const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, onNavigateToJob }) => {
   const { t, i18n } = useTranslation();
-  const isAdmin = _session?.user?.email?.includes('6618910143') || _session?.user?.email?.includes('admin');
+  const isAdmin = _session?.user?.email === 'gurgini@gmail.com' || _session?.user?.email?.includes('admin');
   const [showAdmin, setShowAdmin] = useState(false);
   const [balance, setBalance] = useState(0);
   const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);
@@ -1037,37 +1037,43 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </p>
             )}
 
-            {/* Top Up Wallet */}
-            <div className="mt-5 space-y-2">
-              <label className="block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                {t('topUpWallet')}
-              </label>
-              <form onSubmit={handleTopUp} className="flex gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  step="0.01"
-                  placeholder={t('amountInUsd')}
-                  value={topUpAmount}
-                  onChange={(e) => setTopUpAmount(e.target.value)}
-                  className="flex-1 rounded-2xl bg-slate-900/80 border border-slate-700/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-                />
-                <button
-                  type="submit"
-                  disabled={topUpSubmitting}
-                  className="inline-flex items-center justify-center px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.18em] bg-emerald-500/20 border border-emerald-400/70 text-emerald-300 hover:bg-emerald-500/30 hover:border-emerald-300 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
-                >
-                  {topUpSubmitting ? t('adding') : t('topUp')}
-                </button>
-              </form>
+            {/* Top Up — primary: Stripe card (everyone) */}
+            <div className="mt-5 flex flex-col items-center">
               <button
                 type="button"
                 onClick={() => setShowStripeTopUp(true)}
-                className="w-full mt-2 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.16em] bg-white/5 border border-white/20 text-slate-300 hover:bg-white/10 hover:border-emerald-500/40 transition-all"
+                className="w-full max-w-sm py-3 rounded-full text-sm font-black uppercase tracking-[0.2em] bg-emerald-600 text-white hover:bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all"
               >
                 Pay with card (Stripe)
               </button>
             </div>
+
+            {/* Admin Force Pay — amount input + legacy Top Up (admin only) */}
+            {isAdmin && (
+              <div className="mt-4 rounded-2xl border-2 border-amber-500/50 bg-amber-500/5 p-4 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400/90">
+                  Admin Force Pay
+                </p>
+                <form onSubmit={handleTopUp} className="flex gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    step="0.01"
+                    placeholder={t('amountInUsd')}
+                    value={topUpAmount}
+                    onChange={(e) => setTopUpAmount(e.target.value)}
+                    className="flex-1 rounded-2xl bg-slate-900/80 border border-slate-700/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+                  />
+                  <button
+                    type="submit"
+                    disabled={topUpSubmitting}
+                    className="inline-flex items-center justify-center px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.18em] bg-slate-700 text-slate-200 hover:bg-slate-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                  >
+                    {topUpSubmitting ? t('adding') : t('topUp')}
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
 
           {/* LOGOUT — highly visible */}
