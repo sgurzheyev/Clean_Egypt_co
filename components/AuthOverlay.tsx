@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { useTelegram } from '../src/hooks/useTelegram';
+import { useTranslation } from 'react-i18next';
 
 interface AuthOverlayProps {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface AuthOverlayProps {
 }
 
 const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess }) => {
+  const { t } = useTranslation();
   const { tgUser, isTMA } = useTelegram();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -155,7 +157,7 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
       >
         <div className="flex justify-between items-start mb-6">
           <h2 className="text-xl font-black uppercase tracking-[0.18em] text-white">
-            Sign In
+            {t('signIn')}
           </h2>
           <button
             type="button"
@@ -171,14 +173,14 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
           <div className="py-8 text-center">
             <div className="inline-block h-8 w-8 border-2 border-emerald-500/60 border-t-emerald-400 rounded-full animate-spin mb-4" />
             <p className="text-sm text-slate-400 uppercase tracking-wider">
-              Authenticating via Telegram...
+              {t('authenticatingViaTelegram')}
             </p>
           </div>
         ) : mode === 'signin' ? (
           <form onSubmit={handlePasswordSignIn} className="space-y-4">
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                Email
+                {t('email')}
               </label>
               <input
                 type="email"
@@ -191,7 +193,7 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
             </div>
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                Password
+                {t('password')}
               </label>
               <input
                 type="password"
@@ -209,14 +211,14 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
               disabled={isLoading}
               className="w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] bg-emerald-500 text-black shadow-[0_0_24px_rgba(52,211,153,0.6)] hover:brightness-110 disabled:opacity-60 disabled:cursor-wait transition-all"
             >
-              {isLoading ? 'Signing in...' : 'Sign In with Password'}
+              {isLoading ? t('signingIn') : t('signInWithPassword')}
             </button>
           </form>
         ) : (
           <form onSubmit={handleMagicLink} className="space-y-4">
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                Email
+                {t('email')}
               </label>
               <input
                 type="email"
@@ -235,13 +237,14 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
               disabled={isLoading}
               className="w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] bg-slate-600 text-white hover:bg-slate-500 disabled:opacity-60 disabled:cursor-wait transition-all"
             >
-              {isLoading ? 'Sending...' : 'Send Magic Link'}
+              {isLoading ? t('sending') : t('sendMagicLink')}
             </button>
           </form>
         )}
 
         {!tmaAuthenticating && (
           <div className="mt-4 space-y-3">
+            {/* Google OAuth — hidden until configured
             <button
               type="button"
               onClick={handleGoogleSignIn}
@@ -250,12 +253,13 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
             >
               Sign in with Google
             </button>
+            */}
             <button
               type="button"
               onClick={() => setMode(mode === 'signin' ? 'magic' : 'signin')}
               className="w-full text-[10px] text-slate-500 hover:text-slate-300 uppercase tracking-wider"
             >
-              {mode === 'signin' ? 'No password? Send magic link' : 'Back to password sign in'}
+              {mode === 'signin' ? t('noPasswordSendMagicLink') : t('backToPasswordSignIn')}
             </button>
           </div>
         )}

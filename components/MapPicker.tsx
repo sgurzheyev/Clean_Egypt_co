@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import Map, { Marker, NavigationControl, GeolocateControl, MapRef } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabaseClient';
 import JobMarker from './JobMarker';
 
@@ -26,13 +27,14 @@ interface JobOnMap {
 }
 
 function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
+  const { t } = useTranslation();
   const [value, setValue] = useState(50);
   const beforePhotos = mission.photo_urls || [];
   const afterPhotos = mission.after_photo_urls || [];
   if (beforePhotos.length === 0 && afterPhotos.length === 0) {
     return (
       <p className="mt-4 text-xs text-slate-400">
-        No before/after photos available for this mission yet.
+        {t('noBeforeAfterPhotosYet')}
       </p>
     );
   }
@@ -42,12 +44,12 @@ function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
   return (
     <div className="mt-5">
       <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-white/10 bg-slate-900">
-        <img src={before} alt="Before" className="absolute inset-0 h-full w-full object-cover" />
+        <img src={before} alt={t('before')} className="absolute inset-0 h-full w-full object-cover" />
         <div
           className="absolute inset-0 overflow-hidden border-l border-amber-300/70 shadow-[0_0_30px_rgba(251,191,36,0.5)]"
           style={{ width: `${value}%` }}
         >
-          <img src={after} alt="After" className="h-full w-full object-cover" />
+          <img src={after} alt={t('after')} className="h-full w-full object-cover" />
         </div>
         <div className="absolute inset-x-0 bottom-3 flex justify-center">
           <input
@@ -61,8 +63,8 @@ function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
         </div>
       </div>
       <div className="mt-2 flex justify-between text-[10px] text-slate-500 uppercase tracking-[0.18em]">
-        <span>Before</span>
-        <span>After</span>
+        <span>{t('before')}</span>
+        <span>{t('after')}</span>
       </div>
     </div>
   );
@@ -240,6 +242,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   flyToTarget,
   onFlyToComplete,
 }) => {
+  const { t } = useTranslation();
   const mapRef = React.useRef<MapRef>(null);
   const [viewState, setViewState] = useState({
     latitude: 27.2579,
@@ -1004,7 +1007,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           const chatId = import.meta.env.VITE_TELEGRAM_ADMIN_CHAT_ID as string | undefined;
           const photoUrls = creatorPhotoUrls || [];
           const hasPhoto = photoUrls.length > 0;
-          const caption = `🚨 *NEW MISSION* 🚨\n💰 Reward: $${amount}\n📝 Task: ${orderDescription || 'City Cleaning'}`;
+          const caption = `🚨 *NEW MISSION* 🚨\n💰 Reward: $${amount}\n📝 Task: ${orderDescription || t('cityCleaning')}`;
 
           if (botToken && chatId) {
             if (hasPhoto) {
@@ -1182,7 +1185,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         {!taskTypeSelected && (
           <div className="flex-1 flex flex-col items-center pt-[18vh] px-6">
             <h2 className="text-xl sm:text-2xl font-semibold text-white mb-10 text-center tracking-tight pointer-events-none">
-              What needs cleaning?
+              {t('whatNeedsCleaning')}
             </h2>
             <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm justify-center pointer-events-auto">
               <button
@@ -1190,14 +1193,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 onClick={() => selectTaskType('city')}
                 className="rounded-full px-6 py-3.5 bg-black/60 backdrop-blur-md border-2 border-emerald-400/60 text-white font-medium text-sm shadow-[0_0_28px_rgba(52,211,153,0.5)] hover:shadow-[0_0_36px_rgba(52,211,153,0.6)] hover:border-emerald-400 transition-all active:scale-[0.98]"
               >
-                Clean City Area
+                {t('cleanCityArea')}
               </button>
               <button
                 type="button"
                 onClick={() => selectTaskType('home')}
                 className="rounded-full px-6 py-3.5 bg-black/60 backdrop-blur-md border-2 border-amber-400/60 text-white font-medium text-sm shadow-[0_0_28px_rgba(251,191,36,0.5)] hover:shadow-[0_0_36px_rgba(251,191,36,0.6)] hover:border-amber-400 transition-all active:scale-[0.98]"
               >
-                Clean Your Home/Office
+                {t('cleanYourHomeOffice')}
               </button>
             </div>
           </div>
@@ -1214,7 +1217,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                  {taskType === 'city' ? 'Clean City Area' : 'Clean Your Home/Office'}
+                  {taskType === 'city' ? t('cleanCityArea') : t('cleanYourHomeOffice')}
                 </p>
                 <button
                   type="button"
@@ -1229,7 +1232,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                    Amount (USD)
+                    {t('amountUsd')}
                   </label>
                   <input
                     type="number"
@@ -1238,13 +1241,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     min="0"
                     value={orderAmount}
                     onChange={(e) => setOrderAmount(e.target.value)}
-                    placeholder="Any amount"
+                    placeholder={t('anyAmount')}
                     className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500"
                   />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                    Location
+                    {t('location')}
                   </label>
                   <div className="flex items-center gap-2 rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5">
                     <span className="text-slate-400 text-sm">📍</span>
@@ -1312,7 +1315,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   </div>
                   {!selectedLocation && (
                     <p className="mt-1 text-[10px] text-amber-300 uppercase tracking-[0.18em]">
-                      Please tap on the map to set a location.
+                      {t('tapMapToSetLocation')}
                     </p>
                   )}
                 </div>
@@ -1321,10 +1324,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                    Upload photo
+                    {t('uploadPhoto')}
                   </label>
                 <label className="flex h-[52px] items-center justify-center rounded-2xl border border-dashed border-slate-600 bg-black/30 text-[11px] text-slate-400 cursor-pointer hover:border-teal-400 hover:text-teal-300 transition-all">
-                  {orderPhotos.length > 0 ? `${orderPhotos.length} photo(s) selected` : 'Tap to add reference photos (up to 10)'}
+                  {orderPhotos.length > 0 ? `${orderPhotos.length} ${t('photosSelected')}` : t('tapToAddReferencePhotos')}
                     <input
                       type="file"
                       accept="image/*"
@@ -1340,11 +1343,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   <div className="mt-2">
                     {orderPhotos.length <= 4 ? (
                       <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-500/10 border border-amber-400/50 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
-                        Low Proof Work (Worker takes at own risk)
+                        {t('lowProofWork')}
                       </span>
                     ) : (
                       <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-400/50 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-                        High Proof Work
+                        {t('highProofWork')}
                       </span>
                     )}
                   </div>
@@ -1354,7 +1357,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                  Short description & area
+                  {t('shortDescriptionAndArea')}
                 </label>
                 <textarea
                   value={orderDescription}
@@ -1362,8 +1365,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   rows={2}
                   placeholder={
                     taskType === 'city'
-                      ? 'Describe the city spot you want to support...'
-                      : 'Describe your home cleaning task and area size...'
+                      ? t('describeCitySpot')
+                      : t('describeHomeTask')
                   }
                   className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none"
                 />
@@ -1383,8 +1386,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-not-allowed active:scale-[0.98]"
                 >
                   {uploadingProof || orderSubmitting
-                    ? 'Processing...'
-                    : 'Submit Task & Pay'}
+                    ? t('processing')
+                    : t('submitTaskAndPay')}
                 </button>
               </div>
             </form>
@@ -1498,10 +1501,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h2 className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-500">
-                  MISSION BRIEFING
+                  {t('missionBriefing')}
                 </h2>
                 {selectedMission.status === 'in_progress' && selectedMission.cleaner_id === currentUserId && (
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-sky-400 mt-1">Your active mission</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-sky-400 mt-1">{t('yourActiveMission')}</p>
                 )}
               </div>
               <button
@@ -1519,7 +1522,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <span className="text-2xl">{selectedMission.category === 'home' ? '🏠' : '🌆'}</span>
                 <div>
                   <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${selectedMission.category === 'public' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {selectedMission.category === 'public' ? 'City Cleaning' : 'Home Cleaning'}
+                    {selectedMission.category === 'public' ? t('cityCleaning') : t('homeCleaning')}
                   </p>
                   <p className="text-xs text-slate-500 font-mono">
                     {selectedMission.location_lat.toFixed(6)}, {selectedMission.location_lng.toFixed(6)}
@@ -1529,7 +1532,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
               <div className="py-4">
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
-                  {selectedMission.category === 'public' ? 'Current funding' : 'Reward'}
+                  {selectedMission.category === 'public' ? t('currentFunding') : t('reward')}
                 </p>
                 <p
                   className={`text-4xl sm:text-5xl font-black tracking-tight ${
@@ -1549,12 +1552,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 </p>
                 {selectedMission.category === 'public' && (
                   <p className="mt-1 text-[11px] text-slate-400">
-                    Target Goal: ${Number(selectedMission.amount_target).toFixed(2)}
+                    {t('targetGoal')}: ${Number(selectedMission.amount_target).toFixed(2)}
                   </p>
                 )}
                 {(activeBidCounts[selectedMission.id] || 0) > 0 && (
                   <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-sky-400">
-                    Locked Deposit: You have active bids on this mission.
+                    {t('lockedDeposit')}
                   </p>
                 )}
               </div>
@@ -1582,7 +1585,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   </div>
                   {selectedMission.photo_urls.length > 1 && (
                     <p className="text-[10px] text-slate-400 text-center mt-2 uppercase tracking-wider">
-                      Swipe for more • {selectedMission.photo_urls.length} photos
+                      {t('swipeForMorePhotos')} • {selectedMission.photo_urls.length} {t('photos')}
                     </p>
                   )}
                 </div>
@@ -1597,7 +1600,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               <div className="space-y-5">
                 <div className="space-y-3">
                   <p className="text-sm text-amber-200 font-semibold">
-                    MISSION ACCOMPLISHED! Cleaned by our heroes and funded by the community.
+                    {t('missionAccomplished')}
                   </p>
                   <div className="w-full rounded-full animated-border-completed">
                     <button
@@ -1605,7 +1608,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       onClick={() => setHallOfFameMission(selectedMission)}
                       className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
                     >
-                      View Photos
+                      {t('viewPhotos')}
                     </button>
                   </div>
                 </div>
@@ -1614,10 +1617,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   !reviewedMissions.has(selectedMission.id) && (
                     <div className="rounded-2xl bg-black/50 border border-amber-500/40 p-4 space-y-3">
                       <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300">
-                        Rate the Cleaner
+                        {t('rateTheCleaner')}
                       </p>
                       <p className="text-[11px] text-slate-300">
-                        Your rating helps reward the best Eco-Heroes.
+                        {t('ratingHelpsReward')}
                       </p>
                       <div className="flex items-center gap-2">
                         {[1, 2, 3, 4, 5].map((star) => {
@@ -1644,7 +1647,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           onClick={() => handleSubmitReview(selectedRating)}
                           className="mt-2 w-full rounded-full bg-amber-500 text-black text-[11px] font-black uppercase tracking-[0.18em] py-2.5 hover:bg-amber-400 disabled:opacity-60 disabled:cursor-wait transition-all"
                         >
-                          {isSubmittingReview ? 'Submitting...' : 'Submit Rating'}
+                          {isSubmittingReview ? t('submitting') : t('submitRating')}
                         </button>
                       )}
                     </div>
@@ -1653,7 +1656,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             ) : selectedMission.status === 'in_progress' && selectedMission.cleaner_id !== currentUserId ? (
               <div className="space-y-3">
                 <p className="text-sm text-sky-200 font-semibold">
-                  Work in progress. An Eco-Hero is currently cleaning this spot.
+                  {t('workInProgress')}
                 </p>
               </div>
             ) : selectedMission.status === 'in_progress' && selectedMission.cleaner_id === currentUserId ? (
@@ -1667,7 +1670,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   }}
                   className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
                 >
-                  Start Work / Upload Proof
+                  {t('startWorkUploadProof')}
                 </button>
               </div>
             ) : (
@@ -1675,7 +1678,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 {showBidInput && (
                   <div className="rounded-2xl bg-black/40 border border-white/10 px-4 py-3">
                     <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
-                      Your bid (USD)
+                      {t('yourBidUsd')}
                     </label>
                     <input
                       type="number"
@@ -1712,7 +1715,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     disabled={isAccepting}
                     className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:cursor-wait"
                   >
-                    {isAccepting ? 'PLACING...' : showBidInput ? 'PLACE BID' : 'MAKE A BID'}
+                    {isAccepting ? t('placing') : showBidInput ? t('placeBid') : t('makeABid')}
                   </button>
                 </div>
 
@@ -1728,12 +1731,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         }}
                         className="w-full rounded-full bg-emerald-500/10 border border-emerald-400/40 px-4 py-3 text-sm font-black uppercase tracking-[0.24em] text-emerald-300 hover:bg-emerald-500/15 transition-all"
                       >
-                        DONATE TO CAUSE
+                        {t('donateToCause')}
                       </button>
                       {showDonate && (
                         <div className="rounded-2xl bg-black/40 border border-emerald-500/30 px-4 py-3 space-y-2">
                           <p className="text-[11px] text-slate-300">
-                            Boost this mission&apos;s funding so cleaners can make stronger bids.
+                            {t('boostMissionFunding')}
                           </p>
                           <div className="flex flex-wrap gap-2">
                             {[1, 5, 10].map((preset) => (
@@ -1756,7 +1759,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                                 value={donateAmount}
                                 onChange={(e) => setDonateAmount(e.target.value)}
                                 className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
-                                placeholder="Custom $ amount"
+                                placeholder={t('customAmount')}
                               />
                               <button
                                 type="button"
@@ -1764,7 +1767,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                                 onClick={() => handleDonate(parseFloat(donateAmount.replace(',', '.')))}
                                 className="w-full px-3 py-1.5 rounded-full bg-emerald-500 text-[11px] font-black uppercase tracking-[0.16em] text-black hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait mt-1.5"
                               >
-                                {donating ? 'Sending...' : 'Donate'}
+                                {donating ? t('sendingDonation') : t('donate')}
                               </button>
                             </div>
                           </div>
@@ -1793,10 +1796,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
             <div className="flex justify-between items-start mb-3">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-500">
-                  Confirmation
+                  {t('confirmation')}
                 </p>
                 <h3 className="mt-2 text-lg font-extrabold text-white">
-                  This is a crowdfunding mission
+                  {t('thisIsCrowdfundingMission')}
                 </h3>
               </div>
               <button
@@ -1816,11 +1819,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
               return (
                 <>
                   <p className="text-sm text-slate-300">
-                    Your bid is <span className="font-black text-amber-300">${bid.toFixed(2)}</span>. Current funding is{' '}
+                    {t('yourBidIs')} <span className="font-black text-amber-300">${bid.toFixed(2)}</span>. {t('currentFundingIs')}{' '}
                     <span className="font-black text-emerald-300">${funded.toFixed(2)}</span>.
                   </p>
                   <p className="mt-2 text-[11px] text-slate-500">
-                    Choose how you want to proceed:
+                    {t('chooseHowToProceed')}
                   </p>
 
                   <div className="mt-5 grid grid-cols-1 gap-3">
@@ -1846,10 +1849,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-4 text-left hover:border-amber-400/50 hover:bg-black/50 transition-all disabled:opacity-60 disabled:cursor-wait"
                     >
                       <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">
-                        Add ${diff.toFixed(2)} to close deal
+                        {t('addAmountToCloseDeal', { amount: diff.toFixed(2) })}
                       </p>
                       <p className="mt-1 text-[11px] text-slate-500">
-                        This difference will be deducted from your wallet balance.
+                        {t('differenceDeductedFromWallet')}
                       </p>
                     </button>
 
@@ -1874,10 +1877,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-4 text-left hover:border-sky-400/50 hover:bg-black/50 transition-all disabled:opacity-60 disabled:cursor-wait"
                     >
                       <p className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-300">
-                        Wait until fills up donation
+                        {t('waitUntilFillsUpDonation')}
                       </p>
                       <p className="mt-1 text-[11px] text-slate-500">
-                        Your bid will remain pending until donations reach your bid amount.
+                        {t('bidRemainsPending')}
                       </p>
                     </button>
                   </div>
@@ -1906,7 +1909,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             <div className="flex justify-between items-start mb-4">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.35em] text-amber-300/80">
-                  Hall of Fame
+                  {t('hallOfFame')}
                 </p>
                 <h2 className="mt-2 text-lg sm:text-2xl font-extrabold tracking-tight text-white">
                   This place was cleaned by{' '}

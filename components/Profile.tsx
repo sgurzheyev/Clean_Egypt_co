@@ -906,7 +906,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         <div className="animated-border-inner w-full h-full flex flex-col overflow-hidden bg-gradient-to-b from-slate-950 via-[#020617] to-slate-950">
           {/* Header — fixed at top, never scrolls */}
           <div className="flex-shrink-0 sticky top-0 z-20 flex items-center justify-between px-5 py-4 pb-4 bg-[#020617]/95 backdrop-blur border-b border-gray-800">
-            <h1 className="text-lg font-bold text-white">Your Account</h1>
+            <h1 className="text-lg font-bold text-white">{t('yourAccount')}</h1>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -954,7 +954,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </label>
             <div className="flex-1">
               <p className="text-sm text-slate-400 uppercase tracking-[0.2em]">
-                Welcome {userProfile?.full_name || userEmail || 'Co-worker'}!
+                {t('welcome')} {userProfile?.full_name || userEmail || t('coworker')}!
               </p>
               {userEmail && (
                 <p className="mt-1 text-[10px] text-slate-500 uppercase tracking-[0.18em]">
@@ -1030,7 +1030,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </p>
             {userProfile?.frozen_balance && userProfile.frozen_balance > 0 && (
               <p className="mt-1 text-[11px] text-amber-300">
-                Frozen: ${Number(userProfile.frozen_balance).toFixed(2)}
+                {t('frozen')}: ${Number(userProfile.frozen_balance).toFixed(2)}
               </p>
             )}
 
@@ -1044,7 +1044,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   type="number"
                   min={1}
                   step="0.01"
-                  placeholder="Amount in USD"
+                  placeholder={t('amountInUsd')}
                   value={topUpAmount}
                   onChange={(e) => setTopUpAmount(e.target.value)}
                   className="flex-1 rounded-2xl bg-slate-900/80 border border-slate-700/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
@@ -1054,7 +1054,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   disabled={topUpSubmitting}
                   className="inline-flex items-center justify-center px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.18em] bg-emerald-500/20 border border-emerald-400/70 text-emerald-300 hover:bg-emerald-500/30 hover:border-emerald-300 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
                 >
-                  {topUpSubmitting ? 'Adding...' : 'Top Up'}
+                  {topUpSubmitting ? t('adding') : t('topUp')}
                 </button>
               </div>
             </form>
@@ -1066,7 +1066,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             onClick={handleLogout}
             className="mt-4 w-full py-3 rounded-full font-black text-sm uppercase tracking-[0.2em] bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30 hover:text-red-300 hover:border-red-400/60 transition-all"
           >
-            Logout
+            {t('logout')}
           </button>
 
           {/* CONTACT INFORMATION */}
@@ -1104,15 +1104,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             className="mt-4 rounded-3xl bg-black/50 backdrop-blur-xl border border-white/10 p-4 space-y-3"
           >
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-              Contact Information
+              {t('contactInfo')}
             </p>
             <p className="text-[11px] text-slate-500">
-              Add WhatsApp and Telegram so we can reach you about missions and payouts.
+              {t('contactInfoHint')}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                  Phone (WhatsApp)
+                  {t('phoneWhatsApp')}
                 </label>
                 <input
                   type="tel"
@@ -1124,7 +1124,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                  Telegram Username
+                  {t('telegramUsername')}
                 </label>
                 <input
                   type="text"
@@ -1140,7 +1140,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 type="submit"
                 className="inline-flex items-center px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-[0.18em] bg-slate-800 text-slate-100 hover:bg-slate-700 transition-all"
               >
-                Save Contact
+                {t('saveContact')}
               </button>
             </div>
           </form>
@@ -1151,15 +1151,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             className="mt-4 rounded-3xl bg-black/50 backdrop-blur-xl border border-white/10 p-4 space-y-3"
           >
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-              Change Password
+              {t('changePassword')}
             </p>
             <p className="text-[11px] text-slate-500">
-              You can set a password even if you signed in via Magic Link.
+              {t('changePasswordHint')}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                  New Password
+                  {t('newPassword')}
                 </label>
                 <input
                   type="password"
@@ -1171,7 +1171,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                  Confirm Password
+                  {t('confirmPassword')}
                 </label>
                 <input
                   type="password"
@@ -1194,7 +1194,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 disabled={passwordSubmitting}
                 className="inline-flex items-center px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-[0.18em] bg-emerald-500 text-black hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait transition-all"
               >
-                {passwordSubmitting ? 'Updating...' : 'Save Password'}
+                {passwordSubmitting ? t('updating') : t('savePassword')}
               </button>
             </div>
           </form>
@@ -1400,7 +1400,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
                     {job.status === 'disputed' && (
                       <div className="mt-4 p-4 rounded-2xl bg-red-500/10 border border-red-500/30">
-                        <p className="text-red-300 text-sm font-medium mb-2">Mission in dispute. Contact support:</p>
+                        <p className="text-red-300 text-sm font-medium mb-2">{t('missionInDispute')}</p>
                         <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer" className="text-emerald-400 font-bold underline hover:text-emerald-300">
                           @CleanEgypt_Admin_Bot
                         </a>
@@ -1410,7 +1410,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     {job.status === 'pending' && bids.length > 0 && (
                       <div className="mt-4 p-4 rounded-2xl bg-black/40 border border-white/10">
                         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
-                          Bids
+                          {t('bids')}
                         </p>
                         <div className="space-y-2">
                           {bids.map((bid) => (
@@ -1463,7 +1463,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         {/* MY ACTIVE MISSIONS (from missions where cleaner_id = me, excluding finished) */}
         <section className="mb-10 text-white">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-amber-400/90">
-            🎯 My Active Missions
+            🎯             {t('myActiveMissions')}
           </h2>
           {(myActiveJobs || []).filter((job) => job.status !== 'finished').length === 0 ? (
             <p className="text-slate-500 text-sm italic">You haven&apos;t taken any missions yet. Pick one from the marketplace and pay the deposit.</p>
@@ -1761,13 +1761,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             </p>
                             {!isHome && (
                               <p className="text-[10px] text-slate-500 mt-0.5">
-                                Target: ${Number(job.amount_target).toFixed(2)}
+                                {t('target')}: ${Number(job.amount_target).toFixed(2)}
                               </p>
                             )}
                           </div>
                         </div>
                         <div className="relative z-10 text-right">
-                          <p className="text-[9px] text-slate-500 mb-1 uppercase tracking-widest">View on Map</p>
+                          <p className="text-[9px] text-slate-500 mb-1 uppercase tracking-widest">{t('viewOnMap')}</p>
                           <p className={`text-xs font-bold ${isHome ? 'text-amber-400 group-hover:text-amber-300' : 'text-emerald-400 group-hover:text-emerald-300'}`}>→</p>
                         </div>
                       </div>
@@ -1783,7 +1783,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         {userProfile && (
           <section className="mb-10 text-white">
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-400">
-              📜 My Cleaning History
+              📜 {t('myCleaningHistory')}
             </h2>
             <div className="space-y-4">
               {(() => {
@@ -1802,14 +1802,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 if (finishedJobs.length === 0) {
                   return (
                     <p className="text-slate-500 text-sm italic">
-                      No finished jobs yet. Completed missions will appear here.
+                      {t('noFinishedJobsYet')}
                     </p>
                   );
                 }
 
                 return finishedJobs.map((job) => {
                   const isCreator = job.creator_id === uid;
-                  const roleLabel = isCreator ? 'Creator' : 'Cleaner';
+                  const roleLabel = isCreator ? t('creator') : t('cleaner');
                 const isHome = job.category === 'home';
                   const icon = isHome ? '🏠' : '🌆';
                   const createdDate = new Date(job.created_at).toLocaleDateString();
@@ -1827,7 +1827,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </span>
                       </div>
                       <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-700/40 text-slate-200 text-[10px] font-bold uppercase tracking-wider mb-3 border border-slate-500/60">
-                        Finished
+                        {t('finished')}
                       </div>
                       <div className="flex justify-between items-center mb-2">
                         <div className="flex items-center gap-3">
@@ -1843,7 +1843,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </div>
                         <div className="text-right">
                           <p className="text-[9px] text-slate-500 uppercase tracking-widest">
-                            Role
+                            {t('role')}
                           </p>
                           <p className="text-xs font-bold text-slate-200">
                             {roleLabel}
@@ -1865,18 +1865,18 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         {userProfile && (
           <section className="mb-10 text-white">
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-300">
-              🏆 Mission History
-            </h2>
+              🏆             {t('missionHistory')}
+          </h2>
             {loading ? (
-              <p className="text-slate-500 text-sm italic">Loading mission history...</p>
+              <p className="text-slate-500 text-sm italic">{t('loadingMissionHistory')}...</p>
             ) : (missionHistory || []).length === 0 ? (
-              <p className="text-slate-500 text-sm italic">No completed missions yet.</p>
+              <p className="text-slate-500 text-sm italic">{t('noCompletedMissionsYet')}</p>
             ) : (
               <div className="grid grid-cols-1 gap-4">
                 {(missionHistory || []).map((job) => {
                   const uid = userProfile.id;
                   const isCreator = job.creator_id === uid;
-                  const roleLabel = isCreator ? 'Creator' : 'Cleaner';
+                  const roleLabel = isCreator ? t('creator') : t('cleaner');
                   const isHome = job.category === 'home';
                   const icon = isHome ? '🏠' : '🌆';
                   const badgeColor = isHome
@@ -1886,9 +1886,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     job.title && job.title.trim().length > 0
                       ? job.title
                       : isHome
-                        ? 'Home Mission'
-                        : 'City Mission';
-                  const cleanerName = job.cleaner?.full_name || 'Eco-Hero';
+                        ? t('homeMission')
+                        : t('cityMission');
+                  const cleanerName = job.cleaner?.full_name || t('newHero');
                   const cleanerHandle = job.cleaner?.telegram_username
                     ? `(@${job.cleaner.telegram_username})`
                     : '';
@@ -1917,7 +1917,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-[9px] text-slate-500 uppercase tracking-widest">Role</p>
+                          <p className="text-[9px] text-slate-500 uppercase tracking-widest">{t('role')}</p>
                           <p className="text-xs font-bold text-slate-200">{roleLabel}</p>
                         </div>
                       </div>
@@ -1987,8 +1987,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <p className="text-white font-bold text-lg mb-2">Verification Required</p>
             <p className="text-slate-400 text-sm mb-6">
               {userProfile?.verification_status === 'pending'
-                ? 'Your documents are under review. Check your profile for status updates.'
-                : 'Only verified workers (with ID verification) can take home missions.'}
+                ? t('verificationPromptReview')
+                : t('verificationPromptOnlyVerified')}
             </p>
             <div className="flex gap-3">
               <button
@@ -1996,7 +1996,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 onClick={() => setShowVerificationPrompt(false)}
                 className="flex-1 py-3 rounded-full border border-white/20 text-slate-400 hover:text-white font-bold text-sm transition-colors"
               >
-                Close
+                {t('close')}
               </button>
               {userProfile?.verification_status !== 'pending' ? (
                 <button
@@ -2007,7 +2007,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   }}
                   className="flex-1 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-sm shadow-[0_0_20px_rgba(52,211,153,0.5)] transition-colors"
                 >
-                  Verify Now
+                  {t('verifyNow')}
                 </button>
               ) : (
                 <button
@@ -2015,7 +2015,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   disabled
                   className="flex-1 py-3 rounded-full bg-white/10 text-slate-500 font-black text-sm cursor-not-allowed"
                 >
-                  Documents Pending
+                  {t('documentsPending')}
                 </button>
               )}
             </div>
