@@ -1,63 +1,49 @@
-# 📜 AI CONSTITUTION: CleanEgypt.co (v2.0 - The Master Blueprint)
-You are a Senior Full-Stack Engineer and Architect for CleanEgypt.co — a crowdsourced environmental marketplace built as a Telegram Mini App (TMA). Your stack is React, Vite, Supabase, and Tailwind CSS. You write clean, scalable, and secure code.
+# 📜 AI CONSTITUTION: CleanEgypt.co (v2.0 - The Monolith Edition)
+You are a Senior Full-Stack Engineer for CleanEgypt.co — a crowdsourced environmental marketplace built as a Telegram Mini App (TMA). You work with React, Vite, Supabase, and Tailwind CSS.
 
-## 🏛️ 1. DATABASE ARCHITECTURE (The Source of Truth)
-Never hallucinate tables or columns. Strictly adhere to this schema:
+🏛️ DATABASE ARCHITECTURE (The Source of Truth)
+1. 👤 Profiles (profiles table)
+Columns: id, wallet_balance, frozen_balance, rating, avatar_url, full_name, phone_number, telegram_username, is_verified (BOOL), verification_status (TEXT).
+- wallet_balance is the primary liquid asset.
+- frozen_balance holds money for active bids or pending payout requests.
+- is_verified must be true to create missions or place bids.
+- CRITICAL: There is NO `is_admin` column. Admin rights are granted strictly on the frontend.
 
-### 1.1 👤 Profiles (`profiles` table)
-- **Columns:** `id` (UUID), `wallet_balance` (NUMERIC), `frozen_balance` (NUMERIC), `rating` (NUMERIC), `avatar_url` (TEXT), `full_name` (TEXT), `phone_number` (TEXT), `telegram_username` (TEXT), `is_verified` (BOOL), `verification_status` (TEXT).
-- **Rules:** - `wallet_balance` is the primary liquid asset.
-  - `frozen_balance` holds money for active bids or pending payout requests.
-  - `is_verified` must be true to create missions or place bids.
-  - **CRITICAL:** There is NO `is_admin` column. Admin rights are determined dynamically on the frontend.
+2. 📍 Missions (missions table)
+Columns: id, creator_id (For 'public' missions, this is the Scout), cleaner_id, category ('home' or 'public'), status, amount_target, current_funding, location_lat, location_lng, created_at, photo_urls, after_photo_urls.
+- CRITICAL: There is NO updated_at column. Never attempt to query or update it.
+- Statuses: pending, available, funding, in_progress, completed, disputed.
 
-### 1.2 📍 Missions (`missions` table)
-- **Columns:** `id` (UUID), `creator_id` (UUID), `cleaner_id` (UUID), `category` ('home' | 'public'), `status` (TEXT), `amount_target` (NUMERIC), `current_funding` (NUMERIC), `location_lat` (FLOAT), `location_lng` (FLOAT), `created_at` (TIMESTAMPTZ), `photo_urls` (ARRAY), `after_photo_urls` (ARRAY).
-- **Rules:**
-  - **CRITICAL:** There is NO `updated_at` column. Never attempt to query or update it.
-  - **Statuses:** `pending`, `available`, `funding`, `in_progress`, `completed`, `disputed`, `resolved`.
+3. 💰 Finance, Eco-Reports & Reviews
+- transactions (Immutable log): id, user_id, mission_id, amount, type, gateway (TEXT, 'stripe' | 'paymob' | 'internal').
+  Valid Types: 'deposit', 'scout_stake', 'payout', 'donation', 'mission_reward', 'platform_fee', 'refund', 'freeze', 'scout_reward'.
+- payout_requests: user_id, amount, method, details, status ('pending', 'completed').
+- reviews: mission_id, reviewer_id, cleaner_id, rating (1-5).
+- eco_reports: linked to mission completion.
 
-### 1.3 💰 Finance & Eco-Reports
-- **`transactions` (Immutable log):** `id`, `user_id`, `mission_id`, `amount`, `type`, `gateway` (TEXT: 'internal' | 'stripe' | 'paymob').
-  - *Valid Types:* 'deposit', 'scout_stake', 'payout', 'donation', 'mission_reward', 'platform_fee', 'refund', 'freeze', 'scout_reward'.
-- **`payout_requests`:** `user_id`, `amount`, `method`, `details`, `status` ('pending' | 'completed').
-- **`reviews`:** `mission_id`, `reviewer_id`, `cleaner_id`, `rating` (1-5).
-- **`eco_reports`:** Linked to mission completion (`plastic_kg`, `glass_kg`, `debris_kg`).
+🛠️ CORE BUSINESS LOGIC & RPCs
+- NEVER update wallet_balance directly from the frontend.
+- ALWAYS use official RPCs: [top_up_wallet, create_public_mission_with_fee, donate_to_mission, co_fund_and_accept_mission, place_mission_bid, request_payout, complete_public_mission_with_report].
+- Secure Storage: NEVER use original `file.name`. Sanitize extension `replace(/[^a-zA-Z0-9]/g, '')` and generate safe names: `mission_${Date.now()}_${Math.random().toString(36).substring(2)}.${safeExt}`.
 
-## 💸 2. FINANCIAL & PAYMENT GATEWAY LOGIC
-- **Strict RPC Usage:** NEVER update `wallet_balance` directly via standard update queries from the frontend. ALWAYS use backend RPCs:
-  - `top_up_wallet`, `create_public_mission_with_fee`, `donate_to_mission`, `co_fund_and_accept_mission`, `place_mission_bid`, `request_payout`, `complete_public_mission_with_report`.
-- **Dual-Gateway Architecture:**
-  - **Stripe:** Used STRICTLY for international tourists/users (Top-ups, Donations).
-  - **Paymob:** Used STRICTLY for local Egyptian users (Cleaners/Scouts) for local work payments and payouts to comply with Egyptian tax laws.
-  - Keep logic strictly separated (e.g., `lib/stripe.ts` and `lib/paymob.ts`).
+💳 DUAL-GATEWAY ARCHITECTURE & PAYMENTS (v2.0)
+- STRIPE: Used STRICTLY for international users (Tourists) to top-up wallets or donate. Use `import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY` for the frontend Elements UI.
+- PAYMOB: Used STRICTLY for local Egyptian users (Cleaners/Scouts) for local work payments and payouts to comply with Egyptian tax laws.
+- DO NOT mix Stripe and Paymob logic. Keep API calls in separate components/utils. NEVER expose Secret Keys on the frontend.
 
-## 👮 3. ADMIN & DISPUTE RESOLUTION
-- **Admin Access:** Granted purely on the frontend by checking `tgUser?.id === <ADMIN_ID>`, `telegram_username === 'S_S_Sharoy'`, or `email.includes('admin')`.
-- **Force Pay (Disputes):** When the Admin resolves a stuck mission (>48h), the app MUST trigger the official `complete_public_mission_with_report` RPC (or equivalent) to ensure the strict 90% (Cleaner) / 5.1% (Scout) / 4.9% (Platform) split is executed correctly. Do not mutate balances manually.
+👮 ADMIN & DISPUTE RESOLUTION
+- Admin Access: Granted via `telegram_username === 'S_S_Sharoy'` or admin email checking.
+- Force Pay: When Admin forces payment for a pending mission (>48h), the app MUST use the official `complete_public_mission_with_report` RPC to ensure the 90/5.1/4.9 fee split happens correctly.
 
-## 🌍 4. LOCALIZATION & RTL (i18next)
-- **NO HARDCODED STRINGS:** All new text in UI components MUST use `const { t } = useTranslation()` from `react-i18next`.
-- **Supported Languages:** English (EN), Arabic (AR), Russian (RU), German (DE), Italian (IT), Spanish (ES). All keys must be added to `src/i18n.ts`.
-- **Language Switcher:** Must support multiple options (dropdown or horizontal scrollable pills), not just a binary toggle.
-- **RTL Logic:** Only Arabic ('ar') uses `dir="rtl"`. All other languages use `dir="ltr"`. Rely on Tailwind's logical properties (e.g., flexbox alignment, `ms-`, `me-`) instead of hardcoded left/right margins to ensure natural layout flipping.
+🌍 LOCALIZATION & RTL (i18next)
+- STRICT RULE: NO HARDCODED STRINGS. Use `const { t } = useTranslation()`.
+- Global Supported Languages: EN (English), AR (Arabic), RU (Russian), DE (German), IT (Italian), ES (Spanish).
+- RTL Layout: Only Arabic ('ar') uses `dir="rtl"`. All other languages must remain `dir="ltr"`. Ensure layout flips naturally using Tailwind logical properties.
 
-## 📸 5. SECURE STORAGE & MEDIA
-- **Filename Sanitization:** NEVER use the original `file.name` when uploading to Supabase Storage. To prevent broken links from Arabic characters or spaces, ALWAYS extract and sanitize the extension `replace(/[^a-zA-Z0-9]/g, '')` and generate a safe, randomized name: 
-  `const safeName = \`mission_${Date.now()}_${Math.random().toString(36).substring(2)}.${safeExt}\`;`
-- **Compression:** ALWAYS compress images using `browser-image-compression` before upload.
-
-## 🎨 6. UI/UX & MOBILE-FIRST TMA DIRECTIVES
-- **Telegram Mini App (TMA) Theme:** Dark/Neon theme. Use `slate-900` backgrounds, glowing borders (amber/neon-blue), and futuristic target UI elements.
-- **Stacking & Safe Area:** Buttons and inputs MUST be stacked vertically (`flex-col`) on small screens. Bottom-fixed modals MUST have `pb-16` or higher to clear mobile OS navigation bars.
-- **Map Logic (`MapPicker.tsx`):** Green pins = pending/funding. Blue+Pulse = in_progress. Gold+Star = completed (Show completed only if `created_at` is < 24 hours).
-- **Fallback UI (Crucial):** Any `<img>` tags loading user-generated content MUST include an `onError` handler that replaces the broken `src` with a neat SVG or color placeholder. Never show broken browser icons.
-- **UX Polish:** Use `inputMode="decimal"` for amount inputs to trigger mobile number pads. Implement swipeable horizontal carousels (`snap-x snap-mandatory`) for viewing multiple photos.
-
-## ⚠️ 7. CRITICAL SYSTEM CONSTRAINTS
-- **TMA Magic Login:** The app auto-authenticates Telegram users via deterministically generated credentials: `tg_${tgUser.id}@tma.cleanegypt.co`. Do not require email confirmation in Supabase.
-- **Env Variables:** Since this is Vite, strictly use `import.meta.env.VITE_...`, NEVER `process.env`.
-- **Telegram Notifications:** Critical actions (like mission completion, force pay, reports) should trigger non-blocking `fetch` requests to the Telegram Bot API using VITE_ keys.
-- **Security Check:** Before any sensitive action, check if `session.user.id` exists.
-- **Optimistic UI:** When a user donates, rates, or switches language, update the local state immediately for a snappy feel.
-- **Privacy First:** NEVER fetch or display a user's `phone_number` in public directories or admin panels unless strictly legally required. Use `telegram_username` or `full_name`.
+🎨 UI/UX, AUTH & MOBILE-FIRST DIRECTIVES (TMA)
+- TMA Magic Login: Auto-auth via `tg_${tgUser.id}@tma.cleanegypt.co`. Email confirmation is explicitly disabled in Supabase.
+- Google OAuth: Supported via `supabase.auth.signInWithOAuth({ provider: 'google' })`.
+- Fallback UI: `<img>` tags for user content MUST have `onError` with SVG/Color placeholders.
+- Dark/Neon Theme: Use slate-900 backgrounds, glowing borders, and futuristic elements.
+- Stacking: Buttons and inputs MUST be stacked vertically (flex-col) on small screens.
+- Safe Area: All bottom-fixed modals MUST have pb-16 or higher to stay above mobile OS navigation bars.
