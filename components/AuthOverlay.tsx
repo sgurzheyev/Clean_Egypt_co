@@ -133,11 +133,14 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleLogin = async () => {
     setError(null);
     setIsLoading(true);
     try {
-      const { error: err } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+      const { error: err } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin },
+      });
       if (err) throw err;
     } catch (err: any) {
       setError(err?.message || 'Google sign-in failed.');
@@ -244,16 +247,14 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
 
         {!tmaAuthenticating && (
           <div className="mt-4 space-y-3">
-            {/* Google OAuth — hidden until configured
             <button
               type="button"
-              onClick={handleGoogleSignIn}
+              onClick={handleGoogleLogin}
               disabled={isLoading}
               className="w-full rounded-full px-6 py-3 text-sm font-bold uppercase tracking-[0.2em] bg-white/10 border border-white/20 text-white hover:bg-white/15 disabled:opacity-60 transition-all"
             >
               Sign in with Google
             </button>
-            */}
             <button
               type="button"
               onClick={() => setMode(mode === 'signin' ? 'magic' : 'signin')}
