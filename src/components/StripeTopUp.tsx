@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import {
+  Elements,
+  CardNumberElement,
+  CardExpiryElement,
+  CardCvcElement,
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js';
 import { supabase } from '../../lib/supabaseClient';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string);
@@ -55,12 +62,12 @@ function StripeTopUpForm({ amount, onAmountChange, onClose }: StripeTopUpFormPro
       const clientSecret = data?.clientSecret;
       if (!clientSecret) throw new Error('No client secret returned from server.');
 
-      const cardElement = elements.getElement(CardElement);
-      if (!cardElement) throw new Error('Card element not found.');
+      const cardNumberElement = elements.getElement(CardNumberElement);
+      if (!cardNumberElement) throw new Error('Card number element not found.');
 
       const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
         clientSecret,
-        { payment_method: { card: cardElement } }
+        { payment_method: { card: cardNumberElement } }
       );
       if (stripeError) throw stripeError;
       if (paymentIntent?.status !== 'succeeded') {
@@ -102,12 +109,33 @@ function StripeTopUpForm({ amount, onAmountChange, onClose }: StripeTopUpFormPro
         />
       </div>
 
+      {/* Block 1: Card Number */}
       <div>
         <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-          Card details
+          Card Number
         </label>
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-600 px-4 py-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-all [&_.StripeElement]:min-h-[40px] [&_.StripeElement]:py-2">
-          <CardElement options={CARD_ELEMENT_OPTIONS} />
+        <div className="rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-all [&_.StripeElement]:min-h-[40px] [&_.StripeElement]:py-1">
+          <CardNumberElement options={CARD_ELEMENT_OPTIONS} />
+        </div>
+      </div>
+
+      {/* Block 2: Expiry + CVC */}
+      <div className="flex gap-4">
+        <div className="flex-1 min-w-0">
+          <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+            Expiry
+          </label>
+          <div className="rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-all [&_.StripeElement]:min-h-[40px] [&_.StripeElement]:py-1">
+            <CardExpiryElement options={CARD_ELEMENT_OPTIONS} />
+          </div>
+        </div>
+        <div className="flex-1 min-w-0">
+          <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+            CVC
+          </label>
+          <div className="rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-all [&_.StripeElement]:min-h-[40px] [&_.StripeElement]:py-1">
+            <CardCvcElement options={CARD_ELEMENT_OPTIONS} />
+          </div>
         </div>
       </div>
 
