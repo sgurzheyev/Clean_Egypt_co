@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import { Target } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
+import { useTelegram } from '../src/hooks/useTelegram';
 import AdminDashboard from '../src/components/AdminDashboard';
 
 interface ProfileProps {
@@ -92,11 +93,10 @@ function JobTimer({ startedAt }: { startedAt: string }) {
   return <span className="tabular-nums text-emerald-400 font-bold">{elapsed}</span>;
 }
 
-const ADMIN_TELEGRAM = 'S_S_Sharoy';
-const ADMIN_EMAIL_KEYWORD = 'admin';
-
 const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, onNavigateToJob }) => {
   const { t, i18n } = useTranslation();
+  const { tgUser } = useTelegram();
+  const isAdmin = tgUser?.id?.toString() === '7374545100' || _session?.user?.email?.includes('admin');
   const [showAdmin, setShowAdmin] = useState(false);
   const [balance, setBalance] = useState(0);
   const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);
@@ -1956,8 +1956,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         )}
 
         {/* Admin Panel button — only for admin */}
-        {((userProfile?.telegram_username === ADMIN_TELEGRAM) ||
-          (userEmail?.toLowerCase().includes(ADMIN_EMAIL_KEYWORD))) && (
+        {isAdmin && (
           <button
             type="button"
             onClick={() => setShowAdmin(true)}

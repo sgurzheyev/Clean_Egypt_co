@@ -13,6 +13,12 @@ interface MissionRow {
   status: string;
 }
 
+interface PendingApprovalRow {
+  id: string;
+  amount_target: number;
+  cleaner_id: string | null;
+}
+
 interface TransactionRow {
   id: string;
   user_id: string;
@@ -31,39 +37,98 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [missions, setMissions] = useState<MissionRow[]>([]);
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<PendingApprovalRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [forcePayLoadingId, setForcePayLoadingId] = useState<string | null>(null);
+
+  const fetchPendingApprovals = async () => {
+    const { data, error: err } = await supabase
+      .from('missions')
+      .select('id, amount_target, cleaner_id')
+      .eq('status', 'completed')
+      .not('cleaner_id', 'is', null)
+      .order('created_at', { ascending: false });
+    if (err) {
+      console.error('Pending approvals fetch error:', err);
+      return;
+    }
+    setPendingApprovals((data || []) as PendingApprovalRow[]);
+  };
+
+  const fetchAll = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [profRes, missRes, txRes] = await Promise.all([
+        supabase.from('profiles').select('id, full_name, telegram_username, wallet_balance'),
+        supabase.from('missions').select('id, status'),
+        supabase
+          .from('transactions')
+          .select('id, user_id, mission_id, amount, type, created_at')
+          .order('created_at', { ascending: false })
+          .limit(20),
+      ]);
+
+      if (profRes.error) throw profRes.error;
+      if (missRes.error) throw missRes.error;
+      if (txRes.error) throw txRes.error;
+
+      setProfiles((profRes.data || []) as ProfileRow[]);
+      setMissions((missRes.data || []) as MissionRow[]);
+      setTransactions((txRes.data || []) as TransactionRow[]);
+      await fetchPendingApprovals();
+    } catch (e: any) {
+      console.error('Admin fetch error:', e);
+      setError(e?.message || 'Failed to load admin data.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [profRes, missRes, txRes] = await Promise.all([
-          supabase.from('profiles').select('id, full_name, telegram_username, wallet_balance'),
-          supabase.from('missions').select('id, status'),
-          supabase
-            .from('transactions')
-            .select('id, user_id, mission_id, amount, type, created_at')
-            .order('created_at', { ascending: false })
-            .limit(20),
-        ]);
-
-        if (profRes.error) throw profRes.error;
-        if (missRes.error) throw missRes.error;
-        if (txRes.error) throw txRes.error;
-
-        setProfiles((profRes.data || []) as ProfileRow[]);
-        setMissions((missRes.data || []) as MissionRow[]);
-        setTransactions((txRes.data || []) as TransactionRow[]);
-      } catch (e: any) {
-        console.error('Admin fetch error:', e);
-        setError(e?.message || 'Failed to load admin data.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetch();
+    fetchAll();
   }, []);
+
+  const handleForcePay = async (mission: PendingApprovalRow) => {
+    if (!mission.cleaner_id) {
+      alert('No cleaner assigned to this mission.');
+      return;
+    }
+    if (!window.confirm('Are you sure you want to force-release the funds to the cleaner?')) return;
+    setForcePayLoadingId(mission.id);
+    try {
+      const exchangeRate = 50;
+      const payoutEgp = Math.round((mission.amount_target || 0) * exchangeRate);
+
+      const { data: workerProfile, error: workerErr } = await supabase
+        .from('profiles')
+        .select('id, wallet_balance')
+        .eq('id', mission.cleaner_id)
+        .maybeSingle();
+      if (workerErr) throw workerErr;
+
+      const currentBalance = (workerProfile?.wallet_balance ?? 0) as number;
+      const { error: balanceErr } = await supabase
+        .from('profiles')
+        .update({ wallet_balance: currentBalance + payoutEgp })
+        .eq('id', mission.cleaner_id);
+      if (balanceErr) throw balanceErr;
+
+      const { error: jobErr } = await supabase
+        .from('missions')
+        .update({ status: 'finished' })
+        .eq('id', mission.id);
+      if (jobErr) throw jobErr;
+
+      await fetchPendingApprovals();
+      alert('Payment force-released successfully.');
+    } catch (err: any) {
+      console.error('Force pay error:', err);
+      alert(err?.message || 'Failed to force-release payment.');
+    } finally {
+      setForcePayLoadingId(null);
+    }
+  };
 
   const activeCount = missions.filter((m) =>
     ['available', 'in_progress'].includes(m.status)
@@ -112,6 +177,39 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                 <p className="text-2xl font-black text-amber-400">{completedCount}</p>
                 <p className="text-[10px] text-slate-400 uppercase">Completed</p>
               </div>
+            </div>
+          </section>
+
+          {/* Pending Approvals (Force Pay) */}
+          <section className="rounded-2xl bg-black/40 border border-red-500/30 p-4">
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-400/90 mb-3">
+              ⚠️ Pending Approvals (Force Pay)
+            </h3>
+            <div className="max-h-48 overflow-y-auto space-y-2 pr-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+              {pendingApprovals.length === 0 ? (
+                <p className="text-slate-500 text-xs italic py-2">No stuck missions.</p>
+              ) : (
+                pendingApprovals.map((m) => (
+                  <div
+                    key={m.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-900/60 border border-white/5 px-3 py-2 text-[11px]"
+                  >
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="font-mono text-slate-300">#{String(m.id).slice(0, 8)}</span>
+                      <span className="text-slate-400">${Number(m.amount_target).toFixed(2)}</span>
+                      <span className="text-slate-500">Cleaner: {String(m.cleaner_id || '').slice(0, 8)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={forcePayLoadingId === m.id}
+                      onClick={() => handleForcePay(m)}
+                      className="shrink-0 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-500/20 border border-red-400/60 text-red-300 hover:bg-red-500/30 hover:border-red-400 disabled:opacity-60 disabled:cursor-wait transition-all shadow-[0_0_12px_rgba(239,68,68,0.3)]"
+                    >
+                      {forcePayLoadingId === m.id ? '...' : 'Force Pay (Admin)'}
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </section>
 
