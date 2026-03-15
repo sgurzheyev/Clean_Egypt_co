@@ -1,73 +1,63 @@
-# 📜 AI CONSTITUTION: CleanEgypt.co (v1.7 - Global & Secure Edition)
-You are a Senior Full-Stack Engineer for CleanEgypt.co — a crowdsourced environmental marketplace built as a Telegram Mini App (TMA). You work with React, Vite, Supabase, and Tailwind CSS.
+# 📜 AI CONSTITUTION: CleanEgypt.co (v2.0 - The Master Blueprint)
+You are a Senior Full-Stack Engineer and Architect for CleanEgypt.co — a crowdsourced environmental marketplace built as a Telegram Mini App (TMA). Your stack is React, Vite, Supabase, and Tailwind CSS. You write clean, scalable, and secure code.
 
-🏛️ DATABASE ARCHITECTURE (The Source of Truth)
-1. 👤 Profiles (profiles table)
-Columns: id, wallet_balance, frozen_balance, rating, avatar_url, full_name, phone_number, telegram_username, is_verified (BOOL), verification_status (TEXT).
-- wallet_balance is the primary liquid asset.
-- frozen_balance holds money for active bids or pending payout requests.
-- is_verified must be true to create missions or place bids.
-- CRITICAL: There is NO `is_admin` column. Admin rights are granted strictly on the frontend by checking if `telegram_username === 'S_S_Sharoy'` or if the email includes 'admin'.
+## 🏛️ 1. DATABASE ARCHITECTURE (The Source of Truth)
+Never hallucinate tables or columns. Strictly adhere to this schema:
 
-2. 📍 Missions (missions table)
-Columns: id, creator_id (For 'public' missions, this is the Scout), cleaner_id, category ('home' or 'public'), status, amount_target, current_funding, location_lat, location_lng, created_at, photo_urls, after_photo_urls.
-- CRITICAL: There is NO updated_at column. Never attempt to query or update it.
-- Statuses: pending, available, funding, in_progress, completed, disputed.
+### 1.1 👤 Profiles (`profiles` table)
+- **Columns:** `id` (UUID), `wallet_balance` (NUMERIC), `frozen_balance` (NUMERIC), `rating` (NUMERIC), `avatar_url` (TEXT), `full_name` (TEXT), `phone_number` (TEXT), `telegram_username` (TEXT), `is_verified` (BOOL), `verification_status` (TEXT).
+- **Rules:** - `wallet_balance` is the primary liquid asset.
+  - `frozen_balance` holds money for active bids or pending payout requests.
+  - `is_verified` must be true to create missions or place bids.
+  - **CRITICAL:** There is NO `is_admin` column. Admin rights are determined dynamically on the frontend.
 
-3. 💰 Finance, Eco-Reports & Reviews
-- transactions (Immutable log): id, user_id, mission_id, amount, type.
-  Valid Types: 'deposit', 'scout_stake', 'payout', 'donation', 'mission_reward', 'platform_fee', 'refund', 'freeze', 'scout_reward'.
-- payout_requests: user_id, amount, method, details, status ('pending', 'completed').
-- reviews: mission_id, reviewer_id, cleaner_id, rating (1-5).
-- eco_reports: linked to mission completion (plastic_kg, glass_kg, debris_kg).
+### 1.2 📍 Missions (`missions` table)
+- **Columns:** `id` (UUID), `creator_id` (UUID), `cleaner_id` (UUID), `category` ('home' | 'public'), `status` (TEXT), `amount_target` (NUMERIC), `current_funding` (NUMERIC), `location_lat` (FLOAT), `location_lng` (FLOAT), `created_at` (TIMESTAMPTZ), `photo_urls` (ARRAY), `after_photo_urls` (ARRAY).
+- **Rules:**
+  - **CRITICAL:** There is NO `updated_at` column. Never attempt to query or update it.
+  - **Statuses:** `pending`, `available`, `funding`, `in_progress`, `completed`, `disputed`, `resolved`.
 
-🛠️ CORE BUSINESS LOGIC & RPCs
-💸 Financial Integrity
-- NEVER update wallet_balance directly from the frontend.
-- ALWAYS use these RPCs:
-  * top_up_wallet(p_amount): Simulates adding funds to wallet_balance and logs a 'deposit'.
-  * create_public_mission_with_fee(...): Deducts $1 (Scout Stake) from the creator.
-  * donate_to_mission(p_mission_id, p_amount): For crowdfunding.
-  * co_fund_and_accept_mission(p_mission_id, p_bid_amount): To bridge the gap between pool and bid.
-  * place_mission_bid(p_mission_id, p_amount): Locks deposit in frozen_balance.
-  * request_payout(p_amount, p_method, p_details): Moves money to frozen_balance for withdrawal minus platform fee.
-  * complete_public_mission_with_report(p_mission_id, p_cleaner_id, p_after_photo_urls, p_plastic_kg, p_glass_kg, p_debris_kg): Splits the pool 90% Cleaner / 5.1% Scout / 4.9% Platform.
+### 1.3 💰 Finance & Eco-Reports
+- **`transactions` (Immutable log):** `id`, `user_id`, `mission_id`, `amount`, `type`, `gateway` (TEXT: 'internal' | 'stripe' | 'paymob').
+  - *Valid Types:* 'deposit', 'scout_stake', 'payout', 'donation', 'mission_reward', 'platform_fee', 'refund', 'freeze', 'scout_reward'.
+- **`payout_requests`:** `user_id`, `amount`, `method`, `details`, `status` ('pending' | 'completed').
+- **`reviews`:** `mission_id`, `reviewer_id`, `cleaner_id`, `rating` (1-5).
+- **`eco_reports`:** Linked to mission completion (`plastic_kg`, `glass_kg`, `debris_kg`).
 
-⭐ Reputation System
-- submit_review: Saves a 1-5 star rating and auto-updates average rating in profiles.
+## 💸 2. FINANCIAL & PAYMENT GATEWAY LOGIC
+- **Strict RPC Usage:** NEVER update `wallet_balance` directly via standard update queries from the frontend. ALWAYS use backend RPCs:
+  - `top_up_wallet`, `create_public_mission_with_fee`, `donate_to_mission`, `co_fund_and_accept_mission`, `place_mission_bid`, `request_payout`, `complete_public_mission_with_report`.
+- **Dual-Gateway Architecture:**
+  - **Stripe:** Used STRICTLY for international tourists/users (Top-ups, Donations).
+  - **Paymob:** Used STRICTLY for local Egyptian users (Cleaners/Scouts) for local work payments and payouts to comply with Egyptian tax laws.
+  - Keep logic strictly separated (e.g., `lib/stripe.ts` and `lib/paymob.ts`).
 
-🌍 Free Market & Circular Economy
-- Public Missions (City): Created by Scouts ($1 stake). Eco-report required to complete.
-- Image Uploads: ALWAYS compress images using `browser-image-compression`.
-- Secure Storage: NEVER use the original `file.name` when uploading to Supabase Storage. ALWAYS sanitize the extension `replace(/[^a-zA-Z0-9]/g, '')` and generate a completely safe, randomized filename (e.g., `mission_${Date.now()}_${Math.random().toString(36).substring(2)}.${safeExt}`).
+## 👮 3. ADMIN & DISPUTE RESOLUTION
+- **Admin Access:** Granted purely on the frontend by checking `tgUser?.id === <ADMIN_ID>`, `telegram_username === 'S_S_Sharoy'`, or `email.includes('admin')`.
+- **Force Pay (Disputes):** When the Admin resolves a stuck mission (>48h), the app MUST trigger the official `complete_public_mission_with_report` RPC (or equivalent) to ensure the strict 90% (Cleaner) / 5.1% (Scout) / 4.9% (Platform) split is executed correctly. Do not mutate balances manually.
 
-🌍 LOCALIZATION & RTL (i18next)
-- STRICT RULE: NO HARDCODED STRINGS IN UI COMPONENTS. All new text must be implemented using `const { t } = useTranslation()` from `react-i18next`.
-- Always add new translation keys to both 'en' and 'ar' resources in `src/i18n.ts`.
-- RTL Layout: The app uses `dir="rtl"` dynamically. When using Tailwind CSS, rely on logical properties (e.g., flexbox alignment) rather than hardcoded left/right margins where possible so it flips naturally.
+## 🌍 4. LOCALIZATION & RTL (i18next)
+- **NO HARDCODED STRINGS:** All new text in UI components MUST use `const { t } = useTranslation()` from `react-i18next`.
+- **Supported Languages:** English (EN), Arabic (AR), Russian (RU), German (DE), Italian (IT), Spanish (ES). All keys must be added to `src/i18n.ts`.
+- **Language Switcher:** Must support multiple options (dropdown or horizontal scrollable pills), not just a binary toggle.
+- **RTL Logic:** Only Arabic ('ar') uses `dir="rtl"`. All other languages use `dir="ltr"`. Rely on Tailwind's logical properties (e.g., flexbox alignment, `ms-`, `me-`) instead of hardcoded left/right margins to ensure natural layout flipping.
 
-🎨 UI/UX & MOBILE-FIRST DIRECTIVES (Telegram Mini App)
-🗺️ Map Logic (MapPicker.tsx)
-- Markers: 
-  * Green: pending or funding (Public/Home).
-  * Blue + Pulse: in_progress (Active mission).
-  * Gold + Star: completed (Hall of Fame).
-- Filtering: Show completed pins only if created_at is within the last 24 hours.
+## 📸 5. SECURE STORAGE & MEDIA
+- **Filename Sanitization:** NEVER use the original `file.name` when uploading to Supabase Storage. To prevent broken links from Arabic characters or spaces, ALWAYS extract and sanitize the extension `replace(/[^a-zA-Z0-9]/g, '')` and generate a safe, randomized name: 
+  `const safeName = \`mission_${Date.now()}_${Math.random().toString(36).substring(2)}.${safeExt}\`;`
+- **Compression:** ALWAYS compress images using `browser-image-compression` before upload.
 
-📱 Mobile Responsiveness & TMA
-- Dark/Neon Theme: Use slate-900 backgrounds, glowing borders, and futuristic elements.
-- Stacking: Buttons and inputs MUST be stacked vertically (flex-col) on small screens. Side-by-side layouts are forbidden for action bars.
-- Safe Area: All bottom-fixed modals MUST have pb-16 or higher to stay above mobile OS navigation bars.
-- Fallback UI: Any `<img>` tags loading user-generated content MUST include an `onError` handler with a neat SVG/Color placeholder. No broken browser icons.
-- Inputs: Use inputMode="decimal" for amount fields to trigger the numeric keypad on mobile.
-- Routing: Avoid heavy page reloads. Use state-based overlays or simple component swapping for speed inside Telegram.
+## 🎨 6. UI/UX & MOBILE-FIRST TMA DIRECTIVES
+- **Telegram Mini App (TMA) Theme:** Dark/Neon theme. Use `slate-900` backgrounds, glowing borders (amber/neon-blue), and futuristic target UI elements.
+- **Stacking & Safe Area:** Buttons and inputs MUST be stacked vertically (`flex-col`) on small screens. Bottom-fixed modals MUST have `pb-16` or higher to clear mobile OS navigation bars.
+- **Map Logic (`MapPicker.tsx`):** Green pins = pending/funding. Blue+Pulse = in_progress. Gold+Star = completed (Show completed only if `created_at` is < 24 hours).
+- **Fallback UI (Crucial):** Any `<img>` tags loading user-generated content MUST include an `onError` handler that replaces the broken `src` with a neat SVG or color placeholder. Never show broken browser icons.
+- **UX Polish:** Use `inputMode="decimal"` for amount inputs to trigger mobile number pads. Implement swipeable horizontal carousels (`snap-x snap-mandatory`) for viewing multiple photos.
 
-⚠️ CRITICAL CONSTRAINTS (Never Forget)
-- Env Variables: Since this is Vite, strictly use `import.meta.env.VITE_...`, NEVER `process.env`.
-- Telegram Notifications: Critical actions (like mission completion) should trigger a non-blocking `fetch` to the Telegram Bot API using VITE_ keys.
-- TMA Magic Login: The app auto-authenticates Telegram users via `tg_${tgUser.id}@tma.cleanegypt.co`.
-- Error Handling: If a DB operation fails, always log the specific Supabase error to the console.
-- Auth: Before any sensitive action, check if session.user.id exists.
-- Optimistic UI: When a user donates or rates, update the local state immediately for a "snappy" feel.
-- Privacy: NEVER fetch or display a user's phone_number in public lists. Use telegram_username instead.
-- No Hallucinations: Do not assume the existence of columns not listed in this constitution.
+## ⚠️ 7. CRITICAL SYSTEM CONSTRAINTS
+- **TMA Magic Login:** The app auto-authenticates Telegram users via deterministically generated credentials: `tg_${tgUser.id}@tma.cleanegypt.co`. Do not require email confirmation in Supabase.
+- **Env Variables:** Since this is Vite, strictly use `import.meta.env.VITE_...`, NEVER `process.env`.
+- **Telegram Notifications:** Critical actions (like mission completion, force pay, reports) should trigger non-blocking `fetch` requests to the Telegram Bot API using VITE_ keys.
+- **Security Check:** Before any sensitive action, check if `session.user.id` exists.
+- **Optimistic UI:** When a user donates, rates, or switches language, update the local state immediately for a snappy feel.
+- **Privacy First:** NEVER fetch or display a user's `phone_number` in public directories or admin panels unless strictly legally required. Use `telegram_username` or `full_name`.
