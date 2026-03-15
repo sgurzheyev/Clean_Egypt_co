@@ -988,8 +988,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 { code: 'ar', labelKey: 'arabic' as const },
                 { code: 'ru', labelKey: 'russian' as const },
                 { code: 'de', labelKey: 'german' as const },
+                { code: 'it', labelKey: 'italian' as const },
+                { code: 'es', labelKey: 'spanish' as const },
               ].map(({ code, labelKey }) => {
                 const isActive = (i18n.language || '').startsWith(code);
+                const shortLabel = { en: 'EN', ar: 'AR', ru: 'RU', de: 'DE', it: 'IT', es: 'ES' }[code] || code.toUpperCase();
                 return (
                   <button
                     key={code}
@@ -1001,7 +1004,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         : 'bg-transparent border-white/15 text-slate-300 hover:bg-white/5'
                     }`}
                   >
-                    {code === 'en' ? 'EN' : code === 'ar' ? 'AR' : code === 'ru' ? 'RU' : 'DE'}
+                    {shortLabel}
                   </button>
                 );
               })}
