@@ -108,9 +108,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [marketError, setMarketplaceError] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<ProfileRow | null>(null);
   const isAdmin =
-    userProfile?.telegram_username === 'S_S_Sharoy' ||
-    _session?.user?.email === 'gurgini@gmail.com' ||
-    _session?.user?.email?.includes('admin');
+    _session?.user?.email?.includes('tg_6618910143') ||
+    userProfile?.telegram_username?.toLowerCase() === 'sergiogurgini';
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [paymentSyncing, setPaymentSyncing] = useState(false);
