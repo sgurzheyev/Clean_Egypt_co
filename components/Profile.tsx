@@ -5,6 +5,7 @@ import { Target } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import AdminDashboard from '../src/components/AdminDashboard';
+import StripeTopUp from '../src/components/StripeTopUp';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -127,6 +128,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [phoneNumber, setPhoneNumber] = useState('');
   const [telegramUsername, setTelegramUsername] = useState('');
   const [showPayoutModal, setShowPayoutModal] = useState(false);
+  const [showStripeTopUp, setShowStripeTopUp] = useState(false);
   const [payoutAmount, setPayoutAmount] = useState('');
   const [payoutMethod, setPayoutMethod] = useState<'InstaPay' | 'Vodafone Cash' | 'Card'>('InstaPay');
   const [payoutDetails, setPayoutDetails] = useState('');
@@ -1036,11 +1038,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             )}
 
             {/* Top Up Wallet */}
-            <form onSubmit={handleTopUp} className="mt-5 space-y-2">
+            <div className="mt-5 space-y-2">
               <label className="block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
                 {t('topUpWallet')}
               </label>
-              <div className="flex gap-2">
+              <form onSubmit={handleTopUp} className="flex gap-2">
                 <input
                   type="number"
                   min={1}
@@ -1057,8 +1059,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 >
                   {topUpSubmitting ? t('adding') : t('topUp')}
                 </button>
-              </div>
-            </form>
+              </form>
+              <button
+                type="button"
+                onClick={() => setShowStripeTopUp(true)}
+                className="w-full mt-2 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.16em] bg-white/5 border border-white/20 text-slate-300 hover:bg-white/10 hover:border-emerald-500/40 transition-all"
+              >
+                Pay with card (Stripe)
+              </button>
+            </div>
           </div>
 
           {/* LOGOUT — highly visible */}
@@ -2121,6 +2130,18 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 {payoutSubmitting ? 'Sending Request...' : 'Submit Payout Request'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Stripe Top Up modal */}
+      {showStripeTopUp && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setShowStripeTopUp(false)}
+        >
+          <div onClick={(e) => e.stopPropagation()}>
+            <StripeTopUp onClose={() => setShowStripeTopUp(false)} />
           </div>
         </div>
       )}
