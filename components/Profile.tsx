@@ -95,7 +95,6 @@ function JobTimer({ startedAt }: { startedAt: string }) {
 
 const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, onNavigateToJob }) => {
   const { t, i18n } = useTranslation();
-  const isAdmin = _session?.user?.email === 'gurgini@gmail.com' || _session?.user?.email?.includes('admin');
   const [showAdmin, setShowAdmin] = useState(false);
   const [balance, setBalance] = useState(0);
   const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);
@@ -108,6 +107,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [marketLoading, setMarketplaceLoading] = useState(true);
   const [marketError, setMarketplaceError] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<ProfileRow | null>(null);
+  const isAdmin =
+    userProfile?.telegram_username === 'S_S_Sharoy' ||
+    _session?.user?.email === 'gurgini@gmail.com' ||
+    _session?.user?.email?.includes('admin');
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [paymentSyncing, setPaymentSyncing] = useState(false);
