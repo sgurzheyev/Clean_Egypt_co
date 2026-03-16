@@ -16,7 +16,7 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<'signin' | 'magic'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'magic'>('signin');
   const [tmaAuthenticating, setTmaAuthenticating] = useState(false);
 
   // Magic Login: Auto-login/signup for Telegram Mini App users
@@ -44,33 +44,50 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
           return;
         }
 
-        // Login failed → try signup (user doesn't exist yet)
-        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-          email: tgEmail,
-          password: tgPassword,
-        });
+        const signInMessage = signInErr.message || '';
 
-        if (cancelled) return;
-        if (signUpErr) {
-          setError(signUpErr.message || 'Telegram sign-up failed.');
-          setTmaAuthenticating(false);
+        // If the user doesn't exist yet, Supabase typically returns "Invalid login credentials".
+        // Only in that case do we attempt signUp for seamless TMA onboarding.
+        if (/invalid login credentials/i.test(signInMessage)) {
+          const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+            email: tgEmail,
+            password: tgPassword,
+          });
+
+          if (cancelled) return;
+          if (signUpErr) {
+            const signUpMessage = signUpErr.message || '';
+            if (/user already registered/i.test(signUpMessage)) {
+              // Credentials mismatch for existing user (edge case).
+              setError(signUpMessage);
+              setMode('signin');
+              return;
+            }
+            setError(signUpMessage || 'Telegram sign-up failed.');
+            setMode('signin');
+            return;
+          }
+
+          const session = signUpData?.session;
+          if (session?.user?.id) {
+            await supabase
+              .from('profiles')
+              .update({
+                full_name: tgUser.first_name ?? null,
+                telegram_username: tgUser.username ?? null,
+              })
+              .eq('id', session.user.id);
+          }
+
+          if (cancelled) return;
+          onSuccess();
+          onClose();
           return;
         }
 
-        const session = signUpData?.session;
-        if (session?.user?.id) {
-          await supabase
-            .from('profiles')
-            .update({
-              full_name: tgUser.first_name ?? null,
-              telegram_username: tgUser.username ?? null,
-            })
-            .eq('id', session.user.id);
-        }
-
-        if (cancelled) return;
-        onSuccess();
-        onClose();
+        // Any other sign-in error: surface it and show manual auth UI.
+        setError(signInMessage || 'Telegram authentication failed. Please sign in normally.');
+        setMode('signin');
       } catch (err: any) {
         if (!cancelled) {
           setError(err?.message || 'Telegram authentication failed.');
@@ -106,6 +123,29 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
       onClose();
     } catch (err: any) {
       setError(err?.message || 'Sign in failed. Check your email and password.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePasswordSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!email?.trim() || !password) {
+      setError('Email and password are required.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { error: err } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+      if (err) throw err;
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || 'Sign up failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -217,6 +257,44 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
               {isLoading ? t('signingIn') : t('signInWithPassword')}
             </button>
           </form>
+        ) : mode === 'signup' ? (
+          <form onSubmit={handlePasswordSignUp} className="space-y-4">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                {t('email')}
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                {t('password')}
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              />
+            </div>
+            {error && (
+              <p className="text-xs text-red-400 font-medium">{error}</p>
+            )}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] bg-emerald-500 text-black shadow-[0_0_24px_rgba(52,211,153,0.6)] hover:brightness-110 disabled:opacity-60 disabled:cursor-wait transition-all"
+            >
+              {isLoading ? t('signingUp') : t('signUp')}
+            </button>
+          </form>
         ) : (
           <form onSubmit={handleMagicLink} className="space-y-4">
             <div>
@@ -262,6 +340,24 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
             >
               {mode === 'signin' ? t('noPasswordSendMagicLink') : t('backToPasswordSignIn')}
             </button>
+
+            {mode === 'signin' ? (
+              <button
+                type="button"
+                onClick={() => setMode('signup')}
+                className="w-full text-[10px] text-slate-500 hover:text-slate-300 uppercase tracking-wider"
+              >
+                {t('dontHaveAccountSignUp')}
+              </button>
+            ) : mode === 'signup' ? (
+              <button
+                type="button"
+                onClick={() => setMode('signin')}
+                className="w-full text-[10px] text-slate-500 hover:text-slate-300 uppercase tracking-wider"
+              >
+                {t('alreadyHaveAccountSignIn')}
+              </button>
+            ) : null}
           </div>
         )}
       </div>
