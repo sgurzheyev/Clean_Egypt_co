@@ -2042,6 +2042,30 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           </button>
         )}
 
+        {/* Legal footer (Stripe compliance) */}
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[10px] text-cyan-500/50">
+          <a
+            href="#"
+            onClick={(e) => e.preventDefault()}
+            className="hover:text-orange-400 transition-colors"
+          >
+            {t('termsOfService')}
+          </a>
+          <a
+            href="#"
+            onClick={(e) => e.preventDefault()}
+            className="hover:text-orange-400 transition-colors"
+          >
+            {t('refundPolicy')}
+          </a>
+          <a
+            href="mailto:support@cleanegypt.co"
+            className="hover:text-orange-400 transition-colors"
+          >
+            {t('contactSupport')}
+          </a>
+        </div>
+
           </>
         )}
           </div>
