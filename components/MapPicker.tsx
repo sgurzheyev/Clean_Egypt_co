@@ -1238,23 +1238,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Adaptive form — slides up from bottom only after City or Home selected */}
       {taskTypeSelected && (
         <div
-          className="absolute inset-0 z-[90] flex items-end justify-center p-4 pointer-events-none"
+          className="absolute inset-0 z-[90] flex items-end justify-center p-4 pt-[env(safe-area-inset-top)] pointer-events-none"
           aria-hidden="false"
         >
           <div className="pointer-events-auto w-full max-w-xl rounded-2xl bg-black/75 backdrop-blur-xl border border-white/10 shadow-2xl p-5 space-y-4 animate-slide-up">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                  {taskType === 'city' ? t('cleanCityArea') : t('cleanYourHomeOffice')}
-                </p>
                 <button
                   type="button"
                   onClick={closeFormOverlay}
                   disabled={orderSubmitting}
-                  className="text-slate-500 hover:text-white text-lg font-bold disabled:opacity-40"
+                  className="text-slate-500 hover:text-white text-lg font-bold disabled:opacity-40 mr-2"
                 >
                   ✕
                 </button>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                  {taskType === 'city' ? t('cleanCityArea') : t('cleanYourHomeOffice')}
+                </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1277,8 +1277,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
                     {t('location')}
                   </label>
-                  <div className="flex items-center gap-2 rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5">
-                    <span className="text-slate-400 text-sm">📍</span>
+                  <div className="relative flex items-center gap-2 rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5">
                     <input
                       type="text"
                       value={
@@ -1340,6 +1339,31 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       placeholder="Tap map or paste '27.320282, 33.708599'"
                       className="flex-1 bg-transparent border-0 outline-none text-xs text-slate-300 placeholder:text-slate-500"
                     />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!navigator.geolocation) return;
+                        navigator.geolocation.getCurrentPosition(
+                          (pos) => {
+                            const { latitude, longitude } = pos.coords;
+                            setSelectedLocation({ lat: latitude, lng: longitude });
+                            mapRef.current?.flyTo({
+                              center: [longitude, latitude],
+                              zoom: 16,
+                              essential: true,
+                              duration: 1500,
+                            });
+                          },
+                          () => {
+                            // silently ignore errors; user can still tap map manually
+                          }
+                        );
+                      }}
+                      className="absolute right-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-orange-500/60 text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_8px_rgba(249,115,22,0.4)] text-[11px] transition-all"
+                      aria-label="Use current location"
+                    >
+                      ◎
+                    </button>
                   </div>
                   {!selectedLocation && (
                     <p className="mt-1 text-[10px] text-amber-300 uppercase tracking-[0.18em]">
@@ -1426,7 +1450,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Bidding modal — dark glassmorphism */}
       {bidJob && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] bg-black/60 backdrop-blur-sm"
           onClick={handleCloseBidModal}
           aria-hidden="false"
         >
@@ -1434,22 +1458,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
             className="w-full max-w-md animated-border animated-border-rect rounded-3xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              className="animated-border-inner w-full rounded-3xl bg-[#020617]/95 backdrop-blur-xl p-6"
-            >
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-black uppercase tracking-[0.18em] text-white">
-                Place bid
-              </h3>
-              <button
-                type="button"
-                onClick={handleCloseBidModal}
-                disabled={bidSubmitting}
-                className="text-slate-400 hover:text-white text-lg font-bold disabled:opacity-40 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
+            <div className="animated-border-inner w-full rounded-3xl bg-[#020617]/95 backdrop-blur-xl p-6">
+              <div className="flex items-start justify-between mb-4">
+                <button
+                  type="button"
+                  onClick={handleCloseBidModal}
+                  disabled={bidSubmitting}
+                  className="text-slate-400 hover:text-white text-lg font-bold disabled:opacity-40 transition-colors mr-2"
+                >
+                  ✕
+                </button>
+                <h3 className="text-lg font-black uppercase tracking-[0.18em] text-white">
+                  Place bid
+                </h3>
+              </div>
 
             <div className="space-y-4 mb-6">
               <div className="rounded-2xl bg-black/40 border border-white/10 px-4 py-3">
@@ -1514,7 +1536,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Mission Briefing — bottom sheet when active pyramid marker clicked */}
       {selectedMission && (
         <div
-          className="absolute inset-0 z-[95] flex items-end justify-center"
+          className="absolute inset-0 z-[95] flex items-end justify-center pt-[env(safe-area-inset-top)]"
           aria-hidden="false"
         >
           <div
@@ -1526,7 +1548,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
             className="relative w-full max-w-xl rounded-t-3xl bg-cyan-950/30 backdrop-blur-md border-t border-x border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-6 pb-16 animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-start mb-4">
+            <div className="flex items-start justify-between mb-4">
+              <button
+                type="button"
+                onClick={handleCloseMissionBriefing}
+                className="p-2 -m-2 mr-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                aria-label="Close"
+              >
+                ✕
+              </button>
               <div>
                 <h2 className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-500">
                   {t('missionBriefing')}
@@ -1535,14 +1565,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   <p className="text-[10px] font-bold uppercase tracking-wider text-sky-400 mt-1">{t('yourActiveMission')}</p>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={handleCloseMissionBriefing}
-                className="p-2 -m-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-                aria-label="Close"
-              >
-                ✕
-              </button>
             </div>
 
             <div className="space-y-4 mb-6">
@@ -1811,7 +1833,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       {/* Crowdfunding confirm modal (public missions) */}
       {showCrowdfundConfirm && selectedMission && (
-        <div className="absolute inset-0 z-[97] flex items-center justify-center p-4">
+        <div className="absolute inset-0 z-[97] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)]">
           <div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={closeCrowdfundConfirm}
@@ -1821,7 +1843,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
             className="relative w-full max-w-lg rounded-3xl bg-[#020617]/95 backdrop-blur-2xl border border-white/10 shadow-2xl p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-start mb-3">
+            <div className="flex items-start justify-between mb-3">
+              <button
+                type="button"
+                onClick={closeCrowdfundConfirm}
+                className="p-2 -m-2 mr-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                aria-label="Close"
+              >
+                ✕
+              </button>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-500">
                   {t('confirmation')}
@@ -1830,14 +1860,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   {t('thisIsCrowdfundingMission')}
                 </h3>
               </div>
-              <button
-                type="button"
-                onClick={closeCrowdfundConfirm}
-                className="p-2 -m-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-                aria-label="Close"
-              >
-                ✕
-              </button>
             </div>
 
             {(() => {
@@ -1922,7 +1944,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Hall of Fame modal for completed missions */}
       {hallOfFameMission && (
         <div
-          className="absolute inset-0 z-[96] flex items-center justify-center"
+          className="absolute inset-0 z-[96] flex items-center justify-center pt-[env(safe-area-inset-top)]"
           aria-hidden="false"
         >
           <div
@@ -1934,7 +1956,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
             className="relative w-full max-w-2xl mx-4 rounded-3xl bg-[#020617]/98 backdrop-blur-2xl border border-white/10 shadow-2xl p-6 sm:p-8"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-start mb-4">
+            <div className="flex items-start justify-between mb-4">
+              <button
+                type="button"
+                onClick={handleCloseHallOfFame}
+                className="p-2 -m-2 mr-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                aria-label="Close"
+              >
+                ✕
+              </button>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.35em] text-amber-300/80">
                   {t('hallOfFame')}
@@ -1947,14 +1977,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   !
                 </h2>
               </div>
-              <button
-                type="button"
-                onClick={handleCloseHallOfFame}
-                className="p-2 -m-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-                aria-label="Close"
-              >
-                ✕
-              </button>
             </div>
 
             {/* Before / After slider */}

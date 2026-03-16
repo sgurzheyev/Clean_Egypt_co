@@ -191,25 +191,25 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
 
   return (
     <div
-      className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-[150] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] bg-black/80 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
         className="w-full max-w-md rounded-3xl bg-black/90 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-start mb-6">
-          <h2 className="text-xl font-black uppercase tracking-[0.18em] text-white">
-            {t('signIn')}
-          </h2>
+        <div className="flex items-start justify-between mb-6">
           <button
             type="button"
             onClick={onClose}
             disabled={isLoading || tmaAuthenticating}
-            className="text-slate-400 hover:text-white text-lg font-bold disabled:opacity-40"
+            className="mr-3 text-slate-400 hover:text-white text-lg font-bold disabled:opacity-40"
           >
             ✕
           </button>
+          <h2 className="text-xl font-black uppercase tracking-[0.18em] text-white">
+            {t('signIn')}
+          </h2>
         </div>
 
         {tmaAuthenticating ? (

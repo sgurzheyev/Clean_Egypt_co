@@ -948,7 +948,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex justify-end"
+      className="fixed inset-0 z-[120] flex justify-end pt-[env(safe-area-inset-top)]"
       aria-modal="true"
       role="dialog"
     >
@@ -965,18 +965,16 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       >
         <div className="animated-border-inner w-full h-full flex flex-col overflow-hidden bg-gradient-to-b from-slate-950 via-[#020617] to-slate-950">
           {/* Header — fixed at top, never scrolls */}
-          <div className="flex-shrink-0 sticky top-0 z-20 flex items-center justify-between px-5 py-4 pb-4 bg-[#020617]/95 backdrop-blur border-b border-gray-800">
+          <div className="flex-shrink-0 sticky top-0 z-20 flex items-center justify-between px-5 pb-4 pt-[env(safe-area-inset-top)] bg-[#020617]/95 backdrop-blur border-b border-gray-800">
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 mr-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+              aria-label="Close"
+            >
+              ✕
+            </button>
             <h1 className="text-lg font-bold text-white">{t('yourAccount')}</h1>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
           </div>
           {/* Scrollable content — job cards and forms */}
           <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4 pb-24">

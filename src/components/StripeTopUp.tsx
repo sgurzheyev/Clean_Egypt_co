@@ -183,18 +183,18 @@ const StripeTopUp: React.FC<StripeTopUpProps> = ({ onClose, userId }) => {
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="rounded-3xl bg-slate-900/95 border border-white/10 shadow-2xl p-6 shadow-[0_0_40px_rgba(52,211,153,0.08)]">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">
-            {t('topUpWithCard')}
-          </h3>
+        <div className="flex items-center justify-between mb-4">
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+            className="p-2 mr-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
             aria-label="Close"
           >
             ✕
           </button>
+          <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">
+            {t('topUpWithCard')}
+          </h3>
         </div>
         <Elements stripe={stripePromise}>
           <StripeTopUpForm
