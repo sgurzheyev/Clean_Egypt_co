@@ -24,6 +24,10 @@ interface JobOnMap {
   photo_urls?: string[] | null;
   after_photo_urls?: string[] | null;
   created_at?: string | null;
+  creator?: {
+    avatar_url?: string | null;
+    phone_number?: string | null;
+  } | null;
 }
 
 function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
@@ -307,7 +311,25 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const fetchMissions = useCallback(async () => {
     const { data, error } = await supabase
       .from('missions')
-      .select('id, category, amount_target, current_funding, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls, after_photo_urls, created_at')
+      .select(`
+        id,
+        category,
+        amount_target,
+        current_funding,
+        location_lat,
+        location_lng,
+        status,
+        cleaner_id,
+        creator_id,
+        description,
+        photo_urls,
+        after_photo_urls,
+        created_at,
+        creator:profiles!creator_id (
+          avatar_url,
+          phone_number
+        )
+      `)
       .in('status', ['pending', 'available', 'funding', 'in_progress', 'completed'])
       .order('created_at', { ascending: false })
       .limit(500);
@@ -1126,6 +1148,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 : job.status === 'in_progress'
                   ? 'in_progress'
                   : 'default';
+
+            const hasWhatsApp = !!job.creator?.phone_number;
+            const avatarUrl = job.creator?.avatar_url || null;
+            const showAvatar = hasWhatsApp && !!avatarUrl;
+
             return (
               <Marker
                 key={job.id}
@@ -1133,18 +1160,36 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 longitude={job.location_lng}
                 anchor="bottom"
               >
-                <JobMarker
-                  amount={job.amount_target}
-                  orderType={orderType}
-                  label={job.status === 'completed' ? 'DONE' : isMyActiveMission ? 'MY MISSION' : undefined}
-                  isActive={isMyActiveMission}
-                  variant={variant as any}
-                  bidCount={job.status === 'pending' ? bidCount : 0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleMarkerClick(job);
-                  }}
-                />
+                {showAvatar ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMarkerClick(job);
+                    }}
+                    className="relative flex items-center justify-center w-10 h-10 rounded-full border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.6)] bg-slate-950 overflow-hidden outline-none focus:ring-2 focus:ring-orange-400/60"
+                    aria-label={`VIP mission $${job.amount_target}`}
+                  >
+                    <img
+                      src={avatarUrl}
+                      alt="Creator avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ) : (
+                  <JobMarker
+                    amount={job.amount_target}
+                    orderType={orderType}
+                    label={job.status === 'completed' ? 'DONE' : isMyActiveMission ? 'MY MISSION' : undefined}
+                    isActive={isMyActiveMission}
+                    variant={variant as any}
+                    bidCount={job.status === 'pending' ? bidCount : 0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMarkerClick(job);
+                    }}
+                  />
+                )}
               </Marker>
             );
           })}
