@@ -717,10 +717,68 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     setProofError(null);
     setProofSuccess(null);
     if (!proofJob) return;
-    if (!proofFiles.length) {
-      setProofError("Please upload photos before continuing.");
+  if (!proofFiles.length) {
+    setProofError('Please upload photos before continuing.');
+    return;
+  }
+  if (proofPhase === 'after' && proofFiles.length < 3) {
+    setProofError(t('needAtLeastThreePhotos'));
+    return;
+  }
+
+  if (
+    proofPhase === 'after' &&
+    typeof proofJob.location_lat === 'number' &&
+    typeof proofJob.location_lng === 'number'
+  ) {
+    if (!('geolocation' in navigator)) {
+      setProofError(t('tooFarFromMission'));
       return;
     }
+    const toRad = (val: number) => (val * Math.PI) / 180;
+    const distanceMeters = (
+      lat1: number,
+      lon1: number,
+      lat2: number,
+      lon2: number,
+    ) => {
+      const R = 6371000;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) *
+          Math.cos(toRad(lat2)) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    };
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+        }),
+      );
+      const { latitude, longitude } = position.coords;
+      const d = distanceMeters(
+        latitude,
+        longitude,
+        proofJob.location_lat,
+        proofJob.location_lng,
+      );
+      if (d > 200) {
+        setProofError(t('tooFarFromMission'));
+        return;
+      }
+    } catch (err) {
+      console.error('Geolocation error:', err);
+      setProofError(t('tooFarFromMission'));
+      return;
+    }
+  }
 
     try {
       setProofSubmitting(true);
@@ -2326,21 +2384,54 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     ? "Upload 'Before' photos (required)"
                     : "Upload 'After' photos (required)"}
                 </label>
-                <label className="flex h-[56px] items-center justify-center rounded-2xl border border-dashed border-amber-500/50 bg-amber-500/10 text-[11px] text-amber-200 cursor-pointer hover:border-amber-400 hover:bg-amber-500/15 transition-all">
-                  {proofFiles.length > 0 ? `${proofFiles.length} photo(s) selected` : 'Tap to upload photos'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files || []).slice(0, 10);
-                      setProofFiles(files);
-                      setProofError(null);
-                      setProofSuccess(null);
-                    }}
-                  />
-                </label>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {proofFiles.map((file, idx) => (
+                    <div
+                      key={idx}
+                      className="relative group h-20 w-full overflow-hidden rounded-xl border border-white/10 bg-slate-900"
+                    >
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={`Proof ${idx + 1}`}
+                        className="h-full w-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProofFiles((prev) => prev.filter((_, i) => i !== idx));
+                        }}
+                        className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/70 text-[10px] font-bold text-white flex items-center justify-center hover:bg-red-500 transition-colors"
+                        aria-label="Remove photo"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {proofFiles.length < 10 && (
+                    <label className="flex h-20 items-center justify-center rounded-xl border border-dashed border-amber-500/50 bg-amber-500/10 text-[11px] text-amber-200 cursor-pointer hover:border-amber-400 hover:bg-amber-500/15 transition-all">
+                      + Take another photo
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length) {
+                            setProofFiles((prev) =>
+                              [...prev, ...files].slice(0, 10),
+                            );
+                            setProofError(null);
+                            setProofSuccess(null);
+                          }
+                          if (e.target) {
+                            e.target.value = '';
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
               </div>
 
               {/* Eco-Report for public missions on completion */}

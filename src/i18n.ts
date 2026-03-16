@@ -143,6 +143,8 @@ const resources = {
       noBeforeAfterPhotosYet: 'No before/after photos available for this mission yet.',
       before: 'Before',
       after: 'After',
+      needAtLeastThreePhotos: 'Please take at least 3 photos before completing this mission.',
+      tooFarFromMission: 'You are too far from the mission location.',
     },
   },
   ar: {
@@ -282,6 +284,8 @@ const resources = {
       noBeforeAfterPhotosYet: 'لا توجد صور قبل/بعد لهذه المهمة بعد.',
       before: 'قبل',
       after: 'بعد',
+      needAtLeastThreePhotos: 'يرجى التقاط 3 صور على الأقل قبل إنهاء المهمة.',
+      tooFarFromMission: 'أنت بعيد جداً عن موقع المهمة.',
     },
   },
   ru: {
@@ -421,6 +425,8 @@ const resources = {
       noBeforeAfterPhotosYet: 'Пока нет фото до/после для этого задания.',
       before: 'До',
       after: 'После',
+      needAtLeastThreePhotos: 'Сделайте не менее 3 фотографий перед завершением задания.',
+      tooFarFromMission: 'Вы слишком далеко от места задания.',
     },
   },
   de: {
@@ -560,6 +566,8 @@ const resources = {
       noBeforeAfterPhotosYet: 'Noch keine Vorher/Nachher-Fotos für diesen Auftrag.',
       before: 'Vorher',
       after: 'Nachher',
+      needAtLeastThreePhotos: 'Bitte mache mindestens 3 Fotos, bevor du den Auftrag abschließt.',
+      tooFarFromMission: 'Du bist zu weit vom Einsatzort entfernt.',
     },
   },
   it: {
@@ -699,6 +707,8 @@ const resources = {
       noBeforeAfterPhotosYet: 'Nessuna foto prima/dopo per questa missione.',
       before: 'Prima',
       after: 'Dopo',
+      needAtLeastThreePhotos: 'Scatta almeno 3 foto prima di completare la missione.',
+      tooFarFromMission: 'Sei troppo lontano dalla posizione della missione.',
     },
   },
   es: {
@@ -838,6 +848,8 @@ const resources = {
       noBeforeAfterPhotosYet: 'Aún no hay fotos antes/después de esta misión.',
       before: 'Antes',
       after: 'Después',
+      needAtLeastThreePhotos: 'Toma al menos 3 fotos antes de completar la misión.',
+      tooFarFromMission: 'Estás demasiado lejos de la ubicación de la misión.',
     },
   },
 } as const;

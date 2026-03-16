@@ -16,11 +16,11 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as 
 const CARD_ELEMENT_OPTIONS = {
   style: {
     base: {
-      color: '#e2e8f0',
+      color: '#f8fafc',
       fontFamily: 'system-ui, sans-serif',
       fontSize: '16px',
-      '::placeholder': { color: '#94a3b8' },
-      iconColor: '#34d399',
+      '::placeholder': { color: '#64748b' },
+      iconColor: '#10b981',
     },
     invalid: {
       color: '#f87171',
