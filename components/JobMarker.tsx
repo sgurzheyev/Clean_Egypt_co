@@ -44,7 +44,7 @@ const JobMarker: React.FC<JobMarkerProps> = ({
       ? 'pyramid-shape-completed'
       : variant === 'in_progress'
         ? 'pyramid-shape-inprogress'
-        : (isHome ? 'pyramid-shape-home' : 'pyramid-shape-city'); // default = original green/yellow
+        : (isHome ? 'pyramid-shape-home' : 'pyramid-shape-city'); // default = original
 
   const pyramidGlowClass = isActive
     ? 'pyramid-glow-active'
@@ -94,7 +94,7 @@ const JobMarker: React.FC<JobMarkerProps> = ({
           'group-hover:scale-105',
         ].join(' ')}
       >
-        <div className="animated-border-inner px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.1em] min-w-[1.75rem] text-white bg-[#020617]">
+        <div className="animated-border-inner px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.1em] min-w-[1.75rem] text-orange-400 bg-slate-950">
           <span className="inline-flex items-center gap-1">
             <span>{pillContent}</span>
             {!isDraft && !isActive && bidCount > 0 && (

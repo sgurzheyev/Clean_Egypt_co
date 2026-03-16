@@ -43,7 +43,7 @@ function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
 
   return (
     <div className="mt-5">
-      <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-white/10 bg-slate-900">
+      <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-cyan-500/20 bg-cyan-950/30 shadow-[0_4px_30px_rgba(6,182,212,0.1)]">
         <img src={before} alt={t('before')} className="absolute inset-0 h-full w-full object-cover" />
         <div
           className="absolute inset-0 overflow-hidden border-l border-amber-300/70 shadow-[0_0_30px_rgba(251,191,36,0.5)]"
@@ -1383,7 +1383,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <button
                   type="submit"
                   disabled={orderSubmitting || uploadingProof || !selectedLocation}
-                  className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-not-allowed active:scale-[0.98]"
+                  className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] transition-all text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] disabled:cursor-not-allowed active:scale-[0.98]"
                 >
                   {uploadingProof || orderSubmitting
                     ? t('processing')
@@ -1495,7 +1495,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             aria-hidden="true"
           />
           <div
-            className="relative w-full max-w-xl rounded-t-3xl bg-[#020617]/98 backdrop-blur-xl border-t border-x border-white/10 shadow-2xl p-6 pb-16 animate-slide-up"
+            className="relative w-full max-w-xl rounded-t-3xl bg-cyan-950/30 backdrop-blur-md border-t border-x border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-6 pb-16 animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-start mb-4">
@@ -1713,7 +1713,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       handleSubmitMissionBid();
                     }}
                     disabled={isAccepting}
-                    className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:cursor-wait"
+                    className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all active:scale-[0.98] disabled:cursor-wait"
                   >
                     {isAccepting ? t('placing') : showBidInput ? t('placeBid') : t('makeABid')}
                   </button>
@@ -1729,7 +1729,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         onClick={() => {
                           setShowDonate((prev) => !prev);
                         }}
-                        className="w-full rounded-full bg-emerald-500/10 border border-emerald-400/40 px-4 py-3 text-sm font-black uppercase tracking-[0.24em] text-emerald-300 hover:bg-emerald-500/15 transition-all"
+                        className="w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] border border-orange-500/50 text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all"
                       >
                         {t('donateToCause')}
                       </button>

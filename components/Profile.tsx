@@ -1040,7 +1040,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           </div>
 
           {/* Language switcher — horizontal scrollable pills */}
-          <div className="mt-4 rounded-2xl bg-black/40 border border-white/10 px-4 py-3">
+          <div className="mt-4 rounded-2xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] px-4 py-3">
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
               {t('language')}
             </p>
@@ -1062,8 +1062,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     onClick={() => i18n.changeLanguage(code)}
                     className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.18em] border transition-all ${
                       isActive
-                        ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
-                        : 'bg-transparent border-white/15 text-slate-300 hover:bg-white/5'
+                        ? 'bg-orange-500/10 border-orange-500/60 text-orange-300'
+                        : 'bg-transparent border-cyan-500/30 text-slate-300 hover:bg-cyan-500/10'
                     }`}
                   >
                     {shortLabel}
@@ -1074,7 +1074,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           </div>
 
           {/* Wallet — glass panel */}
-          <div className="mt-6 rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5">
+          <div className="mt-6 rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-5">
             <div className="flex items-center justify-between mb-1">
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
                 {t('walletBalance')}
@@ -1087,7 +1087,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 {t('withdraw')}
               </button>
             </div>
-            <p className="text-3xl font-black text-white">
+            <p className="text-3xl font-black text-orange-400">
               {balance}{' '}
               <span className="text-sm font-medium text-slate-400">USD</span>
             </p>
@@ -1102,7 +1102,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               <button
                 type="button"
                 onClick={() => setShowStripeTopUp(true)}
-                className="w-full max-w-sm py-3 rounded-full text-sm font-black uppercase tracking-[0.2em] bg-emerald-600 text-white hover:bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all"
+              className="w-full max-w-sm px-6 py-2 rounded-full border border-orange-500/50 text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] text-sm font-black uppercase tracking-[0.2em] transition-all"
               >
               {t('payWithCardStripe')}
               </button>
@@ -1110,7 +1110,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
             {/* Admin Force Pay — amount input + legacy Top Up (admin only) */}
             {isAdmin && (
-              <div className="mt-4 rounded-2xl border-2 border-amber-500/50 bg-amber-500/5 p-4 space-y-2">
+              <div className="mt-4 rounded-2xl border-2 border-orange-500/50 bg-orange-500/5 p-4 space-y-2">
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400/90">
                   Admin Force Pay
                 </p>
@@ -1127,7 +1127,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   <button
                     type="submit"
                     disabled={topUpSubmitting}
-                    className="inline-flex items-center justify-center px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.18em] bg-slate-700 text-slate-200 hover:bg-slate-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                    className="inline-flex items-center justify-center px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.18em] border border-cyan-500/40 text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
                   >
                     {topUpSubmitting ? t('adding') : t('topUp')}
                   </button>
@@ -1140,7 +1140,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           <button
             type="button"
             onClick={handleLogout}
-            className="mt-4 w-full py-3 rounded-full font-black text-sm uppercase tracking-[0.2em] bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30 hover:text-red-300 hover:border-red-400/60 transition-all"
+            className="mt-4 w-full px-6 py-2 rounded-full font-black text-sm uppercase tracking-[0.2em] border border-orange-500/50 text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all"
           >
             {t('logout')}
           </button>
@@ -1311,7 +1311,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
           <form
             onSubmit={handleCreateTask}
-            className="mb-10 rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-5 space-y-4"
+            className="mb-10 rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-5 space-y-4"
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -2036,7 +2036,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           <button
             type="button"
             onClick={() => setShowAdmin(true)}
-            className="w-full py-3 rounded-2xl font-black text-sm uppercase tracking-[0.2em] bg-amber-500/20 border border-amber-400/50 text-amber-300 hover:bg-amber-500/30 hover:border-amber-400/70 shadow-[0_0_20px_rgba(251,191,36,0.3)] transition-all"
+            className="w-full px-6 py-2 rounded-full border border-orange-500/50 text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] font-black text-sm uppercase tracking-[0.2em] transition-all"
           >
             👑 Admin Panel
           </button>
@@ -2056,7 +2056,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           onClick={() => setShowVerificationPrompt(false)}
         >
           <div
-            className="relative z-[9999] w-full max-w-md rounded-3xl bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
+            className="relative z-[9999] w-full max-w-md rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-white font-bold text-lg mb-2">Verification Required</p>
@@ -2222,7 +2222,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           onClick={() => setReviewJob(null)}
         >
           <div
-            className="w-full max-w-3xl max-h-[85vh] flex flex-col rounded-3xl bg-black/90 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden"
+            className="w-full max-w-3xl max-h-[85vh] flex flex-col rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header — fixed at top */}
@@ -2289,7 +2289,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
 
             {/* Sticky action buttons — always visible at bottom */}
-            <div className="flex-shrink-0 sticky bottom-0 bg-black/90 backdrop-blur-md pt-4 pb-6 px-6 z-10 border-t border-gray-800">
+            <div className="flex-shrink-0 sticky bottom-0 bg-cyan-950/60 backdrop-blur-md pt-4 pb-6 px-6 z-10 border-t border-cyan-500/30">
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className={`flex-1 rounded-full ${reviewJob?.category === 'home' ? 'animated-border-home' : 'animated-border-city'}`}>
                   <button
@@ -2348,7 +2348,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           aria-hidden="false"
         >
           <div
-            className="w-full max-w-md rounded-3xl bg-black/90 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
+            className="w-full max-w-md rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-start mb-4">

@@ -66,7 +66,7 @@ const App: React.FC = () => {
       <Route
         path="/*"
         element={
-    <div className="relative w-full h-screen bg-black overflow-hidden">
+    <div className="relative w-full h-screen bg-slate-950 overflow-hidden">
       {/* Single map interface — never unmounts */}
       <div className="fixed inset-0 z-0 w-full h-full">
         <MapPicker
@@ -104,11 +104,11 @@ const App: React.FC = () => {
           onClick={() => setShowPaymentModal(false)}
         >
           <div
-            className="w-full max-w-md rounded-3xl bg-black/85 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
+            className="w-full max-w-md rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-center">
-              <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-500/40 mb-4">
+              <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-orange-500/10 border border-orange-500/50 mb-4">
                 <span className="text-2xl">✓</span>
               </div>
               <h3 className="text-xl font-bold text-white mb-2">Payment successful</h3>
@@ -120,7 +120,7 @@ const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowPaymentModal(false)}
-                className="w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.2em] bg-emerald-500 text-black shadow-[0_0_24px_rgba(52,211,153,0.6)] hover:brightness-110 transition-all"
+                className="w-full px-6 py-2 rounded-full border border-orange-500/50 text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] text-sm font-black uppercase tracking-[0.2em] transition-all"
               >
                 Done
               </button>
