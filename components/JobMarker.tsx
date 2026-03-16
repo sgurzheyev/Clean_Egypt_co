@@ -9,6 +9,7 @@ interface JobMarkerProps {
   isActive?: boolean;
   bidCount?: number;
   variant?: 'default' | 'in_progress' | 'completed';
+  vipAvatarUrl?: string | null;
 }
 
 const JobMarker: React.FC<JobMarkerProps> = ({
@@ -20,6 +21,7 @@ const JobMarker: React.FC<JobMarkerProps> = ({
   isActive = false,
   bidCount = 0,
   variant = 'default',
+  vipAvatarUrl = null,
 }) => {
   const [entered, setEntered] = useState(false);
 
@@ -29,6 +31,7 @@ const JobMarker: React.FC<JobMarkerProps> = ({
   }, []);
 
   const isHome = orderType === 'home';
+  const hasVipAvatar = !!vipAvatarUrl;
   const icon =
     variant === 'completed'
       ? '⭐'
@@ -82,51 +85,72 @@ const JobMarker: React.FC<JobMarkerProps> = ({
       style={{ transform: `scale(${scale})`, transformOrigin: 'bottom center' }}
       aria-label={`${orderType} mission $${amount}`}
     >
-      {/* Floating pill label — task-colored animated border */}
-      <div
-        className={[
-          'absolute -top-0.5 left-1/2 -translate-x-1/2 -translate-y-full z-20',
-          'rounded-full',
-          pillBorderClass,
-          isActive && 'job-marker-active-pill',
-          'transition-transform duration-300 ease-out',
-          entered ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0',
-          'group-hover:scale-105',
-        ].join(' ')}
-      >
-        <div className="animated-border-inner px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.1em] min-w-[1.75rem] text-orange-400 bg-slate-950">
-          <span className="inline-flex items-center gap-1">
-            <span>{pillContent}</span>
-            {!isDraft && !isActive && bidCount > 0 && (
-              <span className="text-[9px] font-black opacity-90">{`+${bidCount}`}</span>
-            )}
-          </span>
-        </div>
-      </div>
-
-      {/* Pyramid container — anchor at tip (bottom) */}
-      <div
-        className={[
-          'relative flex flex-col items-center',
-          'transition-all duration-400 ease-out',
-          entered ? 'translate-y-0 scale-100' : '-translate-y-1 scale-95 opacity-80',
-          'group-hover:scale-110 group-hover:-translate-y-0.5',
-        ].join(' ')}
-      >
-        {/* Base glow — soft pulse, hover/breathe */}
+      {hasVipAvatar ? (
         <div
-          className={`absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full pointer-events-none ${pyramidGlowClass}`}
-          aria-hidden
-        />
-
-        {/* Faceted pyramid — gemstone shape (small base) */}
-        <div className={`relative w-7 h-9 flex items-start justify-center pt-0.5 ${pyramidShapeClass} ${isActive ? 'job-marker-active-pyramid' : ''}`}>
-          {/* Icon — centered in top facet */}
-          <span className="text-[10px] leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.8)] z-10">
-            {icon}
-          </span>
+          className={[
+            'relative flex flex-col items-center',
+            'transition-all duration-300 ease-out',
+            entered ? 'translate-y-0 scale-100' : '-translate-y-1 scale-95 opacity-80',
+            'group-hover:scale-110 group-hover:-translate-y-0.5',
+          ].join(' ')}
+        >
+          <div className="w-10 h-10 rounded-full border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.6)] bg-slate-950 overflow-hidden transition-transform duration-200 group-hover:scale-110">
+            <img
+              src={vipAvatarUrl as string}
+              alt="VIP avatar"
+              className="w-full h-full object-cover"
+            />
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Floating pill label — task-colored animated border */}
+          <div
+            className={[
+              'absolute -top-0.5 left-1/2 -translate-x-1/2 -translate-y-full z-20',
+              'rounded-full',
+              pillBorderClass,
+              isActive && 'job-marker-active-pill',
+              'transition-transform duration-300 ease-out',
+              entered ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0',
+              'group-hover:scale-105',
+            ].join(' ')}
+          >
+            <div className="animated-border-inner px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.1em] min-w-[1.75rem] text-orange-400 bg-slate-950">
+              <span className="inline-flex items-center gap-1">
+                <span>{pillContent}</span>
+                {!isDraft && !isActive && bidCount > 0 && (
+                  <span className="text-[9px] font-black opacity-90">{`+${bidCount}`}</span>
+                )}
+              </span>
+            </div>
+          </div>
+
+          {/* Pyramid container — anchor at tip (bottom) */}
+          <div
+            className={[
+              'relative flex flex-col items-center',
+              'transition-all duration-400 ease-out',
+              entered ? 'translate-y-0 scale-100' : '-translate-y-1 scale-95 opacity-80',
+              'group-hover:scale-110 group-hover:-translate-y-0.5',
+            ].join(' ')}
+          >
+            {/* Base glow — soft pulse, hover/breathe */}
+            <div
+              className={`absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full pointer-events-none ${pyramidGlowClass}`}
+              aria-hidden
+            />
+
+            {/* Faceted pyramid — gemstone shape (small base) */}
+            <div className={`relative w-7 h-9 flex items-start justify-center pt-0.5 ${pyramidShapeClass} ${isActive ? 'job-marker-active-pyramid' : ''}`}>
+              {/* Icon — centered in top facet */}
+              <span className="text-[10px] leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.8)] z-10">
+                {icon}
+              </span>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Optional label tooltip below */}
       {label && (

@@ -1151,7 +1151,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
             const hasWhatsApp = !!job.creator?.phone_number;
             const avatarUrl = job.creator?.avatar_url || null;
-            const showAvatar = hasWhatsApp && !!avatarUrl;
+            const vipAvatarUrl = hasWhatsApp && avatarUrl ? avatarUrl : null;
 
             return (
               <Marker
@@ -1160,36 +1160,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 longitude={job.location_lng}
                 anchor="bottom"
               >
-                {showAvatar ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMarkerClick(job);
-                    }}
-                    className="relative flex items-center justify-center w-10 h-10 rounded-full border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.6)] bg-slate-950 overflow-hidden outline-none focus:ring-2 focus:ring-orange-400/60"
-                    aria-label={`VIP mission $${job.amount_target}`}
-                  >
-                    <img
-                      src={avatarUrl}
-                      alt="Creator avatar"
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ) : (
-                  <JobMarker
-                    amount={job.amount_target}
-                    orderType={orderType}
-                    label={job.status === 'completed' ? 'DONE' : isMyActiveMission ? 'MY MISSION' : undefined}
-                    isActive={isMyActiveMission}
-                    variant={variant as any}
-                    bidCount={job.status === 'pending' ? bidCount : 0}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMarkerClick(job);
-                    }}
-                  />
-                )}
+                <JobMarker
+                  amount={job.amount_target}
+                  orderType={orderType}
+                  label={job.status === 'completed' ? 'DONE' : isMyActiveMission ? 'MY MISSION' : undefined}
+                  isActive={isMyActiveMission}
+                  variant={variant as any}
+                  bidCount={job.status === 'pending' ? bidCount : 0}
+                  vipAvatarUrl={vipAvatarUrl}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMarkerClick(job);
+                  }}
+                />
               </Marker>
             );
           })}
