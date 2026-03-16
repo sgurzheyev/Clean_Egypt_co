@@ -8,6 +8,7 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabaseClient';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string);
@@ -32,9 +33,11 @@ interface StripeTopUpFormProps {
   amount: string;
   onAmountChange: (value: string) => void;
   onClose: () => void;
+  userId: string | null;
 }
 
-function StripeTopUpForm({ amount, onAmountChange, onClose }: StripeTopUpFormProps) {
+function StripeTopUpForm({ amount, onAmountChange, onClose, userId }: StripeTopUpFormProps) {
+  const { t } = useTranslation();
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
@@ -43,19 +46,24 @@ function StripeTopUpForm({ amount, onAmountChange, onClose }: StripeTopUpFormPro
     e.preventDefault();
     if (!stripe || !elements) {
       console.warn('Stripe or Elements not loaded yet.');
+      alert(t('stripeNotReady'));
+      return;
+    }
+    if (!userId) {
+      alert(t('stripeNotReady'));
       return;
     }
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      alert('Please enter a valid amount.');
+      alert(t('invalidAmount'));
       return;
     }
 
     setSubmitting(true);
     try {
       const { data, error: functionError } = await supabase.functions.invoke(
-        'create-payment-intent',
-        { body: { amount: numericAmount } }
+        'stripe-intent',
+        { body: { amount: numericAmount, user_id: userId } }
       );
       if (functionError) throw functionError;
 
@@ -75,16 +83,20 @@ function StripeTopUpForm({ amount, onAmountChange, onClose }: StripeTopUpFormPro
       }
 
       const { error: rpcError } = await supabase.rpc('top_up_wallet', {
+        p_user_id: userId,
         p_amount: numericAmount,
       });
       if (rpcError) throw rpcError;
 
-      alert('Top-up successful! Your wallet has been updated.');
+      alert(t('stripeTopUpSuccess'));
       onAmountChange('');
       onClose();
     } catch (err: any) {
       console.error('Stripe top-up error:', err);
-      const message = err?.message ?? err?.error_description ?? 'Payment failed. Please try again.';
+      const message =
+        err?.message ??
+        err?.error_description ??
+        t('stripeTopUpError');
       alert(message);
     } finally {
       setSubmitting(false);
@@ -95,7 +107,7 @@ function StripeTopUpForm({ amount, onAmountChange, onClose }: StripeTopUpFormPro
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-          Amount (USD)
+          {t('amountUsd')}
         </label>
         <input
           type="number"
@@ -112,7 +124,7 @@ function StripeTopUpForm({ amount, onAmountChange, onClose }: StripeTopUpFormPro
       {/* Block 1: Card Number */}
       <div>
         <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-          Card Number
+          {t('cardNumber')}
         </label>
         <div className="rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-all [&_.StripeElement]:min-h-[40px] [&_.StripeElement]:py-1">
           <CardNumberElement options={CARD_ELEMENT_OPTIONS} />
@@ -123,7 +135,7 @@ function StripeTopUpForm({ amount, onAmountChange, onClose }: StripeTopUpFormPro
       <div className="flex gap-4">
         <div className="flex-1 min-w-0">
           <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-            Expiry
+            {t('expiry')}
           </label>
           <div className="rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-all [&_.StripeElement]:min-h-[40px] [&_.StripeElement]:py-1">
             <CardExpiryElement options={CARD_ELEMENT_OPTIONS} />
@@ -131,7 +143,7 @@ function StripeTopUpForm({ amount, onAmountChange, onClose }: StripeTopUpFormPro
         </div>
         <div className="flex-1 min-w-0">
           <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-            CVC
+            {t('cvc')}
           </label>
           <div className="rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-all [&_.StripeElement]:min-h-[40px] [&_.StripeElement]:py-1">
             <CardCvcElement options={CARD_ELEMENT_OPTIONS} />
@@ -145,14 +157,14 @@ function StripeTopUpForm({ amount, onAmountChange, onClose }: StripeTopUpFormPro
           onClick={onClose}
           className="flex-1 py-3 rounded-full text-sm font-bold uppercase tracking-[0.2em] border border-white/20 text-slate-300 hover:bg-white/5 transition-all"
         >
-          Cancel
+          {t('cancel')}
         </button>
         <button
           type="submit"
           disabled={!stripe || !elements || submitting}
           className="flex-1 py-3 rounded-full text-sm font-black uppercase tracking-[0.2em] bg-emerald-500 text-black hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-[0_0_20px_rgba(52,211,153,0.4)]"
         >
-          {submitting ? 'Processing…' : 'Pay Now'}
+          {submitting ? t('processing') : t('payNow')}
         </button>
       </div>
     </form>
@@ -161,9 +173,11 @@ function StripeTopUpForm({ amount, onAmountChange, onClose }: StripeTopUpFormPro
 
 interface StripeTopUpProps {
   onClose: () => void;
+  userId: string | null;
 }
 
-const StripeTopUp: React.FC<StripeTopUpProps> = ({ onClose }) => {
+const StripeTopUp: React.FC<StripeTopUpProps> = ({ onClose, userId }) => {
+  const { t } = useTranslation();
   const [amount, setAmount] = useState('');
 
   return (
@@ -171,7 +185,7 @@ const StripeTopUp: React.FC<StripeTopUpProps> = ({ onClose }) => {
       <div className="rounded-3xl bg-slate-900/95 border border-white/10 shadow-2xl p-6 shadow-[0_0_40px_rgba(52,211,153,0.08)]">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">
-            Top up with card
+            {t('topUpWithCard')}
           </h3>
           <button
             type="button"
@@ -187,6 +201,7 @@ const StripeTopUp: React.FC<StripeTopUpProps> = ({ onClose }) => {
             amount={amount}
             onAmountChange={setAmount}
             onClose={onClose}
+            userId={userId}
           />
         </Elements>
       </div>

@@ -1039,14 +1039,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </p>
             )}
 
-            {/* Top Up — primary: Stripe card (everyone) */}
+          {/* Top Up — primary: Stripe card (everyone) */}
             <div className="mt-5 flex flex-col items-center">
               <button
                 type="button"
                 onClick={() => setShowStripeTopUp(true)}
                 className="w-full max-w-sm py-3 rounded-full text-sm font-black uppercase tracking-[0.2em] bg-emerald-600 text-white hover:bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all"
               >
-                Pay with card (Stripe)
+              {t('payWithCardStripe')}
               </button>
             </div>
 
@@ -2149,7 +2149,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           onClick={() => setShowStripeTopUp(false)}
         >
           <div onClick={(e) => e.stopPropagation()}>
-            <StripeTopUp onClose={() => setShowStripeTopUp(false)} />
+            <StripeTopUp
+              onClose={() => setShowStripeTopUp(false)}
+              userId={_session?.user?.id ?? null}
+            />
           </div>
         </div>
       )}
