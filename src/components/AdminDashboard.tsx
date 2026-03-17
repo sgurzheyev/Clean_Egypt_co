@@ -37,6 +37,9 @@ interface TransactionRow {
   type: string;
   created_at: string;
   gateway?: string | null;
+  status?: string | null;
+  payout_method?: string | null;
+  payout_details?: string | null;
 }
 
 interface AdminDashboardProps {
@@ -87,6 +90,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [selectedUserTxLoading, setSelectedUserTxLoading] = useState(false);
   const [selectedUserTxError, setSelectedUserTxError] = useState<string | null>(null);
   const [verifyLoadingUserId, setVerifyLoadingUserId] = useState<string | null>(null);
+  const [pendingPayouts, setPendingPayouts] = useState<TransactionRow[]>([]);
+  const [pendingPayoutsLoading, setPendingPayoutsLoading] = useState(false);
+  const [pendingPayoutsError, setPendingPayoutsError] = useState<string | null>(null);
+  const [payoutActionLoadingId, setPayoutActionLoadingId] = useState<string | null>(null);
 
   const fetchPendingApprovals = async () => {
     const { data, error: err } = await supabase
@@ -133,6 +140,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
       setMissions((missRes.data || []) as MissionRow[]);
       setTransactions((txRes.data || []) as TransactionRow[]);
       await fetchPendingApprovals();
+      await fetchPendingPayouts();
     } catch (e: any) {
       console.error('Admin fetch error:', e);
       setError(e?.message || 'Failed to load admin data.');
@@ -144,6 +152,62 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   useEffect(() => {
     fetchAll();
   }, []);
+
+  const fetchPendingPayouts = async () => {
+    setPendingPayoutsLoading(true);
+    setPendingPayoutsError(null);
+    try {
+      const { data, error: txErr } = await supabase
+        .from('transactions')
+        .select('id, user_id, amount, type, gateway, status, payout_method, payout_details, created_at')
+        .eq('type', 'withdrawal')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (txErr) throw txErr;
+      setPendingPayouts((data || []) as TransactionRow[]);
+    } catch (e: any) {
+      console.error('Pending payouts fetch error:', e);
+      setPendingPayoutsError(e?.message || 'Failed to load pending payouts.');
+      setPendingPayouts([]);
+    } finally {
+      setPendingPayoutsLoading(false);
+    }
+  };
+
+  const handleApprovePayout = async (tx: TransactionRow) => {
+    if (!window.confirm('Mark this payout as paid? This will deduct the balance.')) return;
+    setPayoutActionLoadingId(tx.id);
+    try {
+      const { error } = await supabase.rpc('approve_manual_payout', { p_transaction_id: tx.id });
+      if (error) throw error;
+      alert('Payout completed & balance deducted');
+      setPendingPayouts((prev) => prev.filter((p) => p.id !== tx.id));
+    } catch (e: any) {
+      console.error('Approve payout error:', e);
+      alert(e?.message || 'Failed to approve payout.');
+    } finally {
+      setPayoutActionLoadingId(null);
+    }
+  };
+
+  const handleRejectPayout = async (tx: TransactionRow) => {
+    if (!window.confirm('Reject this payout request?')) return;
+    setPayoutActionLoadingId(tx.id);
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ status: 'failed' })
+        .eq('id', tx.id);
+      if (error) throw error;
+      setPendingPayouts((prev) => prev.filter((p) => p.id !== tx.id));
+    } catch (e: any) {
+      console.error('Reject payout error:', e);
+      alert(e?.message || 'Failed to reject payout.');
+    } finally {
+      setPayoutActionLoadingId(null);
+    }
+  };
 
   const openUser = async (p: ProfileRow) => {
     setSelectedUser(p);
@@ -330,6 +394,89 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                     </button>
                   </div>
                 ))
+              )}
+            </div>
+          </section>
+
+          {/* Pending Payouts */}
+          <section className="rounded-2xl bg-cyan-950/30 backdrop-blur-md border border-orange-500/20 shadow-[0_4px_30px_rgba(249,115,22,0.08)] p-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-300/90">
+                Pending Payouts
+              </h3>
+              <button
+                type="button"
+                onClick={fetchPendingPayouts}
+                disabled={pendingPayoutsLoading}
+                className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-orange-500/40 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 disabled:opacity-60 disabled:cursor-wait transition-all"
+              >
+                {pendingPayoutsLoading ? '...' : 'Refresh'}
+              </button>
+            </div>
+
+            {pendingPayoutsError && (
+              <p className="text-xs text-red-300 mb-2">{pendingPayoutsError}</p>
+            )}
+
+            <div className="max-h-64 overflow-y-auto space-y-2 pr-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+              {pendingPayoutsLoading ? (
+                <p className="text-xs text-slate-500 uppercase tracking-[0.2em]">Loading...</p>
+              ) : pendingPayouts.length === 0 ? (
+                <p className="text-slate-500 text-xs italic py-2">No pending payouts.</p>
+              ) : (
+                pendingPayouts.map((tx) => {
+                  const user = profiles.find((p) => p.id === tx.user_id);
+                  return (
+                    <div
+                      key={tx.id}
+                      className="rounded-xl bg-cyan-950/30 backdrop-blur border border-orange-500/15 px-3 py-3"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold text-slate-200 truncate">
+                            {user?.full_name || '—'}{' '}
+                            <span className="text-slate-500">
+                              {user?.telegram_username ? `(@${user.telegram_username})` : ''}
+                            </span>
+                          </p>
+                          <p className="text-[10px] text-cyan-300 truncate">
+                            WhatsApp: {user?.phone_number || '—'}
+                          </p>
+                          <p className="text-[10px] text-slate-400 truncate">
+                            Method: {tx.payout_method || '—'} • Details: {tx.payout_details || '—'}
+                          </p>
+                          <p className="text-[10px] text-slate-600">
+                            {new Date(tx.created_at).toLocaleString()}
+                          </p>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Amount</p>
+                          <p className="text-orange-400 font-black">${Number(tx.amount).toFixed(2)}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-col sm:flex-row gap-2 sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleApprovePayout(tx)}
+                          disabled={payoutActionLoadingId === tx.id}
+                          className="px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-orange-500/50 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_14px_rgba(249,115,22,0.22)] disabled:opacity-60 disabled:cursor-wait transition-all"
+                        >
+                          {payoutActionLoadingId === tx.id ? '...' : 'Mark as Paid'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRejectPayout(tx)}
+                          disabled={payoutActionLoadingId === tx.id}
+                          className="px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-red-500/50 text-red-200 bg-red-500/10 hover:bg-red-500/20 hover:shadow-[0_0_14px_rgba(239,68,68,0.22)] disabled:opacity-60 disabled:cursor-wait transition-all"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
           </section>

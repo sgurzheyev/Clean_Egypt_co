@@ -283,11 +283,16 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         return;
       }
 
-      const { error } = await supabase.rpc('request_payout', {
-        p_amount: amountNum,
-        p_method: payoutMethod,
-        p_details: payoutDetails.trim(),
-      });
+      const { error } = await supabase.from('transactions').insert({
+        user_id: session.user.id,
+        mission_id: null,
+        amount: amountNum,
+        type: 'withdrawal',
+        gateway: 'manual',
+        status: 'pending',
+        payout_method: payoutMethod,
+        payout_details: payoutDetails.trim(),
+      } as any);
       if (error) {
         alert(error.message || 'Failed to request payout. Please try again.');
         return;
