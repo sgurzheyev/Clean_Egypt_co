@@ -1077,12 +1077,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
         setUploadingProof(true);
         const uploaded: string[] = [];
         const compressionOptions = {
-          maxSizeMB: 0.8,
-          maxWidthOrHeight: 1920,
+          maxSizeMB: 0.4,
+          maxWidthOrHeight: 1280,
           useWebWorker: true,
+          fileType: 'image/jpeg',
         };
         const compressedFiles: File[] = [];
         for (const file of orderPhotos) {
+          if (!file.type || !file.type.startsWith('image/')) {
+            setOrderError('Only images are allowed');
+            setUploadingProof(false);
+            return;
+          }
           try {
             const compressed = await imageCompression(file, compressionOptions);
             compressedFiles.push(compressed);
@@ -1092,12 +1098,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
           }
         }
         for (const file of compressedFiles) {
-          const rawExt = file.name.split('.').pop() || 'jpg';
-          const fileExt = rawExt.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'jpg';
-          const safeFileName = `mission_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+          const safeFileName = `mission_${Date.now()}_${Math.random().toString(36).substring(2)}.jpg`;
           const { error: uploadError } = await supabase.storage
             .from('order-photos')
-            .upload(safeFileName, file, { upsert: false });
+            .upload(safeFileName, file, { upsert: false, contentType: 'image/jpeg' });
           if (uploadError) {
             throw uploadError;
           }

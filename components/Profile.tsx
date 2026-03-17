@@ -96,6 +96,8 @@ function JobTimer({ startedAt }: { startedAt: string }) {
 const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, onNavigateToJob }) => {
   const { t, i18n } = useTranslation();
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+  const [showRefunds, setShowRefunds] = useState(false);
   const [balance, setBalance] = useState(0);
   const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);
   const [myCityJobs, setMyCityJobs] = useState<Job[]>([]);
@@ -187,6 +189,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [proofSubmitting, setProofSubmitting] = useState(false);
   const [proofError, setProofError] = useState<string | null>(null);
   const [proofSuccess, setProofSuccess] = useState<string | null>(null);
+  const [proofProcessingImage, setProofProcessingImage] = useState(false);
   const [plasticKg, setPlasticKg] = useState<string>('0');
   const [glassKg, setGlassKg] = useState<string>('0');
   const [constructionKg, setConstructionKg] = useState<string>('0');
@@ -201,6 +204,19 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     if (!file) return;
     try {
       setAvatarUploading(true);
+
+      if (!file.type || !file.type.startsWith('image/')) {
+        alert('Only images are allowed');
+        return;
+      }
+
+      const compressedAvatar = (await imageCompression(file, {
+        maxSizeMB: 0.4,
+        maxWidthOrHeight: 1280,
+        useWebWorker: true,
+        fileType: 'image/jpeg',
+      })) as File;
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -209,15 +225,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         return;
       }
       const userId = session.user.id;
-      const rawExt = file.name.split('.').pop() || 'jpg';
-      const fileExt = rawExt.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'jpg';
+      const fileExt = 'jpg';
       const filePath = `${userId}/${Date.now()}_${Math.random()
         .toString(36)
         .slice(2)}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file, { upsert: false });
+        .upload(filePath, compressedAvatar, { upsert: false, contentType: 'image/jpeg' });
       if (uploadError) throw uploadError;
 
       const {
@@ -778,16 +793,22 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
     try {
       setProofSubmitting(true);
+      setProofProcessingImage(true);
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user?.id) throw new Error('You must be signed in.');
 
       const uploadedUrls: string[] = [];
       const compressionOptions = {
-        maxSizeMB: 1,
-        maxWidthOrHeight: 1920,
+        maxSizeMB: 0.4,
+        maxWidthOrHeight: 1280,
         useWebWorker: true,
+        fileType: 'image/jpeg',
       };
       for (const file of proofFiles) {
+        if (!file.type || !file.type.startsWith('image/')) {
+          setProofError('Only images are allowed');
+          return;
+        }
         let fileToUpload: File = file;
         try {
           const compressed = await imageCompression(file, compressionOptions);
@@ -802,18 +823,18 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           fileToUpload = file;
         }
 
-        const rawExt = fileToUpload.name.split('.').pop() || 'jpg';
-        const fileExt = rawExt.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'jpg';
+        const fileExt = 'jpg';
         const safeFileName = `mission_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
         const { error: uploadError } = await supabase.storage
           .from('order-photos')
-          .upload(safeFileName, fileToUpload, { upsert: false });
+          .upload(safeFileName, fileToUpload, { upsert: false, contentType: 'image/jpeg' });
         if (uploadError) throw uploadError;
         const {
           data: { publicUrl },
         } = supabase.storage.from('order-photos').getPublicUrl(safeFileName);
         uploadedUrls.push(publicUrl);
       }
+      setProofProcessingImage(false);
 
       if (proofPhase === 'before') {
         const { error: updateErr } = await supabase
@@ -936,6 +957,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       console.error('Proof upload error:', err);
       setProofError(err?.message || 'Failed to upload photos. Please try again.');
     } finally {
+      setProofProcessingImage(false);
       setProofSubmitting(false);
     }
   };
@@ -979,6 +1001,51 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   };
 
   if (!isOpen) return null;
+
+  const LegalModal = ({
+    title,
+    body,
+    onClose: close,
+  }: {
+    title: string;
+    body: string;
+    onClose: () => void;
+  }) => {
+    return (
+      <div
+        className="fixed inset-0 z-[9997] bg-black/70 backdrop-blur-sm"
+        onClick={close}
+        aria-hidden="false"
+      >
+        <div
+          className="fixed inset-0 z-[9998] flex flex-col bg-slate-950/95 backdrop-blur-xl pt-[env(safe-area-inset-top)]"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-cyan-500/15">
+            <button
+              type="button"
+              onClick={close}
+              className="p-2 mr-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+            <h2 className="flex-1 text-left text-sm font-black uppercase tracking-[0.2em] text-white">
+              {title}
+            </h2>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-5 pb-10">
+            <p className="mt-5 text-sm leading-relaxed text-slate-300 whitespace-pre-wrap">
+              {body}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div
@@ -2078,14 +2145,20 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[10px] text-cyan-500/50">
           <a
             href="#"
-            onClick={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.preventDefault();
+              setShowTerms(true);
+            }}
             className="hover:text-orange-400 transition-colors"
           >
             {t('termsOfService')}
           </a>
           <a
             href="#"
-            onClick={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.preventDefault();
+              setShowRefunds(true);
+            }}
             className="hover:text-orange-400 transition-colors"
           >
             {t('refundPolicy')}
@@ -2104,6 +2177,22 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         </div>
         </div>
       </div>
+
+      {showTerms && (
+        <LegalModal
+          title="Terms of Service"
+          body="CleanEgypt.co operates strictly as a software-as-a-service (SaaS) digital marketplace. We provide a platform connecting end-users who wish to fund location cleanups with independent local contractors (Cleaners). We are not a charity or a donation fund. Users top-up their digital wallets to create task bounties. We charge a platform fee for facilitating these digital connections, providing GPS tracking, and verifying photo evidence. All Cleaners act as independent entities."
+          onClose={() => setShowTerms(false)}
+        />
+      )}
+
+      {showRefunds && (
+        <LegalModal
+          title="Refund Policy"
+          body="User funds topped up via Stripe are credited to a digital wallet. Funds placed on active missions are held securely in escrow (frozen balance). If a user cancels a mission BEFORE a Cleaner accepts it, 100% of the bounty is returned to the user's wallet. Users can request a payout of their unused wallet balance at any time by contacting support. Once a Cleaner successfully completes a mission and provides verified photo evidence, the transaction is final and non-refundable. In case of disputes, our administration reviews GPS and photo data to arbitrate fairly."
+          onClose={() => setShowRefunds(false)}
+        />
+      )}
 
       {/* Verification required modal */}
       {showVerificationPrompt && (
@@ -2563,7 +2652,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-wait active:scale-[0.98]"
                 >
                   {proofSubmitting
-                    ? 'Submitting...'
+                    ? proofProcessingImage
+                      ? 'Processing image...'
+                      : 'Submitting...'
                     : proofPhase === 'before'
                       ? "Submit & start mission"
                       : "Submit & mark completed"}
