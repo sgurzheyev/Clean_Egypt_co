@@ -37,10 +37,6 @@ interface TransactionRow {
   type: string;
   created_at: string;
   gateway?: string | null;
-  ip_address?: string | null;
-  user_agent?: string | null;
-  device_info?: string | null;
-  metadata?: any;
 }
 
 interface AdminDashboardProps {
@@ -124,7 +120,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         supabase.from('missions').select('id, status, creator_id'),
         supabase
           .from('transactions')
-          .select('id, user_id, mission_id, amount, type, gateway, ip_address, user_agent, device_info, metadata, created_at')
+          .select('id, user_id, mission_id, amount, type, gateway, created_at')
           .order('created_at', { ascending: false })
           .limit(20),
       ]);
@@ -157,7 +153,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     try {
       const { data, error: txErr } = await supabase
         .from('transactions')
-        .select('id, user_id, mission_id, amount, type, gateway, ip_address, user_agent, device_info, metadata, created_at')
+        .select('id, user_id, mission_id, amount, type, gateway, created_at')
         .eq('user_id', p.id)
         .order('created_at', { ascending: false })
         .limit(200);
@@ -575,38 +571,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
                   IP / Device (if available)
                 </p>
-                {(() => {
-                  const fromTx = selectedUserTransactions.find(
-                    (tx) => tx.ip_address || tx.user_agent || tx.device_info
-                  );
-                  const ip = fromTx?.ip_address ?? null;
-                  const ua = fromTx?.user_agent ?? null;
-                  const device = fromTx?.device_info ?? null;
-                  if (!ip && !ua && !device) {
-                    return <p className="text-xs text-slate-500 italic">No IP/device info found.</p>;
-                  }
-                  return (
-                    <div className="space-y-2 text-[11px]">
-                      {ip && (
-                        <p className="text-slate-300">
-                          <span className="text-slate-500">IP:</span>{' '}
-                          <span className="font-mono">{ip}</span>
-                        </p>
-                      )}
-                      {device && (
-                        <p className="text-slate-300">
-                          <span className="text-slate-500">Device:</span> {device}
-                        </p>
-                      )}
-                      {ua && (
-                        <p className="text-slate-300">
-                          <span className="text-slate-500">UA:</span>{' '}
-                          <span className="break-all">{ua}</span>
-                        </p>
-                      )}
-                    </div>
-                  );
-                })()}
+                <p className="text-xs text-slate-500 italic">
+                  Not available in current schema.
+                </p>
               </div>
             </div>
 
