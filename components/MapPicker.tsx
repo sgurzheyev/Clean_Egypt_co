@@ -24,10 +24,37 @@ interface JobOnMap {
   photo_urls?: string[] | null;
   after_photo_urls?: string[] | null;
   created_at?: string | null;
+  completion_lat?: number | null;
+  completion_lng?: number | null;
+  completion_distance_meters?: number | null;
   creator?: {
     avatar_url?: string | null;
     phone_number?: string | null;
   } | null;
+}
+
+interface MissionTransactionRow {
+  id: string;
+  user_id: string | null;
+  mission_id?: string | null;
+  amount: number;
+  type: string;
+  gateway?: string | null;
+  created_at: string;
+}
+
+function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const R = 6371000;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const sinDLat = Math.sin(dLat / 2);
+  const sinDLng = Math.sin(dLng / 2);
+  const h =
+    sinDLat * sinDLat +
+    Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
 function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
@@ -325,6 +352,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
         photo_urls,
         after_photo_urls,
         created_at,
+        completion_lat,
+        completion_lng,
+        completion_distance_meters,
         creator:profiles!creator_id (
           avatar_url,
           phone_number
@@ -546,6 +576,80 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [selectedRating, setSelectedRating] = useState<number>(0);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewedMissions, setReviewedMissions] = useState<Set<string>>(new Set());
+  const [missionTransactions, setMissionTransactions] = useState<MissionTransactionRow[]>([]);
+  const [missionTxLoading, setMissionTxLoading] = useState(false);
+  const [missionTxError, setMissionTxError] = useState<string | null>(null);
+  const [gpsDistanceMeters, setGpsDistanceMeters] = useState<number | null>(null);
+  const [gpsDistanceError, setGpsDistanceError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setMissionTransactions([]);
+      setMissionTxError(null);
+      setGpsDistanceMeters(null);
+      setGpsDistanceError(null);
+      if (!selectedMission?.id) return;
+
+      setMissionTxLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('transactions')
+          .select('id, user_id, mission_id, amount, type, gateway, created_at')
+          .eq('mission_id', selectedMission.id)
+          .order('created_at', { ascending: false })
+          .limit(200);
+        if (error) throw error;
+        if (!cancelled) setMissionTransactions((data || []) as MissionTransactionRow[]);
+      } catch (e: any) {
+        console.error('Mission transactions fetch error:', e);
+        if (!cancelled) setMissionTxError(e?.message || 'Failed to load mission transactions.');
+      } finally {
+        if (!cancelled) setMissionTxLoading(false);
+      }
+
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (cancelled) return;
+          if (selectedMission.location_lat == null || selectedMission.location_lng == null) return;
+          const d = haversineMeters(
+            { lat: pos.coords.latitude, lng: pos.coords.longitude },
+            { lat: selectedMission.location_lat, lng: selectedMission.location_lng }
+          );
+          setGpsDistanceMeters(d);
+        },
+        () => {
+          if (!cancelled) setGpsDistanceError('GPS unavailable.');
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMission?.id, selectedMission?.location_lat, selectedMission?.location_lng]);
+
+  const potentialCardingUserIds = (() => {
+    const SMALL_USD_MAX = 2;
+    const WINDOW_MS = 10 * 60 * 1000;
+    const MIN_COUNT = 4;
+    const now = Date.now();
+    const recent = missionTransactions.filter((tx) => {
+      const ts = new Date(tx.created_at).getTime();
+      return Number.isFinite(ts) && now - ts <= WINDOW_MS;
+    });
+    const counts: Record<string, number> = {};
+    for (const tx of recent) {
+      const uid = tx.user_id || '';
+      if (!uid) continue;
+      const amt = Number(tx.amount);
+      if (!Number.isFinite(amt) || amt <= 0 || amt > SMALL_USD_MAX) continue;
+      counts[uid] = (counts[uid] || 0) + 1;
+    }
+    return new Set(Object.entries(counts).filter(([, c]) => c >= MIN_COUNT).map(([uid]) => uid));
+  })();
 
   const handleMarkerClick = useCallback((job: JobOnMap) => {
     setSelectedMission(job);
@@ -1644,6 +1748,93 @@ const MapPicker: React.FC<MapPickerProps> = ({
               {selectedMission.description && (
                 <p className="text-sm text-slate-400">{selectedMission.description}</p>
               )}
+
+              {/* Financial Trail */}
+              <div className="rounded-2xl bg-black/40 border border-cyan-500/20 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                    Financial Trail
+                  </p>
+                  {missionTxLoading && (
+                    <div className="h-4 w-4 border-2 border-cyan-500/60 border-t-cyan-300 rounded-full animate-spin" />
+                  )}
+                </div>
+                {missionTxError && (
+                  <p className="mt-2 text-xs text-red-400">{missionTxError}</p>
+                )}
+                <div className="mt-3 max-h-48 overflow-y-auto space-y-2 pr-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+                  {missionTransactions.map((tx) => {
+                    const gw = (tx.gateway || '').toLowerCase();
+                    const badge =
+                      gw.includes('stripe') ? 'Stripe' : gw.includes('paymob') ? 'Paymob' : tx.gateway || null;
+                    const isCarding = tx.user_id ? potentialCardingUserIds.has(tx.user_id) : false;
+                    return (
+                      <div
+                        key={tx.id}
+                        className="flex items-center justify-between gap-3 rounded-xl bg-cyan-950/30 backdrop-blur border border-cyan-500/10 px-3 py-2 text-[11px]"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-mono text-slate-200 truncate">
+                            {tx.type}
+                            {badge ? (
+                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-[0.18em] border border-white/10 bg-black/40 text-slate-200">
+                                {badge}
+                              </span>
+                            ) : null}
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            {new Date(tx.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                        <p
+                          className={[
+                            'font-black',
+                            isCarding
+                              ? 'text-red-300 drop-shadow-[0_0_10px_rgba(239,68,68,0.55)]'
+                              : 'text-emerald-300',
+                          ].join(' ')}
+                          title={isCarding ? 'Potential carding: repeated micro-payments by same user' : undefined}
+                        >
+                          ${Number(tx.amount).toFixed(2)}
+                        </p>
+                      </div>
+                    );
+                  })}
+                  {!missionTxLoading && missionTransactions.length === 0 && (
+                    <p className="text-xs text-slate-500 italic py-2">No transactions linked to this mission.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* GPS Integrity */}
+              <div className="rounded-2xl bg-black/40 border border-cyan-500/20 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                  GPS Integrity
+                </p>
+                <p className="mt-2 text-xs text-slate-300">
+                  {typeof selectedMission.completion_distance_meters === 'number'
+                    ? `Verification Distance at Completion: ${
+                        selectedMission.completion_distance_meters < 1000
+                          ? `${Math.round(selectedMission.completion_distance_meters)} m`
+                          : `${(selectedMission.completion_distance_meters / 1000).toFixed(2)} km`
+                      }`
+                    : gpsDistanceMeters != null
+                      ? `Current distance to mission: ${
+                          gpsDistanceMeters < 1000
+                            ? `${Math.round(gpsDistanceMeters)} m`
+                            : `${(gpsDistanceMeters / 1000).toFixed(2)} km`
+                        }`
+                      : gpsDistanceError
+                        ? gpsDistanceError
+                        : 'Calculating distance...'}
+                </p>
+                {typeof selectedMission.completion_distance_meters === 'number' &&
+                  selectedMission.completion_distance_meters > 500 && (
+                    <div className="mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1 bg-red-500/10 border border-red-400/40 text-[10px] font-black uppercase tracking-[0.2em] text-red-300 shadow-[0_0_14px_rgba(239,68,68,0.35)]">
+                      ⚠ Verification distance &gt; 500m
+                    </div>
+                  )}
+              </div>
             </div>
 
             {selectedMission.status === 'completed' ? (

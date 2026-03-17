@@ -726,6 +726,21 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     return;
   }
 
+  const toRad = (val: number) => (val * Math.PI) / 180;
+  const distanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
   if (
     proofPhase === 'after' &&
     typeof proofJob.location_lat === 'number' &&
@@ -735,25 +750,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       setProofError(t('tooFarFromMission'));
       return;
     }
-    const toRad = (val: number) => (val * Math.PI) / 180;
-    const distanceMeters = (
-      lat1: number,
-      lon1: number,
-      lat2: number,
-      lon2: number,
-    ) => {
-      const R = 6371000;
-      const dLat = toRad(lat2 - lat1);
-      const dLon = toRad(lon2 - lon1);
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(toRad(lat1)) *
-          Math.cos(toRad(lat2)) *
-          Math.sin(dLon / 2) *
-          Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c;
-    };
 
     try {
       const position = await new Promise<GeolocationPosition>((resolve, reject) =>
@@ -830,6 +826,38 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         if (updateErr) throw updateErr;
         setProofSuccess('Before photos uploaded. Mission started.');
       } else {
+        // Capture completion GPS at the exact moment of submission (permanent audit trail)
+        let completionLat: number | null = null;
+        let completionLng: number | null = null;
+        let completionDistanceMeters: number | null = null;
+        if (
+          typeof proofJob.location_lat === 'number' &&
+          typeof proofJob.location_lng === 'number' &&
+          'geolocation' in navigator
+        ) {
+          try {
+            const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: true,
+                timeout: 10000,
+              }),
+            );
+            completionLat = position.coords.latitude;
+            completionLng = position.coords.longitude;
+            completionDistanceMeters = Math.round(
+              distanceMeters(
+                completionLat,
+                completionLng,
+                proofJob.location_lat,
+                proofJob.location_lng,
+              ),
+            );
+          } catch (e) {
+            // Do not block completion if GPS is unavailable; audit trail will remain empty.
+            console.warn('Completion GPS capture failed:', e);
+          }
+        }
+
         // AFTER photos: if public mission, run circular economy RPC with Eco-Report
         if (proofJob.category === 'public') {
           const plasticVal = Number(plasticKg) || 0;
@@ -842,6 +870,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             p_glass_kg: glassVal,
             p_construction_kg: constructionVal,
             p_after_photo_urls: [...(proofJob.after_photo_urls || []), ...uploadedUrls],
+            p_completion_lat: completionLat,
+            p_completion_lng: completionLng,
+            p_completion_distance_meters: completionDistanceMeters,
           } as any);
           if (rpcErr) throw rpcErr;
 
@@ -887,6 +918,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             .update({
               after_photo_urls: [...(proofJob.after_photo_urls || []), ...uploadedUrls],
               status: 'completed',
+              completion_lat: completionLat,
+              completion_lng: completionLng,
+              completion_distance_meters: completionDistanceMeters,
             })
             .eq('id', proofJob.id);
           if (updateErr) throw updateErr;
