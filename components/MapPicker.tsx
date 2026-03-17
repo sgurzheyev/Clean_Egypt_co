@@ -30,6 +30,7 @@ interface JobOnMap {
   creator?: {
     avatar_url?: string | null;
     phone_number?: string | null;
+    is_verified?: boolean | null;
   } | null;
 }
 
@@ -357,7 +358,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         completion_distance_meters,
         creator:profiles!creator_id (
           avatar_url,
-          phone_number
+          phone_number,
+          is_verified
         )
       `)
       .in('status', ['pending', 'available', 'funding', 'in_progress', 'completed'])
@@ -1256,6 +1258,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             const hasWhatsApp = !!job.creator?.phone_number;
             const avatarUrl = job.creator?.avatar_url || null;
             const vipAvatarUrl = hasWhatsApp && avatarUrl ? avatarUrl : null;
+            const vipVerified = !!job.creator?.is_verified;
 
             return (
               <Marker
@@ -1272,6 +1275,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   variant={variant as any}
                   bidCount={job.status === 'pending' ? bidCount : 0}
                   vipAvatarUrl={vipAvatarUrl}
+                  vipVerified={vipVerified}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleMarkerClick(job);

@@ -10,7 +10,8 @@ interface ProfileRow {
   wallet_balance?: number | null;
   contact_email?: string | null;
   phone_number?: string | null;
-  created_at?: string | null;
+  avatar_url?: string | null;
+  is_verified?: boolean | null;
   first_gps_track?: unknown;
 }
 
@@ -89,6 +90,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [selectedUserTransactions, setSelectedUserTransactions] = useState<TransactionRow[]>([]);
   const [selectedUserTxLoading, setSelectedUserTxLoading] = useState(false);
   const [selectedUserTxError, setSelectedUserTxError] = useState<string | null>(null);
+  const [verifyLoadingUserId, setVerifyLoadingUserId] = useState<string | null>(null);
 
   const fetchPendingApprovals = async () => {
     const { data, error: err } = await supabase
@@ -117,7 +119,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
       const [profRes, missRes, txRes] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, full_name, telegram_username, contact_email, phone_number, wallet_balance, created_at, first_gps_track'),
+          .select('id, full_name, telegram_username, contact_email, phone_number, wallet_balance, avatar_url, is_verified, first_gps_track')
+          .order('wallet_balance', { ascending: false }),
         supabase.from('missions').select('id, status, creator_id'),
         supabase
           .from('transactions')
@@ -165,6 +168,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
       setSelectedUserTxError(e?.message || 'Failed to load user transactions.');
     } finally {
       setSelectedUserTxLoading(false);
+    }
+  };
+
+  const toggleVerify = async (userId: string, nextValue: boolean) => {
+    setVerifyLoadingUserId(userId);
+    try {
+      const { error: updErr } = await supabase
+        .from('profiles')
+        .update({ is_verified: nextValue })
+        .eq('id', userId);
+      if (updErr) throw updErr;
+
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === userId ? { ...p, is_verified: nextValue } : p))
+      );
+      setSelectedUser((prev) => (prev?.id === userId ? { ...prev, is_verified: nextValue } : prev));
+    } catch (e: any) {
+      console.error('Verify toggle error:', e);
+      alert(e?.message || 'Failed to update verification status.');
+    } finally {
+      setVerifyLoadingUserId(null);
     }
   };
 
@@ -337,6 +361,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                     <th className="px-3 py-2">Wallet</th>
                     <th className="px-3 py-2">Missions Created</th>
                     <th className="px-3 py-2">First GPS Track</th>
+                    <th className="px-3 py-2 text-right">Verify</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -356,6 +381,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                       const createdCount = missionsCreatedByUserId[p.id] || 0;
                       const gps = parseFirstGpsTrack(p.first_gps_track);
                       const gpsLabel = gps ? `${gps.lat.toFixed(5)}, ${gps.lng.toFixed(5)}` : '—';
+                      const verified = !!p.is_verified;
                       return (
                         <tr
                           key={p.id}
@@ -363,10 +389,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                           onClick={() => openUser(p)}
                         >
                           <td className="px-3 py-2">
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex items-center gap-3">
+                              <div className="h-9 w-9 rounded-full overflow-hidden border border-cyan-500/20 bg-slate-950 shrink-0">
+                                {p.avatar_url ? (
+                                  <img
+                                    src={p.avatar_url}
+                                    alt={name}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="h-full w-full flex items-center justify-center text-[11px] font-black text-cyan-300">
+                                    {(name || 'U').slice(0, 1).toUpperCase()}
+                                  </div>
+                                )}
+                              </div>
                               <div className="font-semibold text-slate-200 truncate">
                                 {name}{' '}
                                 <span className="text-slate-500 font-normal">({handle})</span>
+                                {verified && (
+                                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-[0.18em] border border-cyan-500/30 text-cyan-200 bg-cyan-500/10 shadow-[0_0_10px_rgba(34,211,238,0.25)]">
+                                    Verified
+                                  </span>
+                                )}
                               </div>
                               <div className="text-[10px] text-slate-500 truncate">{email}</div>
                               <div className="text-[10px] text-slate-600 font-mono truncate">
@@ -382,6 +426,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                           </td>
                           <td className="px-3 py-2 text-slate-200">{createdCount}</td>
                           <td className="px-3 py-2 text-slate-300 font-mono">{gpsLabel}</td>
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleVerify(p.id, !verified);
+                              }}
+                              disabled={verifyLoadingUserId === p.id}
+                              className={[
+                                'inline-flex items-center justify-center px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.18em] transition-all',
+                                'border',
+                                verified
+                                  ? 'border-orange-500/50 text-orange-300 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_12px_rgba(249,115,22,0.25)]'
+                                  : 'border-cyan-500/40 text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/15 hover:shadow-[0_0_12px_rgba(34,211,238,0.22)]',
+                                verifyLoadingUserId === p.id && 'opacity-60 cursor-wait',
+                              ].join(' ')}
+                            >
+                              {verifyLoadingUserId === p.id ? '...' : verified ? 'Unverify' : 'Verify'}
+                            </button>
+                          </td>
                         </tr>
                       );
                     })

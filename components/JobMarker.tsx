@@ -10,6 +10,7 @@ interface JobMarkerProps {
   bidCount?: number;
   variant?: 'default' | 'in_progress' | 'completed';
   vipAvatarUrl?: string | null;
+  vipVerified?: boolean;
 }
 
 const JobMarker: React.FC<JobMarkerProps> = ({
@@ -22,6 +23,7 @@ const JobMarker: React.FC<JobMarkerProps> = ({
   bidCount = 0,
   variant = 'default',
   vipAvatarUrl = null,
+  vipVerified = false,
 }) => {
   const [entered, setEntered] = useState(false);
 
@@ -32,6 +34,7 @@ const JobMarker: React.FC<JobMarkerProps> = ({
 
   const isHome = orderType === 'home';
   const hasVipAvatar = !!vipAvatarUrl;
+  const showVerifiedBadge = hasVipAvatar && !!vipVerified;
   const icon =
     variant === 'completed'
       ? '⭐'
@@ -94,12 +97,17 @@ const JobMarker: React.FC<JobMarkerProps> = ({
             'group-hover:scale-110 group-hover:-translate-y-0.5',
           ].join(' ')}
         >
-          <div className="w-10 h-10 rounded-full border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.6)] bg-slate-950 overflow-hidden transition-transform duration-200 group-hover:scale-110">
+          <div className="relative w-10 h-10 rounded-full border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.6)] bg-slate-950 overflow-hidden transition-transform duration-200 group-hover:scale-110">
             <img
               src={vipAvatarUrl as string}
               alt="VIP avatar"
               className="w-full h-full object-cover"
             />
+            {showVerifiedBadge && (
+              <div className="absolute -bottom-0.5 -right-0.5 h-5 w-5 rounded-full border border-cyan-400/60 bg-cyan-500/15 backdrop-blur flex items-center justify-center shadow-[0_0_12px_rgba(34,211,238,0.45)]">
+                <span className="text-[10px] leading-none text-cyan-200">✅</span>
+              </div>
+            )}
           </div>
         </div>
       ) : (
