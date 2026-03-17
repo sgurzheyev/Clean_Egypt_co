@@ -1649,14 +1649,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
             aria-hidden="true"
           />
           <div
-            className="relative w-full max-w-xl rounded-t-3xl bg-cyan-950/30 backdrop-blur-md border-t border-x border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-6 pb-16 animate-slide-up"
+            className="relative w-full max-w-xl max-h-[100dvh] overflow-y-auto rounded-t-3xl bg-cyan-950/30 backdrop-blur-md border-t border-x border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] px-6 pb-16 pt-10 animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between mb-4">
+            <div className="flex items-start justify-between mb-4 mt-2">
               <button
                 type="button"
                 onClick={handleCloseMissionBriefing}
-                className="p-2 -m-2 mr-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                className="p-2 mr-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
                 aria-label="Close"
               >
                 ✕
