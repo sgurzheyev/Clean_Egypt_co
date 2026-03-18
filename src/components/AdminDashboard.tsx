@@ -227,9 +227,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     try {
       const { data, error: txErr } = await supabase
         .from('transactions')
-        .select('id, user_id, amount, type, gateway, status, payout_method, payout_details, created_at')
+        .select('id, user_id, mission_id, amount, type, gateway, created_at')
         .eq('type', 'withdrawal')
-        .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(200);
       if (txErr) throw txErr;
@@ -265,7 +264,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     try {
       const { error } = await supabase
         .from('transactions')
-        .update({ status: 'failed' })
+        .delete()
         .eq('id', tx.id);
       if (error) throw error;
       setPendingPayouts((prev) => prev.filter((p) => p.id !== tx.id));
@@ -364,19 +363,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     setGodLoading(true);
     setGodError(null);
     try {
-      // Prefer created_at ordering if it exists; fallback to wallet_balance.
       const base = supabase
         .from('profiles')
         .select('id, full_name, telegram_username, contact_email, phone_number, wallet_balance, avatar_url, is_verified, is_banned', { count: 'exact' })
+        .order('wallet_balance', { ascending: false })
         .limit(50);
-      const { data, error: e1 } = await base.order('created_at', { ascending: false });
-      if (e1) {
-        const { data: d2, error: e2 } = await base.order('wallet_balance', { ascending: false });
-        if (e2) throw e2;
-        setProfiles((d2 || []) as ProfileRow[]);
-      } else {
-        setProfiles((data || []) as ProfileRow[]);
-      }
+      const { data, error } = await base;
+      if (error) throw error;
+      setProfiles((data || []) as ProfileRow[]);
     } catch (e: any) {
       console.error('God mode fetch error:', e);
       setGodError(e?.message || 'Failed to load users.');
@@ -600,7 +594,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   }
 
   return (
-    <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 text-white">
+    <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 text-white px-4 sm:px-6">
       <button
         type="button"
         onClick={onBack}
@@ -613,7 +607,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         👑 Admin Panel Pro
       </h2>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="overflow-x-auto whitespace-nowrap -mx-1 px-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+        <div className="inline-flex gap-2">
         {([
           { id: 'god', label: 'God Mode' },
           { id: 'missions', label: 'Mission Control' },
@@ -643,6 +638,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             </button>
           );
         })}
+        </div>
       </div>
 
       {error && (
