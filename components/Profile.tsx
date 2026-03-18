@@ -1233,6 +1233,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               >
               {t('payWithCardStripe')}
               </button>
+              <p className="mt-2 text-[10px] text-center font-semibold bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-orange-400 bg-[length:200%_auto] animate-pulse bg-clip-text text-transparent">
+                {t('stripeFeeAdvisory')}
+              </p>
             </div>
 
             {/* Admin Force Pay — amount input + legacy Top Up (admin only) */}
