@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { Target } from 'lucide-react';
@@ -141,6 +141,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [topUpAmount, setTopUpAmount] = useState('');
   const [topUpSubmitting, setTopUpSubmitting] = useState(false);
   const navigate = useNavigate();
+  const lastMissionStatusActionAtRef = useRef<number>(0);
+
+  const enforceMissionStatusCooldown = () => {
+    const now = Date.now();
+    if (now - lastMissionStatusActionAtRef.current < 10_000) {
+      alert('Anti-spam: Please wait 10 seconds before changing mission status.');
+      return false;
+    }
+    lastMissionStatusActionAtRef.current = now;
+    return true;
+  };
 
   // Real-time wallet balance subscription
   useEffect(() => {
@@ -653,6 +664,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   };
 
   const handleAcceptBid = async (job: Job, bid: Bid) => {
+    if (!enforceMissionStatusCooldown()) return;
     if (!window.confirm(`Accept bid of $${bid.bid_amount} from this worker?`)) return;
     try {
       const { error: jobErr } = await supabase
@@ -737,6 +749,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     setProofError(null);
     setProofSuccess(null);
     if (!proofJob) return;
+    if (proofPhase === 'after' && !enforceMissionStatusCooldown()) return;
   if (!proofFiles.length) {
     setProofError('Please upload photos before continuing.');
     return;

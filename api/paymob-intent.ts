@@ -47,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Invalid or missing location_lat/location_lng for mission creation' });
       }
 
-      // Create mission in 'pending' status so it appears on the map immediately
+      // Create mission in 'pending_payment' so it does NOT appear on the map until paid
       const { data: newMission, error: missionError } = await supabase
         .from('missions')
         .insert({
@@ -56,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           amount_target: finalAmountTarget,
           location_lat: latNum,
           location_lng: lngNum,
-          status: 'pending',
+          status: 'pending_payment',
           description: description || null,
           photo_urls: creator_photos || [],
         })
@@ -70,56 +70,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       missionIdForMetadata = newMission.id;
 
-      // Create a notification for the mission creator
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: userId,
-          title: 'Mission Created!',
-          message: `Your mission in ${category} is now live on the map.`,
-          mission_id: missionIdForMetadata,
-        });
-
-      if (notificationError) {
-        // Log but do not fail the whole flow if notification creation fails
-        console.error('Notification insert error:', notificationError.message);
-      }
-
-      // Telegram notification (non-blocking)
-      try {
-        const botToken = process.env.TELEGRAM_BOT_TOKEN || process.env.VITE_TELEGRAM_BOT_TOKEN;
-        const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID || process.env.VITE_TELEGRAM_ADMIN_CHAT_ID;
-        const photos = creator_photos || [];
-        const hasPhoto = Array.isArray(photos) && photos.length > 0;
-        const caption = `🚨 *NEW MISSION* 🚨\n💰 Reward: $${finalAmountTarget}\n📝 Task: ${description || category}`;
-
-        if (botToken && chatId) {
-          if (hasPhoto) {
-            fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: chatId,
-                photo: photos[0],
-                caption,
-                parse_mode: 'Markdown',
-              }),
-            }).catch((err) => console.error('Telegram sendPhoto failed:', err));
-          } else {
-            fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: chatId,
-                text: caption,
-                parse_mode: 'Markdown',
-              }),
-            }).catch((err) => console.error('Telegram sendMessage failed:', err));
-          }
-        }
-      } catch (err) {
-        console.error('Telegram notification error:', err);
-      }
+      // IMPORTANT:
+      // Do NOT notify here. Only after payment succeeds (paymob-webhook will do it).
     }
     // --- 2. HANDLE WORKER DEPOSIT ---
     else if (type === 'worker_deposit') {

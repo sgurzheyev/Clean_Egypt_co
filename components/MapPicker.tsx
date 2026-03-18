@@ -363,6 +363,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         )
       `)
       .in('status', ['pending', 'available', 'funding', 'in_progress', 'completed'])
+      .not('status', 'eq', 'pending_payment')
       .order('created_at', { ascending: false })
       .limit(500);
 

@@ -111,11 +111,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (type === 'mission_creation') {
       const missionId = idPart;
 
-      // 1) Update mission status from "pending" to "available"
+      // 1) Update mission status from "pending_payment" to "available"
       const { data: mission, error: missionErr } = await supabase
         .from('missions')
         .update({ status: 'available' })
         .eq('id', missionId)
+        .eq('status', 'pending_payment')
         .select('id, creator_id')
         .maybeSingle();
 
@@ -136,11 +137,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         mission_id: missionId,
         amount: amountPaid,
         type: 'deposit',
+        gateway: 'paymob',
       });
 
       if (txErr) {
         console.error('Paymob webhook: failed to insert mission transaction', txErr.message);
         // Still return 200; logging is enough for backoffice reconciliation.
+      }
+
+      // 3) Telegram notification (non-blocking) — only after payment success
+      try {
+        const botToken = process.env.TELEGRAM_BOT_TOKEN || process.env.VITE_TELEGRAM_BOT_TOKEN;
+        const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID || process.env.VITE_TELEGRAM_ADMIN_CHAT_ID;
+        if (botToken && chatId) {
+          const caption = `✅ *PAID MISSION LIVE* ✅\nMission: \`${missionId}\`\nAmount: $${amountPaid.toFixed(2)}`;
+          fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: caption,
+              parse_mode: 'Markdown',
+            }),
+          }).catch((err) => console.error('Telegram sendMessage failed:', err));
+        }
+      } catch (err) {
+        console.error('Telegram notify failed:', err);
       }
 
       return res.status(200).send('OK');
