@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -12,6 +12,7 @@ interface ProfileRow {
   phone_number?: string | null;
   avatar_url?: string | null;
   is_verified?: boolean | null;
+  is_banned?: boolean | null;
   first_gps_track?: unknown;
 }
 
@@ -19,6 +20,15 @@ interface MissionRow {
   id: string;
   status: string;
   creator_id?: string | null;
+  cleaner_id?: string | null;
+  category?: string | null;
+  amount_target?: number | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  description?: string | null;
+  created_at?: string | null;
+  photo_urls?: string[] | null;
+  after_photo_urls?: string[] | null;
 }
 
 interface PendingApprovalRow {
@@ -77,6 +87,9 @@ function parseFirstGpsTrack(value: unknown): ParsedGps {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
+  const [adminChecked, setAdminChecked] = useState(false);
+  const [isAllowedAdmin, setIsAllowedAdmin] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [missions, setMissions] = useState<MissionRow[]>([]);
@@ -94,6 +107,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [pendingPayoutsLoading, setPendingPayoutsLoading] = useState(false);
   const [pendingPayoutsError, setPendingPayoutsError] = useState<string | null>(null);
   const [payoutActionLoadingId, setPayoutActionLoadingId] = useState<string | null>(null);
+
+  type TabId = 'god' | 'missions' | 'finance' | 'disputes';
+  const [activeTab, setActiveTab] = useState<TabId>('god');
+
+  const [godSearch, setGodSearch] = useState('');
+  const [godLoading, setGodLoading] = useState(false);
+  const [godError, setGodError] = useState<string | null>(null);
+
+  const [editBalanceUser, setEditBalanceUser] = useState<ProfileRow | null>(null);
+  const [editBalanceValue, setEditBalanceValue] = useState<string>('');
+  const [editBalanceSubmitting, setEditBalanceSubmitting] = useState(false);
+
+  const [missionsLoading, setMissionsLoading] = useState(false);
+  const [missionsError, setMissionsError] = useState<string | null>(null);
+
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<{ total_donated: number; pending_payouts: number; pending_withdrawals: number } | null>(null);
+
+  const [disputes, setDisputes] = useState<MissionRow[]>([]);
+  const [disputesLoading, setDisputesLoading] = useState(false);
+  const [disputesError, setDisputesError] = useState<string | null>(null);
 
   const fetchPendingApprovals = async () => {
     const { data, error: err } = await supabase
@@ -122,9 +157,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
       const [profRes, missRes, txRes] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, full_name, telegram_username, contact_email, phone_number, wallet_balance, avatar_url, is_verified, first_gps_track')
-          .order('wallet_balance', { ascending: false }),
-        supabase.from('missions').select('id, status, creator_id'),
+          .select('id, full_name, telegram_username, contact_email, phone_number, wallet_balance, avatar_url, is_verified, is_banned, first_gps_track')
+          .order('wallet_balance', { ascending: false })
+          .limit(50),
+        supabase.from('missions').select('id, status, creator_id').limit(50),
         supabase
           .from('transactions')
           .select('id, user_id, mission_id, amount, type, gateway, created_at')
@@ -150,8 +186,40 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   };
 
   useEffect(() => {
-    fetchAll();
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user ?? null;
+
+        const { data: profile } = user?.id
+          ? await supabase
+              .from('profiles')
+              .select('telegram_username')
+              .eq('id', user.id)
+              .maybeSingle()
+          : { data: null };
+
+        const isAdmin =
+          user?.email === 'sgurzheyev@gmail.com' ||
+          user?.email?.includes('tg_6618910143') ||
+          ((profile as any)?.telegram_username ?? '')
+            .toString()
+            .toLowerCase() === 'sergiogurgini';
+
+        setIsAllowedAdmin(!!isAdmin);
+      } catch {
+        setIsAllowedAdmin(false);
+      } finally {
+        setAdminChecked(true);
+      }
+    })();
   }, []);
+
+  useEffect(() => {
+    if (adminChecked && isAllowedAdmin) {
+      fetchAll();
+    }
+  }, [adminChecked, isAllowedAdmin]);
 
   const fetchPendingPayouts = async () => {
     setPendingPayoutsLoading(true);
@@ -252,6 +320,180 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     }
   };
 
+  const toggleBan = async (userId: string, nextValue: boolean) => {
+    try {
+      const { error: updErr } = await supabase
+        .from('profiles')
+        .update({ is_banned: nextValue })
+        .eq('id', userId);
+      if (updErr) throw updErr;
+      setProfiles((prev) => prev.map((p) => (p.id === userId ? { ...p, is_banned: nextValue } : p)));
+      alert(nextValue ? 'User banned.' : 'User unbanned.');
+    } catch (e: any) {
+      console.error('Ban toggle error:', e);
+      alert(e?.message || 'Failed to update ban status.');
+    }
+  };
+
+  const submitBalanceEdit = async () => {
+    if (!editBalanceUser) return;
+    const next = Number(editBalanceValue);
+    if (!Number.isFinite(next)) {
+      alert('Invalid balance value.');
+      return;
+    }
+    setEditBalanceSubmitting(true);
+    try {
+      const { error: updErr } = await supabase
+        .from('profiles')
+        .update({ wallet_balance: next })
+        .eq('id', editBalanceUser.id);
+      if (updErr) throw updErr;
+      setProfiles((prev) => prev.map((p) => (p.id === editBalanceUser.id ? { ...p, wallet_balance: next } : p)));
+      alert('Balance updated.');
+      setEditBalanceUser(null);
+    } catch (e: any) {
+      console.error('Edit balance error:', e);
+      alert(e?.message || 'Failed to update balance.');
+    } finally {
+      setEditBalanceSubmitting(false);
+    }
+  };
+
+  const loadGodMode = async () => {
+    setGodLoading(true);
+    setGodError(null);
+    try {
+      // Prefer created_at ordering if it exists; fallback to wallet_balance.
+      const base = supabase
+        .from('profiles')
+        .select('id, full_name, telegram_username, contact_email, phone_number, wallet_balance, avatar_url, is_verified, is_banned', { count: 'exact' })
+        .limit(50);
+      const { data, error: e1 } = await base.order('created_at', { ascending: false });
+      if (e1) {
+        const { data: d2, error: e2 } = await base.order('wallet_balance', { ascending: false });
+        if (e2) throw e2;
+        setProfiles((d2 || []) as ProfileRow[]);
+      } else {
+        setProfiles((data || []) as ProfileRow[]);
+      }
+    } catch (e: any) {
+      console.error('God mode fetch error:', e);
+      setGodError(e?.message || 'Failed to load users.');
+    } finally {
+      setGodLoading(false);
+    }
+  };
+
+  const loadMissionControl = async () => {
+    setMissionsLoading(true);
+    setMissionsError(null);
+    try {
+      const { data, error: err } = await supabase
+        .from('missions')
+        .select('id, status, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, description, created_at, photo_urls, after_photo_urls')
+        .in('status', ['pending_payment', 'pending', 'available', 'funding', 'in_progress', 'completed', 'disputed', 'pending_verification', 'review', 'dispute'])
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (err) throw err;
+      setMissions((data || []) as MissionRow[]);
+    } catch (e: any) {
+      console.error('Mission control fetch error:', e);
+      setMissionsError(e?.message || 'Failed to load missions.');
+    } finally {
+      setMissionsLoading(false);
+    }
+  };
+
+  const cleanGhostPins = async () => {
+    if (!window.confirm('Clean ghost pins older than 24h?')) return;
+    try {
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { error: delErr } = await supabase
+        .from('missions')
+        .delete()
+        .eq('status', 'pending_payment')
+        .lt('created_at', cutoff);
+      if (delErr) throw delErr;
+      alert('Ghost pins cleaned.');
+      await loadMissionControl();
+    } catch (e: any) {
+      console.error('Clean ghost pins error:', e);
+      alert(e?.message || 'Failed to clean ghost pins.');
+    }
+  };
+
+  const forceCancelMission = async (missionId: string) => {
+    if (!window.confirm('Force cancel this mission?')) return;
+    try {
+      const { error: rpcErr } = await supabase.rpc('force_cancel_mission', { p_mission_id: missionId });
+      if (rpcErr) throw rpcErr;
+      alert('Mission cancelled.');
+      await loadMissionControl();
+    } catch (e: any) {
+      console.error('Force cancel error:', e);
+      alert(e?.message || 'Failed to cancel mission.');
+    }
+  };
+
+  const loadMetrics = async () => {
+    setMetricsLoading(true);
+    setMetricsError(null);
+    try {
+      const { data, error: err } = await supabase.rpc('admin_financial_metrics');
+      if (err) throw err;
+      const row = Array.isArray(data) ? data[0] : data;
+      setMetrics({
+        total_donated: Number(row?.total_donated ?? 0),
+        pending_payouts: Number(row?.pending_payouts ?? 0),
+        pending_withdrawals: Number(row?.pending_withdrawals ?? 0),
+      });
+    } catch (e: any) {
+      console.error('Metrics error:', e);
+      setMetricsError(e?.message || 'Failed to load metrics.');
+      setMetrics(null);
+    } finally {
+      setMetricsLoading(false);
+    }
+  };
+
+  const loadDisputes = async () => {
+    setDisputesLoading(true);
+    setDisputesError(null);
+    try {
+      const { data, error: err } = await supabase
+        .from('missions')
+        .select('id, status, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, description, created_at, photo_urls, after_photo_urls')
+        .in('status', ['disputed', 'pending_verification', 'review', 'dispute'])
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (err) throw err;
+      setDisputes((data || []) as MissionRow[]);
+    } catch (e: any) {
+      console.error('Disputes fetch error:', e);
+      setDisputesError(e?.message || 'Failed to load disputes.');
+    } finally {
+      setDisputesLoading(false);
+    }
+  };
+
+  const resolveDispute = async (missionId: string, decision: 'approve' | 'reject') => {
+    if (!window.confirm(decision === 'approve' ? 'Approve & payout?' : 'Reject dispute?')) return;
+    try {
+      const { error: err } = await supabase.rpc('resolve_mission_dispute', {
+        mission_id: missionId,
+        decision,
+        supervisor_comment: null,
+      });
+      if (err) throw err;
+      alert(decision === 'approve' ? 'Approved & paid out.' : 'Rejected.');
+      await loadDisputes();
+    } catch (e: any) {
+      console.error('Resolve dispute error:', e);
+      alert(e?.message || 'Failed to resolve dispute.');
+    }
+  };
+
   const handleForcePay = async (mission: PendingApprovalRow) => {
     if (!mission.cleaner_id) {
       alert('No cleaner assigned to this mission.');
@@ -320,6 +562,43 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     );
   });
 
+  const filteredGodProfiles = useMemo(() => {
+    const q = godSearch.trim().toLowerCase();
+    if (!q) return profiles;
+    return (profiles || []).filter((p) => {
+      const email = (p.contact_email || '').toLowerCase();
+      const phone = (p.phone_number || '').toLowerCase();
+      return email.includes(q) || phone.includes(q);
+    });
+  }, [godSearch, profiles]);
+
+  if (!adminChecked) {
+    return (
+      <div className="w-full max-w-4xl mx-auto p-6 text-white">
+        <div className="flex justify-center py-12">
+          <div className="h-8 w-8 border-2 border-orange-500/60 border-t-orange-400 rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAllowedAdmin) {
+    return (
+      <div className="w-full max-w-4xl mx-auto p-6 text-white">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/20 text-slate-300 hover:bg-white/10 hover:text-white transition-all text-sm font-bold uppercase tracking-[0.18em]"
+        >
+          ← Back to Profile
+        </button>
+        <div className="mt-6 rounded-2xl bg-slate-950 border border-orange-500/20 p-6">
+          <p className="text-sm text-slate-300">Access denied.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 text-white">
       <button
@@ -330,9 +609,41 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         ← Back to Profile
       </button>
 
-      <h2 className="text-xl font-black uppercase tracking-[0.2em] text-amber-400/90">
-        👑 Admin Dashboard
+      <h2 className="text-xl font-black uppercase tracking-[0.2em] text-orange-400/90">
+        👑 Admin Panel Pro
       </h2>
+
+      <div className="flex flex-wrap gap-2">
+        {([
+          { id: 'god', label: 'God Mode' },
+          { id: 'missions', label: 'Mission Control' },
+          { id: 'finance', label: 'Financial Analytics' },
+          { id: 'disputes', label: 'Dispute Center' },
+        ] as { id: TabId; label: string }[]).map((tab) => {
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={async () => {
+                setActiveTab(tab.id);
+                if (tab.id === 'god') await loadGodMode();
+                if (tab.id === 'missions') await loadMissionControl();
+                if (tab.id === 'finance') await loadMetrics();
+                if (tab.id === 'disputes') await loadDisputes();
+              }}
+              className={[
+                'px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border transition-all',
+                active
+                  ? 'border-orange-500/50 text-orange-200 bg-orange-500/10 shadow-[0_0_14px_rgba(249,115,22,0.22)]'
+                  : 'border-white/15 text-slate-300 bg-white/5 hover:bg-white/10',
+              ].join(' ')}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
 
       {error && (
         <p className="text-sm text-red-400 font-medium">{error}</p>
@@ -481,7 +792,309 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             </div>
           </section>
 
-          {/* 👥 User Directory */}
+          {/* Tab content */}
+          {activeTab === 'god' && (
+            <section className="rounded-2xl bg-slate-950 border border-orange-500/20 p-4">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-300/90">
+                  God Mode (User Management)
+                </h3>
+                <button
+                  type="button"
+                  onClick={loadGodMode}
+                  disabled={godLoading}
+                  className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-orange-500/40 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 disabled:opacity-60 disabled:cursor-wait transition-all"
+                >
+                  {godLoading ? '...' : 'Refresh'}
+                </button>
+              </div>
+
+              <input
+                type="text"
+                value={godSearch}
+                onChange={(e) => setGodSearch(e.target.value)}
+                placeholder="Search by phone/email"
+                className="mb-3 w-full rounded-2xl bg-black/40 border border-orange-500/30 px-3 py-2 text-[11px] text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+              />
+              {godError && <p className="text-xs text-red-300 mb-2">{godError}</p>}
+
+              <div className="max-h-[420px] overflow-auto pr-1 rounded-xl border border-orange-500/15 bg-black/20 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+                <table className="w-full text-left text-[11px]">
+                  <thead className="sticky top-0 bg-[#020617]/95 backdrop-blur border-b border-orange-500/15">
+                    <tr className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
+                      <th className="px-3 py-2">User</th>
+                      <th className="px-3 py-2">Contact</th>
+                      <th className="px-3 py-2">Wallet</th>
+                      <th className="px-3 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredGodProfiles.map((p) => {
+                      const name = p.full_name || '—';
+                      const handle = p.telegram_username ? `@${p.telegram_username}` : '';
+                      const verified = !!p.is_verified;
+                      const banned = !!p.is_banned;
+                      return (
+                        <tr
+                          key={p.id}
+                          className="border-b border-orange-500/10 bg-cyan-950/20 backdrop-blur hover:bg-cyan-950/30 transition-colors"
+                        >
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-3">
+                              <div className="h-9 w-9 rounded-full overflow-hidden border border-orange-500/20 bg-slate-950 shrink-0">
+                                {p.avatar_url ? (
+                                  <img src={p.avatar_url} alt={name} className="h-full w-full object-cover" />
+                                ) : (
+                                  <div className="h-full w-full flex items-center justify-center text-[11px] font-black text-orange-300">
+                                    {(name || 'U').slice(0, 1).toUpperCase()}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-semibold text-slate-200 truncate">
+                                  {name}{' '}
+                                  <span className="text-slate-500 font-normal">{handle ? `(${handle})` : ''}</span>
+                                  {verified && <span className="ml-2 text-emerald-400">✅</span>}
+                                  {banned && <span className="ml-2 text-red-400">⛔</span>}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-mono">{p.id.slice(0, 8)}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="text-[10px] text-slate-300">{p.contact_email || '—'}</div>
+                            <div className="text-[10px] text-cyan-300">{p.phone_number || '—'}</div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className="font-black text-orange-400">${Number(p.wallet_balance ?? 0).toFixed(2)}</span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex flex-wrap gap-2 justify-end">
+                              <button
+                                type="button"
+                                onClick={() => toggleVerify(p.id, true)}
+                                disabled={verifyLoadingUserId === p.id || verified}
+                                className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border border-emerald-500/40 text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/15 disabled:opacity-60 disabled:cursor-wait transition-all"
+                              >
+                                Verify Agent
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditBalanceUser(p);
+                                  setEditBalanceValue(String(Number(p.wallet_balance ?? 0)));
+                                }}
+                                className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border border-orange-500/40 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 transition-all"
+                              >
+                                Edit Balance
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleBan(p.id, true)}
+                                disabled={banned}
+                                className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border border-red-500/40 text-red-200 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-60 transition-all"
+                              >
+                                Ban User
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {filteredGodProfiles.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-6 text-center text-slate-500 italic">
+                          No users.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'missions' && (
+            <section className="rounded-2xl bg-slate-950 border border-orange-500/20 p-4">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-300/90">
+                  Mission Control
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={cleanGhostPins}
+                    className="px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-red-500/50 text-red-200 bg-red-500/10 hover:bg-red-500/20 hover:shadow-[0_0_16px_rgba(239,68,68,0.25)] transition-all"
+                  >
+                    Clean Ghost Pins
+                  </button>
+                  <button
+                    type="button"
+                    onClick={loadMissionControl}
+                    disabled={missionsLoading}
+                    className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-orange-500/40 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 disabled:opacity-60 transition-all"
+                  >
+                    {missionsLoading ? '...' : 'Refresh'}
+                  </button>
+                </div>
+              </div>
+              {missionsError && <p className="text-xs text-red-300 mb-2">{missionsError}</p>}
+
+              <div className="max-h-[520px] overflow-auto pr-1 rounded-xl border border-orange-500/15 bg-black/20 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+                <table className="w-full text-left text-[11px]">
+                  <thead className="sticky top-0 bg-[#020617]/95 backdrop-blur border-b border-orange-500/15">
+                    <tr className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
+                      <th className="px-3 py-2">Mission</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Amount</th>
+                      <th className="px-3 py-2">Creator</th>
+                      <th className="px-3 py-2 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(missions || []).map((m) => (
+                      <tr key={m.id} className="border-b border-orange-500/10 bg-cyan-950/20">
+                        <td className="px-3 py-2 font-mono text-slate-200">{m.id.slice(0, 8)}</td>
+                        <td className="px-3 py-2 text-slate-300">{m.status}</td>
+                        <td className="px-3 py-2 text-orange-300">${Number(m.amount_target ?? 0).toFixed(2)}</td>
+                        <td className="px-3 py-2 text-slate-500 font-mono">{(m.creator_id || '').slice(0, 8)}</td>
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => forceCancelMission(m.id)}
+                            className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border border-red-500/40 text-red-200 bg-red-500/10 hover:bg-red-500/20 transition-all"
+                          >
+                            Force Cancel
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {missions.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-3 py-6 text-center text-slate-500 italic">
+                          No missions.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'finance' && (
+            <section className="rounded-2xl bg-slate-950 border border-orange-500/20 p-4">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-300/90">
+                  Financial Analytics
+                </h3>
+                <button
+                  type="button"
+                  onClick={loadMetrics}
+                  disabled={metricsLoading}
+                  className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-orange-500/40 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 disabled:opacity-60 transition-all"
+                >
+                  {metricsLoading ? '...' : 'Refresh'}
+                </button>
+              </div>
+              {metricsError && <p className="text-xs text-red-300 mb-2">{metricsError}</p>}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { label: 'Total Donated', value: metrics?.total_donated ?? 0, color: 'text-emerald-400' },
+                  { label: 'Pending Payouts', value: metrics?.pending_payouts ?? 0, color: 'text-amber-300' },
+                  { label: 'Pending Withdrawals', value: metrics?.pending_withdrawals ?? 0, color: 'text-orange-400' },
+                ].map((c) => (
+                  <div key={c.label} className="rounded-2xl bg-cyan-950/20 backdrop-blur-md border border-orange-500/10 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{c.label}</p>
+                    <p className={`mt-2 text-3xl font-black ${c.color}`}>${Number(c.value).toFixed(2)}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'disputes' && (
+            <section className="rounded-2xl bg-slate-950 border border-orange-500/20 p-4">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-300/90">
+                  Dispute Center
+                </h3>
+                <button
+                  type="button"
+                  onClick={loadDisputes}
+                  disabled={disputesLoading}
+                  className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-orange-500/40 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 disabled:opacity-60 transition-all"
+                >
+                  {disputesLoading ? '...' : 'Refresh'}
+                </button>
+              </div>
+              {disputesError && <p className="text-xs text-red-300 mb-2">{disputesError}</p>}
+
+              <div className="space-y-4">
+                {disputes.map((m) => (
+                  <div key={m.id} className="rounded-2xl bg-cyan-950/20 backdrop-blur-md border border-orange-500/10 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-mono text-slate-200">#{m.id.slice(0, 8)}</p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-[0.18em]">{m.status}</p>
+                        {m.description && <p className="mt-2 text-xs text-slate-300">{m.description}</p>}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => resolveDispute(m.id, 'approve')}
+                          className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-500/40 text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/15 transition-all"
+                        >
+                          Approve & Payout
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => resolveDispute(m.id, 'reject')}
+                          className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-red-500/40 text-red-200 bg-red-500/10 hover:bg-red-500/20 transition-all"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500 mb-2">Before</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(m.photo_urls || []).slice(0, 4).map((url) => (
+                            <div key={url} className="aspect-square rounded-xl overflow-hidden border border-white/10 bg-black/30">
+                              <img src={url} alt="Before" className="h-full w-full object-cover" />
+                            </div>
+                          ))}
+                          {(m.photo_urls || []).length === 0 && (
+                            <p className="text-xs text-slate-500 italic">No before photos.</p>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500 mb-2">After</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(m.after_photo_urls || []).slice(0, 4).map((url) => (
+                            <div key={url} className="aspect-square rounded-xl overflow-hidden border border-white/10 bg-black/30">
+                              <img src={url} alt="After" className="h-full w-full object-cover" />
+                            </div>
+                          ))}
+                          {(m.after_photo_urls || []).length === 0 && (
+                            <p className="text-xs text-slate-500 italic">No after photos.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {!disputesLoading && disputes.length === 0 && (
+                  <p className="text-sm text-slate-500 italic">No disputes.</p>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Existing 👥 User Directory (kept) */}
           <section className="rounded-2xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-4">
             <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-400/90 mb-3">
               👥 User Directory
@@ -634,6 +1247,70 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             </div>
           </section>
         </>
+      )}
+
+      {/* Edit Balance modal */}
+      {editBalanceUser && (
+        <div
+          className="fixed inset-0 z-[170] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] bg-black/70 backdrop-blur-sm"
+          onClick={() => setEditBalanceUser(null)}
+          aria-hidden="false"
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl bg-slate-950/95 backdrop-blur-xl border border-orange-500/20 p-5"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <button
+                type="button"
+                onClick={() => setEditBalanceUser(null)}
+                className="p-2 -m-2 mr-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.35em] text-orange-300/80">
+                  Edit Balance
+                </p>
+                <p className="mt-1 text-sm font-bold text-white truncate">
+                  {editBalanceUser.full_name || editBalanceUser.id.slice(0, 8)}
+                </p>
+              </div>
+            </div>
+
+            <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+              New wallet_balance (USD)
+            </label>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={editBalanceValue}
+              onChange={(e) => setEditBalanceValue(e.target.value)}
+              className="w-full rounded-2xl bg-black/40 border border-orange-500/20 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+            />
+
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setEditBalanceUser(null)}
+                className="flex-1 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-white/15 text-slate-300 hover:bg-white/10 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitBalanceEdit}
+                disabled={editBalanceSubmitting}
+                className="flex-1 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-orange-500/50 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 disabled:opacity-60 disabled:cursor-wait transition-all"
+              >
+                {editBalanceSubmitting ? '...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* User deep-dive modal */}

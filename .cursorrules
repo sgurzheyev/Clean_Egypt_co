@@ -1,78 +1,40 @@
-# 📜 ULTIMATE AI CONSTITUTION: CleanEgypt.co (v3.0 - The Massive Architectural Source)
-# AUTHORED BY: Gemini & Sergio Gurgini (Owner)
-# TARGET: Senior Full-Stack Engineering, High-End UX, Financial Integrity.
+# ULTIMATE AI CONSTITUTION: CleanEgypt.co (v4.0 - TITANIUM SECURE)
+# ROLE: Senior Full-Stack React/Supabase Developer & Security Architect.
 
-########################################################################################
-## 🏛️ CORE PROJECT IDENTITY & ROLE
-########################################################################################
-- PROJECT: CleanEgypt.co — A gamified, environmental crowdfunding marketplace.
-- PLATFORM: Telegram Mini App (TMA). Must be 100% mobile-responsive, touch-optimized.
-- TECH STACK: React (Vite), Supabase (Postgres + Auth + Storage), Mapbox GL, Tailwind CSS, i18next.
-- ROLE: You are a Lead Engineer. Prioritize stability, security, and "Teal & Orange" aesthetics.
+## 1. CORE ARCHITECTURE & STACK
+- PLATFORM: Vite SPA (React). 100% mobile-responsive, touch-optimized (TMA - Telegram Mini App).
+- STACK: Supabase (Postgres, Auth, Storage), Mapbox GL, Tailwind CSS, i18next.
 
-########################################################################################
-## 💂‍♂️ SECURITY & IDENTITY (THE SERGIO PROTOCOLS)
-########################################################################################
-- ADMIN IDENTIFICATION: 
-  - There is NO 'is_admin' column in the database (security by obscurity).
-  - ACCESS: Admin rights are granted STRICTLY by frontend verification of the logged-in user.
-  - RULE: `const isAdmin = user?.email?.includes('tg_6618910143') || profile?.telegram_username?.toLowerCase() === 'sergiogurgini';`
-- AUTHENTICATION:
-  - Users enter via TMA Magic Login. Generated email format: `tg_{TG_ID}@tma.cleanegypt.co`.
-  - Email Management: Users can update their 'contact_email' in the `profiles` table. 
-  - If a user updates their email via `supabase.auth.updateUser`, ensure the 'profiles.contact_email' remains the primary reference for communications.
+## 2. TITANIUM SECURITY PROTOCOLS (v4.0)
+- ANTI-SPOOFING: File inputs for Mission Proofs MUST use `capture="environment"` to force live camera and block gallery uploads. GPS validation is mandatory before mission completion.
+- STORAGE LIMITS: DB-level RLS enforces max 2MB (`2097152` bytes) and strictly `image/jpeg, image/png, image/webp`. Client-side compression (max 400KB) is mandatory before upload.
+- ANTI-SPAM: Implement 10-second client-state and DB-level cooldowns for mission status toggles to protect Telegram Webhooks from rate limits.
+- API SHIELDS: External API keys (Mapbox) are domain-restricted via URL. DO NOT expose unprotected tokens.
 
-########################################################################################
-## 🏛️ DATABASE ARCHITECTURE (SCHEMA ENFORCEMENT)
-########################################################################################
-- PROFILES TABLE:
-  - `id` (UUID), `wallet_balance` (NUMERIC), `frozen_balance` (NUMERIC), `rating` (INT), `avatar_url` (TEXT), `full_name` (TEXT), `phone_number` (TEXT/WhatsApp), `telegram_username` (TEXT), `contact_email` (TEXT), `is_verified` (BOOL).
-- MISSIONS TABLE:
-  - `id`, `creator_id`, `cleaner_id`, `category` ('home'|'city'), `status` ('pending'|'in_progress'|'completed'|'dispute'), `amount_target`, `current_funding`, `location_lat`, `location_lng`, `created_at`, `photo_urls` (ARRAY), `after_photo_urls` (ARRAY).
-  - CRITICAL: NO `updated_at` column. Never use it in queries.
-- TRANSACTIONS TABLE:
-  - `id`, `user_id`, `mission_id`, `amount`, `type`, `gateway` ('stripe'|'paymob'|'internal').
+## 3. FINANCIAL INTEGRITY & WEBHOOK PATTERN
+- GHOST PIN PREVENTION: Missions created before payment MUST have `status = 'pending_payment'`. Maps and Webhooks MUST filter out `pending_payment` rows.
+- WEBHOOK AUTHORITY: Only the payment webhook (`api/paymob-webhook.ts` or Stripe equivalent) can update status to `available` and trigger live Telegram notifications.
+- DUAL GATEWAY: Stripe for international (PKO Bank). Paymob for local Egyptian users.
+- ESCROW LOGIC: Bids move funds from `wallet_balance` to `frozen_balance`. Never update balances via frontend `update()`. ALWAYS use Supabase RPCs (`top_up_wallet`, `complete_public_mission_with_report`, etc.).
 
-########################################################################################
-## 💰 FINANCIAL INTEGRITY & GATEWAYS
-########################################################################################
-- DUAL GATEWAY LOGIC:
-  - STRIPE: International tourists only. Connect to Polish PKO Bank (Individual/Sole Prop).
-  - PAYMOB: Local Egyptian users/workers only. Strictly for tax compliance in Egypt.
-- TRANSACTION RULES:
-  - NEVER update balances via `update()` on the frontend.
-  - ALWAYS call Supabase RPCs: `top_up_wallet`, `create_public_mission_with_fee`, `donate_to_mission`, `co_fund_and_accept_mission`, `place_mission_bid`, `complete_public_mission_with_report`.
-- ESCROW (FROZEN FUNDS):
-  - When a bid is placed, funds move from `wallet_balance` to `frozen_balance`.
-  - Admin 'Force Pay' executes the payout RPC to resolve missions stuck >48 hours.
+## 4. DATABASE SCHEMA ENFORCEMENT
+- PROFILES: `id` (UUID), `wallet_balance` (NUMERIC), `frozen_balance` (NUMERIC), `rating`, `avatar_url`, `full_name`, `phone_number`, `telegram_username`, `contact_email`, `is_verified`, `is_banned` (BOOL).
+- MISSIONS: `id`, `creator_id`, `cleaner_id`, `category`, `status` ('pending_payment'|'available'|'in_progress'|'completed'|'dispute'), `amount_target`, `current_funding`, `location_lat`, `location_lng`, `photo_urls`, `after_photo_urls`.
+- TRANSACTIONS: `id`, `user_id`, `mission_id`, `amount`, `type`, `gateway`.
+- STRICT RULE: NO `updated_at` column in missions table. Never use it in queries.
 
-########################################################################################
-## 🎨 AESTHETIC DIRECTIVE: TEAL & ORANGE ELEGANCE (v3.0)
-########################################################################################
+## 5. ADMIN IDENTIFICATION (SECURITY BY OBSCURITY)
+- NO `is_admin` column in the database.
+- ADMIN RULE: `const isAdmin = user?.email?.includes('tg_6618910143') || profile?.telegram_username?.toLowerCase() === 'sergiogurgini';`
+
+## 6. AESTHETIC DIRECTIVE: TEAL & ORANGE ELEGANCE
 - THEME: Cinematic "Mercedes Dash" + "Neon Orange Jacket".
-- COLOR PALETTE:
-  - BG: `bg-slate-950` (Pure deep black-blue).
-  - GLASS: `bg-cyan-950/30` with `backdrop-blur-md` and `border-cyan-500/20`.
-  - ACTION: Neon Orange (`orange-500`). Buttons must be thin, elegant, and glowing.
-- UI ELEMENTS:
-  - Buttons: `rounded-full border border-orange-500/50 bg-orange-500/10 text-orange-400`.
-  - Markers: VIP Avatars (if `phone_number` exists) with a glowing orange ring. Otherwise, cyan/orange price pills.
-  - NO DOUBLE X: All Close buttons (✕) MUST be on the TOP-LEFT to avoid Telegram system button conflict.
+- COLORS: `bg-slate-950` (Pure deep black-blue). Glass panels: `bg-cyan-950/30 backdrop-blur-md border-cyan-500/20`.
+- ACTION ELEMENTS: Neon Orange (`orange-500`). Buttons must be thin, elegant, glowing (`rounded-full border border-orange-500/50 bg-orange-500/10 text-orange-400`).
+- CLOSE BUTTONS: All Close buttons (✕) MUST be on the TOP-LEFT to prevent TMA system button conflicts.
 
-########################################################################################
-## 📱 MOBILE & TELEGRAM UX (THE "NO-FRICTION" RULES)
-########################################################################################
-- SAFE AREAS: Use `pt-[env(safe-area-inset-top)]` and `pb-[env(safe-area-inset-bottom)]` for all full-screen overlays.
-- SMART LOCATION: 
-  - Geolocation icon `◎` must be inside the location input field (absolute right).
-  - Clicking `◎` triggers `navigator.geolocation` and `map.flyTo`.
-- ACCORDIONS: Use collapsible sections in Profile for 'Contacts' and 'Security' to keep UI clean.
-- LANGUAGE: Support EN, AR, RU, DE, IT, ES. Only 'AR' uses `dir="rtl"`.
-- FORMS: `inputMode="decimal"` for all numeric inputs to trigger numeric keypad on mobile.
-
-########################################################################################
-## 🛠️ OPERATIONAL CONSTRAINTS
-########################################################################################
-- STORAGE: Rename files to `mission_${Date.now()}_${random}.ext`. Sanitize extensions.
-- ERROR HANDLING: Always catch and log Supabase/Stripe errors. Show user-friendly Toasts.
-- PERFORMANCE: Use `memo()` for Map markers. No heavy 3D assets that crash Telegram browser.
+## 7. MOBILE & TELEGRAM UX
+- SAFE AREAS: Use `pt-[env(safe-area-inset-top)]` and `pb-[env(safe-area-inset-bottom)]`.
+- SMART LOCATION: Geolocation icon `◎` absolute right inside input. Triggers `navigator.geolocation` and `map.flyTo`.
+- FORMS: `inputMode="decimal"` for all numeric inputs to force mobile number pads.
+- ERROR HANDLING: Always catch/log Supabase/Stripe errors. Show elegant Toasts.
