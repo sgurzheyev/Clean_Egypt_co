@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { runMissionAiAnalysis } from '../lib/openai';
 
 interface ProfileRow {
   id: string;
@@ -29,6 +30,8 @@ interface MissionRow {
   created_at?: string | null;
   photo_urls?: string[] | null;
   after_photo_urls?: string[] | null;
+  ai_confidence_score?: number | null;
+  ai_verdict?: string | null;
 }
 
 interface PendingApprovalRow {
@@ -129,6 +132,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [disputes, setDisputes] = useState<MissionRow[]>([]);
   const [disputesLoading, setDisputesLoading] = useState(false);
   const [disputesError, setDisputesError] = useState<string | null>(null);
+  const [aiRunningMissionId, setAiRunningMissionId] = useState<string | null>(null);
 
   const fetchPendingApprovals = async () => {
     const { data, error: err } = await supabase
@@ -457,7 +461,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     try {
       const { data, error: err } = await supabase
         .from('missions')
-        .select('id, status, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, description, created_at, photo_urls, after_photo_urls')
+        .select('id, status, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, description, created_at, photo_urls, after_photo_urls, ai_confidence_score, ai_verdict')
         .in('status', ['disputed', 'pending_verification', 'review', 'dispute'])
         .order('created_at', { ascending: false })
         .limit(30);
@@ -485,6 +489,34 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     } catch (e: any) {
       console.error('Resolve dispute error:', e);
       alert(e?.message || 'Failed to resolve dispute.');
+    }
+  };
+
+  const runAiForMission = async (m: MissionRow) => {
+    if (aiRunningMissionId) return;
+    setAiRunningMissionId(m.id);
+    try {
+      const result = await runMissionAiAnalysis({
+        photo_urls: (m.photo_urls || []) as string[],
+        after_photo_urls: (m.after_photo_urls || []) as string[],
+      });
+
+      const { error: updErr } = await supabase
+        .from('missions')
+        .update({
+          ai_confidence_score: result.score,
+          ai_verdict: result.verdict,
+        })
+        .eq('id', m.id);
+      if (updErr) throw updErr;
+
+      alert('AI analysis saved.');
+      await loadDisputes();
+    } catch (e: any) {
+      console.error('AI analysis error:', e);
+      alert(e?.message || 'AI analysis failed.');
+    } finally {
+      setAiRunningMissionId(null);
     }
   };
 
@@ -1034,8 +1066,39 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                         <p className="text-[11px] font-mono text-slate-200">#{m.id.slice(0, 8)}</p>
                         <p className="text-[10px] text-slate-500 uppercase tracking-[0.18em]">{m.status}</p>
                         {m.description && <p className="mt-2 text-xs text-slate-300">{m.description}</p>}
+                        {(typeof m.ai_confidence_score === 'number' || m.ai_verdict) && (
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            {typeof m.ai_confidence_score === 'number' && (
+                              <span
+                                className={[
+                                  'inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-[0.18em] border',
+                                  m.ai_confidence_score > 85
+                                    ? 'border-emerald-500/40 text-emerald-200 bg-emerald-500/10'
+                                    : m.ai_confidence_score > 50
+                                      ? 'border-amber-500/40 text-amber-200 bg-amber-500/10'
+                                      : 'border-red-500/40 text-red-200 bg-red-500/10',
+                                ].join(' ')}
+                              >
+                                AI {m.ai_confidence_score}%
+                              </span>
+                            )}
+                            {m.ai_verdict && (
+                              <span className="text-[11px] text-slate-300 break-words">
+                                {m.ai_verdict}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => runAiForMission(m)}
+                          disabled={aiRunningMissionId === m.id}
+                          className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-cyan-500/30 text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/15 hover:shadow-[0_0_14px_rgba(34,211,238,0.22)] disabled:opacity-60 disabled:cursor-wait transition-all"
+                        >
+                          {aiRunningMissionId === m.id ? '...' : '🤖 Run AI Analysis'}
+                        </button>
                         <button
                           type="button"
                           onClick={() => resolveDispute(m.id, 'approve')}
