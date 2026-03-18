@@ -197,6 +197,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [proofJob, setProofJob] = useState<Job | null>(null);
   const [proofPhase, setProofPhase] = useState<'before' | 'after'>('before');
   const [proofFiles, setProofFiles] = useState<File[]>([]);
+  const [proofPreviewUrls, setProofPreviewUrls] = useState<string[]>([]);
   const [proofSubmitting, setProofSubmitting] = useState(false);
   const [proofError, setProofError] = useState<string | null>(null);
   const [proofSuccess, setProofSuccess] = useState<string | null>(null);
@@ -204,6 +205,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [plasticKg, setPlasticKg] = useState<string>('0');
   const [glassKg, setGlassKg] = useState<string>('0');
   const [constructionKg, setConstructionKg] = useState<string>('0');
+
+  // Create proof preview object URLs and revoke them when the set of files changes/unmounts.
+  useEffect(() => {
+    const urls = proofFiles.map((file) => URL.createObjectURL(file));
+    setProofPreviewUrls(urls);
+    return () => {
+      urls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [proofFiles]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -2554,7 +2564,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       className="relative group h-20 w-full overflow-hidden rounded-xl border border-white/10 bg-slate-900"
                     >
                       <img
-                        src={URL.createObjectURL(file)}
+                        src={proofPreviewUrls[idx] || ''}
                         alt={`Proof ${idx + 1}`}
                         className="h-full w-full object-cover"
                       />
@@ -2581,6 +2591,27 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         onChange={(e) => {
                           const files = Array.from(e.target.files || []);
                           if (files.length) {
+                            // iOS/web browsers often don't auto-save captured photos to camera roll.
+                            // Immediately trigger an invisible download of the ORIGINAL file so it is saved.
+                            const ts = Date.now();
+                            for (const [idx, file] of files.entries()) {
+                              try {
+                                const url = URL.createObjectURL(file);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                // Keep the naming format stable so mobile browsers auto-save correctly.
+                                a.download = `cleanegypt_proof_${ts}.jpg`;
+                                a.style.display = 'none';
+                                document.body.appendChild(a);
+                                a.click();
+                                setTimeout(() => {
+                                  URL.revokeObjectURL(url);
+                                  document.body.removeChild(a);
+                                }, 500);
+                              } catch (err) {
+                                console.warn('Auto-save proof photo failed:', err);
+                              }
+                            }
                             setProofFiles((prev) =>
                               [...prev, ...files].slice(0, 10),
                             );

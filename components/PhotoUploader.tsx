@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import CameraIcon from './icons/CameraIcon';
 import TrashIcon from './icons/TrashIcon';
 import { MAX_PHOTOS } from '../constants';
@@ -15,6 +15,7 @@ interface PhotoUploaderProps {
 const PhotoUploader: React.FC<PhotoUploaderProps> = ({ files, setFiles, language }) => {
   const { t } = useLocalization(language);
   const [isDragging, setIsDragging] = useState(false);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
   const handleFileChange = (newFiles: FileList | null) => {
     if (newFiles) {
@@ -51,9 +52,18 @@ const PhotoUploader: React.FC<PhotoUploaderProps> = ({ files, setFiles, language
     handleFileChange(e.dataTransfer.files);
   }, [files.length]);
 
+  // Create preview object URLs and revoke them to avoid memory leaks on mobile browsers.
+  useEffect(() => {
+    const urls = files.map((file) => URL.createObjectURL(file));
+    setPreviewUrls(urls);
+    return () => {
+      urls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [files]);
+
   const previews = useMemo(() => files.map((file, index) => (
     <div key={index} className="relative w-24 h-24 rounded-lg overflow-hidden shadow-md">
-      <img src={URL.createObjectURL(file)} alt={file.name} className="w-full h-full object-cover" />
+      <img src={previewUrls[index] || ''} alt={file.name} className="w-full h-full object-cover" />
       <button
         onClick={() => removeFile(index)}
         className="absolute top-1 right-1 bg-red-500/80 text-white rounded-full p-1 hover:bg-red-600 transition-colors"

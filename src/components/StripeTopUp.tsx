@@ -126,7 +126,7 @@ function StripeTopUpForm({ amount, onAmountChange, onClose, userId }: StripeTopU
         <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
           {t('cardNumber')}
         </label>
-        <div className="rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-all [&_.StripeElement]:min-h-[40px] [&_.StripeElement]:py-1">
+        <div className="relative z-10 pointer-events-auto rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-all [&_.StripeElement]:min-h-[40px] [&_.StripeElement]:py-1 [&_.StripeElement]:pointer-events-auto [&_iframe]:pointer-events-auto">
           <CardNumberElement options={CARD_ELEMENT_OPTIONS} />
         </div>
       </div>
@@ -137,7 +137,7 @@ function StripeTopUpForm({ amount, onAmountChange, onClose, userId }: StripeTopU
           <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
             {t('expiry')}
           </label>
-          <div className="rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-all [&_.StripeElement]:min-h-[40px] [&_.StripeElement]:py-1">
+          <div className="relative z-10 pointer-events-auto rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-all [&_.StripeElement]:min-h-[40px] [&_.StripeElement]:py-1 [&_.StripeElement]:pointer-events-auto [&_iframe]:pointer-events-auto">
             <CardExpiryElement options={CARD_ELEMENT_OPTIONS} />
           </div>
         </div>
@@ -145,7 +145,7 @@ function StripeTopUpForm({ amount, onAmountChange, onClose, userId }: StripeTopU
           <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
             {t('cvc')}
           </label>
-          <div className="rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-all [&_.StripeElement]:min-h-[40px] [&_.StripeElement]:py-1">
+          <div className="relative z-10 pointer-events-auto rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-all [&_.StripeElement]:min-h-[40px] [&_.StripeElement]:py-1 [&_.StripeElement]:pointer-events-auto [&_iframe]:pointer-events-auto">
             <CardCvcElement options={CARD_ELEMENT_OPTIONS} />
           </div>
         </div>

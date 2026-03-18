@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
@@ -16,13 +16,18 @@ const VerificationPage: React.FC = () => {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const fileInputFrontRef = useRef<HTMLInputElement>(null);
   const fileInputBackRef = useRef<HTMLInputElement>(null);
+  const frontPreviewUrlRef = useRef<string | null>(null);
+  const backPreviewUrlRef = useRef<string | null>(null);
 
   const handleFileFront = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setPhotoFront(file);
       setSubmitError(null);
-      setPhotoPreviewFront(URL.createObjectURL(file));
+      if (frontPreviewUrlRef.current) URL.revokeObjectURL(frontPreviewUrlRef.current);
+      const url = URL.createObjectURL(file);
+      frontPreviewUrlRef.current = url;
+      setPhotoPreviewFront(url);
     }
   };
 
@@ -31,9 +36,20 @@ const VerificationPage: React.FC = () => {
     if (file) {
       setPhotoBack(file);
       setSubmitError(null);
-      setPhotoPreviewBack(URL.createObjectURL(file));
+      if (backPreviewUrlRef.current) URL.revokeObjectURL(backPreviewUrlRef.current);
+      const url = URL.createObjectURL(file);
+      backPreviewUrlRef.current = url;
+      setPhotoPreviewBack(url);
     }
   };
+
+  // Revoke preview URLs on unmount to prevent object URL leaks.
+  useEffect(() => {
+    return () => {
+      if (frontPreviewUrlRef.current) URL.revokeObjectURL(frontPreviewUrlRef.current);
+      if (backPreviewUrlRef.current) URL.revokeObjectURL(backPreviewUrlRef.current);
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
