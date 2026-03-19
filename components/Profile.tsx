@@ -6,6 +6,7 @@ import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import AdminDashboard from '../src/components/AdminDashboard';
 import StripeTopUp from '../src/components/StripeTopUp';
+import LivenessCheck from '../src/components/LivenessCheck';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -200,7 +201,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [proofPhase, setProofPhase] = useState<'before' | 'after'>('before');
   const [proofFiles, setProofFiles] = useState<File[]>([]);
   const [proofPreviewUrls, setProofPreviewUrls] = useState<string[]>([]);
-  const [proofVideoFile, setProofVideoFile] = useState<File | null>(null);
+  const [livenessBlob, setLivenessBlob] = useState<Blob | null>(null);
+  const [livenessMimeType, setLivenessMimeType] = useState<string>('video/webm');
+  const [livenessLat, setLivenessLat] = useState<number | null>(null);
+  const [livenessLng, setLivenessLng] = useState<number | null>(null);
   const [proofSubmitting, setProofSubmitting] = useState(false);
   const [proofError, setProofError] = useState<string | null>(null);
   const [proofSuccess, setProofSuccess] = useState<string | null>(null);
@@ -745,7 +749,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     setProofJob(job);
     setProofPhase(phase);
     setProofFiles([]);
-    setProofVideoFile(null);
+    setLivenessBlob(null);
+    setLivenessLat(null);
+    setLivenessLng(null);
     setProofError(null);
     setProofSuccess(null);
   };
@@ -754,7 +760,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     if (proofSubmitting) return;
     setProofJob(null);
     setProofFiles([]);
-    setProofVideoFile(null);
+    setLivenessBlob(null);
+    setLivenessLat(null);
+    setLivenessLng(null);
     setProofError(null);
     setProofSuccess(null);
   };
@@ -769,18 +777,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     setProofError('Please upload photos before continuing.');
     return;
   }
-  if (proofPhase === 'after' && !proofVideoFile) {
-    setProofError('Please record the liveness video before submitting.');
+  if (proofPhase === 'after' && !livenessBlob) {
+    setProofError('Please complete the liveness check before submitting.');
     return;
   }
-  if (proofPhase === 'after') {
-    const beforeCount = Array.isArray(proofJob.photo_urls) ? proofJob.photo_urls.length : 0;
-    if (beforeCount > 0 && proofFiles.length < beforeCount) {
-      setProofError(
-        `You must upload at least as many AFTER photos (${beforeCount}) as there are BEFORE photos, capturing the exact same angles.`
-      );
-      return;
-    }
+  if (proofFiles.length > 9) {
+    setProofError('Please upload no more than 9 photos.');
+    return;
   }
 
   const toRad = (val: number) => (val * Math.PI) / 180;
@@ -846,7 +849,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         useWebWorker: true,
         fileType: 'image/jpeg',
       };
-      for (const file of proofFiles) {
+      for (const file of proofFiles.slice(0, 9)) {
         if (!file.type || !file.type.startsWith('image/')) {
           setProofError('Only images are allowed');
           return;
@@ -882,7 +885,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         const { error: updateErr } = await supabase
           .from('missions')
           .update({
-            photo_urls: [...(proofJob.photo_urls || []), ...uploadedUrls],
+            photo_urls: [...(proofJob.photo_urls || []), ...uploadedUrls].slice(0, 9),
             started_at: new Date().toISOString(),
           })
           .eq('id', proofJob.id);
@@ -924,34 +927,35 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         // Report submission is non-financial:
         // only upload evidence + move mission to review. Payout is done later via resolve_mission_dispute(approve).
         let proofVideoUrl: string | null = null;
-        if (proofVideoFile) {
-          const videoExt = (proofVideoFile.name.split('.').pop() || 'mp4')
-            .toLowerCase()
-            .replace(/[^a-z0-9]/g, '') || 'mp4';
-          const safeVideoName = `mission_video_${Date.now()}_${Math.random().toString(36).substring(2)}.${videoExt}`;
+        if (livenessBlob) {
+          const isWebm = (livenessMimeType || '').includes('webm');
+          const ext = isWebm ? 'webm' : 'mp4';
+          const safeVideoName = `liveness_${proofJob.id}_${Date.now()}_${Math.random().toString(36).substring(2)}.${ext}`;
           const { error: videoUploadErr } = await supabase.storage
-            .from('order-photos')
-            .upload(safeVideoName, proofVideoFile, {
+            .from('liveness-videos')
+            .upload(safeVideoName, livenessBlob, {
               upsert: false,
-              contentType: proofVideoFile.type || 'video/mp4',
+              contentType: livenessMimeType || 'video/webm',
             });
           if (videoUploadErr) throw videoUploadErr;
           const {
             data: { publicUrl: videoPublicUrl },
-          } = supabase.storage.from('order-photos').getPublicUrl(safeVideoName);
+          } = supabase.storage.from('liveness-videos').getPublicUrl(safeVideoName);
           proofVideoUrl = videoPublicUrl;
         }
 
         const { error: updateErr } = await supabase
           .from('missions')
           .update({
-            after_photo_urls: [...(proofJob.after_photo_urls || []), ...uploadedUrls],
+            after_photo_urls: [...(proofJob.after_photo_urls || []), ...uploadedUrls].slice(0, 9),
             status: 'review',
             completion_lat: completionLat,
             completion_lng: completionLng,
             completion_distance_meters: completionDistanceMeters,
             report_submitted_at: new Date().toISOString(),
             proof_video_url: proofVideoUrl,
+            liveness_lat: livenessLat,
+            liveness_lng: livenessLng,
           } as any)
           .eq('id', proofJob.id);
         if (updateErr) throw updateErr;
@@ -2548,15 +2552,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     ? "Upload 'Before' photos (required)"
                     : "Upload 'After' photos (required)"}
                 </label>
-                {proofPhase === 'after' &&
-                  Array.isArray(proofJob.photo_urls) &&
-                  proofJob.photo_urls.length > 0 &&
-                  proofFiles.length < proofJob.photo_urls.length && (
-                    <p className="mb-2 text-xs text-amber-300">
-                      {`You must upload at least as many AFTER photos (${proofJob.photo_urls.length}) as there are BEFORE photos, capturing the exact same angles.`}
-                    </p>
-                  )}
-                <div className="grid grid-cols-3 gap-2 mb-2">
+                <div className="grid grid-cols-3 gap-2 mb-2 max-h-[50vh] overflow-y-auto pr-1">
                   {proofFiles.map((file, idx) => (
                     <div
                       key={idx}
@@ -2579,7 +2575,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       </button>
                     </div>
                   ))}
-                  {proofFiles.length < 10 && (
+                  {proofFiles.length < 9 && (
                     <label className="flex h-20 items-center justify-center rounded-xl border border-dashed border-amber-500/50 bg-amber-500/10 text-[11px] text-amber-200 cursor-pointer hover:border-amber-400 hover:bg-amber-500/15 transition-all">
                       + Take another photo
                       <input
@@ -2612,7 +2608,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                               }
                             }
                             setProofFiles((prev) =>
-                              [...prev, ...files].slice(0, 10),
+                              [...prev, ...files].slice(0, 9),
                             );
                             setProofError(null);
                             setProofSuccess(null);
@@ -2628,27 +2624,16 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </div>
 
               {proofPhase === 'after' && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-300 mb-2">
-                    Final Step: Record a 2-second video panning across the cleaned area to prove liveness.
-                  </p>
-                  <label className="flex w-full items-center justify-center rounded-2xl border border-dashed border-orange-500/50 bg-orange-500/10 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.14em] text-orange-200 cursor-pointer hover:bg-orange-500/15 transition-all">
-                    {proofVideoFile ? `Video captured: ${proofVideoFile.name}` : 'Capture liveness video'}
-                    <input
-                      type="file"
-                      accept="video/mp4,video/x-m4v,video/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        if (file) {
-                          setProofVideoFile(file);
-                        }
-                        if (e.target) e.target.value = '';
-                      }}
-                    />
-                  </label>
-                </div>
+                <LivenessCheck
+                  disabled={proofSubmitting}
+                  onRecorded={(res) => {
+                    setLivenessBlob(res.blob);
+                    setLivenessMimeType(res.mimeType);
+                    setLivenessLat(res.lat);
+                    setLivenessLng(res.lng);
+                    setProofError(null);
+                  }}
+                />
               )}
 
               {/* Eco-Report for public missions on completion */}
@@ -2726,12 +2711,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       proofPhase === 'after' &&
                       (
                         !proofFiles.length ||
-                        !proofVideoFile ||
-                        (
-                          Array.isArray(proofJob.photo_urls) &&
-                          proofJob.photo_urls.length > 0 &&
-                          proofFiles.length < proofJob.photo_urls.length
-                        )
+                        !livenessBlob ||
+                        false
                       )
                     )
                   }
