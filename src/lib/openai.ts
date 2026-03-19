@@ -24,23 +24,24 @@ export async function runMissionAiAnalysis(args: {
     throw new Error('Missing VITE_OPENAI_API_KEY');
   }
 
-  const prompt =
-    `Follow our AI CONSTITUTION v4.0. You are a strict fraud detection auditor for CleanEgypt.co, reviewing 'Before' vs 'After' trash cleanup photos. ` +
-    `Your goal is to detect if a user is trying to trick the system by changing the camera angle or location.\n\n` +
-    `INPUT: You will receive an array of 'before_photos' and an array of 'after_photos'.\n\n` +
-    `### CRITICAL STEP 1: LANDMARK & LOCATION MATCHING (FRAUD CHECK)\n` +
-    `Before checking for trash removal, you MUST strictly verify if the exact same location and perspective are used in both arrays.\n` +
-    `- Rely only on static, unique identifiers: Buildings, unique trees, power poles, wall patterns, and background skylines. General sand or common dirt fields are NOT enough.\n` +
-    `- Detection Scenario (Turned Camera): If the 'before_photos' show landmarks that are absent in 'after_photos', you MUST flag this as FRAUD. The cleaner simply turned the camera to a clean spot nearby.\n\n` +
-    `### STEP 2: TRASH VERIFICATION (If Step 1 Passes)\n` +
-    `If and ONLY if the locations are a 95%+ match, check if the specific trash piles identified in 'before_photos' have been completely removed.\n\n` +
-    `### OUTPUT FORMAT: JSON ONLY\n` +
-    `Return a structured JSON object with exactly these fields:\n` +
-    `- verified_status: "fraud" or "verified"\n` +
-    `- reasoning: short explanation. If fraud, MUST start with "FRAUD DETECTED:"\n` +
-    `- landmark_consistency_score: number 0..1\n` +
-    `- trash_removal_score: number 0..1\n` +
-    `- suggested_score: number 0..1 (overall score; if fraud this must be 0)\n\n` +
+  const systemPrompt =
+    `Follow our AI CONSTITUTION v4.0. You are a strict but context-aware fraud detection auditor for CleanEgypt.co, reviewing 'Before' vs 'After' trash cleanup photos.\n\n` +
+    `### CRITICAL STEP 1: CONTEXT & GEOMETRY MATCHING (FRAUD CHECK)\n` +
+    `First, determine if the scene is OUTDOOR (beach, desert, street) or INDOOR (apartment, kitchen, room).\n\n` +
+    `- IF OUTDOOR: Strictly verify the exact same location and perspective using static identifiers (buildings, unique trees, horizon, power poles). If the camera was turned to a completely different background, flag as FRAUD.\n` +
+    `- IF INDOOR: Verify the room geometry (furniture layout, windows, walls, floor patterns, corners). In tight indoor spaces, allow for slight variations in camera angle or zoom, as long as it is unmistakably the exact same room and same specific spot.\n\n` +
+    `### STEP 2: TRASH VERIFICATION\n` +
+    `If and ONLY if Step 1 passes (the location matches), check if the specific trash, debris, or mess identified in 'before_photos' has been completely removed or cleaned in the 'after_photos'.\n\n` +
+    `### OUTPUT FORMAT (JSON ONLY):\n` +
+    `{\n` +
+    `  "verified_status": "verified" | "fraud",\n` +
+    `  "reasoning": "Brief explanation of your Step 1 and Step 2 findings.",\n` +
+    `  "landmark_consistency_score": 0.0 to 1.0,\n` +
+    `  "trash_removal_score": 0.0 to 1.0,\n` +
+    `  "suggested_score": 0.0 to 1.0\n` +
+    `}`;
+
+  const userPrompt =
     `before_photos:\n${(args.photo_urls || []).join('\n')}\n\n` +
     `after_photos:\n${(args.after_photo_urls || []).join('\n')}\n`;
 
@@ -55,8 +56,12 @@ export async function runMissionAiAnalysis(args: {
       temperature: 0.2,
       messages: [
         {
+          role: 'system',
+          content: systemPrompt,
+        },
+        {
           role: 'user',
-          content: prompt,
+          content: userPrompt,
         },
       ],
     }),
