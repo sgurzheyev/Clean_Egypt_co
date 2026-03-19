@@ -77,7 +77,7 @@ export default function PhantomCapture(props: {
     return new File([blob], `phantom_after_${Date.now()}_${idx}.jpg`, { type: 'image/jpeg' });
   };
 
-  const handleBurstCapture = async () => {
+  const handleCapture = async () => {
     // Prevent double-triggering from rapid taps before React state updates.
     if (burstLockRef.current) return;
     if (!canCapture) return;
@@ -87,7 +87,8 @@ export default function PhantomCapture(props: {
     try {
       let lat: number | null = null;
       let lng: number | null = null;
-      if (navigator.geolocation) {
+      // Optimize GPS usage: fetch only for the first scene capture.
+      if (currentIndex === 0 && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
             lat = pos.coords.latitude;
@@ -100,27 +101,19 @@ export default function PhantomCapture(props: {
         );
       }
 
-      const files: File[] = [];
-      for (let i = 0; i < 3; i++) {
-        const f = await snapFrame(i + 1);
-        if (f) files.push(f);
-        if (i < 2) {
-          await new Promise((r) => setTimeout(r, 333));
-        }
-      }
-
-      if (!files.length) {
-        throw new Error('Could not capture burst images.');
+      const f = await snapFrame(currentIndex + 1);
+      if (!f) {
+        throw new Error('Could not capture image.');
       }
 
       onCaptured({
-        files,
+        files: [f],
         lat,
         lng,
         capturedAt: new Date().toISOString(),
       });
     } catch (e: any) {
-      setError(e?.message || 'Burst capture failed.');
+      setError(e?.message || 'Capture failed.');
     } finally {
       setCapturing(false);
       burstLockRef.current = false;
@@ -175,11 +168,11 @@ export default function PhantomCapture(props: {
         {error && <p className="mb-2 text-xs text-red-300 text-center">{error}</p>}
         <button
           type="button"
-          onClick={handleBurstCapture}
+          onClick={handleCapture}
           disabled={!canCapture}
           className="w-full rounded-full py-3 text-sm font-black uppercase tracking-[0.2em] bg-orange-500/20 border border-orange-400/60 text-orange-100 shadow-[0_0_20px_rgba(251,146,60,0.45)] disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {capturing ? 'Capturing Burst…' : 'Capture Burst (3 shots)'}
+          {capturing ? 'Capturing…' : 'Capture Photo'}
         </button>
       </div>
 

@@ -2942,7 +2942,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           }
           onClose={() => setShowPhantomCapture(false)}
           onCaptured={(result) => {
-            setAfterBurstPackages((prev) => [...prev, result]);
+            setAfterBurstPackages((prev) => {
+              // Reuse the initial GPS for subsequent captures to avoid repeated geolocation pings.
+              const first = prev[0];
+              const normalized =
+                (result.lat == null || result.lng == null) && first?.lat != null && first?.lng != null
+                  ? { ...result, lat: first.lat, lng: first.lng }
+                  : result;
+              return [...prev, normalized];
+            });
             setProofFiles((prev) => [...prev, ...result.files].slice(0, 9));
             setShowPhantomCapture(false);
             setProofError(null);
