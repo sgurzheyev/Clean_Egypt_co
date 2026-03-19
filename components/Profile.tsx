@@ -2354,7 +2354,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           onClick={() => setReviewJob(null)}
         >
           <div
-            className="w-full max-w-3xl max-h-[85vh] flex flex-col rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] overflow-hidden"
+            className="w-[95vw] md:w-full max-w-4xl max-h-[85vh] flex flex-col rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header — fixed at top */}
@@ -2378,12 +2378,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
             {/* Scrollable photo grid + disclaimer */}
             <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div className="rounded-2xl bg-black/50 border border-white/10 p-4">
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
                     Before photos
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     {(!reviewJob.photo_urls || reviewJob.photo_urls.length === 0) && (
                       <p className="text-xs text-slate-500 italic">
                         Worker did not upload before photos.
@@ -2400,7 +2400,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
                     After photos
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     {(!reviewJob.after_photo_urls || reviewJob.after_photo_urls.length === 0) && (
                       <p className="text-xs text-slate-500 italic">
                         Worker did not upload after photos.

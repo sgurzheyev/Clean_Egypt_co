@@ -133,6 +133,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [disputesLoading, setDisputesLoading] = useState(false);
   const [disputesError, setDisputesError] = useState<string | null>(null);
   const [aiRunningMissionId, setAiRunningMissionId] = useState<string | null>(null);
+  const [lastAiRunByMissionId, setLastAiRunByMissionId] = useState<Record<string, string>>({});
 
   const fetchPendingApprovals = async () => {
     const { data, error: err } = await supabase
@@ -502,9 +503,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     if (aiRunningMissionId) return;
     setAiRunningMissionId(m.id);
     try {
+      // Force fresh mission payload from DB to avoid stale/cached photo arrays.
+      const { data: latestMission, error: latestErr } = await supabase
+        .from('missions')
+        .select('id, photo_urls, after_photo_urls')
+        .eq('id', m.id)
+        .maybeSingle();
+      if (latestErr) throw latestErr;
+
+      const beforePhotos = ((latestMission as any)?.photo_urls || m.photo_urls || []) as string[];
+      const afterPhotos = ((latestMission as any)?.after_photo_urls || m.after_photo_urls || []) as string[];
+
       const result = await runMissionAiAnalysis({
-        photo_urls: (m.photo_urls || []) as string[],
-        after_photo_urls: (m.after_photo_urls || []) as string[],
+        photo_urls: beforePhotos,
+        after_photo_urls: afterPhotos,
       });
 
       const { error: updErr } = await supabase
@@ -515,6 +527,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         })
         .eq('id', m.id);
       if (updErr) throw updErr;
+
+      setLastAiRunByMissionId((prev) => ({
+        ...prev,
+        [m.id]: new Date().toISOString(),
+      }));
 
       alert('AI analysis saved.');
       await loadDisputes();
@@ -1122,10 +1139,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500 mb-2">Before</p>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                           {(m.photo_urls || []).slice(0, 4).map((url) => (
                             <div key={url} className="aspect-square rounded-xl overflow-hidden border border-white/10 bg-black/30">
                               <img src={url} alt="Before" className="h-full w-full object-cover" />
@@ -1138,7 +1155,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500 mb-2">After</p>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                           {(m.after_photo_urls || []).slice(0, 4).map((url) => (
                             <div key={url} className="aspect-square rounded-xl overflow-hidden border border-white/10 bg-black/30">
                               <img src={url} alt="After" className="h-full w-full object-cover" />
@@ -1150,6 +1167,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                         </div>
                       </div>
                     </div>
+
+                    {isAllowedAdmin && (
+                      <div className="mt-4 rounded text-xs font-mono text-cyan-500/70 bg-slate-950/50 p-2 border border-cyan-900/30">
+                        <p>Before URLs: {(m.photo_urls || []).length}</p>
+                        <p>After URLs: {(m.after_photo_urls || []).length}</p>
+                        <p>
+                          Last AI Run:{' '}
+                          {lastAiRunByMissionId[m.id]
+                            ? new Date(lastAiRunByMissionId[m.id]).toLocaleString()
+                            : 'Never'}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))}
                 {!disputesLoading && disputes.length === 0 && (
@@ -1322,7 +1352,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
           aria-hidden="false"
         >
           <div
-            className="w-full max-w-sm rounded-3xl bg-slate-950/95 backdrop-blur-xl border border-orange-500/20 p-5"
+            className="w-[95vw] md:w-full max-w-4xl rounded-3xl bg-slate-950/95 backdrop-blur-xl border border-orange-500/20 p-5"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -1386,7 +1416,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
           aria-hidden="false"
         >
           <div
-            className="w-full max-w-3xl rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.12)] p-5 sm:p-6"
+            className="w-[95vw] md:w-full max-w-4xl rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.12)] p-5 sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3 mb-4">

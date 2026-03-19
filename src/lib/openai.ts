@@ -45,8 +45,14 @@ export async function runMissionAiAnalysis(args: {
     `before_photos:\n${(args.photo_urls || []).join('\n')}\n\n` +
     `after_photos:\n${(args.after_photo_urls || []).join('\n')}\n`;
 
+  console.log('CRITICAL AI DEBUG - URLs being sent:', {
+    before_photos: args.photo_urls || [],
+    after_photos: args.after_photo_urls || [],
+  });
+
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
+    cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
