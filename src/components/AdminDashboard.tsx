@@ -478,10 +478,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const resolveDispute = async (missionId: string, decision: 'approve' | 'reject') => {
     if (!window.confirm(decision === 'approve' ? 'Approve & payout?' : 'Reject dispute?')) return;
     try {
+      const mission = disputes.find((d) => d.id === missionId) ?? null;
+      const supervisorComment =
+        decision === 'reject'
+          ? (mission?.ai_verdict?.trim() || 'AI FRAUD DETECTED')
+          : null;
+
       const { error: err } = await supabase.rpc('resolve_mission_dispute', {
-        mission_id: missionId,
-        decision,
-        supervisor_comment: null,
+        p_mission_id: missionId,
+        p_decision: decision,
+        p_supervisor_comment: supervisorComment,
       });
       if (err) throw err;
       alert(decision === 'approve' ? 'Approved & paid out.' : 'Rejected.');

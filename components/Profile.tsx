@@ -31,6 +31,8 @@ interface Job {
   photo_urls?: string[] | null;
   after_photo_urls?: string[] | null;
   is_disputed?: boolean | null;
+  retry_count?: number | null;
+  rejection_reason?: string | null;
   rating?: number | null;
   cleaner?: {
     full_name?: string | null;
@@ -496,7 +498,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: homeJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed')
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason')
         .eq('creator_id', userId)
         .eq('category', 'home')
         .order('created_at', { ascending: false });
@@ -504,7 +506,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: cityJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed')
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason')
         .eq('creator_id', userId)
         .eq('category', 'public')
         .order('created_at', { ascending: false });
@@ -512,7 +514,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: activeJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed')
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason')
         .eq('cleaner_id', userId)
         .in('status', ['in_progress', 'completed', 'finished'])
         .order('created_at', { ascending: false });
@@ -2554,6 +2556,29 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
 
             <form onSubmit={submitProof} className="space-y-4">
+              {proofJob.status === 'in_progress' && !!proofJob.rejection_reason && (
+                <div className="rounded-2xl border border-orange-500/60 bg-orange-500/10 shadow-[0_0_18px_rgba(249,115,22,0.18)] p-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-orange-200">
+                    {t('aiRetryTitle')}
+                  </p>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-200">
+                    {t('aiRetryBody')}
+                  </p>
+                  <p className="mt-2 text-[11px] font-bold text-amber-200">
+                    {t('aiRetryAttempt', {
+                      attempt: Math.min(3, (Number(proofJob.retry_count ?? 0) + 1)),
+                    })}
+                  </p>
+                  <div className="mt-2 rounded-xl bg-black/40 border border-white/10 p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                      {t('aiRejectionReasonLabel')}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-200 whitespace-pre-wrap break-words">
+                      {proofJob.rejection_reason}
+                    </p>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
                   {proofPhase === 'before'

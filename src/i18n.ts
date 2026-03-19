@@ -153,6 +153,11 @@ const resources = {
       after: 'After',
       needAtLeastThreePhotos: 'Please take at least 3 photos before completing this mission.',
       tooFarFromMission: 'You are too far from the mission location.',
+      aiRetryTitle: '⚠️ AI [FRAUD DETECTED] - RETRY REQUESTED',
+      aiRetryBody:
+        'Please retake the AFTER photos. You must match the exact camera angles and landmarks from the BEFORE photos (Scene Capture Geometry). The AI needs proper georeferences to verify the cleanup.',
+      aiRetryAttempt: 'Attempt: {{attempt}} of 3',
+      aiRejectionReasonLabel: 'Reason:',
     },
   },
   ar: {
@@ -450,6 +455,11 @@ const resources = {
       after: 'После',
       needAtLeastThreePhotos: 'Сделайте не менее 3 фотографий перед завершением задания.',
       tooFarFromMission: 'Вы слишком далеко от места задания.',
+      aiRetryTitle: '⚠️ AI [FRAUD DETECTED] - ПОВТОР ЗАПРОШЕН',
+      aiRetryBody:
+        'Пожалуйста, переснимите AFTER-фото. Нужно повторить те же углы съёмки и ориентиры (landmarks) как на BEFORE-фото (Scene Capture Geometry). AI нужны гео-ориентиры, чтобы подтвердить уборку.',
+      aiRetryAttempt: 'Попытка: {{attempt}} из 3',
+      aiRejectionReasonLabel: 'Причина:',
     },
   },
   de: {
