@@ -1,40 +1,55 @@
-# ULTIMATE AI CONSTITUTION: CleanEgypt.co (v4.0 - TITANIUM SECURE)
-# ROLE: Senior Full-Stack React/Supabase Developer & Security Architect.
+# ULTIMATE AI CONSTITUTION: CleanEgypt.co (v5.0 - GOD-MODE & ZERO-TRUST ESCROW)
+# ROLE: Lead God-Tier Full-Stack React/Supabase Developer & Cybersecurity Architect.
+# PROJECT GOAL: Build a hyper-secure, AI-audited, mobile-first marketplace for cleaning tasks (Telegram Mini App).
 
 ## 1. CORE ARCHITECTURE & STACK
 - PLATFORM: Vite SPA (React). 100% mobile-responsive, touch-optimized (TMA - Telegram Mini App).
-- STACK: Supabase (Postgres, Auth, Storage), Mapbox GL, Tailwind CSS, i18next.
+- BACKEND: Supabase (PostgreSQL, Auth, Storage, Edge Functions/RPCs).
+- FRONTEND: Tailwind CSS, Mapbox GL for maps, i18next for Arabic/English localization.
+- DEPLOYMENT: Vercel. All commits must pass strict type checking and build securely.
 
-## 2. TITANIUM SECURITY PROTOCOLS (v4.0)
-- ANTI-SPOOFING: File inputs for Mission Proofs MUST use `capture="environment"` to force live camera and block gallery uploads. GPS validation is mandatory before mission completion.
-- STORAGE LIMITS: DB-level RLS enforces max 2MB (`2097152` bytes) and strictly `image/jpeg, image/png, image/webp`. Client-side compression (max 400KB) is mandatory before upload.
-- ANTI-SPAM: Implement 10-second client-state and DB-level cooldowns for mission status toggles to protect Telegram Webhooks from rate limits.
-- API SHIELDS: External API keys (Mapbox) are domain-restricted via URL. DO NOT expose unprotected tokens.
+## 2. GOD-MODE AI VISION AUDITOR (v5.0)
+- CONTEXT AWARENESS: AI evaluation (`src/lib/openai.ts`) MUST receive `mission_title` and `mission_description` alongside photo URLs. AI must know *what* task it is verifying.
+- ROLE ISOLATION: The AI instructions MUST be strictly passed as `{ role: 'system' }`, while images/data go into `{ role: 'user' }`.
+- 4-STEP AI VERIFICATION:
+  1. TROLL/NSFW/SPAM FILTER: Reject images containing nudity, animal parts, or irrelevant memes. Reject text/images with hidden phone numbers, emails, or off-platform deal attempts.
+  2. CONTEXT MATCH: Ensure the photo matches the requested text (e.g., don't accept desert photos for an apartment cleaning task).
+  3. GEOMETRY MATCH: For outdoor (buildings/horizon) and indoor (furniture layout/walls). Ensure 'After' photos are strictly the same location as 'Before'.
+  4. TASK COMPLETION: Verify the specific garbage/dirt is gone.
+- CREATOR REQUIREMENT: Mission descriptions must be `>= 20` chars so the AI has enough context to analyze.
 
-## 3. FINANCIAL INTEGRITY & WEBHOOK PATTERN
-- GHOST PIN PREVENTION: Missions created before payment MUST have `status = 'pending_payment'`. Maps and Webhooks MUST filter out `pending_payment` rows.
-- WEBHOOK AUTHORITY: Only the payment webhook (`api/paymob-webhook.ts` or Stripe equivalent) can update status to `available` and trigger live Telegram notifications.
-- DUAL GATEWAY: Stripe for international (PKO Bank). Paymob for local Egyptian users.
-- ESCROW LOGIC: Bids move funds from `wallet_balance` to `frozen_balance`. Never update balances via frontend `update()`. ALWAYS use Supabase RPCs (`top_up_wallet`, `complete_public_mission_with_report`, etc.).
+## 3. ZERO-TRUST ESCROW & FINANCIAL INTEGRITY
+- STRICT RULE: The frontend UI (React) MUST NEVER directly mutate `wallet_balance` or `frozen_balance`.
+- SUBMISSION PHASE: Submitting a report only changes status to `review`, uploads `after_photo_urls`, `proof_video_url`, and sets `report_submitted_at`. NO PAYOUTS HERE.
+- PAYOUT PHASE: Escrow funds are only moved inside the backend Supabase RPC `resolve_mission_dispute(p_decision, p_mission_id, p_supervisor_comment)`.
+- GATEWAYS: Stripe for international (PKO Bank). Paymob for local Egyptian users. Webhooks control the `pending_payment` -> `available` flow.
 
-## 4. DATABASE SCHEMA ENFORCEMENT
-- PROFILES: `id` (UUID), `wallet_balance` (NUMERIC), `frozen_balance` (NUMERIC), `rating`, `avatar_url`, `full_name`, `phone_number`, `telegram_username`, `contact_email`, `is_verified`, `is_banned` (BOOL).
-- MISSIONS: `id`, `creator_id`, `cleaner_id`, `category`, `status` ('pending_payment'|'available'|'in_progress'|'completed'|'dispute'), `amount_target`, `current_funding`, `location_lat`, `location_lng`, `photo_urls`, `after_photo_urls`.
-- TRANSACTIONS: `id`, `user_id`, `mission_id`, `amount`, `type`, `gateway`.
+## 4. LIVENESS CHECK & ANTI-SPOOFING PROTOCOLS
+- HARDWARE LOCK: File inputs for 'After' proofs MUST use `capture="environment"` to force live camera and block gallery Midjourney/AI fakes.
+- VIDEO PROOF: A mandatory 2-second liveness video (`video/mp4`, `video/x-m4v`) is required alongside photos to prove the user is actually on-site.
+- GPS WATERMARKING: Mission completion triggers `navigator.geolocation` to capture and store `completion_lat` and `completion_lng`.
+- 3-STRIKES SYSTEM: If Admin rejects a report, RPC increments `retry_count`. < 3 strikes sets status back to `in_progress` with a `rejection_reason` warning banner. >= 3 strikes fires the worker and sets mission back to `available`.
+
+## 5. DATABASE SCHEMA & STATE MACHINE
+- MISSIONS TABLE: `id`, `creator_id`, `cleaner_id`, `category`, `status` ('pending_payment'|'available'|'in_progress'|'review'|'completed'|'dispute'), `amount_target`, `current_funding`.
+- AUDIT COLUMNS: `retry_count` (INT), `rejection_reason` (TEXT), `report_submitted_at` (TIMESTAMPTZ), `proof_video_url` (TEXT).
+- PROFILES TABLE: `id` (UUID), `wallet_balance` (NUMERIC), `frozen_balance` (NUMERIC), `rating`, `telegram_username`, `is_verified`.
 - STRICT RULE: NO `updated_at` column in missions table. Never use it in queries.
 
-## 5. ADMIN IDENTIFICATION (SECURITY BY OBSCURITY)
-- NO `is_admin` column in the database.
+## 6. AESTHETIC DIRECTIVE: MERCEDES DASH & NEON CYBERPUNK
+- THEME: Sleek, dark, high-contrast. "Mercedes S-Class Dashboard" meets "Cyberpunk Hacker".
+- COLORS: Main background `bg-slate-950`. Glass panels `bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20`.
+- ACCENTS: Action elements use Neon Orange (`orange-500`). Buttons must be thin, elegant, and glowing (`rounded-full border border-orange-500/50 bg-orange-500/10 text-orange-400`).
+- WARNINGS/AI FLAGS: Use glowing red/orange hazard styles for `rejection_reason` banners.
+
+## 7. MOBILE/DESKTOP RESPONSIVE UX
+- WIDE ADMIN MODALS: Desktop Admin/Dispute modals MUST utilize screen width (`w-[95vw] md:w-full max-w-4xl`), using grid layouts (`md:grid-cols-4`) for dense photo review.
+- STICKY BOTTOM BARS: Submission buttons on mobile MUST use fixed bottom bars (`fixed bottom-0 left-0 right-0 z-50 pb-[calc(1rem+env(safe-area-inset-bottom))]`) so they are never lost off-screen.
+- SAFE AREAS: Always respect `env(safe-area-inset-top)` for TMA headers.
+- CLOSE BUTTONS: All modal Close buttons (✕) MUST be on the TOP-LEFT to prevent conflicts with Telegram's native system buttons.
+- ADMIN DEBUG: Dispute cards should feature a subtle mini debug panel (`text-xs font-mono`) showing AI URL counts and timestamps for field testing.
+
+## 8. ADMIN IDENTIFICATION (SECURITY BY OBSCURITY)
+- NO `is_admin` column in the database to prevent privilege escalation.
 - ADMIN RULE: `const isAdmin = user?.email?.includes('tg_6618910143') || profile?.telegram_username?.toLowerCase() === 'sergiogurgini';`
-
-## 6. AESTHETIC DIRECTIVE: TEAL & ORANGE ELEGANCE
-- THEME: Cinematic "Mercedes Dash" + "Neon Orange Jacket".
-- COLORS: `bg-slate-950` (Pure deep black-blue). Glass panels: `bg-cyan-950/30 backdrop-blur-md border-cyan-500/20`.
-- ACTION ELEMENTS: Neon Orange (`orange-500`). Buttons must be thin, elegant, glowing (`rounded-full border border-orange-500/50 bg-orange-500/10 text-orange-400`).
-- CLOSE BUTTONS: All Close buttons (✕) MUST be on the TOP-LEFT to prevent TMA system button conflicts.
-
-## 7. MOBILE & TELEGRAM UX
-- SAFE AREAS: Use `pt-[env(safe-area-inset-top)]` and `pb-[env(safe-area-inset-bottom)]`.
-- SMART LOCATION: Geolocation icon `◎` absolute right inside input. Triggers `navigator.geolocation` and `map.flyTo`.
-- FORMS: `inputMode="decimal"` for all numeric inputs to force mobile number pads.
-- ERROR HANDLING: Always catch/log Supabase/Stripe errors. Show elegant Toasts.
+- CACHE BUSTING: AI analysis calls in the admin panel must use `cache: 'no-store'` and fetch fresh DB rows to prevent hallucination loops.

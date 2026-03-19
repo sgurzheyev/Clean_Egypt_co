@@ -1038,6 +1038,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setOrderError('Tap on the map to choose a location.');
       return;
     }
+    if ((orderDescription || '').trim().length < 20) {
+      setOrderError('Please provide a detailed description so the worker and AI know exactly what to do.');
+      return;
+    }
 
     try {
       setOrderSubmitting(true);
