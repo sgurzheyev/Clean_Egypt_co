@@ -128,9 +128,9 @@ const SupervisorDashboard: React.FC = () => {
     try {
       setActionLoadingId(mission.id);
       const { error } = await supabase.rpc('resolve_mission_dispute', {
-        mission_id: mission.id,
-        decision,
-        supervisor_comment: supervisorComment ?? null,
+        p_mission_id: mission.id,
+        p_decision: decision,
+        p_supervisor_comment: supervisorComment ?? null,
       });
       if (error) {
         console.error('resolve_mission_dispute error:', error.message);
