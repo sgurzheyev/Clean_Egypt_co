@@ -809,6 +809,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     setProofSuccess(null);
     if (!proofJob) return;
     if (proofPhase === 'after' && !enforceMissionStatusCooldown()) return;
+
+    // Store the GPS used for the anti-fraud distance check so we can reuse it
+    // (avoids null liveness coordinates from the recorder component timing).
+    let antiFraudLat: number | null = null;
+    let antiFraudLng: number | null = null;
   if (!proofFiles.length) {
     setProofError('Please upload photos before continuing.');
     return;
@@ -855,6 +860,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         }),
       );
       const { latitude, longitude } = position.coords;
+        antiFraudLat = latitude;
+        antiFraudLng = longitude;
       const d = distanceMeters(
         latitude,
         longitude,
@@ -959,6 +966,26 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             console.warn('Completion GPS capture failed:', e);
           }
         }
+
+        // Fallback to the GPS captured during the anti-fraud distance check.
+        if (completionLat == null && antiFraudLat != null) completionLat = antiFraudLat;
+        if (completionLng == null && antiFraudLng != null) completionLng = antiFraudLng;
+        if (
+          completionDistanceMeters == null &&
+          completionLat != null &&
+          completionLng != null &&
+          typeof proofJob.location_lat === 'number' &&
+          typeof proofJob.location_lng === 'number'
+        ) {
+          completionDistanceMeters = Math.round(
+            distanceMeters(
+              completionLat,
+              completionLng,
+              proofJob.location_lat,
+              proofJob.location_lng
+            )
+          );
+        }
         if ((completionLat == null || completionLng == null) && afterBurstPackages.length > 0) {
           const lastBurst = afterBurstPackages[afterBurstPackages.length - 1];
           if (lastBurst?.lat != null && lastBurst?.lng != null) {
@@ -1000,6 +1027,20 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           proofVideoUrl = videoPublicUrl;
         }
 
+        const effectiveLivenessLat =
+          livenessLat ??
+          completionLat ??
+          (typeof proofJob.location_lat === 'number' ? proofJob.location_lat : null);
+        const effectiveLivenessLng =
+          livenessLng ??
+          completionLng ??
+          (typeof proofJob.location_lng === 'number' ? proofJob.location_lng : null);
+
+        if (effectiveLivenessLat == null || effectiveLivenessLng == null) {
+          setProofError('Liveness GPS is required. Please enable location and try again.');
+          return;
+        }
+
         const { error: updateErr } = await supabase
           .from('missions')
           .update({
@@ -1010,8 +1051,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             completion_distance_meters: completionDistanceMeters,
             report_submitted_at: new Date().toISOString(),
             proof_video_url: proofVideoUrl,
-            liveness_lat: livenessLat,
-            liveness_lng: livenessLng,
+            liveness_lat: effectiveLivenessLat,
+            liveness_lng: effectiveLivenessLng,
           } as any)
           .eq('id', proofJob.id);
         if (updateErr) throw updateErr;
@@ -2839,7 +2880,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         <PhantomCapture
           currentIndex={
             Array.isArray(proofJob.photo_urls) && proofJob.photo_urls.length > 0
-              ? Math.min(proofFiles.length, proofJob.photo_urls.length - 1)
+              ? Math.min(afterBurstPackages.length, proofJob.photo_urls.length - 1)
               : 0
           }
           totalScenes={
@@ -2849,7 +2890,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           }
           referencePhotoUrl={
             Array.isArray(proofJob.photo_urls) && proofJob.photo_urls.length > 0
-              ? proofJob.photo_urls[Math.min(proofFiles.length, proofJob.photo_urls.length - 1)] || null
+              ? proofJob.photo_urls[Math.min(afterBurstPackages.length, proofJob.photo_urls.length - 1)] || null
               : null
           }
           onClose={() => setShowPhantomCapture(false)}

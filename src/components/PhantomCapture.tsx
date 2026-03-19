@@ -18,6 +18,7 @@ export default function PhantomCapture(props: {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const burstLockRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [capturing, setCapturing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +78,10 @@ export default function PhantomCapture(props: {
   };
 
   const handleBurstCapture = async () => {
+    // Prevent double-triggering from rapid taps before React state updates.
+    if (burstLockRef.current) return;
     if (!canCapture) return;
+    burstLockRef.current = true;
     setError(null);
     setCapturing(true);
     try {
@@ -119,6 +123,7 @@ export default function PhantomCapture(props: {
       setError(e?.message || 'Burst capture failed.');
     } finally {
       setCapturing(false);
+      burstLockRef.current = false;
     }
   };
 
