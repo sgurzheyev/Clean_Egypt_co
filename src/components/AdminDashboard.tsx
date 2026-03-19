@@ -1094,29 +1094,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                         <p className="text-[11px] font-mono text-slate-200">#{m.id.slice(0, 8)}</p>
                         <p className="text-[10px] text-slate-500 uppercase tracking-[0.18em]">{m.status}</p>
                         {m.description && <p className="mt-2 text-xs text-slate-300">{m.description}</p>}
-                        {(typeof m.ai_confidence_score === 'number' || m.ai_verdict) && (
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            {typeof m.ai_confidence_score === 'number' && (
-                              <span
-                                className={[
-                                  'inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-[0.18em] border',
-                                  m.ai_confidence_score > 85
-                                    ? 'border-emerald-500/40 text-emerald-200 bg-emerald-500/10'
-                                    : m.ai_confidence_score > 50
-                                      ? 'border-amber-500/40 text-amber-200 bg-amber-500/10'
-                                      : 'border-red-500/40 text-red-200 bg-red-500/10',
-                                ].join(' ')}
-                              >
-                                AI {m.ai_confidence_score}%
-                              </span>
-                            )}
-                            {m.ai_verdict && (
-                              <span className="text-[11px] text-slate-300 break-words">
-                                {m.ai_verdict}
-                              </span>
-                            )}
-                          </div>
-                        )}
                       </div>
                       <div className="flex gap-2">
                         <button
@@ -1143,6 +1120,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                         </button>
                       </div>
                     </div>
+
+                    {(typeof m.ai_confidence_score === 'number' || m.ai_verdict) && (
+                      <div className="w-full mb-6">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          {typeof m.ai_confidence_score === 'number' && (
+                            <span
+                              className={[
+                                'inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-[0.18em] border',
+                                m.ai_confidence_score > 85
+                                  ? 'border-emerald-500/40 text-emerald-200 bg-emerald-500/10'
+                                  : m.ai_confidence_score > 50
+                                    ? 'border-amber-500/40 text-amber-200 bg-amber-500/10'
+                                    : 'border-red-500/40 text-red-200 bg-red-500/10',
+                              ].join(' ')}
+                            >
+                              AI {m.ai_confidence_score}%
+                            </span>
+                          )}
+                        </div>
+                        {m.ai_verdict && (
+                          <div className="text-sm md:text-base leading-relaxed p-4 bg-slate-900/50 rounded-lg border border-cyan-900/30 w-full mb-6 text-slate-200 whitespace-pre-wrap break-words">
+                            {m.ai_verdict}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div>

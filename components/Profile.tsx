@@ -773,6 +773,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     setProofError('Please record the liveness video before submitting.');
     return;
   }
+  if (proofPhase === 'after') {
+    const beforeCount = Array.isArray(proofJob.photo_urls) ? proofJob.photo_urls.length : 0;
+    if (beforeCount > 0 && proofFiles.length < beforeCount) {
+      setProofError(
+        `You must upload at least as many AFTER photos (${beforeCount}) as there are BEFORE photos, capturing the exact same angles.`
+      );
+      return;
+    }
+  }
 
   const toRad = (val: number) => (val * Math.PI) / 180;
   const distanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -2539,6 +2548,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     ? "Upload 'Before' photos (required)"
                     : "Upload 'After' photos (required)"}
                 </label>
+                {proofPhase === 'after' &&
+                  Array.isArray(proofJob.photo_urls) &&
+                  proofJob.photo_urls.length > 0 &&
+                  proofFiles.length < proofJob.photo_urls.length && (
+                    <p className="mb-2 text-xs text-amber-300">
+                      {`You must upload at least as many AFTER photos (${proofJob.photo_urls.length}) as there are BEFORE photos, capturing the exact same angles.`}
+                    </p>
+                  )}
                 <div className="grid grid-cols-3 gap-2 mb-2">
                   {proofFiles.map((file, idx) => (
                     <div
@@ -2703,7 +2720,21 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               <div className={`w-full rounded-full ${proofJob?.category === 'home' ? 'animated-border-home' : 'animated-border-city'} ${proofSubmitting ? 'opacity-60' : ''}`}>
                 <button
                   type="submit"
-                  disabled={proofSubmitting || (proofPhase === 'after' && (!proofFiles.length || !proofVideoFile))}
+                  disabled={
+                    proofSubmitting ||
+                    (
+                      proofPhase === 'after' &&
+                      (
+                        !proofFiles.length ||
+                        !proofVideoFile ||
+                        (
+                          Array.isArray(proofJob.photo_urls) &&
+                          proofJob.photo_urls.length > 0 &&
+                          proofFiles.length < proofJob.photo_urls.length
+                        )
+                      )
+                    )
+                  }
                   className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-wait active:scale-[0.98]"
                 >
                   {proofSubmitting
