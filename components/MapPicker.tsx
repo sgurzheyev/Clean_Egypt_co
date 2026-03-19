@@ -1068,7 +1068,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // For City (public) missions, confirm $1 Scout Stake before proceeding
       if (taskType === 'city') {
         const confirmed = window.confirm(
-          'Placing a City Pin costs $1 (Scout Stake). You will earn 10% of the collected funds when it is cleaned. Proceed?'
+          'Placing a City Pin costs $1 (Scout Stake). Reward Split: 90% Cleaner / 5.1% Scout / 4.9% Platform. Proceed?'
         );
         if (!confirmed) {
           setOrderSubmitting(false);

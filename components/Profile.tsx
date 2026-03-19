@@ -698,6 +698,18 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
   const handleAcceptBid = async (job: Job, bid: Bid) => {
     if (!enforceMissionStatusCooldown()) return;
+    const currentWallet = Number(userProfile?.wallet_balance ?? balance ?? 0);
+    const missionValue = Number(bid.bid_amount ?? 0);
+    const requiredDeposit = missionValue * 0.5;
+    if (!Number.isFinite(missionValue) || missionValue <= 0) return;
+
+    if (currentWallet < requiredDeposit) {
+      alert(
+        `You need a security deposit of at least $${requiredDeposit.toFixed(2)} (50% of the mission value) on your balance to accept this task.`
+      );
+      return;
+    }
+
     if (!window.confirm(`Accept bid of $${bid.bid_amount} from this worker?`)) return;
     try {
       const { error: jobErr } = await supabase
@@ -1228,8 +1240,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </button>
             </div>
             <p className="text-3xl font-black text-orange-400">
-              {balance}{' '}
-              <span className="text-sm font-medium text-slate-400">USD</span>
+              Balance: ${Number(balance ?? 0).toFixed(2)}
+            </p>
+            <p className="text-sm text-gray-400 mt-1">
+              Available to withdraw: ${(Number(balance ?? 0) * 0.88).toFixed(2)} (-12% platform fee)
             </p>
             {userProfile?.frozen_balance && userProfile.frozen_balance > 0 && (
               <p className="mt-1 text-[11px] text-amber-300">
@@ -1642,10 +1656,25 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                 <button
                                   type="button"
                                   onClick={() => handleAcceptBid(job, bid)}
-                                  className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
+                                  disabled={
+                                    Number(userProfile?.wallet_balance ?? balance ?? 0) <
+                                    Number(bid.bid_amount ?? 0) * 0.5
+                                  }
+                                  className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   Accept bid
                                 </button>
+                                {Number(userProfile?.wallet_balance ?? balance ?? 0) <
+                                  Number(bid.bid_amount ?? 0) * 0.5 && (
+                                  <p className="mt-2 text-[10px] text-amber-300">
+                                    You need a security deposit of at least $
+                                    {(
+                                      Number(bid.bid_amount ?? 0) * 0.5
+                                    ).toFixed(2)}{' '}
+                                    (50% of the mission value) on your balance to
+                                    accept this task.
+                                  </p>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -1847,10 +1876,25 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                   <button
                                     type="button"
                                     onClick={() => handleAcceptBid(job, bid)}
-                                    className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
+                                    disabled={
+                                      Number(userProfile?.wallet_balance ?? balance ?? 0) <
+                                      Number(bid.bid_amount ?? 0) * 0.5
+                                    }
+                                    className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
                                     Accept bid
                                   </button>
+                                  {Number(userProfile?.wallet_balance ?? balance ?? 0) <
+                                    Number(bid.bid_amount ?? 0) * 0.5 && (
+                                    <p className="mt-2 text-[10px] text-amber-300">
+                                      You need a security deposit of at least $
+                                      {(
+                                        Number(bid.bid_amount ?? 0) * 0.5
+                                      ).toFixed(2)}{' '}
+                                      (50% of the mission value) on your balance to
+                                      accept this task.
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -2331,7 +2375,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 />
                 {userProfile && (
                   <p className="mt-1 text-[11px] text-slate-500">
-                    Available: ${Number(userProfile.wallet_balance ?? 0).toFixed(2)}
+                    Available to withdraw: ${(Number(userProfile.wallet_balance ?? 0) * 0.88).toFixed(2)} (-12% platform fee)
                   </p>
                 )}
               </div>
@@ -2537,7 +2581,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           aria-hidden="false"
         >
           <div
-            className="relative w-full max-w-md max-h-[90dvh] rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-6 flex flex-col"
+            className="relative w-full max-w-md max-h-[90dvh] rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-6 flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-start mb-4">
@@ -2567,7 +2611,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
 
             <form onSubmit={submitProof} className="relative flex flex-col min-h-0 flex-1">
-              <div className="flex-grow overflow-y-auto pb-40 pr-2 space-y-4">
+              <div className="flex-grow min-h-0 overflow-y-auto pb-40 pr-2 space-y-4">
               {proofJob.status === 'in_progress' && !!proofJob.rejection_reason && (
                 <div className="rounded-2xl border border-orange-500/60 bg-orange-500/10 shadow-[0_0_18px_rgba(249,115,22,0.18)] p-4">
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-orange-200">
