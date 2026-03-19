@@ -1774,6 +1774,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 const statusPill =
                   job.status === 'in_progress'
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                    : job.status === 'review'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                     : job.status === 'completed'
                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                       : 'bg-white/10 text-slate-400 border border-white/10';
@@ -1787,7 +1789,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
                     </div>
                     <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-3 ${statusPill}`}>
-                      {job.status === 'in_progress' ? '🟢 In Progress' : job.status === 'completed' ? '🟠 Completed' : job.status.toUpperCase()}
+                      {job.status === 'in_progress'
+                        ? '🟢 In Progress'
+                        : job.status === 'review'
+                          ? 'UNDER REVIEW'
+                          : job.status === 'completed'
+                            ? '🟠 Completed'
+                            : job.status.toUpperCase()}
                     </div>
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-3">
@@ -1818,20 +1826,27 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       >
                         Navigate
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => openProofModal(job, job.started_at ? 'after' : 'before')}
-                        disabled={job.status !== 'in_progress'}
-                        className={`w-full py-3 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 ${
-                          job.status === 'in_progress'
-                            ? 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.6)] hover:brightness-110'
-                            : 'bg-white/5 text-slate-500 cursor-not-allowed'
-                        }`}
-                      >
-                        {job.started_at ? "Upload 'After' photos & Finish" : "Upload 'Before' photos & Start"}
-                      </button>
+                      {!(job.status === 'review' && job.started_at) && (
+                        <button
+                          type="button"
+                          onClick={() => openProofModal(job, job.started_at ? 'after' : 'before')}
+                          disabled={job.status !== 'in_progress'}
+                          className={`w-full py-3 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 ${
+                            job.status === 'in_progress'
+                              ? 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.6)] hover:brightness-110'
+                              : 'bg-white/5 text-slate-500 cursor-not-allowed'
+                          }`}
+                        >
+                          {job.started_at ? "Upload 'After' photos & Finish" : "Upload 'Before' photos & Start"}
+                        </button>
+                      )}
                     </div>
 
+                    {job.status === 'review' && (
+                      <p className="mt-3 text-[10px] text-amber-300 uppercase tracking-wider">
+                        WAITING FOR ADMIN VERIFICATION
+                      </p>
+                    )}
                     {job.status === 'completed' && (
                       <p className="mt-3 text-[10px] text-amber-300 uppercase tracking-wider">
                         Waiting for client to confirm & release payment
@@ -1954,7 +1969,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     );
                   })()}
 
-                      {(job.status === 'review' || job.status === 'pending_approval') && job.cleaner_id && (
+                      {job.status === 'review' && job.cleaner_id && (
+                        <div className="mt-4">
+                          <p className="w-full py-3 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-black text-xs uppercase tracking-[0.2em] text-center">
+                            PENDING REVIEW
+                          </p>
+                          <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
+                            WAITING FOR ADMIN VERIFICATION
+                          </p>
+                        </div>
+                      )}
+                      {job.status === 'pending_approval' && job.cleaner_id && (
                         <div className="mt-4">
                           <button
                             type="button"
