@@ -1095,30 +1095,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                         <p className="text-[10px] text-slate-500 uppercase tracking-[0.18em]">{m.status}</p>
                         {m.description && <p className="mt-2 text-xs text-slate-300">{m.description}</p>}
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => runAiForMission(m)}
-                          disabled={aiRunningMissionId === m.id}
-                          className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-cyan-500/30 text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/15 hover:shadow-[0_0_14px_rgba(34,211,238,0.22)] disabled:opacity-60 disabled:cursor-wait transition-all"
-                        >
-                          {aiRunningMissionId === m.id ? '...' : '🤖 Run AI Analysis'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => resolveDispute(m.id, 'approve')}
-                          className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-500/40 text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/15 transition-all"
-                        >
-                          Approve & Payout
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => resolveDispute(m.id, 'reject')}
-                          className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-red-500/40 text-red-200 bg-red-500/10 hover:bg-red-500/20 transition-all"
-                        >
-                          Reject
-                        </button>
-                      </div>
+                      {m.status === 'completed' ? (
+                        <span className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+                          Completed & Paid
+                        </span>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => runAiForMission(m)}
+                            disabled={aiRunningMissionId === m.id}
+                            className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-cyan-500/30 text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/15 hover:shadow-[0_0_14px_rgba(34,211,238,0.22)] disabled:opacity-60 disabled:cursor-wait transition-all"
+                          >
+                            {aiRunningMissionId === m.id ? '...' : '🤖 Run AI Analysis'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => resolveDispute(m.id, 'approve')}
+                            className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-500/40 text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/15 transition-all"
+                          >
+                            Approve & Payout
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => resolveDispute(m.id, 'reject')}
+                            className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-red-500/40 text-red-200 bg-red-500/10 hover:bg-red-500/20 transition-all"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {(typeof m.ai_confidence_score === 'number' || m.ai_verdict) && (

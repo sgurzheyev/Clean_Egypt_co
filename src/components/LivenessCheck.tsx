@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type LivenessResult = {
   blob: Blob;
@@ -12,6 +13,7 @@ export default function LivenessCheck(props: {
   onRecorded: (res: LivenessResult) => void;
 }) {
   const { disabled, onRecorded } = props;
+  const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -189,7 +191,10 @@ export default function LivenessCheck(props: {
       </button>
 
       <p className="text-[11px] text-slate-300 leading-relaxed">
-        Final Step: Record a 2-second video panning across the cleaned area to prove liveness.
+        {t('livenessFinalStep', {
+          defaultValue:
+            'Final Step: Record a 2-second video of any of the cleaned scenes to prove liveness.',
+        })}
       </p>
     </div>
   );

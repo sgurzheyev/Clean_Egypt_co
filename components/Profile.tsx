@@ -1728,7 +1728,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     )}
 
                     {/* Client actions */}
-                    {job.status === 'completed' && job.cleaner_id && (
+                    {(job.status === 'review' || job.status === 'pending_approval') && job.cleaner_id && (
                       <div className="mt-4">
                         <button
                           type="button"
@@ -1739,6 +1739,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </button>
                         <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
                           Worker submitted completion photos. Review before confirming or disputing.
+                        </p>
+                      </div>
+                    )}
+                    {job.status === 'completed' && job.cleaner_id && (
+                      <div className="mt-4">
+                        <p className="w-full py-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-black text-xs uppercase tracking-[0.2em] text-center">
+                          Completed & Paid
                         </p>
                       </div>
                     )}
@@ -1947,7 +1954,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     );
                   })()}
 
-                      {job.status === 'completed' && job.cleaner_id && (
+                      {(job.status === 'review' || job.status === 'pending_approval') && job.cleaner_id && (
                         <div className="mt-4">
                           <button
                             type="button"
@@ -1958,6 +1965,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           </button>
                           <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
                             Worker marked job completed. Review before confirming or disputing.
+                          </p>
+                        </div>
+                      )}
+                      {job.status === 'completed' && job.cleaner_id && (
+                        <div className="mt-4">
+                          <p className="w-full py-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-black text-xs uppercase tracking-[0.2em] text-center">
+                            Completed & Paid
                           </p>
                         </div>
                       )}
@@ -2564,51 +2578,59 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
             {/* Sticky action buttons — always visible at bottom */}
             <div className="flex-shrink-0 sticky bottom-0 bg-cyan-950/60 backdrop-blur-md pt-4 pb-6 px-6 z-10 border-t border-cyan-500/30">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className={`flex-1 rounded-full ${reviewJob?.category === 'home' ? 'animated-border-home' : 'animated-border-city'}`}>
+              {reviewJob?.status === 'completed' ? (
+                <div className="w-full">
+                  <p className="w-full py-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-black text-sm uppercase tracking-[0.2em] text-center">
+                    Completed & Paid
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className={`flex-1 rounded-full ${reviewJob?.category === 'home' ? 'animated-border-home' : 'animated-border-city'}`}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await handleConfirmReleasePay(reviewJob);
+                        setReviewJob(null);
+                      }}
+                      className="animated-border-inner w-full rounded-full py-3 text-white bg-[#020617] font-black text-sm uppercase tracking-[0.2em] hover:brightness-110 transition-all active:scale-[0.98]"
+                    >
+                      Confirm & Pay
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onClick={async () => {
-                      await handleConfirmReleasePay(reviewJob);
-                      setReviewJob(null);
+                      try {
+                        const { error } = await supabase
+                          .from('missions')
+                          .update({ is_disputed: true, status: 'disputed' })
+                          .eq('id', reviewJob.id);
+                        if (error) throw error;
+                        await fetchProfileData();
+                        try {
+                          await fetch('/api/notify-dispute', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ jobId: reviewJob.id }),
+                          });
+                        } catch {
+                          // ignore
+                        }
+                        alert('Dispute opened. Support (Muhamed) will review photos and Telegram video.');
+                      } catch (err: any) {
+                        console.error('Dispute error:', err);
+                        alert(err?.message || 'Failed to open dispute.');
+                      } finally {
+                        setReviewJob(null);
+                      }
                     }}
-                    className="animated-border-inner w-full rounded-full py-3 text-white bg-[#020617] font-black text-sm uppercase tracking-[0.2em] hover:brightness-110 transition-all active:scale-[0.98]"
+                    className="flex-1 py-3 rounded-full bg-red-500/20 border border-red-500/60 text-red-300 hover:bg-red-500/30 hover:text-red-200 font-black text-sm uppercase tracking-[0.2em] transition-all active:scale-95"
                   >
-                    Confirm & Pay
+                    Open Dispute
                   </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      const { error } = await supabase
-                        .from('missions')
-                        .update({ is_disputed: true, status: 'disputed' })
-                        .eq('id', reviewJob.id);
-                      if (error) throw error;
-                      await fetchProfileData();
-                      try {
-                        await fetch('/api/notify-dispute', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ jobId: reviewJob.id }),
-                        });
-                      } catch {
-                        // ignore
-                      }
-                      alert('Dispute opened. Support (Muhamed) will review photos and Telegram video.');
-                    } catch (err: any) {
-                      console.error('Dispute error:', err);
-                      alert(err?.message || 'Failed to open dispute.');
-                    } finally {
-                      setReviewJob(null);
-                    }
-                  }}
-                  className="flex-1 py-3 rounded-full bg-red-500/20 border border-red-500/60 text-red-300 hover:bg-red-500/30 hover:text-red-200 font-black text-sm uppercase tracking-[0.2em] transition-all active:scale-95"
-                >
-                  Open Dispute
-                </button>
-              </div>
+              )}
             </div>
           </div>
         </div>
