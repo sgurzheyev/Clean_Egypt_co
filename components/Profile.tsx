@@ -200,6 +200,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [proofPhase, setProofPhase] = useState<'before' | 'after'>('before');
   const [proofFiles, setProofFiles] = useState<File[]>([]);
   const [proofPreviewUrls, setProofPreviewUrls] = useState<string[]>([]);
+  const [proofVideoFile, setProofVideoFile] = useState<File | null>(null);
   const [proofSubmitting, setProofSubmitting] = useState(false);
   const [proofError, setProofError] = useState<string | null>(null);
   const [proofSuccess, setProofSuccess] = useState<string | null>(null);
@@ -516,7 +517,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         .from('missions')
         .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason')
         .eq('cleaner_id', userId)
-        .in('status', ['in_progress', 'completed', 'finished'])
+        .in('status', ['in_progress', 'review', 'pending_approval', 'completed', 'finished'])
         .order('created_at', { ascending: false });
       setMyActiveJobs((activeJobsData || []) as unknown as Job[]);
 
@@ -744,6 +745,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     setProofJob(job);
     setProofPhase(phase);
     setProofFiles([]);
+    setProofVideoFile(null);
     setProofError(null);
     setProofSuccess(null);
   };
@@ -752,6 +754,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     if (proofSubmitting) return;
     setProofJob(null);
     setProofFiles([]);
+    setProofVideoFile(null);
     setProofError(null);
     setProofSuccess(null);
   };
@@ -766,8 +769,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     setProofError('Please upload photos before continuing.');
     return;
   }
-  if (proofPhase === 'after' && proofFiles.length < 3) {
-    setProofError(t('needAtLeastThreePhotos'));
+  if (proofPhase === 'after' && !proofVideoFile) {
+    setProofError('Please record the liveness video before submitting.');
     return;
   }
 
@@ -909,74 +912,41 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           }
         }
 
-        // AFTER photos: if public mission, run circular economy RPC with Eco-Report
-        if (proofJob.category === 'public') {
-          const plasticVal = Number(plasticKg) || 0;
-          const glassVal = Number(glassKg) || 0;
-          const constructionVal = Number(constructionKg) || 0;
-
-          const { error: rpcErr } = await supabase.rpc('complete_public_mission_with_report', {
-            p_mission_id: proofJob.id,
-            p_plastic_kg: plasticVal,
-            p_glass_kg: glassVal,
-            p_construction_kg: constructionVal,
-            p_after_photo_urls: [...(proofJob.after_photo_urls || []), ...uploadedUrls],
-            p_completion_lat: completionLat,
-            p_completion_lng: completionLng,
-            p_completion_distance_meters: completionDistanceMeters,
-          } as any);
-          if (rpcErr) throw rpcErr;
-
-          // Telegram notification (non-blocking)
-          try {
-            const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN as string | undefined;
-            const chatId = import.meta.env.VITE_TELEGRAM_ADMIN_CHAT_ID as string | undefined;
-
-            console.log('TG Token exists:', !!botToken);
-
-            if (botToken && chatId) {
-              const messageText = [
-                '🚨 *ECO-REPORT / CleanEgypt* 🚨',
-                '',
-                `*Category:* public`,
-                `*Mission ID:* \`${proofJob.id}\``,
-                '',
-                `🥤 *Plastic:* ${plasticVal} kg`,
-                `🪟 *Glass:* ${glassVal} kg`,
-                `🧱 *Construction/Debris:* ${constructionVal} kg`,
-              ].join('\n');
-
-              fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  chat_id: chatId,
-                  text: messageText,
-                  parse_mode: 'Markdown',
-                }),
-              }).catch((err) => console.error('Telegram sendMessage failed:', err));
-            } else {
-              console.error('Telegram env vars missing: VITE_TELEGRAM_BOT_TOKEN / VITE_TELEGRAM_ADMIN_CHAT_ID');
-            }
-          } catch (err) {
-            console.error('Telegram notification error:', err);
-          }
-
-          setProofSuccess('Mission Completed! Funds distributed.');
-        } else {
-          const { error: updateErr } = await supabase
-            .from('missions')
-            .update({
-              after_photo_urls: [...(proofJob.after_photo_urls || []), ...uploadedUrls],
-              status: 'completed',
-              completion_lat: completionLat,
-              completion_lng: completionLng,
-              completion_distance_meters: completionDistanceMeters,
-            })
-            .eq('id', proofJob.id);
-          if (updateErr) throw updateErr;
-          setProofSuccess('80% Proof complete. For 100% Proof & fast payout, send video proof to Telegram Team Checker.');
+        // Report submission is non-financial:
+        // only upload evidence + move mission to review. Payout is done later via resolve_mission_dispute(approve).
+        let proofVideoUrl: string | null = null;
+        if (proofVideoFile) {
+          const videoExt = (proofVideoFile.name.split('.').pop() || 'mp4')
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '') || 'mp4';
+          const safeVideoName = `mission_video_${Date.now()}_${Math.random().toString(36).substring(2)}.${videoExt}`;
+          const { error: videoUploadErr } = await supabase.storage
+            .from('order-photos')
+            .upload(safeVideoName, proofVideoFile, {
+              upsert: false,
+              contentType: proofVideoFile.type || 'video/mp4',
+            });
+          if (videoUploadErr) throw videoUploadErr;
+          const {
+            data: { publicUrl: videoPublicUrl },
+          } = supabase.storage.from('order-photos').getPublicUrl(safeVideoName);
+          proofVideoUrl = videoPublicUrl;
         }
+
+        const { error: updateErr } = await supabase
+          .from('missions')
+          .update({
+            after_photo_urls: [...(proofJob.after_photo_urls || []), ...uploadedUrls],
+            status: 'review',
+            completion_lat: completionLat,
+            completion_lng: completionLng,
+            completion_distance_meters: completionDistanceMeters,
+            report_submitted_at: new Date().toISOString(),
+            proof_video_url: proofVideoUrl,
+          } as any)
+          .eq('id', proofJob.id);
+        if (updateErr) throw updateErr;
+        setProofSuccess('Proof submitted for review. Payment will be released only after approval.');
       }
 
       await fetchProfileData();
@@ -999,28 +969,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     }
     if (!window.confirm('Confirm completion and release payment to the worker?')) return;
     try {
-      const exchangeRate = 50;
-      const payoutEgp = Math.round((job.amount_target || 0) * exchangeRate);
-
-      const { data: workerProfile, error: workerErr } = await supabase
-        .from('profiles')
-        .select('id, wallet_balance')
-        .eq('id', job.cleaner_id)
-        .maybeSingle();
-      if (workerErr) throw workerErr;
-
-      const currentBalance = (workerProfile?.wallet_balance ?? 0) as number;
-      const { error: balanceErr } = await supabase
-        .from('profiles')
-        .update({ wallet_balance: currentBalance + payoutEgp })
-        .eq('id', job.cleaner_id);
-      if (balanceErr) throw balanceErr;
-
-      const { error: jobErr } = await supabase
-        .from('missions')
-        .update({ status: 'finished' })
-        .eq('id', job.id);
-      if (jobErr) throw jobErr;
+      const { error: rpcErr } = await supabase.rpc('resolve_mission_dispute', {
+        p_mission_id: job.id,
+        p_decision: 'approve',
+        p_supervisor_comment: null,
+      });
+      if (rpcErr) throw rpcErr;
 
       await fetchProfileData();
       alert('Payment released.');
@@ -2656,6 +2610,30 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 </div>
               </div>
 
+              {proofPhase === 'after' && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-300 mb-2">
+                    Final Step: Record a 2-second video panning across the cleaned area to prove liveness.
+                  </p>
+                  <label className="flex w-full items-center justify-center rounded-2xl border border-dashed border-orange-500/50 bg-orange-500/10 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.14em] text-orange-200 cursor-pointer hover:bg-orange-500/15 transition-all">
+                    {proofVideoFile ? `Video captured: ${proofVideoFile.name}` : 'Capture liveness video'}
+                    <input
+                      type="file"
+                      accept="video/mp4,video/x-m4v,video/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        if (file) {
+                          setProofVideoFile(file);
+                        }
+                        if (e.target) e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+              )}
+
               {/* Eco-Report for public missions on completion */}
               {proofPhase === 'after' && proofJob.category === 'public' && (
                 <div className="grid grid-cols-1 gap-3">
@@ -2725,7 +2703,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               <div className={`w-full rounded-full ${proofJob?.category === 'home' ? 'animated-border-home' : 'animated-border-city'} ${proofSubmitting ? 'opacity-60' : ''}`}>
                 <button
                   type="submit"
-                  disabled={proofSubmitting}
+                  disabled={proofSubmitting || (proofPhase === 'after' && (!proofFiles.length || !proofVideoFile))}
                   className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-wait active:scale-[0.98]"
                 >
                   {proofSubmitting
