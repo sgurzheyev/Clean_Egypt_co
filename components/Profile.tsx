@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import AdminDashboard from '../src/components/AdminDashboard';
 import StripeTopUp from '../src/components/StripeTopUp';
 import LivenessCheck from '../src/components/LivenessCheck';
+import PhantomCapture from '../src/components/PhantomCapture';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -40,6 +41,13 @@ interface Job {
     telegram_username?: string | null;
   } | null;
 }
+
+type AfterBurstPackage = {
+  files: File[];
+  lat: number | null;
+  lng: number | null;
+  capturedAt: string;
+};
 
 interface Bid {
   id: string;
@@ -201,6 +209,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [proofPhase, setProofPhase] = useState<'before' | 'after'>('before');
   const [proofFiles, setProofFiles] = useState<File[]>([]);
   const [proofPreviewUrls, setProofPreviewUrls] = useState<string[]>([]);
+  const [afterBurstPackages, setAfterBurstPackages] = useState<AfterBurstPackage[]>([]);
+  const [showPhantomCapture, setShowPhantomCapture] = useState(false);
   const [livenessBlob, setLivenessBlob] = useState<Blob | null>(null);
   const [livenessMimeType, setLivenessMimeType] = useState<string>('video/webm');
   const [livenessLat, setLivenessLat] = useState<number | null>(null);
@@ -523,7 +533,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         .eq('cleaner_id', userId)
         .in('status', ['in_progress', 'review', 'pending_approval', 'completed', 'finished'])
         .order('created_at', { ascending: false });
-      setMyActiveJobs((activeJobsData || []) as unknown as Job[]);
+      setMyActiveJobs(
+        ((activeJobsData || []) as unknown as Job[]).map((job) => ({
+          ...job,
+          photo_urls: Array.isArray(job.photo_urls) ? job.photo_urls.slice(0, 9) : job.photo_urls,
+          after_photo_urls: Array.isArray(job.after_photo_urls) ? job.after_photo_urls.slice(0, 9) : job.after_photo_urls,
+        }))
+      );
 
       const { data: historyData } = await supabase
         .from('missions')
@@ -746,12 +762,18 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   };
 
   const openProofModal = (job: Job, phase: 'before' | 'after') => {
-    setProofJob(job);
+    setProofJob({
+      ...job,
+      photo_urls: Array.isArray(job.photo_urls) ? job.photo_urls.slice(0, 9) : job.photo_urls,
+      after_photo_urls: Array.isArray(job.after_photo_urls) ? job.after_photo_urls.slice(0, 9) : job.after_photo_urls,
+    });
     setProofPhase(phase);
     setProofFiles([]);
     setLivenessBlob(null);
     setLivenessLat(null);
     setLivenessLng(null);
+    setAfterBurstPackages([]);
+    setShowPhantomCapture(false);
     setProofError(null);
     setProofSuccess(null);
   };
@@ -763,6 +785,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     setLivenessBlob(null);
     setLivenessLat(null);
     setLivenessLng(null);
+    setAfterBurstPackages([]);
+    setShowPhantomCapture(false);
     setProofError(null);
     setProofSuccess(null);
   };
@@ -921,6 +945,26 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           } catch (e) {
             // Do not block completion if GPS is unavailable; audit trail will remain empty.
             console.warn('Completion GPS capture failed:', e);
+          }
+        }
+        if ((completionLat == null || completionLng == null) && afterBurstPackages.length > 0) {
+          const lastBurst = afterBurstPackages[afterBurstPackages.length - 1];
+          if (lastBurst?.lat != null && lastBurst?.lng != null) {
+            completionLat = lastBurst.lat;
+            completionLng = lastBurst.lng;
+            if (
+              typeof proofJob.location_lat === 'number' &&
+              typeof proofJob.location_lng === 'number'
+            ) {
+              completionDistanceMeters = Math.round(
+                distanceMeters(
+                  completionLat,
+                  completionLng,
+                  proofJob.location_lat,
+                  proofJob.location_lng
+                )
+              );
+            }
           }
         }
 
@@ -2493,7 +2537,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           aria-hidden="false"
         >
           <div
-            className="w-full max-w-md rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-6"
+            className="relative w-full max-w-md max-h-[90dvh] rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-6 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-start mb-4">
@@ -2522,7 +2566,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               )}
             </div>
 
-            <form onSubmit={submitProof} className="space-y-4">
+            <form onSubmit={submitProof} className="relative flex flex-col min-h-0 flex-1">
+              <div className="flex-grow overflow-y-auto pb-40 pr-2 space-y-4">
               {proofJob.status === 'in_progress' && !!proofJob.rejection_reason && (
                 <div className="rounded-2xl border border-orange-500/60 bg-orange-500/10 shadow-[0_0_18px_rgba(249,115,22,0.18)] p-4">
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-orange-200">
@@ -2575,51 +2620,57 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       </button>
                     </div>
                   ))}
-                  {proofFiles.length < 9 && (
-                    <label className="flex h-20 items-center justify-center rounded-xl border border-dashed border-amber-500/50 bg-amber-500/10 text-[11px] text-amber-200 cursor-pointer hover:border-amber-400 hover:bg-amber-500/15 transition-all">
-                      + Take another photo
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={(e) => {
-                          const files = Array.from(e.target.files || []);
-                          if (files.length) {
-                            // iOS/web browsers often don't auto-save captured photos to camera roll.
-                            // Immediately trigger an invisible download of the ORIGINAL file so it is saved.
-                            const ts = Date.now();
-                            for (const [idx, file] of files.entries()) {
-                              try {
-                                const url = URL.createObjectURL(file);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                // Keep the naming format stable so mobile browsers auto-save correctly.
-                                a.download = `cleanegypt_proof_${ts}.jpg`;
-                                a.style.display = 'none';
-                                document.body.appendChild(a);
-                                a.click();
-                                setTimeout(() => {
-                                  URL.revokeObjectURL(url);
-                                  document.body.removeChild(a);
-                                }, 500);
-                              } catch (err) {
-                                console.warn('Auto-save proof photo failed:', err);
+                  {proofFiles.length < 9 &&
+                    (proofPhase === 'after' ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowPhantomCapture(true)}
+                        className="flex h-20 items-center justify-center rounded-xl border border-dashed border-orange-500/50 bg-orange-500/10 text-[11px] text-orange-200 cursor-pointer hover:border-orange-400 hover:bg-orange-500/15 transition-all"
+                      >
+                        + Take AFTER photo
+                      </button>
+                    ) : (
+                      <label className="flex h-20 items-center justify-center rounded-xl border border-dashed border-amber-500/50 bg-amber-500/10 text-[11px] text-amber-200 cursor-pointer hover:border-amber-400 hover:bg-amber-500/15 transition-all">
+                        + Take another photo
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files || []);
+                            if (files.length) {
+                              const ts = Date.now();
+                              for (const [idx, file] of files.entries()) {
+                                try {
+                                  const url = URL.createObjectURL(file);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = `cleanegypt_proof_${ts}.jpg`;
+                                  a.style.display = 'none';
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  setTimeout(() => {
+                                    URL.revokeObjectURL(url);
+                                    document.body.removeChild(a);
+                                  }, 500);
+                                } catch (err) {
+                                  console.warn('Auto-save proof photo failed:', err);
+                                }
                               }
+                              setProofFiles((prev) =>
+                                [...prev, ...files].slice(0, 9),
+                              );
+                              setProofError(null);
+                              setProofSuccess(null);
                             }
-                            setProofFiles((prev) =>
-                              [...prev, ...files].slice(0, 9),
-                            );
-                            setProofError(null);
-                            setProofSuccess(null);
-                          }
-                          if (e.target) {
-                            e.target.value = '';
-                          }
-                        }}
-                      />
-                    </label>
-                  )}
+                            if (e.target) {
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                      </label>
+                    ))}
                 </div>
               </div>
 
@@ -2701,41 +2752,71 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               {proofSuccess && (
                 <p className="text-xs text-emerald-400 font-medium">{proofSuccess}</p>
               )}
-
-              <div className={`w-full rounded-full ${proofJob?.category === 'home' ? 'animated-border-home' : 'animated-border-city'} ${proofSubmitting ? 'opacity-60' : ''}`}>
-                <button
-                  type="submit"
-                  disabled={
-                    proofSubmitting ||
-                    (
-                      proofPhase === 'after' &&
-                      (
-                        !proofFiles.length ||
-                        !livenessBlob ||
-                        false
-                      )
-                    )
-                  }
-                  className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-wait active:scale-[0.98]"
-                >
-                  {proofSubmitting
-                    ? proofProcessingImage
-                      ? 'Processing image...'
-                      : 'Submitting...'
-                    : proofPhase === 'before'
-                      ? "Submit & start mission"
-                      : "Submit & mark completed"}
-                </button>
               </div>
 
-              <p className="text-[10px] text-slate-500 text-center uppercase tracking-wider">
-                {proofPhase === 'before'
-                  ? 'After you submit, the mission timer will start.'
-                  : 'After you submit, the client must confirm to release payment.'}
-              </p>
+              <div className="absolute bottom-4 left-4 right-4 z-50">
+                <div className={`w-full rounded-full ${proofJob?.category === 'home' ? 'animated-border-home' : 'animated-border-city'} ${proofSubmitting ? 'opacity-60' : ''}`}>
+                  <button
+                    type="submit"
+                    disabled={
+                      proofSubmitting ||
+                      (
+                        proofPhase === 'after' &&
+                        (
+                          !proofFiles.length ||
+                          !livenessBlob
+                        )
+                      )
+                    }
+                    className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-wait active:scale-[0.98]"
+                  >
+                    {proofSubmitting
+                      ? proofProcessingImage
+                        ? 'Processing image...'
+                        : 'Submitting...'
+                      : proofPhase === 'before'
+                        ? "Submit & start mission"
+                        : "Submit & mark completed"}
+                  </button>
+                </div>
+
+                <p className="mt-2 text-[10px] text-slate-500 text-center uppercase tracking-wider">
+                  {proofPhase === 'before'
+                    ? 'After you submit, the mission timer will start.'
+                    : 'After you submit, the client must confirm to release payment.'}
+                </p>
+              </div>
             </form>
           </div>
         </div>
+      )}
+
+      {showPhantomCapture && proofJob && proofPhase === 'after' && (
+        <PhantomCapture
+          currentIndex={
+            Array.isArray(proofJob.photo_urls) && proofJob.photo_urls.length > 0
+              ? Math.min(proofFiles.length, proofJob.photo_urls.length - 1)
+              : 0
+          }
+          totalScenes={
+            Array.isArray(proofJob.photo_urls) && proofJob.photo_urls.length > 0
+              ? proofJob.photo_urls.length
+              : 1
+          }
+          referencePhotoUrl={
+            Array.isArray(proofJob.photo_urls) && proofJob.photo_urls.length > 0
+              ? proofJob.photo_urls[Math.min(proofFiles.length, proofJob.photo_urls.length - 1)] || null
+              : null
+          }
+          onClose={() => setShowPhantomCapture(false)}
+          onCaptured={(result) => {
+            setAfterBurstPackages((prev) => [...prev, result]);
+            setProofFiles((prev) => [...prev, ...result.files].slice(0, 9));
+            setShowPhantomCapture(false);
+            setProofError(null);
+            setProofSuccess(null);
+          }}
+        />
       )}
     </div>
   );
