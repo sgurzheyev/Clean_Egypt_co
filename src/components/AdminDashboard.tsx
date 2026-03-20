@@ -504,25 +504,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     if (aiRunningMissionId) return;
     setAiRunningMissionId(m.id);
     try {
-      // Force fresh mission payload from DB to avoid stale/cached photo arrays.
-      const { data: latestMission, error: latestErr } = await supabase
-        .from('missions')
-        .select('id, title, description, photo_urls, after_photo_urls')
-        .eq('id', m.id)
-        .maybeSingle();
-      if (latestErr) throw latestErr;
-
-      const beforePhotos = ((latestMission as any)?.photo_urls || m.photo_urls || []) as string[];
-      const afterPhotos = ((latestMission as any)?.after_photo_urls || m.after_photo_urls || []) as string[];
-      const missionTitle = ((latestMission as any)?.title || m.title || '') as string;
-      const missionDescription = ((latestMission as any)?.description || m.description || '') as string;
-
-      const result = await runMissionAiAnalysis({
-        photo_urls: beforePhotos,
-        after_photo_urls: afterPhotos,
-        mission_title: missionTitle,
-        mission_description: missionDescription,
-      });
+      const result = await runMissionAiAnalysis(m.id);
 
       const { error: updErr } = await supabase
         .from('missions')

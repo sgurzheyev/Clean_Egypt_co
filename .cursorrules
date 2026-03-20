@@ -9,7 +9,7 @@
 - DEPLOYMENT: Vercel. All commits must pass strict type checking and build securely.
 
 ## 2. GOD-MODE AI VISION AUDITOR (v5.0)
-- CONTEXT AWARENESS: AI evaluation (`src/lib/openai.ts`) MUST receive `mission_title` and `mission_description` alongside photo URLs. AI must know *what* task it is verifying.
+- CONTEXT AWARENESS: AI evaluation runs server-side via `api/analyze-mission` (OpenAI key never exposed). The API fetches `mission_title` and `mission_description` from DB and sends them to the AI alongside photo URLs. AI must know *what* task it is verifying.
 - ROLE ISOLATION: The AI instructions MUST be strictly passed as `{ role: 'system' }`, while images/data go into `{ role: 'user' }`.
 - 4-STEP AI VERIFICATION:
   1. TROLL/NSFW/SPAM FILTER: Reject images containing nudity, animal parts, or irrelevant memes. Reject text/images with hidden phone numbers, emails, or off-platform deal attempts.
@@ -52,4 +52,4 @@
 ## 8. ADMIN IDENTIFICATION (SECURITY BY OBSCURITY)
 - NO `is_admin` column in the database to prevent privilege escalation.
 - ADMIN RULE: `const isAdmin = user?.email?.includes('tg_6618910143') || profile?.telegram_username?.toLowerCase() === 'sergiogurgini';`
-- CACHE BUSTING: AI analysis calls in the admin panel must use `cache: 'no-store'` and fetch fresh DB rows to prevent hallucination loops.
+- AI BACKEND: The "Run AI Analysis" button POSTs `{ missionId }` to `/api/analyze-mission`. The API fetches fresh mission data from DB and uses `process.env.OPENAI_API_KEY` server-side. Never use VITE_OPENAI_API_KEY or expose OpenAI keys to the client.
