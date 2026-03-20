@@ -1,3 +1,35 @@
+/**
+ * Client-side "Review & Release" / "Approve & Release Payment" CTAs (Profile, review modal).
+ * Single source of truth: base interaction classes must not be dropped when adding loading/disabled.
+ */
+export const CLIENT_APPROVE_RELEASE_BTN_CORE =
+  'rounded-full bg-emerald-500 text-black font-black uppercase tracking-[0.2em] ' +
+  'shadow-md hover:shadow-lg hover:bg-emerald-400 ' +
+  'transition-all duration-200 active:scale-95 ' +
+  'disabled:opacity-70 disabled:cursor-not-allowed';
+
+/** Full-width list / card rows (My missions, etc.) */
+export const CLIENT_APPROVE_RELEASE_BTN_LIST = `${CLIENT_APPROVE_RELEASE_BTN_CORE} w-full py-3 text-xs`;
+
+/** Modal primary action (side-by-side with dispute on sm+) */
+export const CLIENT_APPROVE_RELEASE_BTN_MODAL = `${CLIENT_APPROVE_RELEASE_BTN_CORE} flex-1 w-full min-h-[48px] py-3 px-4 text-sm inline-flex items-center justify-center gap-2`;
+
+/** Paired "Open Dispute" in review modal — same motion/shadow system, different colors */
+export const CLIENT_OPEN_DISPUTE_BTN_MODAL =
+  'flex-1 w-full min-h-[48px] py-3 px-4 rounded-full bg-red-500/20 border border-red-500/60 text-red-300 ' +
+  'font-black text-sm uppercase tracking-[0.2em] ' +
+  'shadow-md hover:shadow-lg hover:bg-red-500/30 hover:text-red-200 ' +
+  'transition-all duration-200 active:scale-95 ' +
+  'disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2';
+
+/** Admin "Force Release Payment" — compact inline, same tactile/shadow/loading tokens */
+export const ADMIN_FORCE_RELEASE_PAYMENT_BTN =
+  'shrink-0 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ' +
+  'bg-red-500/20 border border-red-400/60 text-red-300 hover:bg-red-500/30 hover:border-red-400 ' +
+  'shadow-md hover:shadow-lg ' +
+  'transition-all duration-200 active:scale-95 ' +
+  'disabled:opacity-70 disabled:cursor-not-allowed ' +
+  'inline-flex items-center justify-center gap-1.5';
 
 export const USD_TO_EGP_RATE = 47.5;
 

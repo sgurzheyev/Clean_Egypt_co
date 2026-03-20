@@ -8,6 +8,11 @@ import AdminDashboard from '../src/components/AdminDashboard';
 import StripeTopUp from '../src/components/StripeTopUp';
 import LivenessCheck from '../src/components/LivenessCheck';
 import PhantomCapture from '../src/components/PhantomCapture';
+import {
+  CLIENT_APPROVE_RELEASE_BTN_LIST,
+  CLIENT_APPROVE_RELEASE_BTN_MODAL,
+  CLIENT_OPEN_DISPUTE_BTN_MODAL,
+} from '../constants';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -1906,7 +1911,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         <button
                           type="button"
                           onClick={() => setReviewJob(job)}
-                          className="w-full py-3 rounded-full bg-emerald-500 text-black font-black text-xs uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:brightness-110 transition-all active:scale-95"
+                          disabled={releasePaySubmitting}
+                          className={CLIENT_APPROVE_RELEASE_BTN_LIST}
                         >
                           Review & Release Pay
                         </button>
@@ -2154,7 +2160,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             type="button"
                             onClick={() => setReviewJob(job)}
                             disabled={releasePaySubmitting}
-                            className="mt-3 w-full py-3 rounded-full bg-emerald-500 text-black font-black text-xs uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:brightness-110 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                            className={`mt-3 ${CLIENT_APPROVE_RELEASE_BTN_LIST}`}
                           >
                             Review & Release Payment
                           </button>
@@ -2165,7 +2171,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <button
                             type="button"
                             onClick={() => setReviewJob(job)}
-                            className="w-full py-3 rounded-full bg-emerald-500 text-black font-black text-xs uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:brightness-110 transition-all active:scale-95"
+                            disabled={releasePaySubmitting}
+                            className={CLIENT_APPROVE_RELEASE_BTN_LIST}
                           >
                             Review & Release Pay
                           </button>
@@ -2819,14 +2826,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         if (ok) setReviewJob(null);
                       }}
                       disabled={releasePaySubmitting}
-                      className="flex-1 w-full rounded-full py-3 px-4 bg-emerald-500 text-black font-black text-sm uppercase tracking-[0.2em] shadow-[0_0_24px_rgba(52,211,153,0.45)] hover:bg-emerald-400 transition-all active:scale-95 active:opacity-80 disabled:opacity-60 disabled:cursor-not-allowed"
+                      className={CLIENT_APPROVE_RELEASE_BTN_MODAL}
                     >
-                      <span className="inline-flex items-center gap-2">
-                        {releasePaySubmitting && (
-                          <span className="inline-block h-4 w-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />
-                        )}
-                        {releasePaySubmitting ? 'Processing...' : 'Approve & Release Payment'}
-                      </span>
+                      {releasePaySubmitting && (
+                        <span className="inline-block h-4 w-4 shrink-0 rounded-full border-2 border-black/30 border-t-black animate-spin" aria-hidden />
+                      )}
+                      <span>{releasePaySubmitting ? 'Processing...' : 'Approve & Release Payment'}</span>
                     </button>
                     <button
                       type="button"
@@ -2859,14 +2864,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         }
                       }}
                       disabled={disputeSubmitting}
-                      className="flex-1 py-3 rounded-full bg-red-500/20 border border-red-500/60 text-red-300 hover:bg-red-500/30 hover:text-red-200 font-black text-sm uppercase tracking-[0.2em] transition-all active:scale-95 active:opacity-80 disabled:opacity-60 disabled:cursor-wait"
+                      className={CLIENT_OPEN_DISPUTE_BTN_MODAL}
                     >
-                      <span className="inline-flex items-center gap-2">
-                        {disputeSubmitting && (
-                          <span className="inline-block h-4 w-4 rounded-full border-2 border-red-200/40 border-t-red-100 animate-spin" />
-                        )}
-                        {disputeSubmitting ? 'Processing...' : 'Open Dispute'}
-                      </span>
+                      {disputeSubmitting && (
+                        <span className="inline-block h-4 w-4 shrink-0 rounded-full border-2 border-red-200/40 border-t-red-100 animate-spin" aria-hidden />
+                      )}
+                      <span>{disputeSubmitting ? 'Processing...' : 'Open Dispute'}</span>
                     </button>
                   </div>
                 </div>

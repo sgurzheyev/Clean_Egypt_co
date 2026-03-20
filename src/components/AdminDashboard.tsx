@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { runMissionAiAnalysis } from '../lib/openai';
+import { ADMIN_FORCE_RELEASE_PAYMENT_BTN } from '../../constants';
 
 interface ProfileRow {
   id: string;
@@ -737,9 +738,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                       type="button"
                       disabled={forcePayLoadingId === m.id}
                       onClick={() => handleForcePay(m)}
-                      className="shrink-0 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-500/20 border border-red-400/60 text-red-300 hover:bg-red-500/30 hover:border-red-400 disabled:opacity-60 disabled:cursor-wait transition-all shadow-[0_0_12px_rgba(239,68,68,0.3)]"
+                      className={ADMIN_FORCE_RELEASE_PAYMENT_BTN}
                     >
-                      {forcePayLoadingId === m.id ? '...' : 'Force Release Payment'}
+                      {forcePayLoadingId === m.id && (
+                        <span className="inline-block h-3 w-3 shrink-0 rounded-full border-2 border-red-200/40 border-t-red-100 animate-spin" aria-hidden />
+                      )}
+                      <span>{forcePayLoadingId === m.id ? 'Processing...' : 'Force Release Payment'}</span>
                     </button>
                   </div>
                 ))
