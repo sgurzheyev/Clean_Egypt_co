@@ -67,6 +67,7 @@ interface ProfileRow {
   id: string;
   wallet_balance: number | null;
   frozen_balance: number | null;
+  contact_email?: string | null;
   is_verified?: boolean;
   verification_status?: string | null;
   full_name?: string | null;
@@ -134,6 +135,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [paymentSyncing, setPaymentSyncing] = useState(false);
   const [reviewJob, setReviewJob] = useState<Job | null>(null);
   const [releasePaySubmitting, setReleasePaySubmitting] = useState(false);
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false);
   const [toastState, setToastState] = useState<ToastState>(null);
   const [taskType, setTaskType] = useState<'city' | 'home'>('city');
   const [orderAmount, setOrderAmount] = useState('');
@@ -150,6 +152,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [telegramUsername, setTelegramUsername] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactSubmitting, setContactSubmitting] = useState(false);
+  const [contactSaved, setContactSaved] = useState(false);
+  const [passwordSaved, setPasswordSaved] = useState(false);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [showStripeTopUp, setShowStripeTopUp] = useState(false);
   const [payoutAmount, setPayoutAmount] = useState('');
@@ -408,6 +414,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     e.preventDefault();
     setPasswordError(null);
     setPasswordSuccess(null);
+    setPasswordSaved(false);
 
     if (!newPassword || !confirmPassword) {
       setPasswordError('Please fill in both password fields.');
@@ -439,6 +446,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       }
 
       setPasswordSuccess('Password updated successfully.');
+      setPasswordSaved(true);
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
@@ -524,7 +532,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, wallet_balance, frozen_balance, is_verified, verification_status, full_name, phone_number, telegram_username, rating, avatar_url')
+        .select('id, wallet_balance, frozen_balance, contact_email, is_verified, verification_status, full_name, phone_number, telegram_username, rating, avatar_url')
         .eq('id', userId)
         .maybeSingle();
 
@@ -534,6 +542,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         setBalance(profileRow.wallet_balance ?? 0);
         setPhoneNumber(profileRow.phone_number ?? '');
         setTelegramUsername(profileRow.telegram_username ?? '');
+        setContactEmail(profileRow.contact_email ?? session.user.email ?? '');
       }
 
       const { data: homeJobsData } = await supabase
@@ -1398,8 +1407,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           <form
             onSubmit={async (e) => {
               e.preventDefault();
-              console.log('Saving contact info...', { phoneNumber, telegramUsername });
+              if (contactSubmitting) return;
+              setContactSaved(false);
+              console.log('Saving contact info...', { contactEmail, phoneNumber, telegramUsername });
               try {
+                setContactSubmitting(true);
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session?.user?.id) {
                   console.log('No session user found, aborting contact save.');
@@ -1407,6 +1419,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   return;
                 }
                 const updates = {
+                  contact_email: contactEmail || null,
                   phone_number: phoneNumber || null,
                   telegram_username: telegramUsername || null,
                 };
@@ -1420,10 +1433,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   return;
                 }
                 console.log('Contact info saved successfully.');
-                alert('Contact saved!');
+                setContactSaved(true);
               } catch (err: any) {
                 console.error('Contact info update error (exception):', err);
                 alert(err?.message || 'Failed to save contact information.');
+              } finally {
+                setContactSubmitting(false);
               }
             }}
             className="mt-4 rounded-3xl bg-black/50 backdrop-blur-xl border border-white/10 p-4 space-y-3"
@@ -1434,7 +1449,22 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <p className="text-[11px] text-slate-500">
               {t('contactInfoHint')}
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                  {t('email')}
+                </label>
+                <input
+                  type="email"
+                  value={contactEmail}
+                  onChange={(e) => {
+                    setContactEmail(e.target.value);
+                    setContactSaved(false);
+                  }}
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                  placeholder="you@example.com"
+                />
+              </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
                   {t('phoneWhatsApp')}
@@ -1442,7 +1472,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 <input
                   type="tel"
                   value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  onChange={(e) => {
+                    setPhoneNumber(e.target.value);
+                    setContactSaved(false);
+                  }}
                   className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
                   placeholder="+20 1X XXX XXXX"
                 />
@@ -1454,7 +1487,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 <input
                   type="text"
                   value={telegramUsername}
-                  onChange={(e) => setTelegramUsername(e.target.value)}
+                  onChange={(e) => {
+                    setTelegramUsername(e.target.value);
+                    setContactSaved(false);
+                  }}
                   className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
                   placeholder="@username"
                 />
@@ -1463,9 +1499,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <div className="flex justify-end">
               <button
                 type="submit"
-                className="inline-flex items-center px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-[0.18em] bg-slate-800 text-slate-100 hover:bg-slate-700 transition-all"
+                disabled={contactSubmitting}
+                className={`inline-flex items-center justify-center rounded-full text-[11px] font-black uppercase tracking-[0.18em] transition-all duration-300 ${
+                  contactSaved
+                    ? 'px-3 py-1.5 bg-emerald-500/20 border border-emerald-400/40 text-emerald-300'
+                    : 'px-5 py-2 bg-slate-800 text-slate-100 hover:bg-slate-700'
+                } disabled:opacity-60 disabled:cursor-wait active:scale-95`}
               >
-                {t('saveContact')}
+                {contactSubmitting ? 'Processing...' : contactSaved ? (isRu ? 'Контакты ✓' : 'Saved ✓') : t('saveContact')}
               </button>
             </div>
           </form>
@@ -1489,7 +1530,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 <input
                   type="password"
                   value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
+                  onChange={(e) => {
+                    setNewPassword(e.target.value);
+                    setPasswordSaved(false);
+                  }}
                   className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
                   placeholder="At least 8 characters"
                 />
@@ -1501,7 +1545,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 <input
                   type="password"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setPasswordSaved(false);
+                  }}
                   className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
                   placeholder="Re-enter password"
                 />
@@ -1517,9 +1564,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               <button
                 type="submit"
                 disabled={passwordSubmitting}
-                className="inline-flex items-center px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-[0.18em] bg-emerald-500 text-black hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait transition-all"
+                className={`inline-flex items-center justify-center rounded-full text-[11px] font-black uppercase tracking-[0.18em] transition-all duration-300 ${
+                  passwordSaved
+                    ? 'px-3 py-1.5 bg-emerald-500/20 border border-emerald-400/40 text-emerald-300'
+                    : 'px-5 py-2 bg-emerald-500 text-black hover:bg-emerald-400'
+                } disabled:opacity-60 disabled:cursor-wait active:scale-95`}
               >
-                {passwordSubmitting ? t('updating') : t('savePassword')}
+                {passwordSubmitting ? 'Processing...' : passwordSaved ? (isRu ? 'Сохранено ✓' : 'Saved ✓') : t('savePassword')}
               </button>
             </div>
           </form>
@@ -1549,13 +1600,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 Home Cleaning
               </button>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-all p-0 border-0 z-50 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 bg-[length:200%_auto] animate-[pulse_3s_ease-in-out_infinite]"
-            >
-              <Target className="w-7 h-7 text-white" />
-            </button>
+            <div className="rounded-full bg-gradient-to-r from-red-500 to-orange-500 p-[2px] shadow-[0_0_24px_rgba(249,115,22,0.45)]">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-14 h-14 rounded-full flex items-center justify-center p-0 border-0 bg-black/10 backdrop-blur-md text-white/90 hover:text-white hover:scale-105 transition-all active:scale-95"
+                aria-label={t('closeBackToMap')}
+                title={t('closeBackToMap')}
+              >
+                <Target className="w-7 h-7" />
+              </button>
+            </div>
           </div>
 
           <form
@@ -2720,7 +2775,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     <button
                       type="button"
                       onClick={async () => {
+                        if (disputeSubmitting) return;
                         try {
+                          setDisputeSubmitting(true);
                           const { error } = await supabase
                             .from('missions')
                             .update({ is_disputed: true, status: 'disputed' })
@@ -2741,12 +2798,19 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           console.error('Dispute error:', err);
                           alert(err?.message || 'Failed to open dispute.');
                         } finally {
+                          setDisputeSubmitting(false);
                           setReviewJob(null);
                         }
                       }}
-                      className="flex-1 py-3 rounded-full bg-red-500/20 border border-red-500/60 text-red-300 hover:bg-red-500/30 hover:text-red-200 font-black text-sm uppercase tracking-[0.2em] transition-all active:scale-95"
+                      disabled={disputeSubmitting}
+                      className="flex-1 py-3 rounded-full bg-red-500/20 border border-red-500/60 text-red-300 hover:bg-red-500/30 hover:text-red-200 font-black text-sm uppercase tracking-[0.2em] transition-all active:scale-95 active:opacity-80 disabled:opacity-60 disabled:cursor-wait"
                     >
-                      Open Dispute
+                      <span className="inline-flex items-center gap-2">
+                        {disputeSubmitting && (
+                          <span className="inline-block h-4 w-4 rounded-full border-2 border-red-200/40 border-t-red-100 animate-spin" />
+                        )}
+                        {disputeSubmitting ? 'Processing...' : 'Open Dispute'}
+                      </span>
                     </button>
                   </div>
                 </div>
