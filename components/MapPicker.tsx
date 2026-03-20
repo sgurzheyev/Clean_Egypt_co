@@ -585,8 +585,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   );
 
   const [selectedMission, setSelectedMission] = useState<JobOnMap | null>(null);
-  const [translatedMissionDescription, setTranslatedMissionDescription] = useState<string | null>(null);
-  const [translatingMissionDescription, setTranslatingMissionDescription] = useState(false);
+  const [translatedText, setTranslatedText] = useState<string | null>(null);
+  const [isTranslationLoading, setIsTranslationLoading] = useState(false);
+  const [translationError, setTranslationError] = useState<string | null>(null);
   const [showTranslateAction, setShowTranslateAction] = useState(false);
   const [hallOfFameMission, setHallOfFameMission] = useState<JobOnMap | null>(null);
   const [hallOfFameCleanerName, setHallOfFameCleanerName] = useState<string | null>(null);
@@ -610,7 +611,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const translateMissionDescription = useCallback(async (text: string) => {
     try {
-      setTranslatingMissionDescription(true);
+      setIsTranslationLoading(true);
+      setTranslationError(null);
       const res = await fetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -620,13 +622,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error || 'Translate failed');
       }
-      const payload = (await res.json()) as { translatedText?: string };
-      setTranslatedMissionDescription(payload.translatedText || null);
+      const payload = (await res.json()) as { translation?: string };
+      setTranslatedText(payload.translation || null);
     } catch (e) {
       console.error('Mission description translation error:', e);
-      setTranslatedMissionDescription(null);
+      setTranslatedText(null);
+      setTranslationError('Translation failed. Try again.');
     } finally {
-      setTranslatingMissionDescription(false);
+      setIsTranslationLoading(false);
     }
   }, [appLanguage]);
   const [selectedRating, setSelectedRating] = useState<number>(0);
@@ -715,8 +718,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleCloseMissionBriefing = useCallback(() => {
     setSelectedMission(null);
-    setTranslatedMissionDescription(null);
-    setTranslatingMissionDescription(false);
+    setTranslatedText(null);
+    setIsTranslationLoading(false);
+    setTranslationError(null);
     setShowTranslateAction(false);
     setShowBidInput(false);
     setMissionBidAmount('');
@@ -863,13 +867,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
   useEffect(() => {
     if (!selectedMission?.description) {
       setShowTranslateAction(false);
-      setTranslatedMissionDescription(null);
+      setTranslatedText(null);
+      setTranslationError(null);
       return;
     }
     const detected = detectLikelyLanguage(selectedMission.description);
     const shouldTranslate = detected !== appLanguage;
     setShowTranslateAction(shouldTranslate);
-    setTranslatedMissionDescription(null);
+    setTranslatedText(null);
+    setTranslationError(null);
     if (shouldTranslate) {
       translateMissionDescription(selectedMission.description);
     }
@@ -1906,22 +1912,29 @@ const MapPicker: React.FC<MapPickerProps> = ({
               {selectedMission.description && (
                 <div className="space-y-2">
                   <p className="text-sm text-slate-400">{selectedMission.description}</p>
-                  {showTranslateAction && (
+                  {(showTranslateAction || isTranslationLoading || !!translatedText || !!translationError) && (
                     <div className="space-y-2">
-                      <button
-                        type="button"
-                        onClick={() => translateMissionDescription(selectedMission.description!)}
-                        disabled={translatingMissionDescription}
-                        className="inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.16em] border border-cyan-400/40 text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all disabled:opacity-60 disabled:cursor-wait"
-                      >
-                        {translatingMissionDescription ? t('translating') : t('translate')}
-                      </button>
-                      {translatingMissionDescription && (
+                      {showTranslateAction && (
+                        <button
+                          type="button"
+                          onClick={() => translateMissionDescription(selectedMission.description!)}
+                          disabled={isTranslationLoading}
+                          className="inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.16em] border border-cyan-400/40 text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all disabled:opacity-60 disabled:cursor-wait"
+                        >
+                          {isTranslationLoading ? t('translating') : t('translate')}
+                        </button>
+                      )}
+                      {isTranslationLoading && (
                         <div className="h-10 w-full rounded-xl bg-cyan-500/10 border border-cyan-500/20 animate-pulse" />
                       )}
-                      {translatedMissionDescription && !translatingMissionDescription && (
+                      {translatedText && !isTranslationLoading && (
                         <p className="text-sm text-cyan-100 rounded-xl border border-cyan-500/30 bg-cyan-950/30 px-3 py-2">
-                          {translatedMissionDescription}
+                          {translatedText}
+                        </p>
+                      )}
+                      {translationError && !isTranslationLoading && (
+                        <p className="text-sm text-red-300 rounded-xl border border-red-500/30 bg-red-950/30 px-3 py-2">
+                          {translationError}
                         </p>
                       )}
                     </div>

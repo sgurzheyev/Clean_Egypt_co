@@ -52,18 +52,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!openaiRes.ok) {
       const errPayload = await openaiRes.text().catch(() => '');
-      return res.status(502).json({ error: `OpenAI request failed: ${errPayload || openaiRes.status}` });
+      console.error('translate api openai error:', errPayload || openaiRes.status);
+      return res.status(500).json({ error: 'Translation provider request failed' });
     }
 
     const payload = (await openaiRes.json()) as any;
     const translatedText = payload?.choices?.[0]?.message?.content?.trim?.() || '';
     if (!translatedText) {
-      return res.status(502).json({ error: 'No translation returned' });
+      console.error('translate api: empty translation payload');
+      return res.status(500).json({ error: 'No translation returned' });
     }
 
-    return res.status(200).json({ translatedText });
+    return res.status(200).json({ translation: translatedText });
   } catch (err: any) {
     console.error('translate api error:', err?.message || err);
-    return res.status(500).json({ error: 'Internal error' });
+    return res.status(500).json({ error: 'Translation failed' });
   }
 }
