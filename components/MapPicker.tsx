@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import Map, { Marker, NavigationControl, GeolocateControl, MapRef } from 'react-map-gl';
+import Map, { Marker, NavigationControl, GeolocateControl, MapRef, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
@@ -574,17 +574,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
       if (!event?.lngLat) return;
       const { lng, lat } = event.lngLat;
       if (!isInsideEgyptBounds(lng, lat)) {
-        toast.error('Пины можно ставить только на территории Египта и его шельфа!');
+        toast.error(t('geofenceEgyptShelf'));
         return;
       }
 
       setSelectedLocation({ lat, lng });
       onLocationSelect(lat, lng);
     },
-    [onLocationSelect]
+    [onLocationSelect, t]
   );
 
   const [selectedMission, setSelectedMission] = useState<JobOnMap | null>(null);
+  const [translatedMissionDescription, setTranslatedMissionDescription] = useState<string | null>(null);
+  const [translatingMissionDescription, setTranslatingMissionDescription] = useState(false);
+  const [showTranslateAction, setShowTranslateAction] = useState(false);
   const [hallOfFameMission, setHallOfFameMission] = useState<JobOnMap | null>(null);
   const [hallOfFameCleanerName, setHallOfFameCleanerName] = useState<string | null>(null);
   const [hallOfFameHeroes, setHallOfFameHeroes] = useState<string[]>([]);
@@ -596,6 +599,36 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [showDonate, setShowDonate] = useState(false);
   const [donateAmount, setDonateAmount] = useState<string>('');
   const [donating, setDonating] = useState(false);
+
+  const detectLikelyLanguage = (text: string): 'ar' | 'ru' | 'en' => {
+    if (/[\u0600-\u06FF]/.test(text)) return 'ar';
+    if (/[\u0400-\u04FF]/.test(text)) return 'ru';
+    return 'en';
+  };
+
+  const appLanguage = (i18n.language || 'en').split('-')[0];
+
+  const translateMissionDescription = useCallback(async (text: string) => {
+    try {
+      setTranslatingMissionDescription(true);
+      const res = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, targetLanguage: appLanguage }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || 'Translate failed');
+      }
+      const payload = (await res.json()) as { translatedText?: string };
+      setTranslatedMissionDescription(payload.translatedText || null);
+    } catch (e) {
+      console.error('Mission description translation error:', e);
+      setTranslatedMissionDescription(null);
+    } finally {
+      setTranslatingMissionDescription(false);
+    }
+  }, [appLanguage]);
   const [selectedRating, setSelectedRating] = useState<number>(0);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewedMissions, setReviewedMissions] = useState<Set<string>>(new Set());
@@ -682,6 +715,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleCloseMissionBriefing = useCallback(() => {
     setSelectedMission(null);
+    setTranslatedMissionDescription(null);
+    setTranslatingMissionDescription(false);
+    setShowTranslateAction(false);
     setShowBidInput(false);
     setMissionBidAmount('');
     setShowDonate(false);
@@ -823,6 +859,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setHallOfFameCleanerName(null);
     setHallOfFameHeroes([]);
   }, []);
+
+  useEffect(() => {
+    if (!selectedMission?.description) {
+      setShowTranslateAction(false);
+      setTranslatedMissionDescription(null);
+      return;
+    }
+    const detected = detectLikelyLanguage(selectedMission.description);
+    const shouldTranslate = detected !== appLanguage;
+    setShowTranslateAction(shouldTranslate);
+    setTranslatedMissionDescription(null);
+    if (shouldTranslate) {
+      translateMissionDescription(selectedMission.description);
+    }
+  }, [selectedMission?.id, selectedMission?.description, appLanguage, translateMissionDescription]);
 
   useEffect(() => {
     const loadHallOfFameMeta = async () => {
@@ -1235,38 +1286,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
           const map = e?.target;
           if (!map) return;
 
-          if (!map.getLayer('egypt-neon-border')) {
-            map.addLayer({
-              id: 'egypt-neon-border',
-              type: 'line',
-              source: 'composite',
-              'source-layer': 'admin',
-              filter: ['all', ['==', ['get', 'admin_level'], 0], ['==', ['get', 'iso_3166_1'], 'EG']],
-              paint: {
-                'line-color': '#00d2ff',
-                'line-width': 2,
-                'line-opacity': 0.95,
-                'line-blur': 0.8,
-              },
-            });
-          }
-
-          if (!map.getLayer('egypt-neon-border-glow')) {
-            map.addLayer({
-              id: 'egypt-neon-border-glow',
-              type: 'line',
-              source: 'composite',
-              'source-layer': 'admin',
-              filter: ['all', ['==', ['get', 'admin_level'], 0], ['==', ['get', 'iso_3166_1'], 'EG']],
-              paint: {
-                'line-color': '#00d2ff',
-                'line-width': 5,
-                'line-opacity': 0.22,
-                'line-blur': 2.2,
-              },
-            });
-          }
-
           const style = map.getStyle?.();
           const waterLikeLayers = (style?.layers || []).filter(
             (layer: any) => typeof layer?.id === 'string' && layer.id.includes('water')
@@ -1286,6 +1305,32 @@ const MapPicker: React.FC<MapPickerProps> = ({
         mapboxAccessToken={MAPBOX_TOKEN}
         style={{ width: '100%', height: '100%' }}
       >
+        <Source id="admin-boundaries" type="vector" url="mapbox://mapbox.mapbox-streets-v8">
+          <Layer
+            id="egypt-border-glow"
+            type="line"
+            source-layer="admin"
+            filter={['all', ['==', ['get', 'admin_level'], 2], ['==', ['get', 'iso_3166_1'], 'EG']]}
+            paint={{
+              'line-color': '#00ffff',
+              'line-width': 6,
+              'line-blur': 2,
+              'line-opacity': 0.2,
+            }}
+          />
+          <Layer
+            id="egypt-border"
+            type="line"
+            source-layer="admin"
+            filter={['all', ['==', ['get', 'admin_level'], 2], ['==', ['get', 'iso_3166_1'], 'EG']]}
+            paint={{
+              'line-color': '#00ffff',
+              'line-width': 3,
+              'line-blur': 1,
+              'line-opacity': 0.9,
+            }}
+          />
+        </Source>
         <GeolocateControl
           position="bottom-right"
           positionOptions={{ enableHighAccuracy: true }}
@@ -1507,7 +1552,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                             lngNum <= 180
                           ) {
                             if (!isInsideEgyptBounds(lngNum, latNum)) {
-                              toast.error('Пины можно ставить только на территории Египта и его шельфа!');
+                              toast.error(t('geofenceEgyptShelf'));
                               return;
                             }
                             setSelectedLocation({ lat: latNum, lng: lngNum });
@@ -1537,7 +1582,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                             lngNum <= 180
                           ) {
                             if (!isInsideEgyptBounds(lngNum, latNum)) {
-                              toast.error('Пины можно ставить только на территории Египта и его шельфа!');
+                              toast.error(t('geofenceEgyptShelf'));
                               return;
                             }
                             setSelectedLocation({ lat: latNum, lng: lngNum });
@@ -1561,7 +1606,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           (pos) => {
                             const { latitude, longitude } = pos.coords;
                             if (!isInsideEgyptBounds(longitude, latitude)) {
-                              toast.error('Пины можно ставить только на территории Египта и его шельфа!');
+                              toast.error(t('geofenceEgyptShelf'));
                               return;
                             }
                             setSelectedLocation({ lat: latitude, lng: longitude });
@@ -1860,7 +1905,29 @@ const MapPicker: React.FC<MapPickerProps> = ({
               )}
 
               {selectedMission.description && (
-                <p className="text-sm text-slate-400">{selectedMission.description}</p>
+                <div className="space-y-2">
+                  <p className="text-sm text-slate-400">{selectedMission.description}</p>
+                  {showTranslateAction && (
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => translateMissionDescription(selectedMission.description!)}
+                        disabled={translatingMissionDescription}
+                        className="inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.16em] border border-cyan-400/40 text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all disabled:opacity-60 disabled:cursor-wait"
+                      >
+                        {translatingMissionDescription ? t('translating') : t('translate')}
+                      </button>
+                      {translatingMissionDescription && (
+                        <div className="h-10 w-full rounded-xl bg-cyan-500/10 border border-cyan-500/20 animate-pulse" />
+                      )}
+                      {translatedMissionDescription && !translatingMissionDescription && (
+                        <p className="text-sm text-cyan-100 rounded-xl border border-cyan-500/30 bg-cyan-950/30 px-3 py-2">
+                          {translatedMissionDescription}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Financial Trail */}

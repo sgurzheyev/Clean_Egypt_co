@@ -92,6 +92,7 @@ const resources = {
       amountUsd: 'Amount (USD)',
       location: 'Location',
       tapMapToSetLocation: 'Please tap on the map to set a location.',
+      geofenceEgyptShelf: 'Pins can only be placed within Egypt and its shelf!',
       uploadPhoto: 'Upload photo',
       photosSelected: 'photo(s) selected',
       tapToAddReferencePhotos: 'Tap to add reference photos (up to 10)',
@@ -102,6 +103,8 @@ const resources = {
       describeHomeTask: 'Describe your home cleaning task and area size...',
       submitTaskAndPay: 'Submit Task & Pay',
       processing: 'Processing...',
+      translate: 'Translate',
+      translating: 'Translating...',
       anyAmount: 'Any amount',
       // Mission Briefing
       missionBriefing: 'MISSION BRIEFING',
@@ -248,6 +251,7 @@ const resources = {
       amountUsd: 'المبلغ (دولار)',
       location: 'الموقع',
       tapMapToSetLocation: 'انقر على الخريطة لتعيين الموقع.',
+      geofenceEgyptShelf: 'لا يمكن وضع الدبابيس إلا داخل مصر وجرفها القاري!',
       uploadPhoto: 'رفع صورة',
       photosSelected: 'صورة محددة',
       tapToAddReferencePhotos: 'انقر لإضافة صور مرجعية (حتى 10)',
@@ -258,6 +262,8 @@ const resources = {
       describeHomeTask: 'صف مهمة التنظيف المنزلي وحجم المنطقة...',
       submitTaskAndPay: 'إرسال المهمة والدفع',
       processing: 'جاري المعالجة...',
+      translate: 'ترجمة',
+      translating: 'جارٍ الترجمة...',
       anyAmount: 'أي مبلغ',
       missionBriefing: 'إحاطة المهمة',
       yourActiveMission: 'مهمتك النشطة',
@@ -397,6 +403,7 @@ const resources = {
       amountUsd: 'Сумма (USD)',
       location: 'Место',
       tapMapToSetLocation: 'Нажмите на карту, чтобы указать место.',
+      geofenceEgyptShelf: 'Пины можно ставить только на территории Египта и его шельфа!',
       uploadPhoto: 'Загрузить фото',
       photosSelected: 'фото выбрано',
       tapToAddReferencePhotos: 'Добавить фото (до 10)',
@@ -407,6 +414,8 @@ const resources = {
       describeHomeTask: 'Опишите задачу и площадь...',
       submitTaskAndPay: 'Отправить и оплатить',
       processing: 'Обработка...',
+      translate: 'Перевести',
+      translating: 'Перевод...',
       anyAmount: 'Любая сумма',
       missionBriefing: 'БРИФИНГ ЗАДАНИЯ',
       yourActiveMission: 'Ваше активное задание',
@@ -552,6 +561,7 @@ const resources = {
       amountUsd: 'Betrag (USD)',
       location: 'Standort',
       tapMapToSetLocation: 'Tippe auf die Karte, um den Standort zu setzen.',
+      geofenceEgyptShelf: 'Pins koennen nur innerhalb Aegyptens und seines Schelfs gesetzt werden!',
       uploadPhoto: 'Foto hochladen',
       photosSelected: 'Foto(s) ausgewählt',
       tapToAddReferencePhotos: 'Fotos hinzufügen (bis zu 10)',
@@ -562,6 +572,8 @@ const resources = {
       describeHomeTask: 'Beschreibe die Reinigungsaufgabe und Fläche...',
       submitTaskAndPay: 'Auftrag senden & bezahlen',
       processing: 'Wird verarbeitet...',
+      translate: 'Uebersetzen',
+      translating: 'Wird uebersetzt...',
       anyAmount: 'Beliebiger Betrag',
       missionBriefing: 'AUFTRAGS-BRIEFING',
       yourActiveMission: 'Dein aktiver Auftrag',
@@ -700,6 +712,7 @@ const resources = {
       amountUsd: 'Importo (USD)',
       location: 'Posizione',
       tapMapToSetLocation: 'Tocca la mappa per impostare la posizione.',
+      geofenceEgyptShelf: "I pin possono essere posizionati solo in Egitto e nella sua piattaforma continentale!",
       uploadPhoto: 'Carica foto',
       photosSelected: 'foto selezionate',
       tapToAddReferencePhotos: 'Tocca per aggiungere foto di riferimento (fino a 10)',
@@ -710,6 +723,8 @@ const resources = {
       describeHomeTask: 'Descrivi il compito e la metratura...',
       submitTaskAndPay: 'Invia e paga',
       processing: 'Elaborazione in corso...',
+      translate: 'Traduci',
+      translating: 'Traduzione in corso...',
       anyAmount: 'Qualsiasi importo',
       missionBriefing: 'BRIEFING MISSIONE',
       yourActiveMission: 'La tua missione attiva',
@@ -848,6 +863,7 @@ const resources = {
       amountUsd: 'Importe (USD)',
       location: 'Ubicación',
       tapMapToSetLocation: 'Toca el mapa para fijar la ubicación.',
+      geofenceEgyptShelf: 'Los pines solo se pueden colocar dentro de Egipto y su plataforma continental.',
       uploadPhoto: 'Subir foto',
       photosSelected: 'foto(s) seleccionada(s)',
       tapToAddReferencePhotos: 'Toca para añadir fotos de referencia (hasta 10)',
@@ -858,6 +874,8 @@ const resources = {
       describeHomeTask: 'Describe la tarea y el tamaño de la zona...',
       submitTaskAndPay: 'Enviar y pagar',
       processing: 'Procesando...',
+      translate: 'Traducir',
+      translating: 'Traduciendo...',
       anyAmount: 'Cualquier importe',
       missionBriefing: 'BRIEFING DE MISIÓN',
       yourActiveMission: 'Tu misión activa',
@@ -912,12 +930,21 @@ const resources = {
   },
 } as const;
 
+const storedLang =
+  typeof window !== 'undefined' ? window.localStorage.getItem('appLanguage') : null;
+
 i18n.use(initReactI18next).init({
   resources,
-  lng: 'en',
+  lng: storedLang || 'en',
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
 });
+
+if (typeof window !== 'undefined') {
+  i18n.on('languageChanged', (lng) => {
+    window.localStorage.setItem('appLanguage', lng);
+  });
+}
 
 export default i18n;
 
