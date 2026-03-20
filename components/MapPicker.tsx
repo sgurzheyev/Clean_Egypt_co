@@ -274,7 +274,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   flyToTarget,
   onFlyToComplete,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRu = (i18n.language || '').toLowerCase().startsWith('ru');
   const mapRef = React.useRef<MapRef>(null);
   const [viewState, setViewState] = useState({
     latitude: 27.2579,
@@ -1377,7 +1378,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                    {t('amountUsd')}
+                    {taskType === 'city'
+                      ? isRu
+                        ? 'Цель сбора (Предполагаемая стоимость)'
+                        : 'Collection Target (Goal)'
+                      : t('amountUsd')}
                   </label>
                   <input
                     type="number"
@@ -1386,9 +1391,22 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     min="0"
                     value={orderAmount}
                     onChange={(e) => setOrderAmount(e.target.value)}
-                    placeholder={t('anyAmount')}
+                    placeholder={
+                      taskType === 'city'
+                        ? isRu
+                          ? 'Цель сбора (Предполагаемая стоимость)'
+                          : 'Collection Target (Goal)'
+                        : t('anyAmount')
+                    }
                     className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500"
                   />
+                  {taskType === 'city' && (
+                    <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
+                      {isRu
+                        ? 'Создание городской метки стоит $1 (Scout Stake). Цель — ваш краудфандинговый сбор.'
+                        : 'Creating a public pin costs $1 (Scout Stake). The target is just your crowdfunding goal.'}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">

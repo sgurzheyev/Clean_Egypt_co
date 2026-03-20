@@ -72,7 +72,7 @@ begin
     v_scout_reward := v_funding * 0.051;
     v_platform_fee := v_funding - v_cleaner_reward - v_scout_reward;
     v_debug_note := format(
-      'ESCROW_DEBUG funding_normalized=%.2f cleaner_reward=%.2f scout_reward=%.2f platform_fee=%.2f raw_current_funding=%.2f raw_amount_target=%.2f mission_id=%s',
+      'ESCROW_DEBUG funding_normalized=%s cleaner_reward=%s scout_reward=%s platform_fee=%s raw_current_funding=%s raw_amount_target=%s mission_id=%s',
       v_funding,
       v_cleaner_reward,
       v_scout_reward,

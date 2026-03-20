@@ -106,6 +106,7 @@ function JobTimer({ startedAt }: { startedAt: string }) {
 
 const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, onNavigateToJob }) => {
   const { t, i18n } = useTranslation();
+  const isRu = (i18n.language || '').toLowerCase().startsWith('ru');
   const [showAdmin, setShowAdmin] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [showRefunds, setShowRefunds] = useState(false);
@@ -127,6 +128,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [paymentSyncing, setPaymentSyncing] = useState(false);
   const [reviewJob, setReviewJob] = useState<Job | null>(null);
+  const [releasePaySubmitting, setReleasePaySubmitting] = useState(false);
   const [taskType, setTaskType] = useState<'city' | 'home'>('city');
   const [orderAmount, setOrderAmount] = useState('');
   const [orderLocation, setOrderLocation] = useState('');
@@ -1072,13 +1074,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     }
   };
 
-  const handleConfirmReleasePay = async (job: Job) => {
+  const handleConfirmReleasePay = async (job: Job): Promise<boolean> => {
     if (!job.cleaner_id) {
       alert('No worker assigned to this job yet.');
-      return;
+      return false;
     }
     if (!window.confirm('Confirm completion and release payment to the worker?')) return;
+    if (releasePaySubmitting) return false;
     try {
+      setReleasePaySubmitting(true);
       const { error: rpcErr } = await supabase.rpc('resolve_mission_dispute', {
         p_mission_id: job.id,
         p_decision: 'approve',
@@ -1088,9 +1092,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       await fetchProfileData();
       alert('Payment released.');
+      return true;
     } catch (err: any) {
       console.error('Release pay error:', err);
       alert(err?.message || 'Failed to release payment.');
+      return false;
+    } finally {
+      setReleasePaySubmitting(false);
     }
   };
 
@@ -1522,7 +1530,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                  Amount (USD)
+                  {taskType === 'city'
+                    ? isRu
+                      ? 'Цель сбора (Предполагаемая стоимость)'
+                      : 'Collection Target (Goal)'
+                    : t('amountUsd')}
                 </label>
                 <input
                   type="number"
@@ -1531,9 +1543,16 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   min="0"
                   value={orderAmount}
                   onChange={(e) => setOrderAmount(e.target.value)}
-                  placeholder="Any amount"
+                  placeholder={taskType === 'city' ? (isRu ? 'Цель сбора (Предполагаемая стоимость)' : 'Collection Target (Goal)') : t('anyAmount')}
                   className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500"
                 />
+                {taskType === 'city' && (
+                  <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
+                    {isRu
+                      ? 'Создание городской метки стоит $1 (Scout Stake). Цель — ваш краудфандинговый сбор.'
+                      : 'Creating a public pin costs $1 (Scout Stake). The target is just your crowdfunding goal.'}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1977,6 +1996,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
                             WAITING FOR ADMIN VERIFICATION
                           </p>
+                          <button
+                            type="button"
+                            onClick={() => setReviewJob(job)}
+                            disabled={releasePaySubmitting}
+                            className="mt-3 w-full py-3 rounded-full bg-emerald-500 text-black font-black text-xs uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:brightness-110 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            Review & Release Payment
+                          </button>
                         </div>
                       )}
                       {job.status === 'pending_approval' && job.cleaner_id && (
@@ -2559,20 +2586,20 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
             {/* Scrollable photo grid + disclaimer */}
             <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className="rounded-2xl bg-black/50 border border-white/10 p-4">
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
                     Before photos
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {(!reviewJob.photo_urls || reviewJob.photo_urls.length === 0) && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {(((reviewJob.photo_urls || (reviewJob as any).before_photo_urls) || []) as string[]).length === 0 && (
                       <p className="text-xs text-slate-500 italic">
                         Worker did not upload before photos.
                       </p>
                     )}
-                    {(reviewJob.photo_urls || []).map((url) => (
+                    {(((reviewJob.photo_urls || (reviewJob as any).before_photo_urls) || []) as string[]).map((url) => (
                       <div key={url} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
-                        <img src={url} alt="Before" className="w-full h-24 object-cover" />
+                        <img src={url} alt="Before" className="w-full h-28 object-cover" />
                       </div>
                     ))}
                   </div>
@@ -2581,7 +2608,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
                     After photos
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {(!reviewJob.after_photo_urls || reviewJob.after_photo_urls.length === 0) && (
                       <p className="text-xs text-slate-500 italic">
                         Worker did not upload after photos.
@@ -2589,7 +2616,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     )}
                     {(reviewJob.after_photo_urls || []).map((url) => (
                       <div key={url} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
-                        <img src={url} alt="After" className="w-full h-24 object-cover" />
+                        <img src={url} alt="After" className="w-full h-28 object-cover" />
                       </div>
                     ))}
                   </div>
@@ -2602,7 +2629,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
 
             {/* Sticky action buttons — always visible at bottom */}
-            <div className="flex-shrink-0 sticky bottom-0 bg-cyan-950/60 backdrop-blur-md pt-4 pb-6 px-6 z-10 border-t border-cyan-500/30">
+            <div className="flex-shrink-0 sticky bottom-0 bg-cyan-950/80 backdrop-blur-md pt-4 pb-6 px-6 z-[60] border-t border-cyan-500/30">
               {reviewJob?.status === 'completed' ? (
                 <div className="w-full">
                   <p className="w-full py-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-black text-sm uppercase tracking-[0.2em] text-center">
@@ -2610,50 +2637,60 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   </p>
                 </div>
               ) : (
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className={`flex-1 rounded-full ${reviewJob?.category === 'home' ? 'animated-border-home' : 'animated-border-city'}`}>
+                <div className="w-full flex flex-col gap-3">
+                  <p className="text-[11px] text-slate-300 text-center px-2">
+                    {isRu
+                      ? 'Пожалуйста, проверьте фото. Если работа выполнена, подтвердите выплату уборщику.'
+                      : 'Please review the photos. If the job is done, release the funds to the cleaner.'}
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <button
                       type="button"
                       onClick={async () => {
-                        await handleConfirmReleasePay(reviewJob);
-                        setReviewJob(null);
+                        const ok = await handleConfirmReleasePay(reviewJob);
+                        if (ok) setReviewJob(null);
                       }}
-                      className="animated-border-inner w-full rounded-full py-3 text-white bg-[#020617] font-black text-sm uppercase tracking-[0.2em] hover:brightness-110 transition-all active:scale-[0.98]"
+                      disabled={releasePaySubmitting}
+                      className="flex-1 w-full rounded-full py-3 px-4 bg-emerald-500 text-black font-black text-sm uppercase tracking-[0.2em] shadow-[0_0_24px_rgba(52,211,153,0.45)] hover:bg-emerald-400 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      Confirm & Pay
+                      {releasePaySubmitting
+                        ? isRu
+                          ? 'Выпускаем...'
+                          : 'Releasing...'
+                        : 'Approve & Release Payment'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const { error } = await supabase
+                            .from('missions')
+                            .update({ is_disputed: true, status: 'disputed' })
+                            .eq('id', reviewJob.id);
+                          if (error) throw error;
+                          await fetchProfileData();
+                          try {
+                            await fetch('/api/notify-dispute', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ jobId: reviewJob.id }),
+                            });
+                          } catch {
+                            // ignore
+                          }
+                          alert('Dispute opened. Support (Muhamed) will review photos and Telegram video.');
+                        } catch (err: any) {
+                          console.error('Dispute error:', err);
+                          alert(err?.message || 'Failed to open dispute.');
+                        } finally {
+                          setReviewJob(null);
+                        }
+                      }}
+                      className="flex-1 py-3 rounded-full bg-red-500/20 border border-red-500/60 text-red-300 hover:bg-red-500/30 hover:text-red-200 font-black text-sm uppercase tracking-[0.2em] transition-all active:scale-95"
+                    >
+                      Open Dispute
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const { error } = await supabase
-                          .from('missions')
-                          .update({ is_disputed: true, status: 'disputed' })
-                          .eq('id', reviewJob.id);
-                        if (error) throw error;
-                        await fetchProfileData();
-                        try {
-                          await fetch('/api/notify-dispute', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ jobId: reviewJob.id }),
-                          });
-                        } catch {
-                          // ignore
-                        }
-                        alert('Dispute opened. Support (Muhamed) will review photos and Telegram video.');
-                      } catch (err: any) {
-                        console.error('Dispute error:', err);
-                        alert(err?.message || 'Failed to open dispute.');
-                      } finally {
-                        setReviewJob(null);
-                      }
-                    }}
-                    className="flex-1 py-3 rounded-full bg-red-500/20 border border-red-500/60 text-red-300 hover:bg-red-500/30 hover:text-red-200 font-black text-sm uppercase tracking-[0.2em] transition-all active:scale-95"
-                  >
-                    Open Dispute
-                  </button>
                 </div>
               )}
             </div>
