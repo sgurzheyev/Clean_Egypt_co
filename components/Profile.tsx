@@ -1081,6 +1081,26 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           } as any)
           .eq('id', proofJob.id);
         if (updateErr) throw updateErr;
+
+        const plastic = Number.parseFloat(plasticKg || '0') || 0;
+        const glass = Number.parseFloat(glassKg || '0') || 0;
+        const debris = Number.parseFloat(constructionKg || '0') || 0;
+        try {
+          await fetch('/api/notify-mission-submitted', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              missionId: proofJob.id,
+              category: proofJob.category,
+              plastic,
+              glass,
+              debris,
+            }),
+          });
+        } catch (notifyErr) {
+          console.warn('notify-mission-submitted failed:', notifyErr);
+        }
+
         setProofSuccess('Proof submitted for review. Payment will be released only after approval.');
       }
 
@@ -2688,7 +2708,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         if (ok) setReviewJob(null);
                       }}
                       disabled={releasePaySubmitting}
-                      className="flex-1 w-full rounded-full py-3 px-4 bg-emerald-500 text-black font-black text-sm uppercase tracking-[0.2em] shadow-[0_0_24px_rgba(52,211,153,0.45)] hover:bg-emerald-400 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="flex-1 w-full rounded-full py-3 px-4 bg-emerald-500 text-black font-black text-sm uppercase tracking-[0.2em] shadow-[0_0_24px_rgba(52,211,153,0.45)] hover:bg-emerald-400 transition-all active:scale-95 active:opacity-80 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <span className="inline-flex items-center gap-2">
                         {releasePaySubmitting && (
@@ -2975,15 +2995,18 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         )
                       )
                     }
-                    className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-wait active:scale-[0.98]"
+                    className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-wait active:scale-95 active:opacity-80"
                   >
-                    {proofSubmitting
-                      ? proofProcessingImage
-                        ? 'Processing image...'
-                        : 'Submitting...'
-                      : proofPhase === 'before'
-                        ? "Submit & start mission"
-                        : "Submit & mark completed"}
+                    <span className="inline-flex items-center gap-2">
+                      {proofSubmitting && (
+                        <span className="inline-block h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                      )}
+                      {proofSubmitting
+                        ? 'Processing...'
+                        : proofPhase === 'before'
+                          ? "Submit & start mission"
+                          : "Submit & mark completed"}
+                    </span>
                   </button>
                 </div>
 
