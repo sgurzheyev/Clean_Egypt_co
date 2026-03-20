@@ -49,6 +49,11 @@ type AfterBurstPackage = {
   capturedAt: string;
 };
 
+type ToastState = {
+  message: string;
+  kind: 'success' | 'error';
+} | null;
+
 interface Bid {
   id: string;
   mission_id: string;
@@ -129,6 +134,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [paymentSyncing, setPaymentSyncing] = useState(false);
   const [reviewJob, setReviewJob] = useState<Job | null>(null);
   const [releasePaySubmitting, setReleasePaySubmitting] = useState(false);
+  const [toastState, setToastState] = useState<ToastState>(null);
   const [taskType, setTaskType] = useState<'city' | 'home'>('city');
   const [orderAmount, setOrderAmount] = useState('');
   const [orderLocation, setOrderLocation] = useState('');
@@ -155,6 +161,20 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [topUpSubmitting, setTopUpSubmitting] = useState(false);
   const navigate = useNavigate();
   const lastMissionStatusActionAtRef = useRef<number>(0);
+  const toastTimerRef = useRef<number | null>(null);
+
+  const toast = {
+    success: (message: string) => {
+      setToastState({ message, kind: 'success' });
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = window.setTimeout(() => setToastState(null), 2600);
+    },
+    error: (message: string) => {
+      setToastState({ message, kind: 'error' });
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = window.setTimeout(() => setToastState(null), 3000);
+    },
+  };
 
   const enforceMissionStatusCooldown = () => {
     const now = Date.now();
@@ -202,6 +222,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     return () => {
       if (channel) {
         supabase.removeChannel(channel);
+      }
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
       }
     };
   }, []);
@@ -1076,10 +1099,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
   const handleConfirmReleasePay = async (job: Job): Promise<boolean> => {
     if (!job.cleaner_id) {
-      alert('No worker assigned to this job yet.');
+      toast.error('No worker assigned to this job yet.');
       return false;
     }
-    if (!window.confirm('Confirm completion and release payment to the worker?')) return;
+    if (!window.confirm('Confirm completion and release payment to the worker?')) return false;
     if (releasePaySubmitting) return false;
     try {
       setReleasePaySubmitting(true);
@@ -1091,11 +1114,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       if (rpcErr) throw rpcErr;
 
       await fetchProfileData();
-      alert('Payment released.');
+      toast.success('Payment released successfully.');
       return true;
     } catch (err: any) {
       console.error('Release pay error:', err);
-      alert(err?.message || 'Failed to release payment.');
+      toast.error(err?.message || 'Failed to release payment.');
       return false;
     } finally {
       setReleasePaySubmitting(false);
@@ -2555,6 +2578,20 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         </div>
       )}
 
+      {toastState && (
+        <div className="fixed top-5 right-5 z-[10001]">
+          <div
+            className={`rounded-2xl px-4 py-3 text-sm font-bold shadow-xl border ${
+              toastState.kind === 'success'
+                ? 'bg-emerald-500/95 text-black border-emerald-300/60'
+                : 'bg-red-500/95 text-white border-red-300/60'
+            }`}
+          >
+            {toastState.message}
+          </div>
+        </div>
+      )}
+
       {/* Client review modal: compare before/after & confirm or dispute */}
       {reviewJob && (
         <div
@@ -2653,11 +2690,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       disabled={releasePaySubmitting}
                       className="flex-1 w-full rounded-full py-3 px-4 bg-emerald-500 text-black font-black text-sm uppercase tracking-[0.2em] shadow-[0_0_24px_rgba(52,211,153,0.45)] hover:bg-emerald-400 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      {releasePaySubmitting
-                        ? isRu
-                          ? 'Выпускаем...'
-                          : 'Releasing...'
-                        : 'Approve & Release Payment'}
+                      <span className="inline-flex items-center gap-2">
+                        {releasePaySubmitting && (
+                          <span className="inline-block h-4 w-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />
+                        )}
+                        {releasePaySubmitting ? 'Processing...' : 'Approve & Release Payment'}
+                      </span>
                     </button>
                     <button
                       type="button"
