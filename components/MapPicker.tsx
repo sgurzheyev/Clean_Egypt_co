@@ -1305,29 +1305,28 @@ const MapPicker: React.FC<MapPickerProps> = ({
         mapboxAccessToken={MAPBOX_TOKEN}
         style={{ width: '100%', height: '100%' }}
       >
-        <Source id="admin-boundaries" type="vector" url="mapbox://mapbox.mapbox-streets-v8">
+        <Source id="mapbox-streets" type="vector" url="mapbox://mapbox.mapbox-streets-v8">
           <Layer
-            id="egypt-border-glow"
+            id="neon-roads-glow"
             type="line"
-            source-layer="admin"
-            filter={['all', ['==', ['get', 'admin_level'], 2], ['==', ['get', 'iso_3166_1'], 'EG']]}
+            source-layer="road"
+            filter={['in', ['get', 'class'], ['literal', ['motorway', 'primary', 'secondary', 'trunk']]]}
             paint={{
               'line-color': '#00ffff',
-              'line-width': 6,
-              'line-blur': 2,
+              'line-width': 3.5,
               'line-opacity': 0.2,
+              'line-blur': 1.5,
             }}
           />
           <Layer
-            id="egypt-border"
+            id="neon-roads"
             type="line"
-            source-layer="admin"
-            filter={['all', ['==', ['get', 'admin_level'], 2], ['==', ['get', 'iso_3166_1'], 'EG']]}
+            source-layer="road"
+            filter={['in', ['get', 'class'], ['literal', ['motorway', 'primary', 'secondary', 'trunk']]]}
             paint={{
               'line-color': '#00ffff',
-              'line-width': 3,
-              'line-blur': 1,
-              'line-opacity': 0.9,
+              'line-width': 1.5,
+              'line-opacity': 0.6,
             }}
           />
         </Source>
