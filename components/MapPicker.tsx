@@ -7,6 +7,13 @@ import { supabase } from '../lib/supabaseClient';
 import JobMarker from './JobMarker';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+const EGYPT_MAX_BOUNDS: [[number, number], [number, number]] = [[24.0, 21.0], [38.0, 32.5]];
+
+const isInsideEgyptBounds = (lng: number, lat: number) =>
+  lng >= EGYPT_MAX_BOUNDS[0][0] &&
+  lng <= EGYPT_MAX_BOUNDS[1][0] &&
+  lat >= EGYPT_MAX_BOUNDS[0][1] &&
+  lat <= EGYPT_MAX_BOUNDS[1][1];
 
 type TaskType = 'city' | 'home';
 
@@ -300,6 +307,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
+  const [mapToast, setMapToast] = useState<string | null>(null);
+
+  const toast = {
+    error: (message: string) => {
+      setMapToast(message);
+      window.setTimeout(() => setMapToast(null), 2600);
+    },
+  };
 
   const selectTaskType = useCallback((type: TaskType) => {
     setTaskType(type);
@@ -558,6 +573,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
     (event: any) => {
       if (!event?.lngLat) return;
       const { lng, lat } = event.lngLat;
+      if (!isInsideEgyptBounds(lng, lat)) {
+        toast.error('Пины можно ставить только на территории Египта и его шельфа!');
+        return;
+      }
 
       setSelectedLocation({ lat, lng });
       onLocationSelect(lat, lng);
@@ -1211,6 +1230,58 @@ const MapPicker: React.FC<MapPickerProps> = ({
         {...viewState}
         onMove={(evt) => setViewState(evt.viewState)}
         onClick={handleMapClick}
+        maxBounds={EGYPT_MAX_BOUNDS}
+        onLoad={(e: any) => {
+          const map = e?.target;
+          if (!map) return;
+
+          if (!map.getLayer('egypt-neon-border')) {
+            map.addLayer({
+              id: 'egypt-neon-border',
+              type: 'line',
+              source: 'composite',
+              'source-layer': 'admin',
+              filter: ['all', ['==', ['get', 'admin_level'], 0], ['==', ['get', 'iso_3166_1'], 'EG']],
+              paint: {
+                'line-color': '#00d2ff',
+                'line-width': 2,
+                'line-opacity': 0.95,
+                'line-blur': 0.8,
+              },
+            });
+          }
+
+          if (!map.getLayer('egypt-neon-border-glow')) {
+            map.addLayer({
+              id: 'egypt-neon-border-glow',
+              type: 'line',
+              source: 'composite',
+              'source-layer': 'admin',
+              filter: ['all', ['==', ['get', 'admin_level'], 0], ['==', ['get', 'iso_3166_1'], 'EG']],
+              paint: {
+                'line-color': '#00d2ff',
+                'line-width': 5,
+                'line-opacity': 0.22,
+                'line-blur': 2.2,
+              },
+            });
+          }
+
+          const style = map.getStyle?.();
+          const waterLikeLayers = (style?.layers || []).filter(
+            (layer: any) => typeof layer?.id === 'string' && layer.id.includes('water')
+          );
+          for (const layer of waterLikeLayers) {
+            if (layer.type === 'fill') {
+              map.setPaintProperty(layer.id, 'fill-color', '#1a2b3c');
+              map.setPaintProperty(layer.id, 'fill-opacity', 0.55);
+            }
+            if (layer.type === 'line') {
+              map.setPaintProperty(layer.id, 'line-color', '#3ecfff');
+              map.setPaintProperty(layer.id, 'line-opacity', 0.55);
+            }
+          }
+        }}
         mapStyle={customDarkStyle}
         mapboxAccessToken={MAPBOX_TOKEN}
         style={{ width: '100%', height: '100%' }}
@@ -1435,6 +1506,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                             lngNum >= -180 &&
                             lngNum <= 180
                           ) {
+                            if (!isInsideEgyptBounds(lngNum, latNum)) {
+                              toast.error('Пины можно ставить только на территории Египта и его шельфа!');
+                              return;
+                            }
                             setSelectedLocation({ lat: latNum, lng: lngNum });
                             mapRef.current?.flyTo({
                               center: [lngNum, latNum],
@@ -1461,6 +1536,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                             lngNum >= -180 &&
                             lngNum <= 180
                           ) {
+                            if (!isInsideEgyptBounds(lngNum, latNum)) {
+                              toast.error('Пины можно ставить только на территории Египта и его шельфа!');
+                              return;
+                            }
                             setSelectedLocation({ lat: latNum, lng: lngNum });
                             mapRef.current?.flyTo({
                               center: [lngNum, latNum],
@@ -1481,6 +1560,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         navigator.geolocation.getCurrentPosition(
                           (pos) => {
                             const { latitude, longitude } = pos.coords;
+                            if (!isInsideEgyptBounds(longitude, latitude)) {
+                              toast.error('Пины можно ставить только на территории Египта и его шельфа!');
+                              return;
+                            }
                             setSelectedLocation({ lat: latitude, lng: longitude });
                             mapRef.current?.flyTo({
                               center: [longitude, latitude],
@@ -2227,6 +2310,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 </ul>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {mapToast && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[120] pointer-events-none">
+          <div className="rounded-xl border border-red-300/30 bg-red-500/85 px-4 py-2 text-xs font-bold text-white shadow-xl backdrop-blur-sm">
+            {mapToast}
           </div>
         </div>
       )}

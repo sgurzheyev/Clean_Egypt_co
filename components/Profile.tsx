@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { Target } from 'lucide-react';
+import { Pencil, Target } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import AdminDashboard from '../src/components/AdminDashboard';
@@ -156,6 +156,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [contactSubmitting, setContactSubmitting] = useState(false);
   const [contactSaved, setContactSaved] = useState(false);
   const [passwordSaved, setPasswordSaved] = useState(false);
+  const [contactEditMode, setContactEditMode] = useState(true);
+  const [passwordEditMode, setPasswordEditMode] = useState(true);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [showStripeTopUp, setShowStripeTopUp] = useState(false);
   const [payoutAmount, setPayoutAmount] = useState('');
@@ -447,6 +449,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       setPasswordSuccess('Password updated successfully.');
       setPasswordSaved(true);
+      setPasswordEditMode(false);
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
@@ -543,6 +546,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         setPhoneNumber(profileRow.phone_number ?? '');
         setTelegramUsername(profileRow.telegram_username ?? '');
         setContactEmail(profileRow.contact_email ?? session.user.email ?? '');
+        setContactEditMode(!(profileRow.contact_email || profileRow.phone_number || profileRow.telegram_username));
       }
 
       const { data: homeJobsData } = await supabase
@@ -1434,6 +1438,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 }
                 console.log('Contact info saved successfully.');
                 setContactSaved(true);
+                setContactEditMode(false);
               } catch (err: any) {
                 console.error('Contact info update error (exception):', err);
                 alert(err?.message || 'Failed to save contact information.');
@@ -1449,65 +1454,89 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <p className="text-[11px] text-slate-500">
               {t('contactInfoHint')}
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                  {t('email')}
-                </label>
-                <input
-                  type="email"
-                  value={contactEmail}
-                  onChange={(e) => {
-                    setContactEmail(e.target.value);
-                    setContactSaved(false);
-                  }}
-                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
-                  placeholder="you@example.com"
-                />
+            {contactEditMode ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                    {t('email')}
+                  </label>
+                  <input
+                    type="email"
+                    value={contactEmail}
+                    onChange={(e) => {
+                      setContactEmail(e.target.value);
+                      setContactSaved(false);
+                    }}
+                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                    {t('phoneWhatsApp')}
+                  </label>
+                  <input
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => {
+                      setPhoneNumber(e.target.value);
+                      setContactSaved(false);
+                    }}
+                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                    placeholder="+20 1X XXX XXXX"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                    {t('telegramUsername')}
+                  </label>
+                  <input
+                    type="text"
+                    value={telegramUsername}
+                    onChange={(e) => {
+                      setTelegramUsername(e.target.value);
+                      setContactSaved(false);
+                    }}
+                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                    placeholder="@username"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                  {t('phoneWhatsApp')}
-                </label>
-                <input
-                  type="tel"
-                  value={phoneNumber}
-                  onChange={(e) => {
-                    setPhoneNumber(e.target.value);
-                    setContactSaved(false);
-                  }}
-                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
-                  placeholder="+20 1X XXX XXXX"
-                />
+            ) : (
+              <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 flex items-start justify-between gap-3">
+                <div className="text-xs text-slate-300 space-y-1">
+                  <p>{contactEmail || '—'}</p>
+                  <p>{phoneNumber || '—'}</p>
+                  <p>{telegramUsername || '—'}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setContactEditMode(true)}
+                  className="h-8 w-8 rounded-full border border-white/15 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 inline-flex items-center justify-center transition-all active:scale-95"
+                  aria-label="Edit contacts"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                  {t('telegramUsername')}
-                </label>
-                <input
-                  type="text"
-                  value={telegramUsername}
-                  onChange={(e) => {
-                    setTelegramUsername(e.target.value);
-                    setContactSaved(false);
-                  }}
-                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
-                  placeholder="@username"
-                />
-              </div>
-            </div>
+            )}
             <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={contactSubmitting}
-                className={`inline-flex items-center justify-center rounded-full text-[11px] font-black uppercase tracking-[0.18em] transition-all duration-300 ${
-                  contactSaved
-                    ? 'px-3 py-1.5 bg-emerald-500/20 border border-emerald-400/40 text-emerald-300'
-                    : 'px-5 py-2 bg-slate-800 text-slate-100 hover:bg-slate-700'
-                } disabled:opacity-60 disabled:cursor-wait active:scale-95`}
-              >
-                {contactSubmitting ? 'Processing...' : contactSaved ? (isRu ? 'Контакты ✓' : 'Saved ✓') : t('saveContact')}
-              </button>
+              {contactEditMode ? (
+                <button
+                  type="submit"
+                  disabled={contactSubmitting}
+                  className={`inline-flex items-center justify-center rounded-full text-[11px] font-black uppercase tracking-[0.18em] transition-all duration-300 ${
+                    contactSaved
+                      ? 'px-3 py-1.5 bg-emerald-500/20 border border-emerald-400/40 text-emerald-300'
+                      : 'px-5 py-2 bg-slate-800 text-slate-100 hover:bg-slate-700'
+                  } disabled:opacity-60 disabled:cursor-wait active:scale-95`}
+                >
+                  {contactSubmitting ? 'Processing...' : contactSaved ? (isRu ? 'Контакты ✓' : 'Saved ✓') : t('saveContact')}
+                </button>
+              ) : (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/20 text-emerald-300 text-[11px] font-black uppercase tracking-[0.18em]">
+                  {isRu ? 'Контакты ✓' : 'Saved ✓'}
+                </span>
+              )}
             </div>
           </form>
 
@@ -1522,38 +1551,52 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <p className="text-[11px] text-slate-500">
               {t('changePasswordHint')}
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                  {t('newPassword')}
-                </label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => {
-                    setNewPassword(e.target.value);
-                    setPasswordSaved(false);
-                  }}
-                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
-                  placeholder="At least 8 characters"
-                />
+            {passwordEditMode ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                    {t('newPassword')}
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => {
+                      setNewPassword(e.target.value);
+                      setPasswordSaved(false);
+                    }}
+                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                    placeholder="At least 8 characters"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                    {t('confirmPassword')}
+                  </label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      setPasswordSaved(false);
+                    }}
+                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                    placeholder="Re-enter password"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                  {t('confirmPassword')}
-                </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => {
-                    setConfirmPassword(e.target.value);
-                    setPasswordSaved(false);
-                  }}
-                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
-                  placeholder="Re-enter password"
-                />
+            ) : (
+              <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 flex items-center justify-between gap-3">
+                <p className="text-xs text-slate-300">{isRu ? 'Пароль сохранен.' : 'Password saved.'}</p>
+                <button
+                  type="button"
+                  onClick={() => setPasswordEditMode(true)}
+                  className="h-8 w-8 rounded-full border border-white/15 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 inline-flex items-center justify-center transition-all active:scale-95"
+                  aria-label="Edit password"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
               </div>
-            </div>
+            )}
             {passwordError && (
               <p className="text-[11px] text-red-400 font-medium">{passwordError}</p>
             )}
@@ -1561,17 +1604,23 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               <p className="text-[11px] text-emerald-400 font-medium">{passwordSuccess}</p>
             )}
             <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={passwordSubmitting}
-                className={`inline-flex items-center justify-center rounded-full text-[11px] font-black uppercase tracking-[0.18em] transition-all duration-300 ${
-                  passwordSaved
-                    ? 'px-3 py-1.5 bg-emerald-500/20 border border-emerald-400/40 text-emerald-300'
-                    : 'px-5 py-2 bg-emerald-500 text-black hover:bg-emerald-400'
-                } disabled:opacity-60 disabled:cursor-wait active:scale-95`}
-              >
-                {passwordSubmitting ? 'Processing...' : passwordSaved ? (isRu ? 'Сохранено ✓' : 'Saved ✓') : t('savePassword')}
-              </button>
+              {passwordEditMode ? (
+                <button
+                  type="submit"
+                  disabled={passwordSubmitting}
+                  className={`inline-flex items-center justify-center rounded-full text-[11px] font-black uppercase tracking-[0.18em] transition-all duration-300 ${
+                    passwordSaved
+                      ? 'px-3 py-1.5 bg-emerald-500/20 border border-emerald-400/40 text-emerald-300'
+                      : 'px-5 py-2 bg-emerald-500 text-black hover:bg-emerald-400'
+                  } disabled:opacity-60 disabled:cursor-wait active:scale-95`}
+                >
+                  {passwordSubmitting ? 'Processing...' : passwordSaved ? (isRu ? 'Сохранено ✓' : 'Saved ✓') : t('savePassword')}
+                </button>
+              ) : (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/20 text-emerald-300 text-[11px] font-black uppercase tracking-[0.18em]">
+                  {isRu ? 'Сохранено ✓' : 'Saved ✓'}
+                </span>
+              )}
             </div>
           </form>
 
@@ -1580,7 +1629,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               <button
                 type="button"
                 onClick={() => setTaskType('city')}
-                className={`px-4 py-2 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all ${
+                className={`h-12 px-4 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all ${
                   taskType === 'city'
                     ? 'bg-[#22c55e] text-black'
                     : 'bg-transparent text-slate-400 hover:text-[#22c55e]'
@@ -1591,7 +1640,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               <button
                 type="button"
                 onClick={() => setTaskType('home')}
-                className={`px-4 py-2 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all ${
+                className={`h-12 px-4 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all ${
                   taskType === 'home'
                     ? 'bg-[#f59e0b] text-black'
                     : 'bg-transparent text-slate-400 hover:text-[#f59e0b]'
@@ -1600,16 +1649,23 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 Home Cleaning
               </button>
             </div>
-            <div className="rounded-full bg-gradient-to-r from-red-500 to-orange-500 p-[2px] shadow-[0_0_24px_rgba(249,115,22,0.45)]">
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-14 h-14 rounded-full flex items-center justify-center p-0 border-0 bg-black/10 backdrop-blur-md text-white/90 hover:text-white hover:scale-105 transition-all active:scale-95"
-                aria-label={t('closeBackToMap')}
-                title={t('closeBackToMap')}
-              >
-                <Target className="w-7 h-7" />
-              </button>
+            <div
+              className="h-12 w-12 p-[2px] rounded-full bg-gradient-to-br from-red-600 to-orange-500 flex items-center justify-center cursor-pointer shadow-[0_0_15px_rgba(239,68,68,0.5)] transition-all hover:scale-105 active:scale-95"
+              onClick={onClose}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onClose();
+                }
+              }}
+              aria-label={t('closeBackToMap')}
+              title={t('closeBackToMap')}
+            >
+              <div className="w-full h-full rounded-full bg-transparent flex items-center justify-center backdrop-blur-sm pointer-events-none">
+                <Target className="w-6 h-6 text-white/80" />
+              </div>
             </div>
           </div>
 

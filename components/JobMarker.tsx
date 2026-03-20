@@ -33,8 +33,8 @@ const JobMarker: React.FC<JobMarkerProps> = ({
   }, []);
 
   const isHome = orderType === 'home';
-  const hasVipAvatar = !!vipAvatarUrl;
-  const showVerifiedBadge = hasVipAvatar && !!vipVerified;
+  const hasVipAvatar = false;
+  const showVerifiedBadge = false;
   const icon =
     variant === 'completed'
       ? '⭐'
