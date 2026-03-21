@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { formatEgp } from '../src/lib/formatMoney';
 
 interface MissionTransactionRow {
   id: string;
@@ -383,7 +384,7 @@ const SupervisorDashboard: React.FC = () => {
                               ].join(' ')}
                               title={isCarding ? 'Potential carding: repeated micro-payments by same user' : undefined}
                             >
-                              ${Number(row.amount).toFixed(2)}
+                              {formatEgp(Number(row.amount))}
                             </p>
                           </div>
                         );

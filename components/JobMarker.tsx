@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { formatEgp } from '../src/lib/formatMoney';
 
 interface JobMarkerProps {
   amount: number;
@@ -75,7 +76,7 @@ const JobMarker: React.FC<JobMarkerProps> = ({
       ? (label || 'DONE')
       : isActive
         ? (label || 'MY MISSION')
-        : `$${amount}`;
+        : formatEgp(amount, { minFractionDigits: 0, maxFractionDigits: 0 });
 
   return (
     <button
@@ -86,7 +87,7 @@ const JobMarker: React.FC<JobMarkerProps> = ({
       }}
       className={`relative flex flex-col items-center group select-none outline-none border-0 p-0 bg-transparent origin-bottom ${isDraft ? 'cursor-default' : 'cursor-pointer'}`}
       style={{ transform: `scale(${scale})`, transformOrigin: 'bottom center' }}
-      aria-label={`${orderType} mission $${amount}`}
+      aria-label={`${orderType} mission ${formatEgp(amount)}`}
     >
       {hasVipAvatar ? (
         <div

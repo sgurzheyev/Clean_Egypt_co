@@ -13,6 +13,10 @@ import {
   CLIENT_APPROVE_RELEASE_BTN_MODAL,
   CLIENT_OPEN_DISPUTE_BTN_MODAL,
   PROFILE_GLASS_PANEL,
+  HOME_MIN_PRICE,
+  HOME_MAX_PRICE,
+  CITY_MIN_PRICE,
+  CITY_MAX_PRICE,
 } from '../constants';
 import {
   EGYPT_MARKETPLACE_CITIES,
@@ -22,7 +26,9 @@ import {
 import {
   workerCanSecureMissionDeposit,
   isSecurityDepositFailure,
+  checkHomeMissionWorkerVerification,
 } from '../src/lib/trustDeposit';
+import { formatEgp } from '../src/lib/formatMoney';
 import { computeWithdrawalExitBreakdown } from '../src/lib/withdrawalTax';
 
 interface ProfileProps {
@@ -98,8 +104,8 @@ interface ProfileRow {
 
 const SUPPORT_TELEGRAM = 'https://t.me/CleanEgypt_Admin_Bot';
 
-/** Max USD user may request to withdraw: wallet minus frozen security (cannot cash out frozen funds). */
-function maxWithdrawableUsd(profile: ProfileRow | null): number {
+/** Max EGP user may request to withdraw: wallet minus frozen security (cannot cash out frozen funds). */
+function maxWithdrawableEgp(profile: ProfileRow | null): number {
   if (!profile) return 0;
   const w = Number(profile.wallet_balance ?? 0);
   const f = Number(profile.frozen_balance ?? 0);
@@ -436,7 +442,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       alert('Please enter a positive payout amount.');
       return;
     }
-    const maxWd = maxWithdrawableUsd(userProfile);
+    const maxWd = maxWithdrawableEgp(userProfile);
     if (amountNum > maxWd + 0.0001) {
       alert(t('withdrawalExceedsAvailable'));
       return;
@@ -452,7 +458,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     if (!userProfile) return;
     const amountNum = Number(payoutAmount);
     if (!Number.isFinite(amountNum) || amountNum <= 0) return;
-    const maxWd = maxWithdrawableUsd(userProfile);
+    const maxWd = maxWithdrawableEgp(userProfile);
     if (amountNum > maxWd + 0.0001) {
       alert(t('withdrawalExceedsAvailable'));
       return;
@@ -800,8 +806,19 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
     const amount = parseFloat(orderAmount.replace(',', '.'));
     if (isNaN(amount) || amount <= 0) {
-      setOrderError('Please enter any positive USD amount.');
+      setOrderError(t('enterPositiveEgpAmount'));
       return;
+    }
+    if (taskType === 'home') {
+      if (amount < HOME_MIN_PRICE || amount > HOME_MAX_PRICE) {
+        setOrderError(t('homePriceRangeEgp', { min: HOME_MIN_PRICE, max: HOME_MAX_PRICE }));
+        return;
+      }
+    } else {
+      if (amount < CITY_MIN_PRICE || amount > CITY_MAX_PRICE) {
+        setOrderError(t('cityPriceRangeEgp', { min: CITY_MIN_PRICE, max: CITY_MAX_PRICE }));
+        return;
+      }
     }
 
     try {
@@ -872,7 +889,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
     const { data: workerProf, error: workerProfErr } = await supabase
       .from('profiles')
-      .select('frozen_balance, wallet_balance')
+      .select('frozen_balance, wallet_balance, is_verified')
       .eq('id', bid.cleaner_id)
       .maybeSingle();
     if (workerProfErr) {
@@ -880,20 +897,29 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       toast.error(workerProfErr.message || 'Could not verify worker deposit.');
       return;
     }
-    const walletUsd = Number(workerProf?.wallet_balance ?? 0);
-    const frozenUsd = Number(workerProf?.frozen_balance ?? 0);
+    const homeOk = checkHomeMissionWorkerVerification(job.category, workerProf?.is_verified);
+    if (!homeOk.ok) {
+      alert(t('verificationPromptOnlyVerified'));
+      return;
+    }
+    const walletEgp = Number(workerProf?.wallet_balance ?? 0);
+    const frozenEgp = Number(workerProf?.frozen_balance ?? 0);
     const amtTarget = Number(job.amount_target ?? bid.bid_amount ?? 0);
-    const sec = workerCanSecureMissionDeposit(walletUsd, frozenUsd, job.category, amtTarget);
+    const sec = workerCanSecureMissionDeposit(walletEgp, frozenEgp, job.category, amtTarget);
     if (isSecurityDepositFailure(sec)) {
-      toast.error(
-        sec.reason === 'frozen_exceeds_wallet'
-          ? t('walletFrozenInvariantError')
-          : t('insufficientSecurityDepositFunds')
-      );
+      if (sec.reason === 'insufficient_funds' && sec.shortfallEgp != null && sec.shortfallEgp > 0) {
+        alert(t('needDepositEgp', { amount: formatEgp(sec.shortfallEgp) }));
+      } else {
+        toast.error(
+          sec.reason === 'frozen_exceeds_wallet'
+            ? t('walletFrozenInvariantError')
+            : t('insufficientSecurityDepositFunds')
+        );
+      }
       return;
     }
 
-    if (!window.confirm(`Accept bid of $${bid.bid_amount} from this worker?`)) return;
+    if (!window.confirm(t('acceptBidConfirm', { amount: formatEgp(Number(bid.bid_amount)) }))) return;
     try {
       const { error: jobErr } = await supabase
         .from('missions')
@@ -1509,17 +1535,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </button>
             </div>
             <p className="text-3xl font-black text-orange-400">
-              Balance: ${Number(balance ?? 0).toFixed(2)}
+              Balance: {formatEgp(Number(balance ?? 0))}
             </p>
             <p className="text-sm text-slate-300 mt-2">
               {t('availableToWithdraw', {
-                amount: `$${maxWithdrawableUsd(userProfile).toFixed(2)}`,
+                amount: formatEgp(maxWithdrawableEgp(userProfile)),
               })}
             </p>
             {userProfile?.frozen_balance != null && Number(userProfile.frozen_balance) > 0 && (
               <p className="mt-1.5 inline-flex items-center rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-200/90">
                 {t('frozenDepositTag', {
-                  amount: `$${Number(userProfile.frozen_balance).toFixed(2)}`,
+                  amount: formatEgp(Number(userProfile.frozen_balance)),
                 })}
               </p>
             )}
@@ -1992,7 +2018,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     </div>
 
                     <p className="text-sm text-slate-300 mb-1">
-                      <span className="text-amber-400 font-bold">${job.amount_target}</span>
+                      <span className="text-amber-400 font-bold">{formatEgp(Number(job.amount_target))}</span>
                       {job.description && (
                         <span className="ml-2 text-slate-400">— {job.description}</span>
                       )}
@@ -2018,7 +2044,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                               key={bid.id}
                               className={`flex items-center justify-between gap-3 py-2 px-3 ${PROFILE_GLASS_PANEL} !rounded-xl`}
                             >
-                              <span className="text-sm font-black text-amber-400">${bid.bid_amount}</span>
+                              <span className="text-sm font-black text-amber-400">{formatEgp(Number(bid.bid_amount))}</span>
                               <div className="rounded-full animated-border-home">
                                 <button
                                   type="button"
@@ -2069,6 +2095,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         >
                           Review & Release Pay
                         </button>
+                        <p className="mt-2 text-[10px] text-emerald-200/90 text-center font-bold">
+                          {t('releaseWorkerReceives', {
+                            amount: formatEgp(
+                              Math.round(
+                                Number(job.current_funding ?? job.amount_target ?? 0) * 0.9 * 100,
+                              ) / 100,
+                            ),
+                          })}
+                        </p>
                         <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
                           Worker submitted completion photos. Review before confirming or disputing.
                         </p>
@@ -2136,7 +2171,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
                             {job.category.toUpperCase()} Mission
                           </p>
-                          <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>${job.amount_target}</p>
+                          <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>{formatEgp(Number(job.amount_target))}</p>
                         </div>
                       </div>
                       {job.started_at && (
@@ -2228,7 +2263,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             {displayTitle}
                           </p>
                           <p className="text-sm font-bold text-emerald-400 mb-1">
-                            ${job.amount_target}
+                            {formatEgp(Number(job.amount_target))}
                           </p>
                         </div>
                         {/* VIEW ON MAP */}
@@ -2266,7 +2301,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                 key={bid.id}
                                 className={`flex items-center justify-between gap-3 py-2 px-3 ${PROFILE_GLASS_PANEL} !rounded-xl`}
                               >
-                                <span className="text-sm font-black text-emerald-400">${bid.bid_amount}</span>
+                                <span className="text-sm font-black text-emerald-400">{formatEgp(Number(bid.bid_amount))}</span>
                                 <div className="rounded-full animated-border-city">
                                   <button
                                     type="button"
@@ -2322,6 +2357,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           >
                             Review & Release Payment
                           </button>
+                          <p className="mt-2 text-[10px] text-emerald-200/90 text-center font-bold">
+                            {t('releaseWorkerReceives', {
+                              amount: formatEgp(
+                                Math.round(
+                                  Number(job.current_funding ?? job.amount_target ?? 0) * 0.9 * 100,
+                                ) / 100,
+                              ),
+                            })}
+                          </p>
                         </div>
                       )}
                       {job.status === 'pending_approval' && job.cleaner_id && (
@@ -2334,6 +2378,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           >
                             Review & Release Pay
                           </button>
+                          <p className="mt-2 text-[10px] text-emerald-200/90 text-center font-bold">
+                            {t('releaseWorkerReceives', {
+                              amount: formatEgp(
+                                Math.round(
+                                  Number(job.current_funding ?? job.amount_target ?? 0) * 0.9 * 100,
+                                ) / 100,
+                              ),
+                            })}
+                          </p>
                           <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
                             Worker marked job completed. Review before confirming or disputing.
                           </p>
@@ -2469,14 +2522,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                 isHome ? 'text-amber-400' : 'text-emerald-400'
                               }`}
                             >
-                              $
                               {isHome
-                                ? Number(job.amount_target).toFixed(2)
-                                : Number(job.current_funding || 0).toFixed(2)}
+                                ? formatEgp(Number(job.amount_target))
+                                : formatEgp(Number(job.current_funding || 0))}
                             </p>
                             {!isHome && (
                               <p className="text-[10px] text-slate-500 mt-0.5">
-                                {t('target')}: ${Number(job.amount_target).toFixed(2)}
+                                {t('target')}: {formatEgp(Number(job.amount_target))}
                               </p>
                             )}
                           </div>
@@ -2556,7 +2608,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                               {job.category.toUpperCase()} Mission
                             </p>
                             <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>
-                              ${job.amount_target}
+                              {formatEgp(Number(job.amount_target))}
                             </p>
                           </div>
                         </div>
@@ -2626,7 +2678,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                               {displayTitle}
                             </p>
                             <p className={`text-2xl font-black tracking-tight mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>
-                              ${job.amount_target}
+                              {formatEgp(Number(job.amount_target))}
                             </p>
                           </div>
                         </div>
@@ -2837,12 +2889,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               <form onSubmit={handlePayoutFormSubmit} className="space-y-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                    Amount (USD)
+                    {t('amountInUsd')}
                   </label>
                   <input
                     type="number"
                     min="0"
-                    max={userProfile ? maxWithdrawableUsd(userProfile) : undefined}
+                    max={userProfile ? maxWithdrawableEgp(userProfile) : undefined}
                     step="0.01"
                     value={payoutAmount}
                     onChange={(e) => setPayoutAmount(e.target.value)}
@@ -2853,13 +2905,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     <div className="mt-1 space-y-1.5 text-[11px] text-slate-400">
                       <p>
                         {t('availableToWithdraw', {
-                          amount: `$${maxWithdrawableUsd(userProfile).toFixed(2)}`,
+                          amount: formatEgp(maxWithdrawableEgp(userProfile)),
                         })}
                       </p>
                       {Number(userProfile.frozen_balance ?? 0) > 0 && (
                         <p className="text-amber-200/80">
                           {t('frozenDepositTag', {
-                            amount: `$${Number(userProfile.frozen_balance).toFixed(2)}`,
+                            amount: formatEgp(Number(userProfile.frozen_balance)),
                           })}
                         </p>
                       )}
@@ -3010,7 +3062,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   Review proof of work
                 </p>
                 <h3 className="text-xl font-black text-white">
-                  {reviewJob.category.toUpperCase()} • ${reviewJob.amount_target}
+                  {reviewJob.category.toUpperCase()} • {formatEgp(Number(reviewJob.amount_target))}
                 </h3>
               </div>
               <button
@@ -3080,6 +3132,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     {isRu
                       ? 'Пожалуйста, проверьте фото. Если работа выполнена, подтвердите выплату уборщику.'
                       : 'Please review the photos. If the job is done, release the funds to the cleaner.'}
+                  </p>
+                  <p className="text-[11px] text-emerald-200/95 text-center font-bold px-2">
+                    {t('releaseWorkerReceives', {
+                      amount: formatEgp(
+                        Math.round(
+                          Number(reviewJob.current_funding ?? reviewJob.amount_target ?? 0) * 0.9 * 100,
+                        ) / 100,
+                      ),
+                    })}
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3">
                     <button
@@ -3172,7 +3233,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 Mission
               </p>
               <p className="text-white font-bold">
-                {proofJob.category.toUpperCase()} • ${proofJob.amount_target}
+                {proofJob.category.toUpperCase()} • {formatEgp(Number(proofJob.amount_target))}
               </p>
               {proofJob.description && (
                 <p className="text-xs text-slate-400 mt-1">{proofJob.description}</p>

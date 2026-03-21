@@ -10,13 +10,14 @@ import {
 } from '@stripe/react-stripe-js';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabaseClient';
-import {
-  computeNetWalletCreditUsd,
-  computeNetWalletCreditFromEgpInput,
-  egpInputToChargeUsd,
-} from '../lib/walletCredit';
+import { stripeUsdToWalletEgp, stripeEgpInputToWalletEgp, egpInputToChargeUsd } from '../lib/walletCredit';
 import { USD_TO_EGP_RATE } from '../../constants';
+import { formatEgp } from '../lib/formatMoney';
 
+/**
+ * Card is charged in USD (Stripe); `stripe-intent` sends USD dollars and the edge function converts to cents.
+ * Wallet `top_up_wallet` credits the computed net amount in EGP.
+ */
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string);
 
 const CARD_ELEMENT_OPTIONS = {
@@ -69,15 +70,12 @@ function StripeTopUpForm({
         ? egpInputToChargeUsd(numericInput, USD_TO_EGP_RATE)
         : 0;
 
-  const netUsd =
+  const netEgp =
     inputValid && chargeUsd > 0
       ? currency === 'USD'
-        ? computeNetWalletCreditUsd(numericInput)
-        : computeNetWalletCreditFromEgpInput(numericInput, USD_TO_EGP_RATE)
+        ? stripeUsdToWalletEgp(numericInput)
+        : stripeEgpInputToWalletEgp(numericInput)
       : null;
-
-  const approxEgpFromNet =
-    netUsd != null && netUsd > 0 ? Math.round(netUsd * USD_TO_EGP_RATE * 100) / 100 : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,6 +93,7 @@ function StripeTopUpForm({
       return;
     }
 
+    /** USD dollar amount; `stripe-intent` multiplies by 100 for Stripe (integer cents). */
     const chargeUsdForStripe =
       currency === 'USD' ? numericInput : egpInputToChargeUsd(numericInput, USD_TO_EGP_RATE);
 
@@ -103,12 +102,12 @@ function StripeTopUpForm({
       return;
     }
 
-    const netCreditUsd =
+    const netCreditEgp =
       currency === 'USD'
-        ? computeNetWalletCreditUsd(numericInput)
-        : computeNetWalletCreditFromEgpInput(numericInput, USD_TO_EGP_RATE);
+        ? stripeUsdToWalletEgp(numericInput)
+        : stripeEgpInputToWalletEgp(numericInput);
 
-    if (netCreditUsd <= 0) {
+    if (netCreditEgp <= 0) {
       alert(t('invalidAmount'));
       return;
     }
@@ -140,8 +139,7 @@ function StripeTopUpForm({
       }
 
       const { error: rpcError } = await supabase.rpc('top_up_wallet', {
-        p_user_id: userId,
-        p_amount: netCreditUsd,
+        p_amount: netCreditEgp,
       });
       if (rpcError) throw rpcError;
 
@@ -203,27 +201,18 @@ function StripeTopUpForm({
           value={amount}
           onChange={(e) => onAmountChange(e.target.value)}
           placeholder="0.00"
+          aria-label={currency === 'USD' ? t('amountUsd') : t('amountEgp')}
           className="w-full rounded-2xl bg-slate-900/80 border border-slate-600 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 transition-all"
         />
-        {netUsd != null && netUsd > 0 && (
+        {netEgp != null && netEgp > 0 && (
           <div className="mt-3 space-y-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-3 py-2.5">
             <p className="text-[11px] font-semibold text-emerald-200/95 leading-snug">
-              {t('stripeCreditToAccount', { amount: netUsd.toFixed(2) })}
+              {t('stripeCreditToAccount', { amount: formatEgp(netEgp) })}
             </p>
             <p className="text-[10px] text-slate-500 leading-snug">{t('stripeFeeTransparentHint')}</p>
             {currency === 'EGP' && chargeUsd > 0 && (
               <p className="text-[10px] text-slate-400">
                 {t('stripeChargedUsdFromEgp', { amount: chargeUsd.toFixed(2) })}
-              </p>
-            )}
-            {currency === 'USD' && approxEgpFromNet != null && (
-              <p className="text-[10px] text-slate-400">
-                {t('stripeApproxEgp', { amount: approxEgpFromNet.toFixed(2) })}
-              </p>
-            )}
-            {currency === 'EGP' && approxEgpFromNet != null && (
-              <p className="text-[10px] text-slate-400">
-                {t('stripeApproxEgp', { amount: approxEgpFromNet.toFixed(2) })}
               </p>
             )}
           </div>
@@ -290,7 +279,7 @@ interface StripeTopUpProps {
 const StripeTopUp: React.FC<StripeTopUpProps> = ({ onClose, userId }) => {
   const { t } = useTranslation();
   const [amount, setAmount] = useState('');
-  const [depositCurrency, setDepositCurrency] = useState<DepositCurrency>('USD');
+  const [depositCurrency, setDepositCurrency] = useState<DepositCurrency>('EGP');
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -308,6 +297,9 @@ const StripeTopUp: React.FC<StripeTopUpProps> = ({ onClose, userId }) => {
             {t('topUpWithCard')}
           </h3>
         </div>
+        <p className="text-[11px] text-slate-400 leading-relaxed mb-4 px-1">
+          {t('topUpProcessingDisclaimer')}
+        </p>
         <Elements stripe={stripePromise}>
           <StripeTopUpForm
             amount={amount}

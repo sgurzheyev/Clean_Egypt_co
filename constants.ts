@@ -35,12 +35,26 @@ export const ADMIN_FORCE_RELEASE_PAYMENT_BTN =
 export const PROFILE_GLASS_PANEL =
   'backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl';
 
-export const USD_TO_EGP_RATE = 47.5;
+/** All wallet balances, mission prices, bids, and RPC amounts are stored in this currency. */
+export const INTERNAL_CURRENCY = 'EGP' as const;
 
-export const HOME_MIN_PRICE = 5;
-export const HOME_MAX_PRICE = 500;
-export const CITY_MIN_PRICE = 1;
-export const CITY_MAX_PRICE = 100;
+/** 1 USD → EGP (Stripe / Paymob conversion for international card payments). */
+export const USD_TO_EGP_RATE = 48.5;
+
+/**
+ * Applied to USD card settlements when crediting EGP wallet (currency risk buffer).
+ * Credit EGP = USD_charged × USD_TO_EGP_RATE × CURRENCY_RISK_BUFFER_FACTOR
+ */
+export const CURRENCY_RISK_BUFFER_FACTOR = 0.97;
+
+/** Display suffix for amounts in UI (Egyptian Pound). */
+export const DISPLAY_CURRENCY_SUFFIX = 'EGP';
+
+/** Min/max mission prices in EGP (aligned with former USD limits × ~48.5). */
+export const HOME_MIN_PRICE = 250;
+export const HOME_MAX_PRICE = 25000;
+export const CITY_MIN_PRICE = 50;
+export const CITY_MAX_PRICE = 5000;
 
 export const MIN_SIZE = 10;
 export const MAX_SIZE = 10000;

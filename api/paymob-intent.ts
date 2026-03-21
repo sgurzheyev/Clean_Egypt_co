@@ -83,8 +83,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        return res.status(400).json({ error: 'Invalid payment type' });
     }
 
-    const USD_TO_EGP_RATE = 50;
-    const amountCents = Math.round(finalAmountTarget * USD_TO_EGP_RATE * 100).toString();
+    // amount_target is stored in EGP; Paymob expects amount in piastres (1 EGP = 100)
+    const amountCents = Math.round(finalAmountTarget * 100).toString();
 
     // --- 3. PAYMOB AUTH ---
     const authRes = await fetch('https://accept.paymob.com/api/auth/tokens', {

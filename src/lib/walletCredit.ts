@@ -1,32 +1,27 @@
-/** Stripe fixed fee (USD) before percentage. */
-export const STRIPE_FIXED_FEE_USD = 0.3;
-/** Combined Stripe variable fee factor (≈3.5% on amount after fixed fee): 1 - 0.035 = 0.965 */
-export const STRIPE_VARIABLE_FACTOR = 0.965;
-/** Platform currency conversion buffer (2.5%) */
-export const CURRENCY_BUFFER_FACTOR = 0.975;
+import { CURRENCY_RISK_BUFFER_FACTOR, USD_TO_EGP_RATE } from '../../constants';
 
 /**
- * Transparent fee calculator — wallet credit in USD:
- * Credit = (Input_USD - $0.30) × 0.965 × 0.975
+ * International card payment settled in USD → credit to internal EGP wallet.
+ * Example: $10 × 48.5 × 0.97 ≈ 470.45 EGP
  */
-export function computeNetWalletCreditUsd(inputUsd: number): number {
-  if (!Number.isFinite(inputUsd) || inputUsd <= 0) return 0;
-  const afterStripe = (inputUsd - STRIPE_FIXED_FEE_USD) * STRIPE_VARIABLE_FACTOR;
-  const afterBuffer = afterStripe * CURRENCY_BUFFER_FACTOR;
-  return Math.max(0, Math.round(afterBuffer * 100) / 100);
+export function stripeUsdToWalletEgp(usdCharged: number): number {
+  if (!Number.isFinite(usdCharged) || usdCharged <= 0) return 0;
+  const raw = usdCharged * USD_TO_EGP_RATE * CURRENCY_RISK_BUFFER_FACTOR;
+  return Math.max(0, Math.round(raw * 100) / 100);
 }
 
-/** User enters EGP; convert to USD at rate, then same net formula (wallet is USD). */
-export function computeNetWalletCreditFromEgpInput(inputEgp: number, usdPerEgpRate: number): number {
-  if (!Number.isFinite(inputEgp) || inputEgp <= 0 || !Number.isFinite(usdPerEgpRate) || usdPerEgpRate <= 0) {
-    return 0;
-  }
-  const chargeUsd = inputEgp / usdPerEgpRate;
-  return computeNetWalletCreditUsd(chargeUsd);
+/**
+ * User enters EGP in the deposit form; Stripe charges USD = EGP / rate; credit uses same rule as USD path.
+ * Net EGP ≈ (EGP / rate) × rate × 0.97 = EGP × 0.97
+ */
+export function stripeEgpInputToWalletEgp(inputEgp: number): number {
+  if (!Number.isFinite(inputEgp) || inputEgp <= 0) return 0;
+  const chargeUsd = inputEgp / USD_TO_EGP_RATE;
+  return stripeUsdToWalletEgp(chargeUsd);
 }
 
-/** USD amount Stripe will charge for an EGP-denominated input (before net fee calc). */
-export function egpInputToChargeUsd(inputEgp: number, usdPerEgpRate: number): number {
+/** USD amount Stripe will charge for an EGP-denominated deposit input. */
+export function egpInputToChargeUsd(inputEgp: number, usdPerEgpRate: number = USD_TO_EGP_RATE): number {
   if (!Number.isFinite(inputEgp) || inputEgp <= 0 || !Number.isFinite(usdPerEgpRate) || usdPerEgpRate <= 0) {
     return 0;
   }

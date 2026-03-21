@@ -9,11 +9,13 @@ import JobMarker from './JobMarker';
 import {
   workerCanSecureMissionDeposit,
   isSecurityDepositFailure,
+  checkHomeMissionWorkerVerification,
 } from '../src/lib/trustDeposit';
 import CreateMission from './CreateMission';
 import type { PhotoVerificationState } from './CreateMission';
 import { validateMissionDescription } from '../src/lib/missionContentPolicy';
-import { PROFILE_GLASS_PANEL } from '../constants';
+import { PROFILE_GLASS_PANEL, HOME_MIN_PRICE, HOME_MAX_PRICE, CITY_MIN_PRICE, CITY_MAX_PRICE } from '../constants';
+import { formatEgp } from '../src/lib/formatMoney';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const EGYPT_MAX_BOUNDS: [[number, number], [number, number]] = [[24.0, 21.0], [38.0, 32.5]];
@@ -605,10 +607,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [hallOfFameCleanerName, setHallOfFameCleanerName] = useState<string | null>(null);
   const [hallOfFameHeroes, setHallOfFameHeroes] = useState<string[]>([]);
   const [isAccepting, setIsAccepting] = useState(false);
-  /** Worker wallet + frozen (USD) for security deposit checks on the selected mission. */
+  /** Worker wallet + frozen (EGP) for security deposit checks on the selected mission. */
   const [workerTrustSnapshot, setWorkerTrustSnapshot] = useState<{
     wallet: number;
     frozen: number;
+    isVerified: boolean;
   } | null>(null);
   const [showBidInput, setShowBidInput] = useState(false);
   const [missionBidAmount, setMissionBidAmount] = useState<string>('');
@@ -674,13 +677,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
       const { data: p } = await supabase
         .from('profiles')
-        .select('wallet_balance, frozen_balance')
+        .select('wallet_balance, frozen_balance, is_verified')
         .eq('id', session.user.id)
         .maybeSingle();
       if (!cancelled)
         setWorkerTrustSnapshot({
           wallet: Number(p?.wallet_balance ?? 0),
           frozen: Number(p?.frozen_balance ?? 0),
+          isVerified: !!p?.is_verified,
         });
     })();
     return () => {
@@ -738,7 +742,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [selectedMission?.id, selectedMission?.location_lat, selectedMission?.location_lng]);
 
   const potentialCardingUserIds = (() => {
-    const SMALL_USD_MAX = 2;
+    const SMALL_EGP_MAX = 100;
     const WINDOW_MS = 10 * 60 * 1000;
     const MIN_COUNT = 4;
     const now = Date.now();
@@ -751,7 +755,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const uid = tx.user_id || '';
       if (!uid) continue;
       const amt = Number(tx.amount);
-      if (!Number.isFinite(amt) || amt <= 0 || amt > SMALL_USD_MAX) continue;
+      if (!Number.isFinite(amt) || amt <= 0 || amt > SMALL_EGP_MAX) continue;
       counts[uid] = (counts[uid] || 0) + 1;
     }
     return new Set(Object.entries(counts).filter(([, c]) => c >= MIN_COUNT).map(([uid]) => uid));
@@ -797,7 +801,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       if (!selectedMission) return;
       const value = Number(amount);
       if (!Number.isFinite(value) || value <= 0) {
-        alert('Please enter a positive USD amount to donate.');
+        alert(t('enterPositiveEgpAmount'));
         return;
       }
       try {
@@ -999,7 +1003,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
       const amt = parseFloat((missionBidAmount || '').replace(',', '.'));
       if (isNaN(amt) || amt <= 0) {
-        alert('Please enter a positive USD amount.');
+        alert(t('enterPositiveEgpAmount'));
         return;
       }
 
@@ -1016,22 +1020,34 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('wallet_balance, frozen_balance, phone_number')
+        .select('wallet_balance, frozen_balance, phone_number, is_verified')
         .eq('id', user.id)
         .maybeSingle();
       if (profileError) {
         console.error('Profile check failed:', profileError.message);
       } else {
+        const homeOk = checkHomeMissionWorkerVerification(
+          selectedMission.category,
+          profile?.is_verified
+        );
+        if (!homeOk.ok) {
+          alert(t('verificationPromptOnlyVerified'));
+          return;
+        }
         const wb = Number(profile?.wallet_balance ?? 0);
         const fr = Number(profile?.frozen_balance ?? 0);
         const target = Number(selectedMission.amount_target ?? amt);
         const sec = workerCanSecureMissionDeposit(wb, fr, selectedMission.category, target);
         if (isSecurityDepositFailure(sec)) {
-          toast.error(
-            sec.reason === 'frozen_exceeds_wallet'
-              ? t('walletFrozenInvariantError')
-              : t('insufficientSecurityDepositFunds')
-          );
+          if (sec.reason === 'insufficient_funds' && sec.shortfallEgp != null && sec.shortfallEgp > 0) {
+            alert(t('needDepositEgp', { amount: formatEgp(sec.shortfallEgp) }));
+          } else {
+            toast.error(
+              sec.reason === 'frozen_exceeds_wallet'
+                ? t('walletFrozenInvariantError')
+                : t('insufficientSecurityDepositFunds')
+            );
+          }
           return;
         }
 
@@ -1079,7 +1095,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
     const amount = parseFloat(bidAmount.replace(',', '.'));
     if (isNaN(amount) || amount <= 0) {
-      setBidError('Please enter a positive USD amount.');
+      setBidError(t('enterPositiveEgpAmount'));
       return;
     }
 
@@ -1108,22 +1124,31 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('wallet_balance, frozen_balance, phone_number')
+        .select('wallet_balance, frozen_balance, phone_number, is_verified')
         .eq('id', userId)
         .maybeSingle();
       if (profileError) {
         console.error('Profile check failed:', profileError.message);
       } else {
+        const homeOk = checkHomeMissionWorkerVerification(bidJob.category, profile?.is_verified);
+        if (!homeOk.ok) {
+          setBidError(t('verificationPromptOnlyVerified'));
+          return;
+        }
         const wb = Number(profile?.wallet_balance ?? 0);
         const fr = Number(profile?.frozen_balance ?? 0);
         const target = Number(bidJob.amount_target ?? amount);
         const sec = workerCanSecureMissionDeposit(wb, fr, bidJob.category, target);
         if (isSecurityDepositFailure(sec)) {
-          setBidError(
-            sec.reason === 'frozen_exceeds_wallet'
-              ? t('walletFrozenInvariantError')
-              : t('insufficientSecurityDepositFunds')
-          );
+          if (sec.reason === 'insufficient_funds' && sec.shortfallEgp != null && sec.shortfallEgp > 0) {
+            setBidError(t('needDepositEgp', { amount: formatEgp(sec.shortfallEgp) }));
+          } else {
+            setBidError(
+              sec.reason === 'frozen_exceeds_wallet'
+                ? t('walletFrozenInvariantError')
+                : t('insufficientSecurityDepositFunds')
+            );
+          }
           return;
         }
 
@@ -1158,8 +1183,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
     const amount = parseFloat(orderAmount.replace(',', '.'));
     if (isNaN(amount) || amount <= 0) {
-      setOrderError('Please enter any positive USD value.');
+      setOrderError(t('enterPositiveEgpAmount'));
       return;
+    }
+    if (taskType === 'home') {
+      if (amount < HOME_MIN_PRICE || amount > HOME_MAX_PRICE) {
+        setOrderError(t('homePriceRangeEgp', { min: HOME_MIN_PRICE, max: HOME_MAX_PRICE }));
+        return;
+      }
+    } else {
+      if (amount < CITY_MIN_PRICE || amount > CITY_MAX_PRICE) {
+        setOrderError(t('cityPriceRangeEgp', { min: CITY_MIN_PRICE, max: CITY_MAX_PRICE }));
+        return;
+      }
     }
     if (!selectedLocation) {
       setOrderError('Tap on the map to choose a location.');
@@ -1207,10 +1243,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      // For City (public) missions, confirm $1 Scout Stake before proceeding
+      // For City (public) missions, confirm Scout Stake before proceeding
       if (taskType === 'city') {
         const confirmed = window.confirm(
-          'Placing a City Pin costs $1 (Scout Stake). Reward Split: 90% Cleaner / 5.1% Scout / 4.9% Platform. Proceed?'
+          t('cityPinScoutStakeConfirm', { amount: formatEgp(CITY_MIN_PRICE) })
         );
         if (!confirmed) {
           setOrderSubmitting(false);
@@ -1275,7 +1311,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           console.error('Create public mission error:', error);
           setOrderError(
             error.message ||
-              'Failed to create City mission. Please ensure you have at least $1 in your wallet and try again.'
+              t('cityMissionWalletHint', { amount: formatEgp(CITY_MIN_PRICE) })
           );
           return;
         }
@@ -1286,7 +1322,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           const chatId = import.meta.env.VITE_TELEGRAM_ADMIN_CHAT_ID as string | undefined;
           const photoUrls = creatorPhotoUrls || [];
           const hasPhoto = photoUrls.length > 0;
-          const caption = `🚨 *NEW MISSION* 🚨\n💰 Reward: $${amount}\n📝 Task: ${orderDescription || t('cityCleaning')}`;
+          const caption = `🚨 *NEW MISSION* 🚨\n💰 Reward: ${formatEgp(Number(amount))}\n📝 Task: ${orderDescription || t('cityCleaning')}`;
 
           if (botToken && chatId) {
             if (hasPhoto) {
@@ -1316,7 +1352,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           console.error('Telegram notification error:', err);
         }
 
-        setOrderSuccess('City mission created! Your $1 Scout Stake has been locked.');
+        setOrderSuccess(t('cityMissionCreatedScout', { amount: formatEgp(CITY_MIN_PRICE) }));
         setOrderAmount('');
         setOrderDescription('');
         setOrderPhotos([]);
@@ -1348,6 +1384,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const missionTrustBlocked = useMemo(() => {
     if (!showBidInput || !selectedMission || workerTrustSnapshot === null) return false;
+    const homeOk = checkHomeMissionWorkerVerification(
+      selectedMission.category,
+      workerTrustSnapshot.isVerified
+    );
+    if (!homeOk.ok) return true;
     return !workerCanSecureMissionDeposit(
       workerTrustSnapshot.wallet,
       workerTrustSnapshot.frozen,
@@ -1893,7 +1934,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   Target amount
                 </p>
                 <p className="text-xl font-black text-amber-400">
-                  ${bidJob.amount_target}
+                  {formatEgp(Number(bidJob.amount_target))}
                 </p>
               </div>
               {bidJob.description && (
@@ -2009,14 +2050,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         : '0 0 24px rgba(251, 191, 36, 0.6)',
                   }}
                 >
-                  $
                   {selectedMission.category === 'public'
-                    ? Number(selectedMission.current_funding || 0).toFixed(2)
-                    : Number(selectedMission.amount_target).toFixed(2)}
+                    ? formatEgp(Number(selectedMission.current_funding || 0))
+                    : formatEgp(Number(selectedMission.amount_target))}
                 </p>
                 {selectedMission.category === 'public' && (
                   <p className="mt-1 text-[11px] text-slate-400">
-                    {t('targetGoal')}: ${Number(selectedMission.amount_target).toFixed(2)}
+                    {t('targetGoal')}: {formatEgp(Number(selectedMission.amount_target))}
                   </p>
                 )}
                 {(activeBidCounts[selectedMission.id] || 0) > 0 && (
@@ -2134,7 +2174,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           ].join(' ')}
                           title={isCarding ? 'Potential carding: repeated micro-payments by same user' : undefined}
                         >
-                          ${Number(tx.amount).toFixed(2)}
+                          {formatEgp(Number(tx.amount))}
                         </p>
                       </div>
                     );
@@ -2272,7 +2312,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           ? 'focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
                           : 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500'
                       }`}
-                      placeholder={`Default: $${selectedMission.amount_target}`}
+                      placeholder={`Default: ${formatEgp(Number(selectedMission.amount_target))}`}
                     />
                   </div>
                 )}
@@ -2330,7 +2370,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                                 onClick={() => handleDonate(preset)}
                                 className="px-3 py-1.5 rounded-full bg-emerald-500/20 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30 disabled:opacity-60 disabled:cursor-wait"
                               >
-                                ${preset}
+                                {formatEgp(preset)}
                               </button>
                             ))}
                             <div className="flex-1 min-w-[120px] space-y-2">
@@ -2402,8 +2442,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
               return (
                 <>
                   <p className="text-sm text-slate-300">
-                    {t('yourBidIs')} <span className="font-black text-amber-300">${bid.toFixed(2)}</span>. {t('currentFundingIs')}{' '}
-                    <span className="font-black text-emerald-300">${funded.toFixed(2)}</span>.
+                    {t('yourBidIs')}{' '}
+                    <span className="font-black text-amber-300">{formatEgp(bid)}</span>. {t('currentFundingIs')}{' '}
+                    <span className="font-black text-emerald-300">{formatEgp(funded)}</span>.
                   </p>
                   <p className="mt-2 text-[11px] text-slate-500">
                     {t('chooseHowToProceed')}

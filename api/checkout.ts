@@ -8,7 +8,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { amountUsd, billingData } = req.body;
-    const USD_TO_EGP_RATE = 50;
+    /** Legacy param name: amount charged in USD on card → Paymob EGP piastres */
+    const USD_TO_EGP_RATE = 48.5;
     const amountCents = Math.round(Number(amountUsd) * USD_TO_EGP_RATE * 100);
 
     // 1. Аутентификация
