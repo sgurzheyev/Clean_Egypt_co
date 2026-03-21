@@ -6,7 +6,10 @@ import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabaseClient';
 import JobMarker from './JobMarker';
-import { workerFrozenUsdMeetsTrustDeposit } from '../src/lib/trustDeposit';
+import {
+  workerCanSecureMissionDeposit,
+  isSecurityDepositFailure,
+} from '../src/lib/trustDeposit';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const EGYPT_MAX_BOUNDS: [[number, number], [number, number]] = [[24.0, 21.0], [38.0, 32.5]];
@@ -590,8 +593,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [hallOfFameCleanerName, setHallOfFameCleanerName] = useState<string | null>(null);
   const [hallOfFameHeroes, setHallOfFameHeroes] = useState<string[]>([]);
   const [isAccepting, setIsAccepting] = useState(false);
-  /** Worker frozen_balance (USD) for trust deposit checks on the selected mission. */
-  const [workerTrustSnapshot, setWorkerTrustSnapshot] = useState<{ frozen: number } | null>(null);
+  /** Worker wallet + frozen (USD) for security deposit checks on the selected mission. */
+  const [workerTrustSnapshot, setWorkerTrustSnapshot] = useState<{
+    wallet: number;
+    frozen: number;
+  } | null>(null);
   const [showBidInput, setShowBidInput] = useState(false);
   const [missionBidAmount, setMissionBidAmount] = useState<string>('');
   const [showCrowdfundConfirm, setShowCrowdfundConfirm] = useState(false);
@@ -656,10 +662,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
       const { data: p } = await supabase
         .from('profiles')
-        .select('frozen_balance')
+        .select('wallet_balance, frozen_balance')
         .eq('id', session.user.id)
         .maybeSingle();
-      if (!cancelled) setWorkerTrustSnapshot({ frozen: Number(p?.frozen_balance ?? 0) });
+      if (!cancelled)
+        setWorkerTrustSnapshot({
+          wallet: Number(p?.wallet_balance ?? 0),
+          frozen: Number(p?.frozen_balance ?? 0),
+        });
     })();
     return () => {
       cancelled = true;
@@ -1000,10 +1010,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
       if (profileError) {
         console.error('Profile check failed:', profileError.message);
       } else {
-        const frozen = Number(profile?.frozen_balance ?? 0);
+        const wb = Number(profile?.wallet_balance ?? 0);
+        const fr = Number(profile?.frozen_balance ?? 0);
         const target = Number(selectedMission.amount_target ?? amt);
-        if (!workerFrozenUsdMeetsTrustDeposit(frozen, selectedMission.category, target)) {
-          toast.error(t('insufficientTrustDeposit'));
+        const sec = workerCanSecureMissionDeposit(wb, fr, selectedMission.category, target);
+        if (isSecurityDepositFailure(sec)) {
+          toast.error(
+            sec.reason === 'frozen_exceeds_wallet'
+              ? t('walletFrozenInvariantError')
+              : t('insufficientSecurityDepositFunds')
+          );
           return;
         }
 
@@ -1086,10 +1102,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
       if (profileError) {
         console.error('Profile check failed:', profileError.message);
       } else {
-        const frozen = Number(profile?.frozen_balance ?? 0);
+        const wb = Number(profile?.wallet_balance ?? 0);
+        const fr = Number(profile?.frozen_balance ?? 0);
         const target = Number(bidJob.amount_target ?? amount);
-        if (!workerFrozenUsdMeetsTrustDeposit(frozen, bidJob.category, target)) {
-          setBidError(t('insufficientTrustDeposit'));
+        const sec = workerCanSecureMissionDeposit(wb, fr, bidJob.category, target);
+        if (isSecurityDepositFailure(sec)) {
+          setBidError(
+            sec.reason === 'frozen_exceeds_wallet'
+              ? t('walletFrozenInvariantError')
+              : t('insufficientSecurityDepositFunds')
+          );
           return;
         }
 
@@ -1297,11 +1319,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const missionTrustBlocked = useMemo(() => {
     if (!showBidInput || !selectedMission || workerTrustSnapshot === null) return false;
-    return !workerFrozenUsdMeetsTrustDeposit(
+    return !workerCanSecureMissionDeposit(
+      workerTrustSnapshot.wallet,
       workerTrustSnapshot.frozen,
       selectedMission.category,
       Number(selectedMission.amount_target ?? 0)
-    );
+    ).ok;
   }, [showBidInput, selectedMission, workerTrustSnapshot]);
 
   const missionsHeatmapGeoJSON = useMemo(() => {
@@ -2395,13 +2418,24 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           }
                           const { data: p } = await supabase
                             .from('profiles')
-                            .select('frozen_balance')
+                            .select('wallet_balance, frozen_balance')
                             .eq('id', session.user.id)
                             .maybeSingle();
-                          const frozen = Number(p?.frozen_balance ?? 0);
+                          const wb = Number(p?.wallet_balance ?? 0);
+                          const fr = Number(p?.frozen_balance ?? 0);
                           const target = Number(selectedMission.amount_target ?? crowdfundBidAmount);
-                          if (!workerFrozenUsdMeetsTrustDeposit(frozen, selectedMission.category, target)) {
-                            toast.error(t('insufficientTrustDeposit'));
+                          const sec = workerCanSecureMissionDeposit(
+                            wb,
+                            fr,
+                            selectedMission.category,
+                            target
+                          );
+                          if (isSecurityDepositFailure(sec)) {
+                            toast.error(
+                              sec.reason === 'frozen_exceeds_wallet'
+                                ? t('walletFrozenInvariantError')
+                                : t('insufficientSecurityDepositFunds')
+                            );
                             return;
                           }
                           setIsAccepting(true);
@@ -2442,13 +2476,24 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           }
                           const { data: p } = await supabase
                             .from('profiles')
-                            .select('frozen_balance')
+                            .select('wallet_balance, frozen_balance')
                             .eq('id', session.user.id)
                             .maybeSingle();
-                          const frozen = Number(p?.frozen_balance ?? 0);
+                          const wb = Number(p?.wallet_balance ?? 0);
+                          const fr = Number(p?.frozen_balance ?? 0);
                           const target = Number(selectedMission.amount_target ?? crowdfundBidAmount);
-                          if (!workerFrozenUsdMeetsTrustDeposit(frozen, selectedMission.category, target)) {
-                            toast.error(t('insufficientTrustDeposit'));
+                          const sec = workerCanSecureMissionDeposit(
+                            wb,
+                            fr,
+                            selectedMission.category,
+                            target
+                          );
+                          if (isSecurityDepositFailure(sec)) {
+                            toast.error(
+                              sec.reason === 'frozen_exceeds_wallet'
+                                ? t('walletFrozenInvariantError')
+                                : t('insufficientSecurityDepositFunds')
+                            );
                             return;
                           }
                           setIsAccepting(true);

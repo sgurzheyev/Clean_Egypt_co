@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { Pencil, Target } from 'lucide-react';
+import { Pencil, Target, Globe } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import AdminDashboard from '../src/components/AdminDashboard';
@@ -13,7 +13,10 @@ import {
   CLIENT_APPROVE_RELEASE_BTN_MODAL,
   CLIENT_OPEN_DISPUTE_BTN_MODAL,
 } from '../constants';
-import { workerFrozenUsdMeetsTrustDeposit } from '../src/lib/trustDeposit';
+import {
+  workerCanSecureMissionDeposit,
+  isSecurityDepositFailure,
+} from '../src/lib/trustDeposit';
 import { computeWithdrawalExitBreakdown } from '../src/lib/withdrawalTax';
 
 interface ProfileProps {
@@ -70,6 +73,7 @@ interface Bid {
   created_at?: string;
   /** Merged from profiles when loading bids (worker trust deposit). */
   worker_frozen_balance?: number | null;
+  worker_wallet_balance?: number | null;
 }
 
 interface ProfileRow {
@@ -188,6 +192,28 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const navigate = useNavigate();
   const lastMissionStatusActionAtRef = useRef<number>(0);
   const toastTimerRef = useRef<number | null>(null);
+  const langMenuRef = useRef<HTMLDivElement>(null);
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
+
+  const languageOptions = [
+    { code: 'en', labelKey: 'english' as const, short: 'EN' },
+    { code: 'ar', labelKey: 'arabic' as const, short: 'AR' },
+    { code: 'ru', labelKey: 'russian' as const, short: 'RU' },
+    { code: 'de', labelKey: 'german' as const, short: 'DE' },
+    { code: 'it', labelKey: 'italian' as const, short: 'IT' },
+    { code: 'es', labelKey: 'spanish' as const, short: 'ES' },
+  ] as const;
+
+  useEffect(() => {
+    if (!langMenuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (langMenuRef.current && !langMenuRef.current.contains(e.target as Node)) {
+        setLangMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [langMenuOpen]);
 
   const toast = {
     success: (message: string) => {
@@ -651,13 +677,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           ),
         ];
         let frozenByCleaner: Record<string, number> = {};
+        let walletByCleaner: Record<string, number> = {};
         if (cleanerIds.length > 0) {
           const { data: frozenRows } = await supabase
             .from('profiles')
-            .select('id, frozen_balance')
+            .select('id, frozen_balance, wallet_balance')
             .in('id', cleanerIds);
           frozenByCleaner = Object.fromEntries(
             (frozenRows || []).map((r: any) => [r.id, Number(r.frozen_balance ?? 0)])
+          );
+          walletByCleaner = Object.fromEntries(
+            (frozenRows || []).map((r: any) => [r.id, Number(r.wallet_balance ?? 0)])
           );
         }
         const byJob: Record<string, Bid[]> = {};
@@ -665,6 +695,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           const enriched: Bid = {
             ...bid,
             worker_frozen_balance: frozenByCleaner[bid.cleaner_id] ?? 0,
+            worker_wallet_balance: walletByCleaner[bid.cleaner_id] ?? 0,
           };
           if (!byJob[bid.mission_id]) byJob[bid.mission_id] = [];
           byJob[bid.mission_id].push(enriched);
@@ -786,7 +817,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
     const { data: workerProf, error: workerProfErr } = await supabase
       .from('profiles')
-      .select('frozen_balance')
+      .select('frozen_balance, wallet_balance')
       .eq('id', bid.cleaner_id)
       .maybeSingle();
     if (workerProfErr) {
@@ -794,12 +825,16 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       toast.error(workerProfErr.message || 'Could not verify worker deposit.');
       return;
     }
+    const walletUsd = Number(workerProf?.wallet_balance ?? 0);
     const frozenUsd = Number(workerProf?.frozen_balance ?? 0);
     const amtTarget = Number(job.amount_target ?? bid.bid_amount ?? 0);
-    if (
-      !workerFrozenUsdMeetsTrustDeposit(frozenUsd, job.category, amtTarget)
-    ) {
-      toast.error(t('insufficientTrustDeposit'));
+    const sec = workerCanSecureMissionDeposit(walletUsd, frozenUsd, job.category, amtTarget);
+    if (isSecurityDepositFailure(sec)) {
+      toast.error(
+        sec.reason === 'frozen_exceeds_wallet'
+          ? t('walletFrozenInvariantError')
+          : t('insufficientSecurityDepositFunds')
+      );
       return;
     }
 
@@ -1351,37 +1386,53 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
           </div>
 
-          {/* Language switcher — horizontal scrollable pills */}
-          <div className="mt-4 rounded-2xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] px-4 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
-              {t('language')}
-            </p>
-            <div className="flex overflow-x-auto gap-2 pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
-              {[
-                { code: 'en', labelKey: 'english' as const },
-                { code: 'ar', labelKey: 'arabic' as const },
-                { code: 'ru', labelKey: 'russian' as const },
-                { code: 'de', labelKey: 'german' as const },
-                { code: 'it', labelKey: 'italian' as const },
-                { code: 'es', labelKey: 'spanish' as const },
-              ].map(({ code, labelKey }) => {
-                const isActive = (i18n.language || '').startsWith(code);
-                const shortLabel = { en: 'EN', ar: 'AR', ru: 'RU', de: 'DE', it: 'IT', es: 'ES' }[code] || code.toUpperCase();
-                return (
-                  <button
-                    key={code}
-                    type="button"
-                    onClick={() => i18n.changeLanguage(code)}
-                    className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.18em] border transition-all ${
-                      isActive
-                        ? 'bg-orange-500/10 border-orange-500/60 text-orange-300'
-                        : 'bg-transparent border-cyan-500/30 text-slate-300 hover:bg-cyan-500/10'
-                    }`}
-                  >
-                    {shortLabel}
-                  </button>
-                );
-              })}
+          {/* Language — compact globe + dropdown */}
+          <div className="mt-4 flex justify-end" ref={langMenuRef}>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setLangMenuOpen((o) => !o)}
+                className="inline-flex items-center gap-2 rounded-full border border-cyan-500/35 bg-cyan-950/40 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-200 hover:border-cyan-400/50 hover:bg-cyan-950/60 transition-all"
+                aria-expanded={langMenuOpen}
+                aria-haspopup="listbox"
+              >
+                <Globe className="h-4 w-4 text-cyan-400/90" aria-hidden />
+                <span>
+                  {languageOptions.find((o) => (i18n.language || '').startsWith(o.code))?.short ?? 'EN'}
+                </span>
+              </button>
+              {langMenuOpen && (
+                <div
+                  className="absolute right-0 top-full z-[100] mt-2 min-w-[11rem] rounded-2xl border border-white/10 bg-[#0a1628]/98 backdrop-blur-xl py-1.5 shadow-2xl shadow-black/50 ring-1 ring-cyan-500/20"
+                  role="listbox"
+                >
+                  {languageOptions.map(({ code, labelKey, short }) => {
+                    const active = (i18n.language || '').startsWith(code);
+                    return (
+                      <button
+                        key={code}
+                        type="button"
+                        role="option"
+                        aria-selected={active}
+                        onClick={() => {
+                          void i18n.changeLanguage(code);
+                          setLangMenuOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
+                          active
+                            ? 'bg-emerald-500/15 text-emerald-200'
+                            : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <span>{t(labelKey)}</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          {short}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1405,17 +1456,21 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <p className="text-3xl font-black text-orange-400">
               Balance: ${Number(balance ?? 0).toFixed(2)}
             </p>
-            <p className="text-sm text-gray-400 mt-1">
-              {t('withdrawalBalanceHint', {
-                max: maxWithdrawableUsd(userProfile).toFixed(2),
-                frozen: Number(userProfile?.frozen_balance ?? 0).toFixed(2),
+            <p className="text-sm text-slate-300 mt-2">
+              {t('availableToWithdraw', {
+                amount: `$${maxWithdrawableUsd(userProfile).toFixed(2)}`,
               })}
             </p>
-            {userProfile?.frozen_balance && userProfile.frozen_balance > 0 && (
-              <p className="mt-1 text-[11px] text-amber-300">
-                {t('frozen')}: ${Number(userProfile.frozen_balance).toFixed(2)}
+            {userProfile?.frozen_balance != null && Number(userProfile.frozen_balance) > 0 && (
+              <p className="mt-1.5 inline-flex items-center rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-200/90">
+                {t('frozenDepositTag', {
+                  amount: `$${Number(userProfile.frozen_balance).toFixed(2)}`,
+                })}
               </p>
             )}
+            <p className="mt-2 text-[11px] text-slate-500 italic">
+              {t('payoutFeeNote')}
+            </p>
 
           {/* Top Up — primary: Stripe card (everyone) */}
             <div className="mt-5 flex flex-col items-center">
@@ -1426,8 +1481,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               >
               {t('payWithCardStripe')}
               </button>
-              <p className="mt-2 text-[10px] text-center font-semibold bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-orange-400 bg-[length:200%_auto] animate-pulse bg-clip-text text-transparent">
-                {t('stripeFeeAdvisory')}
+              <p className="mt-2 text-xs text-center text-gray-400 max-w-sm">
+                {t('stripeCommissionNote')}
               </p>
             </div>
 
@@ -1933,8 +1988,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                   onClick={() => handleAcceptBid(job, bid)}
                                   disabled={(() => {
                                     const target = Number(job.amount_target ?? bid.bid_amount ?? 0);
+                                    const wallet = Number(bid.worker_wallet_balance ?? 0);
                                     const frozen = Number(bid.worker_frozen_balance ?? 0);
-                                    return !workerFrozenUsdMeetsTrustDeposit(frozen, job.category, target);
+                                    return !workerCanSecureMissionDeposit(wallet, frozen, job.category, target).ok;
                                   })()}
                                   className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -1942,11 +1998,16 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                 </button>
                                 {(() => {
                                   const target = Number(job.amount_target ?? bid.bid_amount ?? 0);
+                                  const wallet = Number(bid.worker_wallet_balance ?? 0);
                                   const frozen = Number(bid.worker_frozen_balance ?? 0);
-                                  const ok = workerFrozenUsdMeetsTrustDeposit(frozen, job.category, target);
-                                  if (ok) return null;
+                                  const sec = workerCanSecureMissionDeposit(wallet, frozen, job.category, target);
+                                  if (!isSecurityDepositFailure(sec)) return null;
                                   return (
-                                    <p className="mt-2 text-[10px] text-amber-300">{t('insufficientTrustDeposit')}</p>
+                                    <p className="mt-2 text-[10px] text-amber-300">
+                                      {sec.reason === 'frozen_exceeds_wallet'
+                                        ? t('walletFrozenInvariantError')
+                                        : t('insufficientSecurityDepositFunds')}
+                                    </p>
                                   );
                                 })()}
                               </div>
@@ -2175,8 +2236,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                     onClick={() => handleAcceptBid(job, bid)}
                                     disabled={(() => {
                                       const target = Number(job.amount_target ?? bid.bid_amount ?? 0);
+                                      const wallet = Number(bid.worker_wallet_balance ?? 0);
                                       const frozen = Number(bid.worker_frozen_balance ?? 0);
-                                      return !workerFrozenUsdMeetsTrustDeposit(frozen, job.category, target);
+                                      return !workerCanSecureMissionDeposit(wallet, frozen, job.category, target).ok;
                                     })()}
                                     className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
@@ -2184,11 +2246,16 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                   </button>
                                   {(() => {
                                     const target = Number(job.amount_target ?? bid.bid_amount ?? 0);
+                                    const wallet = Number(bid.worker_wallet_balance ?? 0);
                                     const frozen = Number(bid.worker_frozen_balance ?? 0);
-                                    const ok = workerFrozenUsdMeetsTrustDeposit(frozen, job.category, target);
-                                    if (ok) return null;
+                                    const sec = workerCanSecureMissionDeposit(wallet, frozen, job.category, target);
+                                    if (!isSecurityDepositFailure(sec)) return null;
                                     return (
-                                      <p className="mt-2 text-[10px] text-amber-300">{t('insufficientTrustDeposit')}</p>
+                                      <p className="mt-2 text-[10px] text-amber-300">
+                                        {sec.reason === 'frozen_exceeds_wallet'
+                                          ? t('walletFrozenInvariantError')
+                                          : t('insufficientSecurityDepositFunds')}
+                                      </p>
                                     );
                                   })()}
                                 </div>
@@ -2706,12 +2773,21 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     placeholder="Enter amount to withdraw"
                   />
                   {userProfile && (
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      {t('withdrawalBalanceHint', {
-                        max: maxWithdrawableUsd(userProfile).toFixed(2),
-                        frozen: Number(userProfile.frozen_balance ?? 0).toFixed(2),
-                      })}
-                    </p>
+                    <div className="mt-1 space-y-1.5 text-[11px] text-slate-400">
+                      <p>
+                        {t('availableToWithdraw', {
+                          amount: `$${maxWithdrawableUsd(userProfile).toFixed(2)}`,
+                        })}
+                      </p>
+                      {Number(userProfile.frozen_balance ?? 0) > 0 && (
+                        <p className="text-amber-200/80">
+                          {t('frozenDepositTag', {
+                            amount: `$${Number(userProfile.frozen_balance).toFixed(2)}`,
+                          })}
+                        </p>
+                      )}
+                      <p className="text-slate-500 italic">{t('payoutFeeNote')}</p>
+                    </div>
                   )}
                 </div>
 

@@ -93,6 +93,14 @@ const resources = {
       topUpWithCard: 'Top up with card',
       payWithCardStripe: 'Pay with card (Stripe)',
       stripeFeeAdvisory: '💡 Stripe fee: 3.5% + $0.3 per tx! Better start the 🎮 game from $9.99',
+      stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
+      availableToWithdraw: 'Available to withdraw: ${{amount}}',
+      frozenDepositTag: '🔒 Frozen Deposit: ${{amount}}',
+      payoutFeeNote: '*12% platform fee applies on payout.',
+      insufficientSecurityDepositFunds:
+        'Insufficient funds for security deposit. Please top up your wallet first.',
+      walletFrozenInvariantError:
+        'Account balance issue: frozen deposit exceeds wallet. Please contact support.',
       cardNumber: 'Card Number',
       expiry: 'Expiry',
       cvc: 'CVC',
@@ -281,6 +289,14 @@ const resources = {
       newHero: 'بطل جديد',
       topUpWithCard: 'شحن عبر البطاقة',
       payWithCardStripe: 'ادفع بالبطاقة (Stripe)',
+      stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
+      availableToWithdraw: 'المتاح للسحب: ${{amount}}',
+      frozenDepositTag: '🔒 وديعة مجمّدة: ${{amount}}',
+      payoutFeeNote: '*تُطبق عمولة المنصة 12٪ عند السحب.',
+      insufficientSecurityDepositFunds:
+        'أموال غير كافية لوديعة الأمان. يرجى شحن المحفظة أولاً.',
+      walletFrozenInvariantError:
+        'مشكلة في الرصيد: الوديعة المجمّدة تتجاوز المحفظة. تواصل مع الدعم.',
       cardNumber: 'رقم البطاقة',
       expiry: 'تاريخ الانتهاء',
       cvc: 'CVC',
@@ -462,6 +478,14 @@ const resources = {
       topUpWithCard: 'Пополнить картой',
       payWithCardStripe: 'Оплатить картой (Stripe)',
       stripeFeeAdvisory: '💡 Комиссия Stripe: 3.5% + $0.3 за транзакцию! Лучше начинать 🎮 игру от $9.99',
+      stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
+      availableToWithdraw: 'Доступно к выводу: ${{amount}}',
+      frozenDepositTag: '🔒 Замороженный залог: ${{amount}}',
+      payoutFeeNote: '*При выплате удерживается комиссия платформы 12%.',
+      insufficientSecurityDepositFunds:
+        'Недостаточно средств для залога безопасности. Пополните кошелёк.',
+      walletFrozenInvariantError:
+        'Ошибка баланса: заморожено больше, чем в кошельке. Свяжитесь с поддержкой.',
       cardNumber: 'Номер карты',
       expiry: 'Срок действия',
       cvc: 'CVC',
@@ -650,6 +674,14 @@ const resources = {
       newHero: 'Neuer Held',
       topUpWithCard: 'Mit Karte aufladen',
       payWithCardStripe: 'Mit Karte zahlen (Stripe)',
+      stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
+      availableToWithdraw: 'Verfügbar zur Auszahlung: ${{amount}}',
+      frozenDepositTag: '🔒 Eingefrorene Kaution: ${{amount}}',
+      payoutFeeNote: '*12% Plattformgebühr bei Auszahlung.',
+      insufficientSecurityDepositFunds:
+        'Unzureichende Mittel für die Sicherheitskaution. Bitte Wallet aufladen.',
+      walletFrozenInvariantError:
+        'Kontoproblem: Eingefrorenes Guthaben übersteigt das Wallet. Support kontaktieren.',
       cardNumber: 'Kartennummer',
       expiry: 'Ablauf',
       cvc: 'CVC',
@@ -830,6 +862,14 @@ const resources = {
       newHero: 'Nuovo eroe',
       topUpWithCard: 'Ricarica con carta',
       payWithCardStripe: 'Paga con carta (Stripe)',
+      stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
+      availableToWithdraw: 'Disponibile per il prelievo: ${{amount}}',
+      frozenDepositTag: '🔒 Deposito vincolato: ${{amount}}',
+      payoutFeeNote: '*Commissione piattaforma 12% sul prelievo.',
+      insufficientSecurityDepositFunds:
+        'Fondi insufficienti per il deposito cauzionale. Ricarica il wallet.',
+      walletFrozenInvariantError:
+        'Errore saldo: il deposito vincolato supera il wallet. Contatta il supporto.',
       cardNumber: 'Numero carta',
       expiry: 'Scadenza',
       cvc: 'CVC',
@@ -1011,6 +1051,14 @@ const resources = {
       newHero: 'Nuevo héroe',
       topUpWithCard: 'Recargar con tarjeta',
       payWithCardStripe: 'Pagar con tarjeta (Stripe)',
+      stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
+      availableToWithdraw: 'Disponible para retirar: ${{amount}}',
+      frozenDepositTag: '🔒 Depósito retenido: ${{amount}}',
+      payoutFeeNote: '*Comisión de plataforma del 12% al retirar.',
+      insufficientSecurityDepositFunds:
+        'Fondos insuficientes para el depósito de seguridad. Recarga tu cartera.',
+      walletFrozenInvariantError:
+        'Error de saldo: el congelado supera la cartera. Contacta soporte.',
       cardNumber: 'Número de tarjeta',
       expiry: 'Vencimiento',
       cvc: 'CVC',
