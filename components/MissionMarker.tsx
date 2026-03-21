@@ -42,7 +42,15 @@ const MissionMarker: React.FC<MissionMarkerProps> = ({
 
   const scale = isDraft ? 1 : 0.72 + (Math.min(currentFundingEgp, 5000) / 5000) * 0.35;
 
-  const { borderColor, glowRgb } = useMemo(() => {
+  const { borderColor, glowRgb, glowStrength } = useMemo(() => {
+    if (isDraft) {
+      /** Draft / NEW pin — vivid violet–magenta so it reads clearly vs calmer live pins. */
+      return {
+        borderColor: 'hsl(285 92% 62%)',
+        glowRgb: '186,104,255',
+        glowStrength: 1.15,
+      };
+    }
     const target = Math.max(targetEgp, 1);
     const funded = Math.max(0, currentFundingEgp);
     const ratio = Math.min(1, funded / target);
@@ -51,8 +59,11 @@ const MissionMarker: React.FC<MissionMarkerProps> = ({
     const r = Math.round(34 + ratio * 200);
     const g = Math.round(211 - ratio * 80);
     const b = Math.round(238 - ratio * 100);
-    return { borderColor: bc, glowRgb: `${r},${g},${b}` };
-  }, [currentFundingEgp, targetEgp]);
+    /** Live missions on the map: same capsule, softer halo than draft so pins feel less “noisy”. */
+    const isCalmLive = variant === 'default' && !isActive;
+    const strength = isCalmLive ? 0.58 : 1;
+    return { borderColor: bc, glowRgb: `${r},${g},${b}`, glowStrength: strength };
+  }, [currentFundingEgp, targetEgp, isDraft, isActive, variant]);
 
   const fundingWhole = Math.round(Number(currentFundingEgp) || 0);
 
@@ -70,6 +81,8 @@ const MissionMarker: React.FC<MissionMarkerProps> = ({
       </span>
     );
 
+  const gs = glowStrength;
+
   return (
     <button
       type="button"
@@ -77,7 +90,7 @@ const MissionMarker: React.FC<MissionMarkerProps> = ({
         e.stopPropagation();
         if (!isDraft) onClick?.(e);
       }}
-      className="mission-marker-cyber-root relative flex flex-col items-center group select-none outline-none border-0 p-0 bg-transparent origin-bottom"
+      className="mission-marker-cyber-root relative z-[10] isolate flex flex-col items-center group select-none outline-none border-0 p-0 bg-transparent origin-bottom"
       style={{
         transform: `scale(${scale})`,
         transformOrigin: 'bottom center',
@@ -87,7 +100,7 @@ const MissionMarker: React.FC<MissionMarkerProps> = ({
       <div
         className={[
           'mission-marker-cyber-capsule',
-          'relative z-10 mb-0.5 min-w-[3.25rem] px-2.5 py-1.5 rounded-full',
+          'relative z-[1] mb-0.5 min-w-[3.25rem] px-2.5 py-1.5 rounded-full',
           'backdrop-blur-[8px] bg-white/12 border-2 border-solid',
           'text-[10px] tracking-tight text-white',
           'transition-all duration-300 ease-out',
@@ -96,7 +109,7 @@ const MissionMarker: React.FC<MissionMarkerProps> = ({
         ].join(' ')}
         style={{
           borderColor,
-          boxShadow: `0 0 15px rgba(${glowRgb}, 0.5), 0 0 8px rgba(${glowRgb}, 0.35), 0 0 4px rgba(${glowRgb}, 0.85), inset 0 1px 0 rgba(255,255,255,0.14)`,
+          boxShadow: `0 0 ${Math.round(15 * gs)}px rgba(${glowRgb}, ${0.5 * gs}), 0 0 ${Math.round(8 * gs)}px rgba(${glowRgb}, ${0.35 * gs}), 0 0 ${Math.round(4 * gs)}px rgba(${glowRgb}, ${0.85 * gs}), inset 0 1px 0 rgba(255,255,255,0.14)`,
         }}
       >
         <span className="inline-flex items-center gap-1 whitespace-nowrap drop-shadow-[0_0_8px_rgba(0,0,0,0.9)]">
@@ -117,7 +130,7 @@ const MissionMarker: React.FC<MissionMarkerProps> = ({
         <div
           className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-9 h-2 rounded-full pointer-events-none opacity-80"
           style={{
-            background: `radial-gradient(ellipse, rgba(${glowRgb},0.55) 0%, transparent 70%)`,
+            background: `radial-gradient(ellipse, rgba(${glowRgb},${0.55 * gs}) 0%, transparent 70%)`,
             filter: 'blur(2px)',
           }}
           aria-hidden
@@ -130,12 +143,12 @@ const MissionMarker: React.FC<MissionMarkerProps> = ({
             variant === 'in_progress' && 'from-cyan-500/30 border-cyan-400/50',
           ].join(' ')}
         >
-          <span className="text-[10px] leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.9)] z-10">{icon}</span>
+          <span className="text-[10px] leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.9)] z-[1]">{icon}</span>
         </div>
       </div>
 
       {label && !isDraft && (
-        <div className="mt-1.5 bg-black/80 backdrop-blur-sm border border-white/10 px-3 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+        <div className="mt-1.5 bg-black/80 backdrop-blur-sm border border-white/10 px-3 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-[10]">
           <p className="text-[10px] text-white font-bold uppercase tracking-widest">{label}</p>
         </div>
       )}

@@ -5,7 +5,6 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabaseClient';
-import JobMarker from './JobMarker';
 import MissionMarker from './MissionMarker';
 import TrustDepositInfoModal from './TrustDepositInfoModal';
 import {
@@ -642,6 +641,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [donateAmount, setDonateAmount] = useState<string>('');
   const [donating, setDonating] = useState(false);
   const [trustDepositInfoOpen, setTrustDepositInfoOpen] = useState(false);
+
+  /** Keep WebGL map markers visually below modal stack (z-[9999]); dim when any overlay is open. */
+  const mapMarkerLayerSuppressed = useMemo(
+    () =>
+      Boolean(
+        bidJob ||
+          selectedMission ||
+          showCrowdfundConfirm ||
+          hallOfFameMission ||
+          taskTypeSelected ||
+          trustDepositInfoOpen
+      ),
+    [
+      bidJob,
+      selectedMission,
+      showCrowdfundConfirm,
+      hallOfFameMission,
+      taskTypeSelected,
+      trustDepositInfoOpen,
+    ]
+  );
 
   const detectLikelyLanguage = (text: string): 'ar' | 'ru' | 'en' => {
     if (/[\u0600-\u06FF]/.test(text)) return 'ar';
@@ -1639,7 +1659,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 latitude={job.location_lat}
                 longitude={job.location_lng}
                 anchor="bottom"
-                style={{ zIndex: 100 + idx }}
+                style={{
+                  zIndex: Math.min(10, 1 + idx),
+                  opacity: mapMarkerLayerSuppressed ? 0.06 : 1,
+                  pointerEvents: mapMarkerLayerSuppressed ? 'none' : 'auto',
+                  transition: 'opacity 0.2s ease',
+                }}
               >
                 <MissionMarker
                   currentFundingEgp={Number(job.current_funding ?? 0)}
@@ -1664,10 +1689,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
             latitude={selectedLocation.lat}
             longitude={selectedLocation.lng}
             anchor="bottom"
+            style={{
+              zIndex: 10,
+              opacity: mapMarkerLayerSuppressed ? 0.06 : 1,
+              pointerEvents: mapMarkerLayerSuppressed ? 'none' : 'auto',
+              transition: 'opacity 0.2s ease',
+            }}
           >
-            <JobMarker
-              amount={0}
-              orderType="city"
+            <MissionMarker
+              currentFundingEgp={0}
+              targetEgp={Math.max(
+                1,
+                parseFloat(orderAmount.replace(',', '.')) ||
+                  (taskType === 'city' ? CITY_MIN_PRICE : HOME_MIN_PRICE)
+              )}
+              orderType={taskType}
               isDraft
             />
           </Marker>
@@ -1719,10 +1755,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Adaptive form — slides up from bottom only after City or Home selected */}
       {taskTypeSelected && (
         <div
-          className="absolute inset-0 z-[90] flex items-end justify-center p-4 pt-[env(safe-area-inset-top)] pointer-events-none"
+          className="absolute inset-0 z-[9999] flex items-end justify-center p-4 pt-[env(safe-area-inset-top)] pointer-events-none isolate"
           aria-hidden="false"
         >
-          <div className={`pointer-events-auto w-full max-w-xl space-y-4 animate-slide-up p-5 shadow-2xl ${PROFILE_GLASS_PANEL}`}>
+          <div
+            className="absolute inset-0 bg-black/55 backdrop-blur-md pointer-events-none"
+            aria-hidden
+          />
+          <div className={`pointer-events-auto relative z-[1] w-full max-w-xl space-y-4 animate-slide-up p-5 shadow-2xl ${PROFILE_GLASS_PANEL}`}>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <button
@@ -1937,7 +1977,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Bidding modal — dark glassmorphism */}
       {bidJob && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] isolate bg-black/80 backdrop-blur-md"
           onClick={handleCloseBidModal}
           aria-hidden="false"
         >
@@ -2050,11 +2090,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Mission Briefing — bottom sheet when active pyramid marker clicked */}
       {selectedMission && (
         <div
-          className="absolute inset-0 z-[95] flex items-end justify-center pt-[env(safe-area-inset-top)]"
+          className="absolute inset-0 z-[9999] flex items-end justify-center pt-[env(safe-area-inset-top)] isolate"
           aria-hidden="false"
         >
           <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/85 backdrop-blur-md"
             onClick={handleCloseMissionBriefing}
             aria-hidden="true"
           />
@@ -2502,9 +2542,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       {/* Crowdfunding confirm modal (public missions) */}
       {showCrowdfundConfirm && selectedMission && (
-        <div className="absolute inset-0 z-[97] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)]">
+        <div className="absolute inset-0 z-[9999] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] isolate">
           <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/85 backdrop-blur-md"
             onClick={closeCrowdfundConfirm}
             aria-hidden="true"
           />
@@ -2677,11 +2717,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Hall of Fame modal for completed missions */}
       {hallOfFameMission && (
         <div
-          className="absolute inset-0 z-[96] flex items-center justify-center pt-[env(safe-area-inset-top)]"
+          className="absolute inset-0 z-[9999] flex items-center justify-center pt-[env(safe-area-inset-top)] isolate"
           aria-hidden="false"
         >
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/85 backdrop-blur-md"
             onClick={handleCloseHallOfFame}
             aria-hidden="true"
           />
@@ -2745,7 +2785,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       <TrustDepositInfoModal open={trustDepositInfoOpen} onClose={() => setTrustDepositInfoOpen(false)} />
 
       {mapToast && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[120] pointer-events-none">
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[10000] pointer-events-none">
           <div className="rounded-xl border border-red-300/30 bg-red-500/85 px-4 py-2 text-xs font-bold text-white shadow-xl backdrop-blur-sm">
             {mapToast}
           </div>

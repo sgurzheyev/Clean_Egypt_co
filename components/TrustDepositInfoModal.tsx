@@ -16,7 +16,7 @@ const TrustDepositInfoModal: React.FC<Props> = ({ open, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] bg-black/75 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] isolate bg-black/80 backdrop-blur-md"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
