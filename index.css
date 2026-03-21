@@ -420,3 +420,20 @@
     transform: translate(-50%, 0) scale(1.15);
   }
 }
+
+/* Cyberpunk map markers — subtle pulsing glow */
+@keyframes mission-marker-neon-pulse {
+  0%,
+  100% {
+    opacity: 0.92;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.15);
+  }
+}
+
+.mission-marker-cyber-capsule {
+  animation: mission-marker-neon-pulse 2.4s ease-in-out infinite;
+}

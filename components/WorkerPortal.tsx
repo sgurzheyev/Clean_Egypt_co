@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { formatEgp } from '../src/lib/formatMoney';
 
 const WorkerPortal = () => {
   const [worker, setWorker] = useState<any>(null);
@@ -46,11 +47,13 @@ const WorkerPortal = () => {
     if (!file || !pyramid || !worker) return;
 
     // Считаем депозит: 50% от цены (City или Home)
-    const jobPrice = pyramid.job_type === 'home' ? pyramid.final_price_egp : (pyramid.current_amount_usd * 50);
+    const jobPrice = Number(
+      pyramid.final_price_egp ?? pyramid.current_amount_egp ?? pyramid.amount_target_egp ?? 0
+    );
     const deposit = jobPrice * 0.5;
 
     if (worker.wallet_balance < deposit) {
-      alert(`🛑 LOW BALANCE! Need $${deposit} deposit.`);
+      alert(`🛑 LOW BALANCE! Need ${formatEgp(deposit)} deposit.`);
       return;
     }
 
@@ -124,12 +127,11 @@ const WorkerPortal = () => {
     <div className="min-h-screen bg-slate-900 text-white p-4 font-sans ltr">
       <div className="max-w-md mx-auto">
         
-        {/* БАЛАНС (legacy worker portal, USD) */}
+        {/* Legacy worker portal — balances in EGP */}
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-700 mb-6">
           <p className="text-teal-400 font-bold uppercase text-[10px] tracking-[2px]">Your Wallet</p>
           <p className="text-4xl font-black">
-            {worker?.wallet_balance}{' '}
-            <span className="text-sm font-normal text-slate-400">USD</span>
+            {worker?.wallet_balance != null ? formatEgp(Number(worker.wallet_balance)) : '—'}
           </p>
         </div>
 

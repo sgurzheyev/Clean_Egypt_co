@@ -76,7 +76,7 @@ const JobMarker: React.FC<JobMarkerProps> = ({
       ? (label || 'DONE')
       : isActive
         ? (label || 'MY MISSION')
-        : formatEgp(amount, { minFractionDigits: 0, maxFractionDigits: 0 });
+        : formatEgp(amount);
 
   return (
     <button

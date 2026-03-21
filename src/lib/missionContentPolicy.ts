@@ -17,6 +17,15 @@ function hasForbiddenKeyword(s: string): boolean {
   return false;
 }
 
+/** True if text looks like a phone / long number / external contact (for live UI warnings). */
+export function descriptionLooksLikeContactOrPhone(text: string): boolean {
+  const s = String(text || '');
+  if (PHONE_OR_LONG_DIGITS.test(s)) return true;
+  if (/\+[\d\s().-]{6,}/.test(s)) return true;
+  if (/\b01[0125][0-9]{8}\b/.test(s)) return true;
+  return false;
+}
+
 export function validateMissionDescription(text: string): { ok: true } | { ok: false; error: string } {
   const s = String(text || '');
   if (PHONE_OR_LONG_DIGITS.test(s)) {

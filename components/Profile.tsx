@@ -28,7 +28,7 @@ import {
   isSecurityDepositFailure,
   checkHomeMissionWorkerVerification,
 } from '../src/lib/trustDeposit';
-import { formatEgp } from '../src/lib/formatMoney';
+import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
 import { computeWithdrawalExitBreakdown } from '../src/lib/withdrawalTax';
 
 interface ProfileProps {
@@ -509,7 +509,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         return;
       }
       const { error } = await supabase.rpc('top_up_wallet', {
-        p_amount: amountNum,
+        p_amount: Math.round(amountNum),
       });
       if (error) {
         alert(error.message || 'Failed to top up wallet. Please try again.');
@@ -1539,7 +1539,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </p>
             <p className="text-sm text-slate-300 mt-2">
               {t('availableToWithdraw', {
-                amount: formatEgp(maxWithdrawableEgp(userProfile)),
+                amount: formatEgpDigits(maxWithdrawableEgp(userProfile)),
               })}
             </p>
             {userProfile?.frozen_balance != null && Number(userProfile.frozen_balance) > 0 && (
@@ -1547,7 +1547,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 <p className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-200/90">
                   <span>
                     {t('frozenDepositTag', {
-                      amount: formatEgp(Number(userProfile.frozen_balance)),
+                      amount: formatEgpDigits(Number(userProfile.frozen_balance)),
                     })}
                   </span>
                   <span
@@ -2917,7 +2917,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     <div className="mt-1 space-y-1.5 text-[11px] text-slate-400">
                       <p>
                         {t('availableToWithdraw', {
-                          amount: formatEgp(maxWithdrawableEgp(userProfile)),
+                          amount: formatEgpDigits(maxWithdrawableEgp(userProfile)),
                         })}
                       </p>
                       {Number(userProfile.frozen_balance ?? 0) > 0 && (
@@ -2925,7 +2925,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <p className="inline-flex items-center gap-1.5 flex-wrap">
                             <span>
                               {t('frozenDepositTag', {
-                                amount: formatEgp(Number(userProfile.frozen_balance)),
+                                amount: formatEgpDigits(Number(userProfile.frozen_balance)),
                               })}
                             </span>
                             <span
@@ -3001,13 +3001,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-4 space-y-2">
                       <div className="text-sm text-slate-200 leading-relaxed space-y-1.5">
                         <p className="font-semibold">
-                          {t('withdrawalLineGross', { amount: b.gross.toFixed(2) })}
+                          {t('withdrawalLineGross', { amount: formatEgpDigits(b.gross) })}
                         </p>
                         <p className="text-amber-200/90">
-                          {t('withdrawalLineFee', { fee: b.fee.toFixed(2) })}
+                          {t('withdrawalLineFee', { fee: formatEgpDigits(b.fee) })}
                         </p>
                         <p className="text-emerald-300 font-bold">
-                          {t('withdrawalLineNet', { net: b.net.toFixed(2) })}
+                          {t('withdrawalLineNet', { net: formatEgpDigits(b.net) })}
                         </p>
                       </div>
                       <p className="text-[11px] text-slate-500">

@@ -1,50 +1,71 @@
 // src/components/OrderForm.tsx
-import React, { useState } from 'react';
-// ИСПОЛЬЗУЕМ НАШ НОВЫЙ ПУТЬ СЕРВИСА
-import { supabase } from '../services/supabase'; 
+import React, { useMemo, useState } from 'react';
+import { supabase } from '../services/supabase';
+import {
+  descriptionLooksLikeContactOrPhone,
+  validateMissionDescription,
+} from '../src/lib/missionContentPolicy';
 
 interface Props {
   selectedLocation: { lat: number; lng: number } | null;
-  onOrderStarted?: () => void; // Для включения синей заглушки загрузки
+  onOrderStarted?: () => void;
 }
+
+const CONTACT_WARNING =
+  'Numbers and external contacts are blocked for security';
 
 const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState(''); // ПАРСЕР ИМЕЙЛОВ
+  const [email, setEmail] = useState('');
+  const [shortDescription, setShortDescription] = useState('');
+
+  const contactWarning = useMemo(
+    () => descriptionLooksLikeContactOrPhone(shortDescription),
+    [shortDescription]
+  );
+
+  const policyCheck = useMemo(() => validateMissionDescription(shortDescription), [shortDescription]);
 
   const createOrder = async (type: 'egypt' | 'home', amount: number) => {
-    if (!selectedLocation) return alert("Tap on map first! 📍");
-    if (!email || !email.includes('@')) return alert("Enter valid Email to start! 📧");
-    
+    if (!selectedLocation) return alert('Tap on map first! 📍');
+    if (!email || !email.includes('@')) return alert('Enter valid Email to start! 📧');
+
+    const desc = shortDescription.trim();
+    if (desc.length > 0) {
+      const policy = validateMissionDescription(desc);
+      if (policy.ok === false) {
+        alert(policy.error);
+        return;
+      }
+    }
+
     setLoading(true);
-    if (onOrderStarted) onOrderStarted(); // ВКЛЮЧАЕМ "УСТАНОВКУ СОЕДИНЕНИЯ"
+    if (onOrderStarted) onOrderStarted();
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const creatorId = session?.user?.id ?? null;
-      // 1. Сначала сохраняем лид (email) в базу, даже если оплата не пройдет
+
       const { error } = await supabase.from('pyramids').insert([
         {
           location: `POINT(${selectedLocation.lng} ${selectedLocation.lat})`,
           mission_type: type,
           current_amount: amount,
-          user_email: email, // СОХРАНЯЕМ В ЛАПЫ
+          user_email: email,
           status: 'pending_payment',
-          creator_id: creatorId
-        }
+          creator_id: creatorId,
+        },
       ]);
 
       if (error) throw error;
 
-      // 2. ИМИТАЦИЯ ПЕРЕХОДА НА ПЛАТЕЖ (PayMob)
       setTimeout(() => {
-        // Силовой редирект в профиль, чтобы не висела заглушка
-        window.location.href = '/profile'; 
+        window.location.href = '/profile';
       }, 2000);
-
     } catch (error: any) {
       console.error(error.message);
-      // Если ошибка — всё равно шлем в профиль через 2 секунды
       setTimeout(() => {
         window.location.href = '/profile?error=payment_failed';
       }, 2000);
@@ -53,12 +74,14 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
     }
   };
 
+  const descriptionInvalid = shortDescription.trim().length > 0 && !policyCheck.ok;
+  const policyRejectText = policyCheck.ok === false ? policyCheck.error : null;
+
   return (
     <div className="space-y-4 p-4 bg-black/60 backdrop-blur-md rounded-2xl border border-white/10">
-      {/* ПОЛЕ ВВОДА EMAIL - ТВОЙ ПАРСЕР */}
       <div className="space-y-2">
         <label className="text-[10px] text-gray-400 uppercase tracking-widest ml-1">Your Intelligence Email</label>
-        <input 
+        <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -67,32 +90,59 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
         />
       </div>
 
+      <div className="space-y-2">
+        <label className="text-[10px] text-gray-400 uppercase tracking-widest ml-1">Short description</label>
+        <textarea
+          value={shortDescription}
+          onChange={(e) => setShortDescription(e.target.value)}
+          placeholder="Describe the mission (no phone numbers or external contacts)"
+          rows={3}
+          className={`w-full bg-white/5 border rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/25 focus:outline-none transition-all resize-y min-h-[80px] ${
+            contactWarning || descriptionInvalid
+              ? 'border-red-500/70 focus:border-red-400'
+              : 'border-white/10 focus:border-[#00f2ff]'
+          }`}
+        />
+        {contactWarning && (
+          <p className="text-[11px] font-semibold text-red-400" role="alert">
+            {CONTACT_WARNING}
+          </p>
+        )}
+        {descriptionInvalid && !contactWarning && policyRejectText && (
+          <p className="text-[11px] font-semibold text-red-400" role="alert">
+            {policyRejectText}
+          </p>
+        )}
+      </div>
+
       <p className="text-[10px] text-gray-500 uppercase tracking-[0.2em] text-center">
         {selectedLocation
           ? `TARGET: ${selectedLocation.lat.toFixed(4)}, ${selectedLocation.lng.toFixed(4)}`
-          : "SELECT TARGET ON MAP"}
+          : 'SELECT TARGET ON MAP'}
       </p>
 
       <div className="grid grid-cols-2 gap-3">
         <button
-          disabled={loading}
+          type="button"
+          disabled={loading || contactWarning || descriptionInvalid}
           onClick={() => createOrder('egypt', 1)}
-          className="py-4 bg-[#39FF14]/10 border border-[#39FF14]/40 text-[#39FF14] rounded-xl font-black italic hover:bg-[#39FF14] hover:text-black transition-all text-xs"
+          className="py-4 bg-[#39FF14]/10 border border-[#39FF14]/40 text-[#39FF14] rounded-xl font-black italic hover:bg-[#39FF14] hover:text-black transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          CITY $1
+          CITY PIN (EGP)
         </button>
 
         <button
-          disabled={loading}
+          type="button"
+          disabled={loading || contactWarning || descriptionInvalid}
           onClick={() => createOrder('home', 5)}
-          className="py-4 bg-[#f8ff14]/10 border border-[#f8ff14]/40 text-[#f8ff14] rounded-xl font-black italic hover:bg-[#f8ff14] hover:text-black transition-all text-xs"
+          className="py-4 bg-[#f8ff14]/10 border border-[#f8ff14]/40 text-[#f8ff14] rounded-xl font-black italic hover:bg-[#f8ff14] hover:text-black transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          HOME $5
+          HOME (≈250 EGP)
         </button>
       </div>
 
       <p className="mt-2 text-[10px] text-gray-500 text-center">
-        * Payment will be processed in EGP (approx. {Math.round(5 * 50)} EGP for a $5 mission).
+        * Payments are settled in EGP on your wallet; card charges may be shown in USD by your bank.
       </p>
     </div>
   );

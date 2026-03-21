@@ -35,11 +35,20 @@ export const ADMIN_FORCE_RELEASE_PAYMENT_BTN =
 export const PROFILE_GLASS_PANEL =
   'backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl';
 
-/** All wallet balances, mission prices, bids, and RPC amounts are stored in this currency. */
+/**
+ * All wallet balances, mission prices, bids, donations, scout rewards, and RPC amounts
+ * are stored and displayed in this currency unless explicitly noted (e.g. Stripe card auth in USD).
+ */
 export const INTERNAL_CURRENCY = 'EGP' as const;
 
 /** 1 USD → EGP (Stripe / Paymob conversion for international card payments). */
 export const USD_TO_EGP_RATE = 48.5;
+
+/** ~$1 city “Scout Stake” fee expressed in EGP for UI copy. */
+export const SCOUT_STAKE_FEE_EGP = Math.round(USD_TO_EGP_RATE);
+
+/** Anti-fraud: repeated micro-tx at or below this EGP amount (wallet is EGP). */
+export const SMALL_CARDING_EGP_MAX = 100;
 
 /**
  * Applied to USD card settlements when crediting EGP wallet (currency risk buffer).

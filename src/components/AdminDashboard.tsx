@@ -1410,7 +1410,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             </div>
 
             <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-              New wallet_balance (USD)
+              New wallet_balance (EGP)
             </label>
             <input
               type="number"

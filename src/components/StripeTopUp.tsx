@@ -139,7 +139,7 @@ function StripeTopUpForm({
       }
 
       const { error: rpcError } = await supabase.rpc('top_up_wallet', {
-        p_amount: netCreditEgp,
+        p_amount: Math.round(Number(netCreditEgp)),
       });
       if (rpcError) throw rpcError;
 

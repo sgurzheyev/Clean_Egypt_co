@@ -67,6 +67,11 @@ const resources = {
         'Placing a City Pin costs {{amount}} (Scout Stake). Reward Split: 90% Cleaner / 5.1% Scout / 4.9% Platform. Proceed?',
       cityMissionWalletHint:
         'Failed to create City mission. Ensure you have at least {{amount}} in your wallet and try again.',
+      cityPinScoutStakeFormHint:
+        'Creating a public pin costs {{amount}} (Scout Stake). The target amount is your crowdfunding goal (EGP).',
+      bidAmountLabelEgp: 'Your bid (EGP)',
+      bidAmountLabelUsd: 'Your bid (USD)',
+      bidUsdToEgpHint: 'Converted at {{rate}} EGP per USD; bids are stored in EGP.',
       cityMissionCreatedScout: 'City mission created! Your {{amount}} Scout Stake has been locked.',
       acceptBidConfirm: 'Accept bid of {{amount}} from this worker?',
       logout: 'Logout',
@@ -113,10 +118,11 @@ const resources = {
         'Payments are processed in USD/EGP, and your balance will be credited in Egyptian Pounds (EGP).',
       releaseWorkerReceives: 'Worker receives (90% of funded amount): {{amount}}',
       payWithCardStripe: 'Pay with card (Stripe)',
-      stripeFeeAdvisory: '💡 Stripe fee: 3.5% + $0.3 per tx! Better start the 🎮 game from $9.99',
-      stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
-      availableToWithdraw: 'Available to withdraw: {{amount}}',
-      frozenDepositTag: '🔒 Frozen Deposit: {{amount}}',
+      stripeFeeAdvisory:
+        '💡 Card processor fee applies. Top-ups credit your wallet in EGP after conversion.',
+      stripeCommissionNote: '💡 International card: settlement may show in USD; wallet balance is EGP.',
+      availableToWithdraw: 'Available to withdraw: {{amount}} EGP',
+      frozenDepositTag: '🔒 Frozen deposit: {{amount}} EGP',
       payoutFeeNote: '*12% platform fee applies on payout.',
       insufficientSecurityDepositFunds:
         'Insufficient funds for security deposit. Please top up your wallet first.',
@@ -138,7 +144,7 @@ const resources = {
         'International card: wallet credit = USD charged × 48.5 × 0.97 (3% currency risk buffer). EGP input: credit ≈ amount × 0.97.',
       stripeDepositLegalNote:
         'By paying, you agree to the 12% platform fee on all future cash withdrawals.',
-      stripeMinimumCharge: 'Minimum card charge is $0.50 USD. Increase the amount.',
+      stripeMinimumCharge: 'Minimum card charge is about 25 EGP equivalent. Increase the amount.',
       depositCurrencyUsd: 'USD',
       depositCurrencyEgp: 'EGP',
       amountEgp: 'Amount (EGP)',
@@ -295,6 +301,11 @@ const resources = {
       cityPinScoutStakeConfirm:
         'تكلفة دبوس المدينة {{amount}} (عربون كشافة). تقسيم المكافأة: 90٪ عامل / 5.1٪ كشافة / 4.9٪ منصة. تابع؟',
       cityMissionWalletHint: 'تعذر إنشاء مهمة المدينة. تأكد من وجود {{amount}} على الأقل في محفظتك.',
+      cityPinScoutStakeFormHint:
+        'إنشاء دبوس المدينة يكلف {{amount}} (عمولة الكشافة). الهدف هو هدف التمويل الجماعي (ج.م).',
+      bidAmountLabelEgp: 'عرضك (ج.م)',
+      bidAmountLabelUsd: 'عرضك (دولار)',
+      bidUsdToEgpHint: 'يُحوَّل بسعر {{rate}} ج.م لكل دولار؛ يُخزَّن العرض بالجنيه.',
       cityMissionCreatedScout: 'تم إنشاء مهمة المدينة! تم قفل {{amount}} كعربون كشافة.',
       acceptBidConfirm: 'قبول عرض {{amount}} من هذا العامل؟',
       logout: 'تسجيل الخروج',
@@ -342,8 +353,8 @@ const resources = {
       releaseWorkerReceives: 'يستلم العامل (٩٠٪ من المبلغ الممول): {{amount}}',
       payWithCardStripe: 'ادفع بالبطاقة (Stripe)',
       stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
-      availableToWithdraw: 'المتاح للسحب: {{amount}}',
-      frozenDepositTag: '🔒 وديعة مجمّدة: {{amount}}',
+      availableToWithdraw: 'المتاح للسحب: {{amount}} ج.م',
+      frozenDepositTag: '🔒 وديعة مجمّدة: {{amount}} ج.م',
       payoutFeeNote: '*تُطبق عمولة المنصة 12٪ عند السحب.',
       insufficientSecurityDepositFunds:
         'أموال غير كافية لوديعة الأمان. يرجى شحن المحفظة أولاً.',
@@ -510,6 +521,11 @@ const resources = {
       cityPinScoutStakeConfirm:
         'Городской пин стоит {{amount}} (Scout Stake). Разделение: 90% уборщик / 5.1% скаут / 4.9% платформа. Продолжить?',
       cityMissionWalletHint: 'Не удалось создать городскую миссию. Нужно минимум {{amount}} на кошельке.',
+      cityPinScoutStakeFormHint:
+        'Городской пин стоит {{amount}} (Scout Stake). Цель — ваша сумма краудфандинга (EGP).',
+      bidAmountLabelEgp: 'Ставка (EGP)',
+      bidAmountLabelUsd: 'Ставка (USD)',
+      bidUsdToEgpHint: 'Конвертация по {{rate}} EGP за USD; ставка хранится в EGP.',
       cityMissionCreatedScout: 'Городская миссия создана! Заблокировано {{amount}} как Scout Stake.',
       acceptBidConfirm: 'Принять ставку {{amount}} от этого исполнителя?',
       logout: 'Выйти',
@@ -558,8 +574,8 @@ const resources = {
       payWithCardStripe: 'Оплатить картой (Stripe)',
       stripeFeeAdvisory: '💡 Комиссия Stripe: 3.5% + $0.3 за транзакцию! Лучше начинать 🎮 игру от $9.99',
       stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
-      availableToWithdraw: 'Доступно к выводу: {{amount}}',
-      frozenDepositTag: '🔒 Замороженный залог: {{amount}}',
+      availableToWithdraw: 'Доступно к выводу: {{amount}} EGP',
+      frozenDepositTag: '🔒 Замороженный залог: {{amount}} EGP',
       payoutFeeNote: '*При выплате удерживается комиссия платформы 12%.',
       insufficientSecurityDepositFunds:
         'Недостаточно средств для залога безопасности. Пополните кошелёк.',
@@ -734,6 +750,11 @@ const resources = {
       cityPinScoutStakeConfirm:
         'Stadt-Pin kostet {{amount}} (Scout Stake). Aufteilung: 90% Reiniger / 5,1% Scout / 4,9% Plattform. Fortfahren?',
       cityMissionWalletHint: 'Stadtmission fehlgeschlagen. Mindestens {{amount}} im Wallet erforderlich.',
+      cityPinScoutStakeFormHint:
+        'Ein City-Pin kostet {{amount}} (Scout Stake). Das Ziel ist dein Crowdfunding-Ziel (EGP).',
+      bidAmountLabelEgp: 'Gebot (EGP)',
+      bidAmountLabelUsd: 'Gebot (USD)',
+      bidUsdToEgpHint: 'Umrechnung {{rate}} EGP pro USD; Gebote werden in EGP gespeichert.',
       cityMissionCreatedScout: 'Stadtmission erstellt! {{amount}} Scout Stake gesperrt.',
       acceptBidConfirm: 'Gebot {{amount}} von diesem Worker annehmen?',
       logout: 'Abmelden',
@@ -781,8 +802,8 @@ const resources = {
       releaseWorkerReceives: 'Arbeiter erhält (90 % des finanzierten Betrags): {{amount}}',
       payWithCardStripe: 'Mit Karte zahlen (Stripe)',
       stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
-      availableToWithdraw: 'Verfügbar zur Auszahlung: {{amount}}',
-      frozenDepositTag: '🔒 Eingefrorene Kaution: {{amount}}',
+      availableToWithdraw: 'Verfügbar zur Auszahlung: {{amount}} EGP',
+      frozenDepositTag: '🔒 Eingefrorene Kaution: {{amount}} EGP',
       payoutFeeNote: '*12% Plattformgebühr bei Auszahlung.',
       insufficientSecurityDepositFunds:
         'Unzureichende Mittel für die Sicherheitskaution. Bitte Wallet aufladen.',
@@ -949,6 +970,11 @@ const resources = {
       cityPinScoutStakeConfirm:
         'Il pin città costa {{amount}} (Scout Stake). Split: 90% cleaner / 5,1% scout / 4,9% piattaforma. Procedere?',
       cityMissionWalletHint: 'Impossibile creare la missione città. Serve almeno {{amount}} nel wallet.',
+      cityPinScoutStakeFormHint:
+        'Un pin città costa {{amount}} (Scout Stake). L’obiettivo è il tuo goal di crowdfunding (EGP).',
+      bidAmountLabelEgp: 'Offerta (EGP)',
+      bidAmountLabelUsd: 'Offerta (USD)',
+      bidUsdToEgpHint: 'Convertito a {{rate}} EGP per USD; le offerte sono in EGP.',
       cityMissionCreatedScout: 'Missione città creata! Bloccato {{amount}} come Scout Stake.',
       acceptBidConfirm: 'Accettare offerta {{amount}} da questo worker?',
       logout: 'Esci',
@@ -996,8 +1022,8 @@ const resources = {
       releaseWorkerReceives: 'Il lavoratore riceve (90% dell’importo finanziato): {{amount}}',
       payWithCardStripe: 'Paga con carta (Stripe)',
       stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
-      availableToWithdraw: 'Disponibile per il prelievo: {{amount}}',
-      frozenDepositTag: '🔒 Deposito vincolato: {{amount}}',
+      availableToWithdraw: 'Disponibile per il prelievo: {{amount}} EGP',
+      frozenDepositTag: '🔒 Deposito vincolato: {{amount}} EGP',
       payoutFeeNote: '*Commissione piattaforma 12% sul prelievo.',
       insufficientSecurityDepositFunds:
         'Fondi insufficienti per il deposito cauzionale. Ricarica il wallet.',
@@ -1165,6 +1191,11 @@ const resources = {
       cityPinScoutStakeConfirm:
         'El pin urbano cuesta {{amount}} (Scout Stake). Reparto: 90% limpiador / 5,1% scout / 4,9% plataforma. ¿Continuar?',
       cityMissionWalletHint: 'No se pudo crear la misión ciudad. Necesitas al menos {{amount}} en la cartera.',
+      cityPinScoutStakeFormHint:
+        'Un pin urbano cuesta {{amount}} (Scout Stake). El objetivo es tu meta de crowdfunding (EGP).',
+      bidAmountLabelEgp: 'Puja (EGP)',
+      bidAmountLabelUsd: 'Puja (USD)',
+      bidUsdToEgpHint: 'Convertido a {{rate}} EGP por USD; las pujas se guardan en EGP.',
       cityMissionCreatedScout: '¡Misión ciudad creada! Bloqueado {{amount}} como Scout Stake.',
       acceptBidConfirm: '¿Aceptar oferta de {{amount}} de este trabajador?',
       logout: 'Cerrar sesión',
@@ -1212,8 +1243,8 @@ const resources = {
       releaseWorkerReceives: 'El trabajador recibe (90% del monto financiado): {{amount}}',
       payWithCardStripe: 'Pagar con tarjeta (Stripe)',
       stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
-      availableToWithdraw: 'Disponible para retirar: {{amount}}',
-      frozenDepositTag: '🔒 Depósito retenido: {{amount}}',
+      availableToWithdraw: 'Disponible para retirar: {{amount}} EGP',
+      frozenDepositTag: '🔒 Depósito retenido: {{amount}} EGP',
       payoutFeeNote: '*Comisión de plataforma del 12% al retirar.',
       insufficientSecurityDepositFunds:
         'Fondos insuficientes para el depósito de seguridad. Recarga tu cartera.',
