@@ -1,0 +1,202 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  validateMissionDescription,
+  MISSION_DESCRIPTION_POLICY_ERROR,
+} from '../src/lib/missionContentPolicy';
+import { PROFILE_GLASS_PANEL } from '../constants';
+
+export interface PhotoVerificationState {
+  verifying: boolean;
+  allApproved: boolean;
+  hasRejected: boolean;
+}
+
+function fileToBase64Parts(file: File): Promise<{ base64: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+      if (m) {
+        resolve({ mimeType: m[1], base64: m[2] });
+      } else {
+        reject(new Error('read failed'));
+      }
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+type Props = {
+  taskType: 'city' | 'home';
+  orderDescription: string;
+  setOrderDescription: (v: string) => void;
+  orderPhotos: File[];
+  setOrderPhotos: (files: File[]) => void;
+  onDescriptionPolicyError: (msg: string | null) => void;
+  onPhotoVerificationChange: (s: PhotoVerificationState) => void;
+};
+
+const CreateMission: React.FC<Props> = ({
+  taskType,
+  orderDescription,
+  setOrderDescription,
+  orderPhotos,
+  setOrderPhotos,
+  onDescriptionPolicyError,
+  onPhotoVerificationChange,
+}) => {
+  const { t } = useTranslation();
+  const [checkingPhotos, setCheckingPhotos] = useState(false);
+  const [photoStatuses, setPhotoStatuses] = useState<('pending' | 'approved' | 'rejected')[]>([]);
+  const lastFilesKey = useRef<string>('');
+
+  const runVerification = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) {
+        setPhotoStatuses([]);
+        onPhotoVerificationChange({ verifying: false, allApproved: true, hasRejected: false });
+        return;
+      }
+      setCheckingPhotos(true);
+      onPhotoVerificationChange({ verifying: true, allApproved: false, hasRejected: false });
+      const statuses: ('pending' | 'approved' | 'rejected')[] = files.map(() => 'pending');
+      setPhotoStatuses(statuses);
+
+      let anyRejected = false;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        try {
+          const { base64, mimeType } = await fileToBase64Parts(file);
+          const res = await fetch('/api/verify-mission-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageBase64: base64, mimeType }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            statuses[i] = 'rejected';
+            anyRejected = true;
+          } else if (data.status === 'approved') {
+            statuses[i] = 'approved';
+          } else {
+            statuses[i] = 'rejected';
+            anyRejected = true;
+          }
+        } catch {
+          statuses[i] = 'rejected';
+          anyRejected = true;
+        }
+        setPhotoStatuses([...statuses]);
+      }
+
+      const allApproved = !anyRejected && statuses.every((s) => s === 'approved');
+      setCheckingPhotos(false);
+      onPhotoVerificationChange({
+        verifying: false,
+        allApproved,
+        hasRejected: anyRejected,
+      });
+    },
+    [onPhotoVerificationChange]
+  );
+
+  useEffect(() => {
+    const key = orderPhotos.map((f) => `${f.name}-${f.size}-${f.lastModified}`).join('|');
+    if (key === lastFilesKey.current) return;
+    lastFilesKey.current = key;
+    void runVerification(orderPhotos);
+  }, [orderPhotos, runVerification]);
+
+  const handleDescriptionChange = (v: string) => {
+    setOrderDescription(v);
+    const r = validateMissionDescription(v);
+    onDescriptionPolicyError(r.ok ? null : MISSION_DESCRIPTION_POLICY_ERROR);
+  };
+
+  return (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+            {t('uploadPhoto')}
+          </label>
+          <label className="flex min-h-[52px] items-center justify-center rounded-2xl border border-dashed border-slate-600 bg-black/30 px-2 text-center text-[11px] text-slate-400 cursor-pointer hover:border-teal-400 hover:text-teal-300 transition-all">
+            {orderPhotos.length > 0 ? `${orderPhotos.length} ${t('photosSelected')}` : t('tapToAddReferencePhotos')}
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []).slice(0, 10);
+                setOrderPhotos(files);
+              }}
+            />
+          </label>
+          {orderPhotos.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {orderPhotos.length <= 4 ? (
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-500/10 border border-amber-400/50 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
+                  {t('lowProofWork')}
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-400/50 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+                  {t('highProofWork')}
+                </span>
+              )}
+              {checkingPhotos && (
+                <span className="text-[10px] text-cyan-300 animate-pulse">
+                  {t('aiVerifyingPhoto')}
+                </span>
+              )}
+            </div>
+          )}
+          {photoStatuses.length > 0 && (
+            <ul className="mt-2 space-y-1 text-[10px] text-slate-400">
+              {orderPhotos.map((f, i) => (
+                <li key={`${f.name}-${i}`} className="flex justify-between gap-2">
+                  <span className="truncate">{f.name}</span>
+                  <span
+                    className={
+                      photoStatuses[i] === 'approved'
+                        ? 'text-emerald-400'
+                        : photoStatuses[i] === 'rejected'
+                          ? 'text-red-400'
+                          : 'text-amber-300'
+                    }
+                  >
+                    {photoStatuses[i] === 'pending' || checkingPhotos
+                      ? t('aiVerifyingPhotoShort')
+                      : photoStatuses[i] === 'approved'
+                        ? '✓'
+                        : '✕'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+          {t('shortDescriptionAndArea')}
+        </label>
+        <textarea
+          value={orderDescription}
+          onChange={(e) => handleDescriptionChange(e.target.value)}
+          rows={2}
+          placeholder={
+            taskType === 'city' ? t('describeCitySpot') : t('describeHomeTask')
+          }
+          className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none`}
+        />
+      </div>
+    </>
+  );
+};
+
+export default CreateMission;

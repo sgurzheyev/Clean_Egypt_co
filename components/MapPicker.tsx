@@ -10,6 +10,10 @@ import {
   workerCanSecureMissionDeposit,
   isSecurityDepositFailure,
 } from '../src/lib/trustDeposit';
+import CreateMission from './CreateMission';
+import type { PhotoVerificationState } from './CreateMission';
+import { validateMissionDescription } from '../src/lib/missionContentPolicy';
+import { PROFILE_GLASS_PANEL } from '../constants';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const EGYPT_MAX_BOUNDS: [[number, number], [number, number]] = [[24.0, 21.0], [38.0, 32.5]];
@@ -303,6 +307,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [orderAmount, setOrderAmount] = useState('');
   const [orderDescription, setOrderDescription] = useState('');
   const [orderPhotos, setOrderPhotos] = useState<File[]>([]);
+  const [descriptionPolicyError, setDescriptionPolicyError] = useState<string | null>(null);
+  const [photoVerification, setPhotoVerification] = useState<PhotoVerificationState>({
+    verifying: false,
+    allApproved: true,
+    hasRejected: false,
+  });
   const [uploadingProof, setUploadingProof] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -321,6 +331,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setTaskTypeSelected(type);
     setOrderError(null);
     setOrderSuccess(null);
+    setDescriptionPolicyError(null);
   }, []);
 
   const closeFormOverlay = useCallback(() => {
@@ -328,6 +339,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setTaskTypeSelected(null);
       setOrderError(null);
       setOrderSuccess(null);
+      setDescriptionPolicyError(null);
     }
   }, [orderSubmitting]);
 
@@ -1157,6 +1169,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setOrderError('Please provide a detailed description so the worker and AI know exactly what to do.');
       return;
     }
+    const policy = validateMissionDescription(orderDescription);
+    if (!policy.ok) {
+      setOrderError(policy.error);
+      return;
+    }
+    if (orderPhotos.length > 0) {
+      if (photoVerification.verifying) {
+        setOrderError(t('waitForAiVerification'));
+        return;
+      }
+      if (!photoVerification.allApproved) {
+        setOrderError(t('missionPhotoRejected'));
+        return;
+      }
+    }
 
     try {
       setOrderSubmitting(true);
@@ -1293,6 +1320,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         setOrderAmount('');
         setOrderDescription('');
         setOrderPhotos([]);
+        setDescriptionPolicyError(null);
+        setPhotoVerification({ verifying: false, allApproved: true, hasRejected: false });
         setSelectedLocation(null);
         await fetchMissions();
         return;
@@ -1618,7 +1647,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           className="absolute inset-0 z-[90] flex items-end justify-center p-4 pt-[env(safe-area-inset-top)] pointer-events-none"
           aria-hidden="false"
         >
-          <div className="pointer-events-auto w-full max-w-xl rounded-2xl bg-black/75 backdrop-blur-xl border border-white/10 shadow-2xl p-5 space-y-4 animate-slide-up">
+          <div className={`pointer-events-auto w-full max-w-xl space-y-4 animate-slide-up p-5 shadow-2xl ${PROFILE_GLASS_PANEL}`}>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <button
@@ -1657,7 +1686,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           : 'Collection Target (Goal)'
                         : t('anyAmount')
                     }
-                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500"
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500`}
                   />
                   {taskType === 'city' && (
                     <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
@@ -1671,7 +1700,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
                     {t('location')}
                   </label>
-                  <div className="relative flex items-center gap-2 rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5">
+                  <div className={`relative flex items-center gap-2 ${PROFILE_GLASS_PANEL} px-3 py-2.5`}>
                     <input
                       type="text"
                       value={
@@ -1779,68 +1808,47 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                    {t('uploadPhoto')}
-                  </label>
-                <label className="flex h-[52px] items-center justify-center rounded-2xl border border-dashed border-slate-600 bg-black/30 text-[11px] text-slate-400 cursor-pointer hover:border-teal-400 hover:text-teal-300 transition-all">
-                  {orderPhotos.length > 0 ? `${orderPhotos.length} ${t('photosSelected')}` : t('tapToAddReferencePhotos')}
-                    <input
-                      type="file"
-                      accept="image/*"
-                    multiple
-                      className="hidden"
-                      onChange={(e) => {
-                      const files = Array.from(e.target.files || []).slice(0, 10);
-                      setOrderPhotos(files);
-                      }}
-                    />
-                  </label>
-                {orderPhotos.length > 0 && (
-                  <div className="mt-2">
-                    {orderPhotos.length <= 4 ? (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-500/10 border border-amber-400/50 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
-                        {t('lowProofWork')}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-400/50 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-                        {t('highProofWork')}
-                      </span>
-                    )}
-                  </div>
-                )}
-                </div>
-              </div>
+              <CreateMission
+                taskType={taskType}
+                orderDescription={orderDescription}
+                setOrderDescription={setOrderDescription}
+                orderPhotos={orderPhotos}
+                setOrderPhotos={setOrderPhotos}
+                onDescriptionPolicyError={setDescriptionPolicyError}
+                onPhotoVerificationChange={setPhotoVerification}
+              />
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                  {t('shortDescriptionAndArea')}
-                </label>
-                <textarea
-                  value={orderDescription}
-                  onChange={(e) => setOrderDescription(e.target.value)}
-                  rows={2}
-                  placeholder={
-                    taskType === 'city'
-                      ? t('describeCitySpot')
-                      : t('describeHomeTask')
-                  }
-                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none"
-                />
-              </div>
-
-              {orderError && (
-                <p className="text-xs text-red-400 font-medium">{orderError}</p>
+              {(orderError || descriptionPolicyError) && (
+                <p className="text-xs text-red-400 font-medium">
+                  {orderError || descriptionPolicyError}
+                </p>
               )}
               {orderSuccess && (
                 <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
               )}
 
-              <div className={`w-full mt-1 rounded-full ${taskType === 'city' ? 'animated-border-city' : 'animated-border-home'} ${orderSubmitting || uploadingProof || !selectedLocation ? 'opacity-60' : ''}`}>
+              <div
+                className={`w-full mt-1 rounded-full ${taskType === 'city' ? 'animated-border-city' : 'animated-border-home'} ${
+                  orderSubmitting ||
+                  uploadingProof ||
+                  !selectedLocation ||
+                  !!descriptionPolicyError ||
+                  (orderPhotos.length > 0 &&
+                    (!photoVerification.allApproved || photoVerification.verifying))
+                    ? 'opacity-60'
+                    : ''
+                }`}
+              >
                 <button
                   type="submit"
-                  disabled={orderSubmitting || uploadingProof || !selectedLocation}
+                  disabled={
+                    orderSubmitting ||
+                    uploadingProof ||
+                    !selectedLocation ||
+                    !!descriptionPolicyError ||
+                    (orderPhotos.length > 0 &&
+                      (!photoVerification.allApproved || photoVerification.verifying))
+                  }
                   className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] transition-all text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] disabled:cursor-not-allowed active:scale-[0.98]"
                 >
                   {uploadingProof || orderSubmitting
@@ -1880,7 +1888,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               </div>
 
             <div className="space-y-4 mb-6">
-              <div className="rounded-2xl bg-black/40 border border-white/10 px-4 py-3">
+              <div className={`px-4 py-3 ${PROFILE_GLASS_PANEL}`}>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
                   Target amount
                 </p>
@@ -1889,7 +1897,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 </p>
               </div>
               {bidJob.description && (
-                <div className="rounded-2xl bg-black/40 border border-white/10 px-4 py-3">
+                <div className={`px-4 py-3 ${PROFILE_GLASS_PANEL}`}>
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
                     Description
                   </p>
@@ -1913,7 +1921,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   value={bidAmount}
                   onChange={(e) => setBidAmount(e.target.value)}
                   placeholder="Enter your bid amount"
-                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                  className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500`}
                 />
               </div>
 
@@ -2081,7 +2089,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               )}
 
               {/* Financial Trail */}
-              <div className="rounded-2xl bg-black/40 border border-cyan-500/20 p-4">
+              <div className={`border border-cyan-500/20 p-4 ${PROFILE_GLASS_PANEL}`}>
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
                     Financial Trail
@@ -2102,13 +2110,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     return (
                       <div
                         key={tx.id}
-                        className="flex items-center justify-between gap-3 rounded-xl bg-cyan-950/30 backdrop-blur border border-cyan-500/10 px-3 py-2 text-[11px]"
+                        className={`flex items-center justify-between gap-3 border border-cyan-500/10 px-3 py-2 text-[11px] ${PROFILE_GLASS_PANEL} !rounded-xl`}
                       >
                         <div className="min-w-0">
                           <p className="font-mono text-slate-200 truncate">
                             {tx.type}
                             {badge ? (
-                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-[0.18em] border border-white/10 bg-black/40 text-slate-200">
+                              <span className={`ml-2 inline-flex items-center rounded-full border border-white/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-slate-200 ${PROFILE_GLASS_PANEL} !rounded-full`}>
                                 {badge}
                               </span>
                             ) : null}
@@ -2138,7 +2146,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               </div>
 
               {/* GPS Integrity */}
-              <div className="rounded-2xl bg-black/40 border border-cyan-500/20 p-4">
+              <div className={`border border-cyan-500/20 p-4 ${PROFILE_GLASS_PANEL}`}>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
                   GPS Integrity
                 </p>
@@ -2187,7 +2195,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
                 {selectedMission.creator_id === currentUserId &&
                   !reviewedMissions.has(selectedMission.id) && (
-                    <div className="rounded-2xl bg-black/50 border border-amber-500/40 p-4 space-y-3">
+                    <div className={`space-y-3 border border-amber-500/40 p-4 ${PROFILE_GLASS_PANEL}`}>
                       <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300">
                         {t('rateTheCleaner')}
                       </p>
@@ -2248,7 +2256,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             ) : (
               <div className="space-y-4">
                 {showBidInput && (
-                  <div className="rounded-2xl bg-black/40 border border-white/10 px-4 py-3">
+                  <div className={`px-4 py-3 ${PROFILE_GLASS_PANEL}`}>
                     <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
                       {t('yourBidUsd')}
                     </label>
@@ -2259,7 +2267,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       min="0"
                       value={missionBidAmount}
                       onChange={(e) => setMissionBidAmount(e.target.value)}
-                      className={`w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none ${
+                      className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none ${
                         selectedMission.category === 'public'
                           ? 'focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
                           : 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500'
@@ -2309,7 +2317,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         {t('donateToCause')}
                       </button>
                       {showDonate && (
-                        <div className="rounded-2xl bg-black/40 border border-emerald-500/30 px-4 py-3 space-y-2">
+                        <div className={`space-y-2 border border-emerald-500/30 px-4 py-3 ${PROFILE_GLASS_PANEL}`}>
                           <p className="text-[11px] text-slate-300">
                             {t('boostMissionFunding')}
                           </p>
@@ -2333,7 +2341,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                                 inputMode="decimal"
                                 value={donateAmount}
                                 onChange={(e) => setDonateAmount(e.target.value)}
-                                className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                                className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
                                 placeholder={t('customAmount')}
                               />
                               <button
@@ -2450,7 +2458,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           setIsAccepting(false);
                         }
                       }}
-                      className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-4 text-left hover:border-amber-400/50 hover:bg-black/50 transition-all disabled:opacity-60 disabled:cursor-wait"
+                      className={`w-full px-4 py-4 text-left transition-all hover:border-amber-400/50 hover:bg-white/10 disabled:cursor-wait disabled:opacity-60 ${PROFILE_GLASS_PANEL}`}
                     >
                       <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">
                         {t('addAmountToCloseDeal', { amount: diff.toFixed(2) })}
@@ -2507,7 +2515,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           setIsAccepting(false);
                         }
                       }}
-                      className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-4 text-left hover:border-sky-400/50 hover:bg-black/50 transition-all disabled:opacity-60 disabled:cursor-wait"
+                      className={`w-full px-4 py-4 text-left transition-all hover:border-sky-400/50 hover:bg-white/10 disabled:cursor-wait disabled:opacity-60 ${PROFILE_GLASS_PANEL}`}
                     >
                       <p className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-300">
                         {t('waitUntilFillsUpDonation')}

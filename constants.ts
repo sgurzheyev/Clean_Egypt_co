@@ -31,6 +31,10 @@ export const ADMIN_FORCE_RELEASE_PAYMENT_BTN =
   'disabled:opacity-70 disabled:cursor-not-allowed ' +
   'inline-flex items-center justify-center gap-1.5';
 
+/** Profile / Telegram WebView — glass panels (single source of truth) */
+export const PROFILE_GLASS_PANEL =
+  'backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl';
+
 export const USD_TO_EGP_RATE = 47.5;
 
 export const HOME_MIN_PRICE = 5;

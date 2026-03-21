@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { Pencil, Target, Globe } from 'lucide-react';
+import { Pencil, Target, Globe, Building2, Clock } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import AdminDashboard from '../src/components/AdminDashboard';
@@ -12,7 +12,13 @@ import {
   CLIENT_APPROVE_RELEASE_BTN_LIST,
   CLIENT_APPROVE_RELEASE_BTN_MODAL,
   CLIENT_OPEN_DISPUTE_BTN_MODAL,
+  PROFILE_GLASS_PANEL,
 } from '../constants';
+import {
+  EGYPT_MARKETPLACE_CITIES,
+  MARKETPLACE_REGION_EGYPT,
+  missionWithinCity,
+} from '../src/lib/egyptMarketplace';
 import {
   workerCanSecureMissionDeposit,
   isSecurityDepositFailure,
@@ -109,6 +115,36 @@ const shortId = (id: unknown): string => {
   }
 };
 
+function ProfileAccordion({
+  title,
+  icon,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className={`${PROFILE_GLASS_PANEL} mb-4 overflow-hidden max-w-full`}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full min-w-0 items-center justify-between gap-3 px-4 py-3 text-left text-white transition-colors hover:bg-white/5"
+      >
+        <span className="flex min-w-0 items-center gap-2 text-sm font-bold uppercase tracking-[0.16em]">
+          {icon}
+          <span className="truncate">{title}</span>
+        </span>
+        <span className="shrink-0 text-slate-400">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && <div className="border-t border-white/10 px-4 pb-4 pt-3 max-w-full overflow-x-hidden">{children}</div>}
+    </div>
+  );
+}
+
 function JobTimer({ startedAt }: { startedAt: string }) {
   const [elapsed, setElapsed] = useState('');
   useEffect(() => {
@@ -144,6 +180,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [missionHistory, setMissionHistory] = useState<Job[]>([]);
   const [jobBidsById, setJobBidsById] = useState<Record<string, Bid[]>>({});
   const [marketplaceJobs, setMarketplaceJobs] = useState<Job[]>([]);
+  const [marketRegion, setMarketRegion] = useState(MARKETPLACE_REGION_EGYPT);
+  const [marketCityId, setMarketCityId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [marketLoading, setMarketplaceLoading] = useState(true);
   const [marketError, setMarketplaceError] = useState<string | null>(null);
@@ -237,6 +275,23 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     lastMissionStatusActionAtRef.current = now;
     return true;
   };
+
+  const selectedMarketCity = useMemo(
+    () => EGYPT_MARKETPLACE_CITIES.find((c) => c.id === marketCityId) ?? null,
+    [marketCityId]
+  );
+
+  const filteredMarketplaceJobs = useMemo(() => {
+    const base = (marketplaceJobs || []).filter(
+      (job) =>
+        ['pending', 'available', 'funding'].includes(job.status) &&
+        job.cleaner_id == null
+    );
+    if (!selectedMarketCity) return [] as Job[];
+    return base.filter((job) =>
+      missionWithinCity(job.location_lat, job.location_lng, selectedMarketCity)
+    );
+  }, [marketplaceJobs, selectedMarketCity]);
 
   // Real-time wallet balance subscription
   useEffect(() => {
@@ -723,7 +778,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         .select('*')
         .in('status', ['available', 'funding', 'pending'])
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(100);
 
       if (error) {
         throw error;
@@ -1266,7 +1321,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         aria-hidden="false"
       >
         <div
-          className="fixed inset-0 z-[9998] flex flex-col bg-slate-950/95 backdrop-blur-xl pt-[env(safe-area-inset-top)]"
+          className="fixed inset-0 z-[9998] flex max-w-[100vw] flex-col overflow-x-hidden bg-slate-950/95 backdrop-blur-xl pt-[env(safe-area-inset-top)]"
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
@@ -1297,7 +1352,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex justify-end pt-[env(safe-area-inset-top)] isolate"
+      className="fixed inset-0 z-[200] flex justify-end pt-[env(safe-area-inset-top)] isolate max-w-[100vw] overflow-x-hidden"
       aria-modal="true"
       role="dialog"
     >
@@ -1309,10 +1364,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       />
       {/* Sliding drawer — Gemini-style animated border on outer edge */}
       <div
-        className="relative z-10 w-full max-w-lg h-full flex flex-col animate-slide-in-right animated-border animated-border-drawer overflow-hidden"
+        className="relative z-10 w-full min-w-0 max-w-[min(100vw,32rem)] h-full flex flex-col animate-slide-in-right animated-border animated-border-drawer overflow-hidden overflow-x-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="animated-border-inner w-full h-full flex flex-col overflow-hidden bg-gradient-to-b from-slate-950 via-[#020617] to-slate-950">
+        <div className="animated-border-inner w-full h-full max-w-full flex flex-col overflow-hidden overflow-x-hidden bg-gradient-to-b from-slate-950 via-[#020617] to-slate-950">
           {/* Header — fixed at top, never scrolls; stays above WebGL map when drawer animates */}
           <div className="flex-shrink-0 sticky top-0 z-50 flex items-center justify-between px-5 pb-4 pt-[env(safe-area-inset-top)] bg-[#020617]/90 backdrop-blur-xl border-b border-gray-800 shadow-lg shadow-black/40">
             <button
@@ -1326,8 +1381,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <h1 className="text-lg font-bold text-white">{t('yourAccount')}</h1>
           </div>
           {/* Scrollable content — job cards and forms */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4 pb-24">
-          <div className="w-full max-w-md mx-auto flex flex-col gap-6">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 flex flex-col gap-4 pb-28 max-w-full">
+          <div className="w-full max-w-md mx-auto flex flex-col gap-6 min-w-0">
         {showAdmin ? (
           <AdminDashboard onBack={() => setShowAdmin(false)} />
         ) : (
@@ -1437,7 +1492,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           </div>
 
           {/* Wallet — glass panel */}
-          <div className="mt-6 rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-5">
+          <div className={`mt-6 p-5 shadow-[0_4px_30px_rgba(6,182,212,0.08)] ${PROFILE_GLASS_PANEL}`}>
             <div className="flex items-center justify-between mb-1">
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
                 {t('walletBalance')}
@@ -1500,7 +1555,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     placeholder={t('amountInUsd')}
                     value={topUpAmount}
                     onChange={(e) => setTopUpAmount(e.target.value)}
-                    className="flex-1 rounded-2xl bg-slate-900/80 border border-slate-700/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+                    className={`flex-1 ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/60`}
                   />
                   <button
                     type="submit"
@@ -1562,7 +1617,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 setContactSubmitting(false);
               }
             }}
-            className="mt-4 rounded-3xl bg-black/50 backdrop-blur-xl border border-white/10 p-4 space-y-3"
+            className={`mt-4 space-y-3 p-4 ${PROFILE_GLASS_PANEL} !rounded-3xl`}
           >
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
               {t('contactInfo')}
@@ -1583,7 +1638,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       setContactEmail(e.target.value);
                       setContactSaved(false);
                     }}
-                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
                     placeholder="you@example.com"
                   />
                 </div>
@@ -1598,7 +1653,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       setPhoneNumber(e.target.value);
                       setContactSaved(false);
                     }}
-                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
                     placeholder="+20 1X XXX XXXX"
                   />
                 </div>
@@ -1613,7 +1668,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       setTelegramUsername(e.target.value);
                       setContactSaved(false);
                     }}
-                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
                     placeholder="@username"
                   />
                 </div>
@@ -1659,7 +1714,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           {/* CHANGE PASSWORD (works for magic-link users who want a password) */}
           <form
             onSubmit={handleChangePassword}
-            className="mt-4 rounded-3xl bg-black/50 backdrop-blur-xl border border-white/10 p-4 space-y-3"
+            className={`mt-4 space-y-3 p-4 ${PROFILE_GLASS_PANEL} !rounded-3xl`}
           >
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
               {t('changePassword')}
@@ -1680,7 +1735,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       setNewPassword(e.target.value);
                       setPasswordSaved(false);
                     }}
-                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
                     placeholder="At least 8 characters"
                   />
                 </div>
@@ -1695,7 +1750,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       setConfirmPassword(e.target.value);
                       setPasswordSaved(false);
                     }}
-                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
                     placeholder="Re-enter password"
                   />
                 </div>
@@ -1740,12 +1795,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
           </form>
 
-          <div className="mt-6 mb-4 flex items-center justify-between gap-3">
-            <div className="inline-flex gap-2 rounded-full bg-slate-900/80 border border-white/5 p-1">
+          <div className="mt-6 mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className={`inline-flex min-w-0 flex-wrap gap-2 p-1 ${PROFILE_GLASS_PANEL} !rounded-full`}>
               <button
                 type="button"
                 onClick={() => setTaskType('city')}
-                className={`h-12 px-4 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all ${
+                className={`h-12 px-4 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all active:scale-95 ${
                   taskType === 'city'
                     ? 'bg-[#22c55e] text-black'
                     : 'bg-transparent text-slate-400 hover:text-[#22c55e]'
@@ -1756,7 +1811,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               <button
                 type="button"
                 onClick={() => setTaskType('home')}
-                className={`h-12 px-4 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all ${
+                className={`h-12 px-4 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all active:scale-95 ${
                   taskType === 'home'
                     ? 'bg-[#f59e0b] text-black'
                     : 'bg-transparent text-slate-400 hover:text-[#f59e0b]'
@@ -1765,29 +1820,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 Home Cleaning
               </button>
             </div>
-            <div
-              className="h-12 w-12 p-[2px] rounded-full bg-gradient-to-br from-red-600 to-orange-500 flex items-center justify-center cursor-pointer shadow-[0_0_15px_rgba(239,68,68,0.5)] transition-all hover:scale-105 active:scale-95"
-              onClick={onClose}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onClose();
-                }
-              }}
-              aria-label={t('closeBackToMap')}
-              title={t('closeBackToMap')}
-            >
-              <div className="w-full h-full rounded-full bg-transparent flex items-center justify-center backdrop-blur-sm pointer-events-none">
-                <Target className="w-6 h-6 text-white/80" />
-              </div>
-            </div>
           </div>
 
           <form
             onSubmit={handleCreateTask}
-            className="mb-10 rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-5 space-y-4"
+            className={`mb-10 p-5 space-y-4 shadow-[0_4px_30px_rgba(6,182,212,0.08)] ${PROFILE_GLASS_PANEL}`}
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -1814,7 +1851,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   value={orderAmount}
                   onChange={(e) => setOrderAmount(e.target.value)}
                   placeholder={taskType === 'city' ? (isRu ? 'Цель сбора (Предполагаемая стоимость)' : 'Collection Target (Goal)') : t('anyAmount')}
-                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500"
+                  className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500`}
                 />
                 {taskType === 'city' && (
                   <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
@@ -1831,7 +1868,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
                   Location
                 </label>
-                <div className="flex items-center gap-2 rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5">
+                <div className={`flex items-center gap-2 ${PROFILE_GLASS_PANEL} px-3 py-2.5`}>
                   <span className="text-slate-400 text-sm">📍</span>
                   <input
                     type="text"
@@ -1874,7 +1911,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     ? 'Describe the city spot you want to clean up...'
                     : 'Describe your home cleaning task and area size...'
                 }
-                className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none"
+                className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none`}
               />
             </div>
 
@@ -1908,7 +1945,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 {[1, 2].map((s) => (
                   <div
                     key={s}
-                    className="bg-slate-900/60 rounded-xl border border-white/5 p-4 animate-pulse"
+                    className={`${PROFILE_GLASS_PANEL} p-4 animate-pulse`}
                   >
                     <div className="flex justify-between items-center mb-3">
                       <div className="h-4 w-16 bg-slate-700 rounded-full" />
@@ -1926,7 +1963,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 .map((job) => {
                 const bids = (jobBidsById[job.id] || []).filter((b) => b.status === 'pending');
                 return (
-                  <div key={job.id} className="bg-slate-900/60 rounded-xl border border-white/5 p-4">
+                  <div key={job.id} className={`${PROFILE_GLASS_PANEL} p-4`}>
                     <div className="flex justify-between items-start mb-2">
                       <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">#{shortId(job.id)}</span>
                       <span className="text-[10px] text-slate-500 uppercase tracking-wider">{new Date(job.created_at).toLocaleDateString()}</span>
@@ -1971,7 +2008,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     )}
 
                     {job.status === 'pending' && bids.length > 0 && (
-                      <div className="mt-4 p-4 rounded-2xl bg-black/40 border border-white/10">
+                      <div className={`mt-4 p-4 ${PROFILE_GLASS_PANEL}`}>
                         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
                           {t('bids')}
                         </p>
@@ -1979,7 +2016,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           {bids.map((bid) => (
                             <div
                               key={bid.id}
-                              className="flex items-center justify-between gap-3 py-2 px-3 rounded-xl bg-black/40 border border-white/5"
+                              className={`flex items-center justify-between gap-3 py-2 px-3 ${PROFILE_GLASS_PANEL} !rounded-xl`}
                             >
                               <span className="text-sm font-black text-amber-400">${bid.bid_amount}</span>
                               <div className="rounded-full animated-border-home">
@@ -2052,10 +2089,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         </section>
 
         {/* MY ACTIVE MISSIONS (from missions where cleaner_id = me, excluding finished) */}
-        <section className="mb-10 text-white">
-          <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-amber-400/90">
-            🎯             {t('myActiveMissions')}
-          </h2>
+        <ProfileAccordion
+          title={t('myActiveMissions')}
+          icon={<Target className="w-5 h-5 shrink-0 text-amber-400/90" aria-hidden />}
+        >
           {(myActiveJobs || []).filter((job) => job.status !== 'finished').length === 0 ? (
             <p className="text-slate-500 text-sm italic">You haven&apos;t taken any missions yet. Pick one from the marketplace and pay the deposit.</p>
           ) : (
@@ -2077,7 +2114,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 return (
                   <div
                     key={job.id}
-                    className="bg-slate-900/60 rounded-xl border border-white/5 p-4"
+                    className={`${PROFILE_GLASS_PANEL} p-4`}
                   >
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
@@ -2117,7 +2154,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       <button
                         type="button"
                         onClick={() => openNavigate(job)}
-                        className="w-full py-3 rounded-full border border-emerald-500/50 text-emerald-300 hover:text-emerald-200 hover:border-emerald-400/70 bg-black/40 backdrop-blur-md text-[11px] font-black uppercase tracking-[0.2em] transition-all active:scale-95"
+                        className={`w-full ${PROFILE_GLASS_PANEL} !rounded-full border border-emerald-500/50 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-300 transition-all hover:border-emerald-400/70 hover:text-emerald-200 active:scale-95`}
                       >
                         Navigate
                       </button>
@@ -2157,13 +2194,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               })}
             </div>
           )}
-        </section>
+        </ProfileAccordion>
 
         {/* MY CITY DONATIONS (from missions table, excluding finished) */}
-        <section className="mb-10 text-white">
-          <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-300">
-            🏙️ My City Donations
-          </h2>
+        <ProfileAccordion
+          title={t('cityDonations')}
+          icon={<Building2 className="w-5 h-5 shrink-0 text-amber-400/90" aria-hidden />}
+        >
           <div className="space-y-4">
             {loading ? (
               <p className="text-slate-500 text-sm italic">Loading city donations...</p>
@@ -2179,7 +2216,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     ? job.title
                     : 'City Donation';
                   return (
-                    <div key={job.id} className="bg-slate-900/60 rounded-xl border border-white/5 p-4">
+                    <div key={job.id} className={`${PROFILE_GLASS_PANEL} p-4`}>
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
                         <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
@@ -2227,7 +2264,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             {bids.map((bid) => (
                               <div
                                 key={bid.id}
-                                className="flex items-center justify-between gap-3 py-2 px-3 rounded-xl bg-black/40 border border-white/5"
+                                className={`flex items-center justify-between gap-3 py-2 px-3 ${PROFILE_GLASS_PANEL} !rounded-xl`}
                               >
                                 <span className="text-sm font-black text-emerald-400">${bid.bid_amount}</span>
                                 <div className="rounded-full animated-border-city">
@@ -2314,25 +2351,59 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 })
             )}
           </div>
-        </section>
+        </ProfileAccordion>
 
         {/* GLOBAL MARKETPLACE */}
-        <section className="mb-10 text-white pointer-events-auto relative z-10">
-          <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-emerald-400/90">
-            🌍 {t('globalMarketplace')}
-          </h2>
+        <ProfileAccordion
+          title={t('globalMarketplace')}
+          icon={<Globe className="w-5 h-5 shrink-0 text-emerald-400/90" aria-hidden />}
+          defaultOpen
+        >
+          <div className="text-white pointer-events-auto relative z-10 min-w-0">
           {paymentSyncing && (
             <p className="text-[11px] font-bold text-emerald-400 mb-3 animate-pulse">
               🔄 Verifying your payment...
             </p>
           )}
 
+          <div className="mb-4 flex flex-wrap gap-3">
+            <label className="flex min-w-[140px] flex-1 flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                {t('selectRegion')}
+              </span>
+              <select
+                value={marketRegion}
+                onChange={(e) => setMarketRegion(e.target.value)}
+                className={`w-full min-w-0 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500/50 ${PROFILE_GLASS_PANEL} !rounded-xl`}
+              >
+                <option value={MARKETPLACE_REGION_EGYPT}>{t('regionEgypt')}</option>
+              </select>
+            </label>
+            <label className="flex min-w-[140px] flex-1 flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                {t('selectCity')}
+              </span>
+              <select
+                value={marketCityId}
+                onChange={(e) => setMarketCityId(e.target.value)}
+                className={`w-full min-w-0 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500/50 ${PROFILE_GLASS_PANEL} !rounded-xl`}
+              >
+                <option value="">{t('selectCityPlaceholder')}</option>
+                {EGYPT_MARKETPLACE_CITIES.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
           {marketLoading && (
             <div className="grid grid-cols-1 gap-4 mb-2">
               {[1, 2, 3].map((skeleton) => (
                 <div
                   key={skeleton}
-                  className="bg-slate-900/60 rounded-xl border border-white/5 p-4 animate-pulse"
+                  className={`${PROFILE_GLASS_PANEL} p-4 animate-pulse`}
                 >
                   <div className="h-3 w-24 bg-slate-700 rounded-full mb-3" />
                   <div className="h-6 w-32 bg-slate-600 rounded-full mb-4" />
@@ -2346,25 +2417,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <p className="text-sm text-red-400 mb-4">{marketError}</p>
           )}
 
-          {!marketLoading && !marketError && (marketplaceJobs || []).filter((job) =>
-            ['pending', 'available', 'funding'].includes(job.status) && job.cleaner_id == null
-          ).length === 0 && (
-            <p className="text-sm text-slate-500 italic">
-              No active missions yet. Check back soon.
-            </p>
+          {!marketLoading && !marketError && !marketCityId && (
+            <p className="text-sm text-slate-400 italic">{t('selectCityToExplore')}</p>
           )}
 
-          {!marketLoading && !marketError && (marketplaceJobs || []).filter((job) =>
-            ['pending', 'available', 'funding'].includes(job.status) && job.cleaner_id == null
-          ).length > 0 && (
+          {!marketLoading && !marketError && marketCityId && filteredMarketplaceJobs.length === 0 && (
+            <p className="text-sm text-slate-500 italic">{t('noMissionsInCity')}</p>
+          )}
+
+          {!marketLoading && !marketError && marketCityId && filteredMarketplaceJobs.length > 0 && (
             <div className="grid grid-cols-1 gap-4 pointer-events-auto">
-              {(marketplaceJobs || [])
-                .filter(
-                  (job) =>
-                    ['pending', 'available', 'funding'].includes(job.status) &&
-                    job.cleaner_id == null
-                )
-                .map((job) => {
+              {filteredMarketplaceJobs.map((job) => {
                   const isHome = job.category === 'home';
                   const icon = isHome ? '🏠' : '🌆';
                   const badgeColor = isHome
@@ -2383,7 +2446,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     }}
                     className="group w-full text-left cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all relative z-10"
                   >
-                    <div className={`relative z-10 bg-slate-900/60 rounded-xl border border-white/5 p-4 overflow-hidden transition-all duration-200 ${isHome ? 'group-hover:border-amber-500/50' : 'group-hover:border-emerald-500/50'}`}>
+                    <div className={`relative z-10 ${PROFILE_GLASS_PANEL} p-4 overflow-hidden transition-all duration-200 ${isHome ? 'group-hover:border-amber-500/50' : 'group-hover:border-emerald-500/50'}`}>
                       <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
                         <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
@@ -2394,7 +2457,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
                       <div className="relative z-10 flex justify-between items-center">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black/40 border border-white/10 text-xl group-hover:scale-105 transition-transform duration-200">
+                          <div className={`flex h-10 w-10 items-center justify-center ${PROFILE_GLASS_PANEL} text-xl transition-transform duration-200 group-hover:scale-105`}>
                             <span>{icon}</span>
                           </div>
                           <div>
@@ -2429,14 +2492,18 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               })}
             </div>
           )}
-        </section>
+          </div>
+        </ProfileAccordion>
 
-        {/* CLEANING HISTORY (finished jobs for creator or cleaner) */}
+        {/* HISTORY: cleaning + mission */}
         {userProfile && (
-          <section className="mb-10 text-white">
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-400">
+          <ProfileAccordion
+            title={t('history')}
+            icon={<Clock className="w-5 h-5 shrink-0 text-slate-300/90" aria-hidden />}
+          >
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-400">
               📜 {t('myCleaningHistory')}
-            </h2>
+            </h3>
             <div className="space-y-4">
               {(() => {
                 const uid = userProfile.id;
@@ -2468,7 +2535,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   return (
                     <div
                       key={job.id}
-                      className="bg-slate-900/60 rounded-xl border border-white/5 p-4 opacity-90"
+                      className={`${PROFILE_GLASS_PANEL} p-4 opacity-90`}
                     >
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-[10px] text-slate-600 font-mono">
@@ -2510,15 +2577,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 });
               })()}
             </div>
-          </section>
-        )}
 
-        {/* MISSION HISTORY (completed missions for creator or cleaner) */}
-        {userProfile && (
-          <section className="mb-10 text-white">
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-300">
-              🏆             {t('missionHistory')}
-          </h2>
+            <h3 className="mb-3 mt-8 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-300">
+              🏆 {t('missionHistory')}
+            </h3>
             {loading ? (
               <p className="text-slate-500 text-sm italic">{t('loadingMissionHistory')}...</p>
             ) : (missionHistory || []).length === 0 ? (
@@ -2547,7 +2609,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   return (
                     <div
                       key={job.id}
-                      className="bg-slate-900/60 rounded-2xl border border-white/5 p-4 shadow-[0_0_20px_rgba(15,23,42,0.8)]"
+                      className={`${PROFILE_GLASS_PANEL} p-4 shadow-[0_0_20px_rgba(15,23,42,0.8)]`}
                     >
                       <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
@@ -2556,7 +2618,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black/40 border border-white/10 text-xl">
+                          <div className={`flex h-10 w-10 items-center justify-center ${PROFILE_GLASS_PANEL} text-xl`}>
                             <span>{icon}</span>
                           </div>
                           <div>
@@ -2604,7 +2666,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 })}
               </div>
             )}
-          </section>
+          </ProfileAccordion>
         )}
 
         {/* Admin Panel button — only for admin */}
@@ -2653,7 +2715,22 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           </div>
         </div>
         </div>
-      </div>
+        </div>
+
+      {/* Portal — floating back to map (Telegram WebView) */}
+      <button
+        type="button"
+        onClick={onClose}
+        className="pointer-events-auto fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-[220] flex h-[3.75rem] w-[3.75rem] -translate-x-1/2 items-center justify-center rounded-full border border-orange-400/45 bg-white/10 shadow-[0_0_28px_rgba(249,115,22,0.75),0_0_56px_rgba(234,88,12,0.35)] backdrop-blur-md transition-all hover:bg-white/15 active:scale-95"
+        aria-label={t('closeBackToMap')}
+        title={t('closeBackToMap')}
+      >
+        <span
+          className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-orange-500/30 via-transparent to-amber-400/25 blur-md"
+          aria-hidden
+        />
+        <Target className="relative h-7 w-7 text-orange-100/95 drop-shadow-[0_0_12px_rgba(251,146,60,0.85)]" aria-hidden />
+      </button>
 
       {showTerms && (
         <LegalModal
@@ -2769,7 +2846,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     step="0.01"
                     value={payoutAmount}
                     onChange={(e) => setPayoutAmount(e.target.value)}
-                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
                     placeholder="Enter amount to withdraw"
                   />
                   {userProfile && (
@@ -2801,10 +2878,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         key={method}
                         type="button"
                         onClick={() => setPayoutMethod(method)}
-                        className={`px-2 py-2 rounded-2xl text-[11px] font-bold uppercase tracking-[0.16em] ${
+                        className={`px-2 py-2 text-[11px] font-bold uppercase tracking-[0.16em] ${
                           payoutMethod === method
-                            ? 'bg-emerald-500 text-black'
-                            : 'bg-black/40 border border-white/10 text-slate-300 hover:bg-black/60'
+                            ? 'rounded-2xl bg-emerald-500 text-black'
+                            : `${PROFILE_GLASS_PANEL} !rounded-2xl text-slate-300 hover:bg-white/10`
                         }`}
                       >
                         {method}
@@ -2821,7 +2898,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     type="text"
                     value={payoutDetails}
                     onChange={(e) => setPayoutDetails(e.target.value)}
-                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
                     placeholder={
                       payoutMethod === 'InstaPay'
                         ? 'InstaPay ID or link'
@@ -2948,7 +3025,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             {/* Scrollable photo grid + disclaimer */}
             <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div className="rounded-2xl bg-black/50 border border-white/10 p-4">
+                <div className={`${PROFILE_GLASS_PANEL} p-4`}>
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
                     Before photos
                   </p>
@@ -2959,13 +3036,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       </p>
                     )}
                     {(((reviewJob.photo_urls || (reviewJob as any).before_photo_urls) || []) as string[]).map((url) => (
-                      <div key={url} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
+                      <div key={url} className={`relative overflow-hidden ${PROFILE_GLASS_PANEL} !rounded-xl`}>
                         <img src={url} alt="Before" className="w-full h-28 object-cover" />
                       </div>
                     ))}
                   </div>
                 </div>
-                <div className="rounded-2xl bg-black/50 border border-white/10 p-4">
+                <div className={`${PROFILE_GLASS_PANEL} p-4`}>
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
                     After photos
                   </p>
@@ -2976,7 +3053,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       </p>
                     )}
                     {(reviewJob.after_photo_urls || []).map((url) => (
-                      <div key={url} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
+                      <div key={url} className={`relative overflow-hidden ${PROFILE_GLASS_PANEL} !rounded-xl`}>
                         <img src={url} alt="After" className="w-full h-28 object-cover" />
                       </div>
                     ))}
@@ -3090,7 +3167,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </button>
             </div>
 
-            <div className="rounded-2xl bg-black/40 border border-white/10 px-4 py-3 mb-4">
+            <div className={`mb-4 px-4 py-3 ${PROFILE_GLASS_PANEL}`}>
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
                 Mission
               </p>
@@ -3117,7 +3194,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       attempt: Math.min(3, (Number(proofJob.retry_count ?? 0) + 1)),
                     })}
                   </p>
-                  <div className="mt-2 rounded-xl bg-black/40 border border-white/10 p-3">
+                  <div className={`mt-2 p-3 ${PROFILE_GLASS_PANEL} !rounded-xl`}>
                     <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
                       {t('aiRejectionReasonLabel')}
                     </p>
@@ -3137,7 +3214,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   {proofFiles.map((file, idx) => (
                     <div
                       key={idx}
-                      className="relative group h-20 w-full overflow-hidden rounded-xl border border-white/10 bg-slate-900"
+                      className={`relative group h-20 w-full overflow-hidden ${PROFILE_GLASS_PANEL} !rounded-xl`}
                     >
                       <img
                         src={proofPreviewUrls[idx] || ''}
@@ -3241,7 +3318,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         step="0.1"
                         value={plasticKg}
                         onChange={(e) => setPlasticKg(e.target.value)}
-                        className="w-full rounded-2xl bg-black/40 border border-emerald-500/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        className={`w-full border border-emerald-500/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 ${PROFILE_GLASS_PANEL}`}
                         placeholder="0"
                       />
                     </div>
@@ -3256,7 +3333,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         step="0.1"
                         value={glassKg}
                         onChange={(e) => setGlassKg(e.target.value)}
-                        className="w-full rounded-2xl bg-black/40 border border-cyan-500/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                        className={`w-full border border-cyan-500/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 ${PROFILE_GLASS_PANEL}`}
                         placeholder="0"
                       />
                     </div>
@@ -3271,7 +3348,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         step="0.1"
                         value={constructionKg}
                         onChange={(e) => setConstructionKg(e.target.value)}
-                        className="w-full rounded-2xl bg-black/40 border border-amber-500/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        className={`w-full border border-amber-500/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500 ${PROFILE_GLASS_PANEL}`}
                         placeholder="0"
                       />
                     </div>
