@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { Pencil, Target, Globe, Building2, Clock } from 'lucide-react';
+import { Pencil, Target, Globe, Building2, Clock, Info } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import AdminDashboard from '../src/components/AdminDashboard';
@@ -1543,11 +1543,23 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               })}
             </p>
             {userProfile?.frozen_balance != null && Number(userProfile.frozen_balance) > 0 && (
-              <p className="mt-1.5 inline-flex items-center rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-200/90">
-                {t('frozenDepositTag', {
-                  amount: formatEgp(Number(userProfile.frozen_balance)),
-                })}
-              </p>
+              <div className="mt-1.5 space-y-1 max-w-md">
+                <p className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-200/90">
+                  <span>
+                    {t('frozenDepositTag', {
+                      amount: formatEgp(Number(userProfile.frozen_balance)),
+                    })}
+                  </span>
+                  <span
+                    className="inline-flex shrink-0"
+                    title={t('frozenDepositInfoTitle')}
+                    aria-label={t('frozenDepositInfoTitle')}
+                  >
+                    <Info className="w-3.5 h-3.5 text-amber-300/90" aria-hidden />
+                  </span>
+                </p>
+                <p className="text-[10px] text-amber-200/75 leading-snug pl-0.5">{t('frozenDepositInfoBody')}</p>
+              </div>
             )}
             <p className="mt-2 text-[11px] text-slate-500 italic">
               {t('payoutFeeNote')}
@@ -2909,11 +2921,23 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         })}
                       </p>
                       {Number(userProfile.frozen_balance ?? 0) > 0 && (
-                        <p className="text-amber-200/80">
-                          {t('frozenDepositTag', {
-                            amount: formatEgp(Number(userProfile.frozen_balance)),
-                          })}
-                        </p>
+                        <div className="space-y-1 text-amber-200/80">
+                          <p className="inline-flex items-center gap-1.5 flex-wrap">
+                            <span>
+                              {t('frozenDepositTag', {
+                                amount: formatEgp(Number(userProfile.frozen_balance)),
+                              })}
+                            </span>
+                            <span
+                              className="inline-flex shrink-0"
+                              title={t('frozenDepositInfoTitle')}
+                              aria-label={t('frozenDepositInfoTitle')}
+                            >
+                              <Info className="w-3.5 h-3.5 text-amber-300/90" aria-hidden />
+                            </span>
+                          </p>
+                          <p className="text-[10px] text-amber-200/70 leading-snug">{t('frozenDepositInfoBody')}</p>
+                        </div>
                       )}
                       <p className="text-slate-500 italic">{t('payoutFeeNote')}</p>
                     </div>

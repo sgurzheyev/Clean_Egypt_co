@@ -143,6 +143,13 @@ const resources = {
       depositCurrencyEgp: 'EGP',
       amountEgp: 'Amount (EGP)',
       insufficientTrustDeposit: 'Insufficient Trust Deposit',
+      frozenDepositInfoTitle: 'About frozen deposit',
+      frozenDepositInfoBody:
+        'This amount is reserved for your active bids and missions. It will be released once the missions are completed or cancelled.',
+      trustDepositModalTitle: 'Security deposit',
+      trustDepositBidExplanation:
+        'To make a bid, you need a minimum of 100 EGP available in your wallet as a security guarantee.',
+      trustDepositLearnMore: 'Learn more',
       aiVerifyingPhoto: 'AI is verifying photo…',
       aiVerifyingPhotoShort: '…',
       waitForAiVerification: 'Please wait for AI photo verification.',
@@ -363,6 +370,13 @@ const resources = {
       depositCurrencyEgp: 'EGP',
       amountEgp: 'المبلغ (ج.م)',
       insufficientTrustDeposit: 'وديعة ثقة غير كافية',
+      frozenDepositInfoTitle: 'عن الوديعة المجمّدة',
+      frozenDepositInfoBody:
+        'هذا المبلغ محجوز لعروضك النشطة ومهامك. يُفرج عنه عند اكتمال المهام أو إلغائها.',
+      trustDepositModalTitle: 'وديعة الأمان',
+      trustDepositBidExplanation:
+        'لتقديم عرض، تحتاج إلى 100 ج.م على الأقل متاحة في محفظتك كضمان أمان.',
+      trustDepositLearnMore: 'اعرف المزيد',
       whatNeedsCleaning: 'ماذا يحتاج تنظيفاً؟',
       cleanCityArea: 'تنظيف منطقة المدينة',
       cleanYourHomeOffice: 'تنظيف منزلك/مكتبك',
@@ -573,6 +587,13 @@ const resources = {
       depositCurrencyEgp: 'EGP',
       amountEgp: 'Сумма (EGP)',
       insufficientTrustDeposit: 'Недостаточно залога доверия',
+      frozenDepositInfoTitle: 'О замороженном залоге',
+      frozenDepositInfoBody:
+        'Эта сумма зарезервирована под активные ставки и задания. Она разблокируется после завершения или отмены заданий.',
+      trustDepositModalTitle: 'Залог безопасности',
+      trustDepositBidExplanation:
+        'Чтобы сделать ставку, нужно иметь в кошельке не менее 100 EGP как гарантийный залог.',
+      trustDepositLearnMore: 'Подробнее',
       whatNeedsCleaning: 'Что нужно очистить?',
       cleanCityArea: 'Очистить район города',
       cleanYourHomeOffice: 'Очистить дом/офис',
@@ -788,6 +809,13 @@ const resources = {
       depositCurrencyEgp: 'EGP',
       amountEgp: 'Betrag (EGP)',
       insufficientTrustDeposit: 'Unzureichende Vertrauenskaution',
+      frozenDepositInfoTitle: 'Über eingefrorene Kaution',
+      frozenDepositInfoBody:
+        'Dieser Betrag ist für aktive Gebote und Missionen reserviert. Er wird freigegeben, sobald die Missionen abgeschlossen oder storniert sind.',
+      trustDepositModalTitle: 'Sicherheitskaution',
+      trustDepositBidExplanation:
+        'Für ein Gebot brauchst du mindestens 100 EGP verfügbar in deinem Wallet als Sicherheitsgarantie.',
+      trustDepositLearnMore: 'Mehr erfahren',
       whatNeedsCleaning: 'Was soll gereinigt werden?',
       cleanCityArea: 'Stadtbereich reinigen',
       cleanYourHomeOffice: 'Zuhause/Büro reinigen',
@@ -997,6 +1025,13 @@ const resources = {
       depositCurrencyEgp: 'EGP',
       amountEgp: 'Importo (EGP)',
       insufficientTrustDeposit: 'Deposito cauzionale insufficiente',
+      frozenDepositInfoTitle: 'Deposito vincolato',
+      frozenDepositInfoBody:
+        'Questo importo è riservato alle tue offerte e missioni attive. Verrà sbloccato al completamento o all’annullamento delle missioni.',
+      trustDepositModalTitle: 'Deposito cauzionale',
+      trustDepositBidExplanation:
+        'Per fare un’offerta servono almeno 100 EGP disponibili nel portafoglio come garanzia.',
+      trustDepositLearnMore: 'Scopri di più',
       whatNeedsCleaning: 'Cosa va pulito?',
       cleanCityArea: 'Pulisci area città',
       cleanYourHomeOffice: 'Pulisci casa/ufficio',
@@ -1206,6 +1241,13 @@ const resources = {
       depositCurrencyEgp: 'EGP',
       amountEgp: 'Importe (EGP)',
       insufficientTrustDeposit: 'Depósito de confianza insuficiente',
+      frozenDepositInfoTitle: 'Depósito retenido',
+      frozenDepositInfoBody:
+        'Este importe está reservado para tus pujas y misiones activas. Se liberará cuando las misiones se completen o cancelen.',
+      trustDepositModalTitle: 'Depósito de seguridad',
+      trustDepositBidExplanation:
+        'Para pujar necesitas al menos 100 EGP disponibles en tu cartera como garantía.',
+      trustDepositLearnMore: 'Más información',
       whatNeedsCleaning: '¿Qué hay que limpiar?',
       cleanCityArea: 'Limpiar zona ciudad',
       cleanYourHomeOffice: 'Limpiar casa/oficina',

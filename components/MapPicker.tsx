@@ -6,6 +6,7 @@ import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabaseClient';
 import JobMarker from './JobMarker';
+import TrustDepositInfoModal from './TrustDepositInfoModal';
 import {
   workerCanSecureMissionDeposit,
   isSecurityDepositFailure,
@@ -620,6 +621,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [showDonate, setShowDonate] = useState(false);
   const [donateAmount, setDonateAmount] = useState<string>('');
   const [donating, setDonating] = useState(false);
+  const [trustDepositInfoOpen, setTrustDepositInfoOpen] = useState(false);
 
   const detectLikelyLanguage = (text: string): 'ar' | 'ru' | 'en' => {
     if (/[\u0600-\u06FF]/.test(text)) return 'ar';
@@ -2338,7 +2340,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     {isAccepting ? t('placing') : showBidInput ? t('placeBid') : t('makeABid')}
                   </button>
                   {missionTrustBlocked && showBidInput && (
-                    <p className="mt-2 text-center text-[10px] text-amber-300">{t('insufficientTrustDeposit')}</p>
+                    <div className="mt-2 flex flex-col items-center gap-1.5">
+                      <p className="text-center text-[10px] text-amber-300">{t('insufficientTrustDeposit')}</p>
+                      <button
+                        type="button"
+                        onClick={() => setTrustDepositInfoOpen(true)}
+                        className="text-[10px] font-bold uppercase tracking-wider text-amber-200/95 underline underline-offset-2 hover:text-amber-50"
+                      >
+                        {t('trustDepositLearnMore')}
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -2640,6 +2651,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           </div>
         </div>
       )}
+
+      <TrustDepositInfoModal open={trustDepositInfoOpen} onClose={() => setTrustDepositInfoOpen(false)} />
 
       {mapToast && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[120] pointer-events-none">
