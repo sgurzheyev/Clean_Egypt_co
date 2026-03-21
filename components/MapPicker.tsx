@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Map, { Marker, NavigationControl, GeolocateControl, MapRef, Source, Layer } from 'react-map-gl';
-import type { GeoJSONSource } from 'mapbox-gl';
+import type { GeoJSONSource, MapMouseEvent, PointLike } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
@@ -100,6 +100,28 @@ function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng:
     sinDLat * sinDLat +
     Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Small square footprint (meters half-edge) for fill-extrusion towers from a point. */
+function footprintSquareRing(lng: number, lat: number, halfMeters = 6): [number, number][] {
+  const cos = Math.cos((lat * Math.PI) / 180);
+  const dLat = halfMeters / 111320;
+  const dLng = halfMeters / (111320 * Math.max(0.25, cos));
+  return [
+    [lng - dLng, lat - dLat],
+    [lng + dLng, lat - dLat],
+    [lng + dLng, lat + dLat],
+    [lng - dLng, lat + dLat],
+    [lng - dLng, lat - dLat],
+  ];
+}
+
+/** Values must match fill-extrusion `match` paint (open / bidded / completed). */
+function towerStatusForJob(job: JobOnMap, bidCount: number): 'open' | 'bidded' | 'completed' {
+  if (job.status === 'completed') return 'completed';
+  if (job.status === 'in_progress') return 'bidded';
+  if (bidCount > 0) return 'bidded';
+  return 'open';
 }
 
 function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
@@ -309,12 +331,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   });
 
   const [jobs, setJobs] = useState<JobOnMap[]>([]);
-
-  const pinnedMissionsSorted = useMemo(() => {
-    return [...(jobs || [])]
-      .filter(missionEligibleForMapPin)
-      .sort((a, b) => Number(a.current_funding ?? 0) - Number(b.current_funding ?? 0));
-  }, [jobs]);
+  /** 3D tower hover (GeoJSON mission_id). */
+  const [hoveredTowerMissionId, setHoveredTowerMissionId] = useState<string | null>(null);
 
   const [selectedLocation, setSelectedLocation] = useState<
     { lat: number; lng: number } | null
@@ -809,6 +827,25 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setMissionBidAmount(String(job.amount_target ?? ''));
     setMissionBidCurrency('EGP');
   }, []);
+
+  const handleMapClickWithTowers = useCallback(
+    (event: any) => {
+      const f = event?.features?.find(
+        (x: { layer?: { id?: string } }) =>
+          x.layer?.id === 'mission-towers' || x.layer?.id === 'mission-towers-hover'
+      );
+      const mid = f?.properties?.mission_id;
+      if (mid != null) {
+        const job = jobs.find((j) => j.id === String(mid));
+        if (job) {
+          handleMarkerClick(job);
+          return;
+        }
+      }
+      handleMapClick(event);
+    },
+    [jobs, handleMarkerClick, handleMapClick]
+  );
 
   const handleCloseMissionBriefing = useCallback(() => {
     setSelectedMission(null);
@@ -1482,6 +1519,30 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return { type: 'FeatureCollection' as const, features };
   }, [jobs]);
 
+  /** Polygon footprints + funding/status for 3D funding towers (same missions as heatmap). */
+  const missionTowersGeoJSON = useMemo(() => {
+    const features = (jobs || [])
+      .filter(missionEligibleForMapPin)
+      .filter((j) => Number.isFinite(j.location_lat) && Number.isFinite(j.location_lng))
+      .map((j) => {
+        const fundingEgp = Math.round(Math.max(0, Number(j.current_funding ?? 0)));
+        const bids = activeBidCounts[j.id] || 0;
+        return {
+          type: 'Feature' as const,
+          geometry: {
+            type: 'Polygon' as const,
+            coordinates: [footprintSquareRing(j.location_lng, j.location_lat, 6)],
+          },
+          properties: {
+            mission_id: j.id,
+            funding_egp: fundingEgp,
+            status: towerStatusForJob(j, bids),
+          },
+        };
+      });
+    return { type: 'FeatureCollection' as const, features };
+  }, [jobs, activeBidCounts]);
+
   useEffect(() => {
     const map = mapRef.current?.getMap();
     if (!map?.isStyleLoaded()) return;
@@ -1491,6 +1552,37 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
   }, [missionsHeatmapGeoJSON]);
 
+  /** Hover highlight + cursor for funding towers. */
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+
+    const onMove = (e: MapMouseEvent) => {
+      if (mapMarkerLayerSuppressed) {
+        map.getCanvas().style.cursor = '';
+        setHoveredTowerMissionId(null);
+        return;
+      }
+      const feats = map.queryRenderedFeatures(e.point as PointLike, {
+        layers: ['mission-towers'],
+      });
+      if (feats.length > 0) {
+        map.getCanvas().style.cursor = 'pointer';
+        const id = feats[0].properties?.mission_id;
+        if (id != null) setHoveredTowerMissionId(String(id));
+      } else {
+        map.getCanvas().style.cursor = '';
+        setHoveredTowerMissionId(null);
+      }
+    };
+
+    map.on('mousemove', onMove);
+    return () => {
+      map.off('mousemove', onMove);
+      map.getCanvas().style.cursor = '';
+    };
+  }, [mapMarkerLayerSuppressed, missionTowersGeoJSON]);
+
   return (
     <div className="w-full h-screen relative bg-black overflow-hidden">
       {/* Full-screen 3D map — no blocking overlays */}
@@ -1499,7 +1591,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         {...viewState}
         antialias
         onMove={(evt) => setViewState(evt.viewState)}
-        onClick={handleMapClick}
+        interactiveLayerIds={['mission-towers', 'mission-towers-hover']}
+        onClick={handleMapClickWithTowers}
         maxBounds={EGYPT_MAX_BOUNDS}
         onLoad={(e: any) => {
           const map = e?.target;
@@ -1641,49 +1734,91 @@ const MapPicker: React.FC<MapPickerProps> = ({
         />
         <NavigationControl position="bottom-right" showCompass={false} />
 
-        {/* Job markers — luxury pyramids (pending for all; in_progress only for assigned worker; completed as Hall of Fame) */}
-        {pinnedMissionsSorted.map((job, idx) => {
-            const isMyActiveMission = job.status === 'in_progress' && job.cleaner_id === currentUserId;
-            const bidCount = activeBidCounts[job.id] || 0;
-            const orderType = job.category === 'home' ? 'home' : 'city';
-            const variant =
-              job.status === 'completed'
-                ? 'completed'
-                : job.status === 'in_progress'
-                  ? 'in_progress'
-                  : 'default';
+        {/* 3D funding towers (fill-extrusion) + labels — missions are not HTML markers */}
+        <Source id="mission-towers" type="geojson" data={missionTowersGeoJSON}>
+          <Layer
+            id="mission-towers"
+            type="fill-extrusion"
+            paint={{
+              'fill-extrusion-height': [
+                'interpolate',
+                ['linear'],
+                ['coalesce', ['get', 'funding_egp'], 0],
+                0,
+                0,
+                100,
+                10,
+                1000,
+                50,
+                10000,
+                200,
+              ],
+              'fill-extrusion-base': 0,
+              'fill-extrusion-color': [
+                'match',
+                ['get', 'status'],
+                'open',
+                '#00FFFF',
+                'bidded',
+                '#FFFF00',
+                'completed',
+                '#00FF00',
+                '#00FFFF',
+              ],
+              'fill-extrusion-opacity': mapMarkerLayerSuppressed ? 0.06 : 0.8,
+            }}
+          />
+          {/* Hover: full opacity + cyan shell (Mapbox GL v2 has no flood-color; glow via bright fill). */}
+          <Layer
+            id="mission-towers-hover"
+            type="fill-extrusion"
+            filter={
+              hoveredTowerMissionId
+                ? (['==', ['get', 'mission_id'], hoveredTowerMissionId] as any)
+                : (['==', ['literal', 1], ['literal', 0]] as any)
+            }
+            paint={{
+              'fill-extrusion-height': [
+                'interpolate',
+                ['linear'],
+                ['coalesce', ['get', 'funding_egp'], 0],
+                0,
+                0,
+                100,
+                10,
+                1000,
+                50,
+                10000,
+                200,
+              ],
+              'fill-extrusion-base': 0,
+              'fill-extrusion-color': '#00FFFF',
+              'fill-extrusion-opacity': mapMarkerLayerSuppressed ? 0 : 1,
+            }}
+          />
+          <Layer
+            id="mission-towers-labels"
+            type="symbol"
+            minzoom={13}
+            layout={{
+              'text-field': ['to-string', ['round', ['coalesce', ['get', 'funding_egp'], 0]]],
+              'text-size': 13,
+              'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+              'text-anchor': 'center',
+              'text-offset': [0, -2.2],
+              'text-allow-overlap': true,
+            }}
+            paint={{
+              'text-color': '#ffffff',
+              'text-halo-color': '#0a0a0a',
+              'text-halo-width': 2.2,
+              'text-halo-blur': 0.3,
+              'text-opacity': mapMarkerLayerSuppressed ? 0.06 : 1,
+            }}
+          />
+        </Source>
 
-            return (
-              <Marker
-                key={job.id}
-                latitude={job.location_lat}
-                longitude={job.location_lng}
-                anchor="bottom"
-                style={{
-                  zIndex: Math.min(10, 1 + idx),
-                  opacity: mapMarkerLayerSuppressed ? 0.06 : 1,
-                  pointerEvents: mapMarkerLayerSuppressed ? 'none' : 'auto',
-                  transition: 'opacity 0.2s ease',
-                }}
-              >
-                <MissionMarker
-                  currentFundingEgp={Number(job.current_funding ?? 0)}
-                  targetEgp={Number(job.amount_target ?? 0)}
-                  orderType={orderType}
-                  label={job.status === 'completed' ? 'DONE' : isMyActiveMission ? 'MY MISSION' : undefined}
-                  isActive={isMyActiveMission}
-                  variant={variant as any}
-                  bidCount={job.status === 'pending' ? bidCount : 0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleMarkerClick(job);
-                  }}
-                />
-              </Marker>
-            );
-          })}
-
-        {/* Draft pin — rainbow pyramid when user drops a pin on the map */}
+        {/* Draft pin — crystal marker when user drops a pin on the map */}
         {selectedLocation && (
           <Marker
             latitude={selectedLocation.lat}
