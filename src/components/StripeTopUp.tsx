@@ -10,6 +10,8 @@ import {
 } from '@stripe/react-stripe-js';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabaseClient';
+import { computeNetWalletCreditUsd } from '../lib/walletCredit';
+import { USD_TO_EGP_RATE } from '../../constants';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string);
 
@@ -42,6 +44,11 @@ function StripeTopUpForm({ amount, onAmountChange, onClose, userId }: StripeTopU
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
 
+  const numericInput = Number(amount);
+  const netUsd =
+    Number.isFinite(numericInput) && numericInput > 0 ? computeNetWalletCreditUsd(numericInput) : null;
+  const approxEgp = netUsd != null ? Math.round(netUsd * USD_TO_EGP_RATE * 100) / 100 : null;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!stripe || !elements) {
@@ -55,6 +62,12 @@ function StripeTopUpForm({ amount, onAmountChange, onClose, userId }: StripeTopU
     }
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      alert(t('invalidAmount'));
+      return;
+    }
+
+    const netCreditUsd = computeNetWalletCreditUsd(numericAmount);
+    if (netCreditUsd <= 0) {
       alert(t('invalidAmount'));
       return;
     }
@@ -84,7 +97,7 @@ function StripeTopUpForm({ amount, onAmountChange, onClose, userId }: StripeTopU
 
       const { error: rpcError } = await supabase.rpc('top_up_wallet', {
         p_user_id: userId,
-        p_amount: numericAmount,
+        p_amount: netCreditUsd,
       });
       if (rpcError) throw rpcError;
 
@@ -119,6 +132,18 @@ function StripeTopUpForm({ amount, onAmountChange, onClose, userId }: StripeTopU
           placeholder="0.00"
           className="w-full rounded-2xl bg-slate-900/80 border border-slate-600 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 transition-all"
         />
+        {netUsd != null && netUsd > 0 && (
+          <div className="mt-3 space-y-1 rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-3 py-2">
+            <p className="text-[11px] font-semibold text-emerald-200/95 leading-snug">
+              {t('stripeRealBalanceCredit', { amount: netUsd.toFixed(2) })}
+            </p>
+            {approxEgp != null && (
+              <p className="text-[10px] text-slate-400">
+                {t('stripeApproxEgp', { amount: approxEgp.toFixed(2) })}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Block 1: Card Number */}

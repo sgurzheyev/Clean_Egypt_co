@@ -13,6 +13,8 @@ import {
   CLIENT_APPROVE_RELEASE_BTN_MODAL,
   CLIENT_OPEN_DISPUTE_BTN_MODAL,
 } from '../constants';
+import { workerFrozenUsdMeetsTrustDeposit, requiredTrustDepositEgp } from '../src/lib/trustDeposit';
+import { computeWithdrawalExitBreakdown } from '../src/lib/withdrawalTax';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -66,6 +68,8 @@ interface Bid {
   bid_amount: number;
   status: string;
   created_at?: string;
+  /** Merged from profiles when loading bids (worker trust deposit). */
+  worker_frozen_balance?: number | null;
 }
 
 interface ProfileRow {
@@ -169,6 +173,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [payoutMethod, setPayoutMethod] = useState<'InstaPay' | 'Vodafone Cash' | 'Card'>('InstaPay');
   const [payoutDetails, setPayoutDetails] = useState('');
   const [payoutSubmitting, setPayoutSubmitting] = useState(false);
+  const [payoutStep, setPayoutStep] = useState<'form' | 'confirm'>('form');
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState('');
   const [topUpSubmitting, setTopUpSubmitting] = useState(false);
@@ -334,7 +339,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     }
   };
 
-  const handleRequestPayout = async (e: React.FormEvent) => {
+  const handlePayoutFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!userProfile) return;
     const amountNum = Number(payoutAmount);
@@ -350,7 +355,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       alert('Please provide payment details (wallet, card, etc.).');
       return;
     }
+    setPayoutStep('confirm');
+  };
 
+  const handleConfirmWithdrawal = async () => {
+    if (!userProfile) return;
+    const amountNum = Number(payoutAmount);
+    if (!Number.isFinite(amountNum) || amountNum <= 0) return;
     try {
       setPayoutSubmitting(true);
       const { data: { session } } = await supabase.auth.getSession();
@@ -359,23 +370,19 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         return;
       }
 
-      const { error } = await supabase.from('transactions').insert({
-        user_id: session.user.id,
-        mission_id: null,
-        amount: amountNum,
-        type: 'withdrawal',
-        gateway: 'manual',
-        status: 'pending',
-        payout_method: payoutMethod,
-        payout_details: payoutDetails.trim(),
-      } as any);
+      const { error } = await supabase.rpc('process_withdrawal_request', {
+        p_requested_amount: amountNum,
+        p_payout_method: payoutMethod,
+        p_payout_details: payoutDetails.trim(),
+      });
       if (error) {
         alert(error.message || 'Failed to request payout. Please try again.');
         return;
       }
 
-      alert('Payout request sent! Your funds are now frozen until approval.');
+      toast.success(t('withdrawalRequestQueued'));
       setShowPayoutModal(false);
+      setPayoutStep('form');
       setPayoutAmount('');
       setPayoutDetails('');
       await fetchProfileData();
@@ -624,10 +631,29 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           .from('mission_bids')
           .select('id, mission_id, cleaner_id, bid_amount, status, created_at')
           .in('mission_id', pendingJobIds);
+        const cleanerIds = [
+          ...new Set(
+            ((bidsData || []) as Bid[]).map((b) => b.cleaner_id).filter(Boolean) as string[]
+          ),
+        ];
+        let frozenByCleaner: Record<string, number> = {};
+        if (cleanerIds.length > 0) {
+          const { data: frozenRows } = await supabase
+            .from('profiles')
+            .select('id, frozen_balance')
+            .in('id', cleanerIds);
+          frozenByCleaner = Object.fromEntries(
+            (frozenRows || []).map((r: any) => [r.id, Number(r.frozen_balance ?? 0)])
+          );
+        }
         const byJob: Record<string, Bid[]> = {};
         for (const bid of (bidsData || []) as Bid[]) {
+          const enriched: Bid = {
+            ...bid,
+            worker_frozen_balance: frozenByCleaner[bid.cleaner_id] ?? 0,
+          };
           if (!byJob[bid.mission_id]) byJob[bid.mission_id] = [];
-          byJob[bid.mission_id].push(bid);
+          byJob[bid.mission_id].push(enriched);
         }
         setJobBidsById(byJob);
       } else {
@@ -741,15 +767,25 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
   const handleAcceptBid = async (job: Job, bid: Bid) => {
     if (!enforceMissionStatusCooldown()) return;
-    const currentWallet = Number(userProfile?.wallet_balance ?? balance ?? 0);
     const missionValue = Number(bid.bid_amount ?? 0);
-    const requiredDeposit = missionValue * 0.5;
     if (!Number.isFinite(missionValue) || missionValue <= 0) return;
 
-    if (currentWallet < requiredDeposit) {
-      alert(
-        `You need a security deposit of at least $${requiredDeposit.toFixed(2)} (50% of the mission value) on your balance to accept this task.`
-      );
+    const { data: workerProf, error: workerProfErr } = await supabase
+      .from('profiles')
+      .select('frozen_balance')
+      .eq('id', bid.cleaner_id)
+      .maybeSingle();
+    if (workerProfErr) {
+      console.error(workerProfErr);
+      toast.error(workerProfErr.message || 'Could not verify worker deposit.');
+      return;
+    }
+    const frozenUsd = Number(workerProf?.frozen_balance ?? 0);
+    const amtTarget = Number(job.amount_target ?? bid.bid_amount ?? 0);
+    if (
+      !workerFrozenUsdMeetsTrustDeposit(frozenUsd, job.category, amtTarget)
+    ) {
+      toast.error(t('insufficientTrustDeposit'));
       return;
     }
 
@@ -1343,7 +1379,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </p>
               <button
                 type="button"
-                onClick={() => setShowPayoutModal(true)}
+                onClick={() => {
+                  setPayoutStep('form');
+                  setShowPayoutModal(true);
+                }}
                 className="text-[10px] font-bold uppercase tracking-[0.18em] px-3 py-1 rounded-full border border-white/20 text-slate-200 hover:bg-white/10 transition-all"
               >
                 {t('withdraw')}
@@ -1353,7 +1392,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               Balance: ${Number(balance ?? 0).toFixed(2)}
             </p>
             <p className="text-sm text-gray-400 mt-1">
-              Available to withdraw: ${(Number(balance ?? 0) * 0.88).toFixed(2)} (-12% platform fee)
+              {t('withdrawalBalanceHint', { max: Number(balance ?? 0).toFixed(2) })}
             </p>
             {userProfile?.frozen_balance && userProfile.frozen_balance > 0 && (
               <p className="mt-1 text-[11px] text-amber-300">
@@ -1875,25 +1914,28 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                 <button
                                   type="button"
                                   onClick={() => handleAcceptBid(job, bid)}
-                                  disabled={
-                                    Number(userProfile?.wallet_balance ?? balance ?? 0) <
-                                    Number(bid.bid_amount ?? 0) * 0.5
-                                  }
+                                  disabled={(() => {
+                                    const target = Number(job.amount_target ?? bid.bid_amount ?? 0);
+                                    const frozen = Number(bid.worker_frozen_balance ?? 0);
+                                    return !workerFrozenUsdMeetsTrustDeposit(frozen, job.category, target);
+                                  })()}
                                   className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   Accept bid
                                 </button>
-                                {Number(userProfile?.wallet_balance ?? balance ?? 0) <
-                                  Number(bid.bid_amount ?? 0) * 0.5 && (
-                                  <p className="mt-2 text-[10px] text-amber-300">
-                                    You need a security deposit of at least $
-                                    {(
-                                      Number(bid.bid_amount ?? 0) * 0.5
-                                    ).toFixed(2)}{' '}
-                                    (50% of the mission value) on your balance to
-                                    accept this task.
-                                  </p>
-                                )}
+                                {(() => {
+                                  const target = Number(job.amount_target ?? bid.bid_amount ?? 0);
+                                  const frozen = Number(bid.worker_frozen_balance ?? 0);
+                                  const ok = workerFrozenUsdMeetsTrustDeposit(frozen, job.category, target);
+                                  if (ok) return null;
+                                  const reqEgp = requiredTrustDepositEgp(job.category, target);
+                                  return (
+                                    <p className="mt-2 text-[10px] text-amber-300">
+                                      Worker needs ≥ {reqEgp.toFixed(0)} EGP frozen security deposit (Trust) to
+                                      take this mission.
+                                    </p>
+                                  );
+                                })()}
                               </div>
                             </div>
                           ))}
@@ -2118,25 +2160,28 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                   <button
                                     type="button"
                                     onClick={() => handleAcceptBid(job, bid)}
-                                    disabled={
-                                      Number(userProfile?.wallet_balance ?? balance ?? 0) <
-                                      Number(bid.bid_amount ?? 0) * 0.5
-                                    }
+                                    disabled={(() => {
+                                      const target = Number(job.amount_target ?? bid.bid_amount ?? 0);
+                                      const frozen = Number(bid.worker_frozen_balance ?? 0);
+                                      return !workerFrozenUsdMeetsTrustDeposit(frozen, job.category, target);
+                                    })()}
                                     className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
                                     Accept bid
                                   </button>
-                                  {Number(userProfile?.wallet_balance ?? balance ?? 0) <
-                                    Number(bid.bid_amount ?? 0) * 0.5 && (
-                                    <p className="mt-2 text-[10px] text-amber-300">
-                                      You need a security deposit of at least $
-                                      {(
-                                        Number(bid.bid_amount ?? 0) * 0.5
-                                      ).toFixed(2)}{' '}
-                                      (50% of the mission value) on your balance to
-                                      accept this task.
-                                    </p>
-                                  )}
+                                  {(() => {
+                                    const target = Number(job.amount_target ?? bid.bid_amount ?? 0);
+                                    const frozen = Number(bid.worker_frozen_balance ?? 0);
+                                    const ok = workerFrozenUsdMeetsTrustDeposit(frozen, job.category, target);
+                                    if (ok) return null;
+                                    const reqEgp = requiredTrustDepositEgp(job.category, target);
+                                    return (
+                                      <p className="mt-2 text-[10px] text-amber-300">
+                                        Worker needs ≥ {reqEgp.toFixed(0)} EGP frozen security deposit (Trust) to
+                                        take this mission.
+                                      </p>
+                                    );
+                                  })()}
                                 </div>
                               </div>
                             ))}
@@ -2603,7 +2648,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       {showPayoutModal && (
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
-          onClick={() => setShowPayoutModal(false)}
+          onClick={() => {
+            setPayoutStep('form');
+            setShowPayoutModal(false);
+          }}
         >
           <div
             className="w-full max-w-md rounded-3xl bg-[#020617]/95 border border-white/10 shadow-2xl p-6 space-y-4"
@@ -2612,91 +2660,138 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <div className="flex justify-between items-start mb-1">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                  Request Payout
+                  {payoutStep === 'confirm' ? t('withdrawalConfirmTitle') : t('requestPayoutTitle')}
                 </p>
                 <p className="text-xs text-slate-400 mt-1">
-                  Withdraw part of your wallet balance to your preferred method.
+                  {payoutStep === 'confirm'
+                    ? t('withdrawalConfirmSubtitle')
+                    : t('requestPayoutSubtitle')}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setShowPayoutModal(false)}
+                onClick={() => {
+                  setPayoutStep('form');
+                  setShowPayoutModal(false);
+                }}
                 className="text-slate-400 hover:text-white text-lg font-bold"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleRequestPayout} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                  Amount (USD)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={payoutAmount}
-                  onChange={(e) => setPayoutAmount(e.target.value)}
-                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
-                  placeholder="Enter amount to withdraw"
-                />
-                {userProfile && (
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Available to withdraw: ${(Number(userProfile.wallet_balance ?? 0) * 0.88).toFixed(2)} (-12% platform fee)
-                  </p>
-                )}
-              </div>
+            {payoutStep === 'form' ? (
+              <form onSubmit={handlePayoutFormSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                    Amount (USD)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={payoutAmount}
+                    onChange={(e) => setPayoutAmount(e.target.value)}
+                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                    placeholder="Enter amount to withdraw"
+                  />
+                  {userProfile && (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      {t('withdrawalBalanceHint', {
+                        max: Number(userProfile.wallet_balance ?? 0).toFixed(2),
+                      })}
+                    </p>
+                  )}
+                </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                  Method
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['InstaPay', 'Vodafone Cash', 'Card'] as const).map((method) => (
-                    <button
-                      key={method}
-                      type="button"
-                      onClick={() => setPayoutMethod(method)}
-                      className={`px-2 py-2 rounded-2xl text-[11px] font-bold uppercase tracking-[0.16em] ${
-                        payoutMethod === method
-                          ? 'bg-emerald-500 text-black'
-                          : 'bg-black/40 border border-white/10 text-slate-300 hover:bg-black/60'
-                      }`}
-                    >
-                      {method}
-                    </button>
-                  ))}
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                    Method
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['InstaPay', 'Vodafone Cash', 'Card'] as const).map((method) => (
+                      <button
+                        key={method}
+                        type="button"
+                        onClick={() => setPayoutMethod(method)}
+                        className={`px-2 py-2 rounded-2xl text-[11px] font-bold uppercase tracking-[0.16em] ${
+                          payoutMethod === method
+                            ? 'bg-emerald-500 text-black'
+                            : 'bg-black/40 border border-white/10 text-slate-300 hover:bg-black/60'
+                        }`}
+                      >
+                        {method}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                    Payment Details
+                  </label>
+                  <input
+                    type="text"
+                    value={payoutDetails}
+                    onChange={(e) => setPayoutDetails(e.target.value)}
+                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
+                    placeholder={
+                      payoutMethod === 'InstaPay'
+                        ? 'InstaPay ID or link'
+                        : payoutMethod === 'Vodafone Cash'
+                          ? 'Vodafone Cash number'
+                          : 'Card / bank details'
+                    }
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={payoutSubmitting}
+                  className="w-full mt-2 rounded-full bg-emerald-500 text-black text-[11px] font-black uppercase tracking-[0.2em] py-3 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait transition-all"
+                >
+                  {t('continueToConfirmWithdrawal')}
+                </button>
+              </form>
+            ) : (
+              <div className="space-y-4">
+                {(() => {
+                  const b = computeWithdrawalExitBreakdown(Number(payoutAmount));
+                  return (
+                    <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-4 space-y-2">
+                      <p className="text-sm text-slate-200 leading-relaxed">
+                        {t('withdrawalConfirmBody', {
+                          gross: b.gross.toFixed(2),
+                          fee: b.fee.toFixed(2),
+                          net: b.net.toFixed(2),
+                        })}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {payoutMethod} • {payoutDetails.trim()}
+                      </p>
+                    </div>
+                  );
+                })()}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPayoutStep('form')}
+                    disabled={payoutSubmitting}
+                    className="flex-1 rounded-full border border-white/20 text-slate-300 py-3 text-[11px] font-black uppercase tracking-[0.2em] hover:bg-white/5 disabled:opacity-60"
+                  >
+                    {t('withdrawalBackToEdit')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleConfirmWithdrawal()}
+                    disabled={payoutSubmitting}
+                    className="flex-1 rounded-full bg-emerald-500 text-black py-3 text-[11px] font-black uppercase tracking-[0.2em] hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait"
+                  >
+                    {payoutSubmitting ? t('processing') : t('confirmWithdrawal')}
+                  </button>
                 </div>
               </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                  Payment Details
-                </label>
-                <input
-                  type="text"
-                  value={payoutDetails}
-                  onChange={(e) => setPayoutDetails(e.target.value)}
-                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500"
-                  placeholder={
-                    payoutMethod === 'InstaPay'
-                      ? 'InstaPay ID or link'
-                      : payoutMethod === 'Vodafone Cash'
-                        ? 'Vodafone Cash number'
-                        : 'Card / bank details'
-                  }
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={payoutSubmitting}
-                className="w-full mt-2 rounded-full bg-emerald-500 text-black text-[11px] font-black uppercase tracking-[0.2em] py-3 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait transition-all"
-              >
-                {payoutSubmitting ? 'Sending Request...' : 'Submit Payout Request'}
-              </button>
-            </form>
+            )}
           </div>
         </div>
       )}

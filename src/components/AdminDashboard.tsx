@@ -55,6 +55,9 @@ interface TransactionRow {
   status?: string | null;
   payout_method?: string | null;
   payout_details?: string | null;
+  withdrawal_gross_usd?: number | null;
+  withdrawal_fee_usd?: number | null;
+  withdrawal_net_usd?: number | null;
 }
 
 interface AdminDashboardProps {
@@ -129,7 +132,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [metricsError, setMetricsError] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState<{ total_donated: number; pending_payouts: number; pending_withdrawals: number } | null>(null);
+  const [metrics, setMetrics] = useState<{
+    total_donated: number;
+    pending_payouts: number;
+    pending_withdrawals: number;
+    supervisor_bounties_total: number;
+  } | null>(null);
 
   const [disputes, setDisputes] = useState<MissionRow[]>([]);
   const [disputesLoading, setDisputesLoading] = useState(false);
@@ -234,8 +242,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     try {
       const { data, error: txErr } = await supabase
         .from('transactions')
-        .select('id, user_id, mission_id, amount, type, gateway, created_at')
+        .select(
+          'id, user_id, mission_id, amount, type, gateway, created_at, status, payout_method, payout_details, withdrawal_gross_usd, withdrawal_fee_usd, withdrawal_net_usd'
+        )
         .eq('type', 'withdrawal')
+        .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(200);
       if (txErr) throw txErr;
@@ -250,12 +261,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   };
 
   const handleApprovePayout = async (tx: TransactionRow) => {
-    if (!window.confirm('Mark this payout as paid? This will deduct the balance.')) return;
+    const hasExitTax = typeof tx.withdrawal_gross_usd === 'number' && tx.withdrawal_gross_usd > 0;
+    if (
+      !window.confirm(
+        hasExitTax
+          ? 'Mark this payout as paid? (User wallet was already debited when they requested withdrawal.)'
+          : 'Mark this payout as paid? This will deduct the balance.'
+      )
+    )
+      return;
     setPayoutActionLoadingId(tx.id);
     try {
       const { error } = await supabase.rpc('approve_manual_payout', { p_transaction_id: tx.id });
       if (error) throw error;
-      alert('Payout completed & balance deducted');
+      alert(hasExitTax ? 'Payout marked complete.' : 'Payout completed & balance deducted');
       setPendingPayouts((prev) => prev.filter((p) => p.id !== tx.id));
     } catch (e: any) {
       console.error('Approve payout error:', e);
@@ -269,10 +288,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     if (!window.confirm('Reject this payout request?')) return;
     setPayoutActionLoadingId(tx.id);
     try {
-      const { error } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('id', tx.id);
+      const { error } = await supabase.rpc('reject_withdrawal_request', {
+        p_transaction_id: tx.id,
+      });
       if (error) throw error;
       setPendingPayouts((prev) => prev.filter((p) => p.id !== tx.id));
     } catch (e: any) {
@@ -448,6 +466,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         total_donated: Number(row?.total_donated ?? 0),
         pending_payouts: Number(row?.pending_payouts ?? 0),
         pending_withdrawals: Number(row?.pending_withdrawals ?? 0),
+        supervisor_bounties_total: Number(row?.supervisor_bounties_total ?? 0),
       });
     } catch (e: any) {
       console.error('Metrics error:', e);
@@ -491,6 +510,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         p_mission_id: missionId,
         p_decision: decision,
         p_supervisor_comment: supervisorComment,
+        p_supervisor_verified: false,
+        p_supervisor_user_id: null,
       });
       if (err) throw err;
       alert(decision === 'approve' ? 'Approved & paid out.' : 'Rejected.');
@@ -803,9 +824,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                           </p>
                         </div>
 
-                        <div className="text-right">
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Amount</p>
+                        <div className="text-right max-w-[200px]">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Pay user (net)</p>
                           <p className="text-orange-400 font-black">${Number(tx.amount).toFixed(2)}</p>
+                          {typeof tx.withdrawal_gross_usd === 'number' && tx.withdrawal_gross_usd > 0 && (
+                            <p className="text-[9px] text-slate-500 mt-1 leading-snug">
+                              Gross −wallet ${Number(tx.withdrawal_gross_usd).toFixed(2)} · Fee 12% $
+                              {Number(tx.withdrawal_fee_usd ?? 0).toFixed(2)}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -1040,11 +1067,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                 </button>
               </div>
               {metricsError && <p className="text-xs text-red-300 mb-2">{metricsError}</p>}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
                   { label: 'Total Donated', value: metrics?.total_donated ?? 0, color: 'text-emerald-400' },
                   { label: 'Pending Payouts', value: metrics?.pending_payouts ?? 0, color: 'text-amber-300' },
                   { label: 'Pending Withdrawals', value: metrics?.pending_withdrawals ?? 0, color: 'text-orange-400' },
+                  {
+                    label: 'Supervisor bounties (Ahmed-Pro)',
+                    value: metrics?.supervisor_bounties_total ?? 0,
+                    color: 'text-cyan-300',
+                  },
                 ].map((c) => (
                   <div key={c.label} className="rounded-2xl bg-cyan-950/20 backdrop-blur-md border border-orange-500/10 p-4">
                     <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{c.label}</p>

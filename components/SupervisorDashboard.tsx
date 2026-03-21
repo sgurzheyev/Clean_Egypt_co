@@ -127,10 +127,16 @@ const SupervisorDashboard: React.FC = () => {
 
     try {
       setActionLoadingId(mission.id);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const supervisorId = session?.user?.id ?? null;
       const { error } = await supabase.rpc('resolve_mission_dispute', {
         p_mission_id: mission.id,
         p_decision: decision,
         p_supervisor_comment: supervisorComment ?? null,
+        p_supervisor_verified: decision === 'approve',
+        p_supervisor_user_id: decision === 'approve' ? supervisorId : null,
       });
       if (error) {
         console.error('resolve_mission_dispute error:', error.message);

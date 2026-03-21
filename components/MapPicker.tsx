@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Map, { Marker, NavigationControl, GeolocateControl, MapRef, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabaseClient';
 import JobMarker from './JobMarker';
+import { workerFrozenUsdMeetsTrustDeposit } from '../src/lib/trustDeposit';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const EGYPT_MAX_BOUNDS: [[number, number], [number, number]] = [[24.0, 21.0], [38.0, 32.5]];
@@ -593,6 +594,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [hallOfFameCleanerName, setHallOfFameCleanerName] = useState<string | null>(null);
   const [hallOfFameHeroes, setHallOfFameHeroes] = useState<string[]>([]);
   const [isAccepting, setIsAccepting] = useState(false);
+  /** Worker frozen_balance (USD) for trust deposit checks on the selected mission. */
+  const [workerTrustSnapshot, setWorkerTrustSnapshot] = useState<{ frozen: number } | null>(null);
   const [showBidInput, setShowBidInput] = useState(false);
   const [missionBidAmount, setMissionBidAmount] = useState<string>('');
   const [showCrowdfundConfirm, setShowCrowdfundConfirm] = useState(false);
@@ -640,6 +643,32 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [missionTxError, setMissionTxError] = useState<string | null>(null);
   const [gpsDistanceMeters, setGpsDistanceMeters] = useState<number | null>(null);
   const [gpsDistanceError, setGpsDistanceError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedMission) {
+      setWorkerTrustSnapshot(null);
+      return;
+    }
+    (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        if (!cancelled) setWorkerTrustSnapshot(null);
+        return;
+      }
+      const { data: p } = await supabase
+        .from('profiles')
+        .select('frozen_balance')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (!cancelled) setWorkerTrustSnapshot({ frozen: Number(p?.frozen_balance ?? 0) });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMission?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -967,23 +996,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
       }
 
-      // Check wallet balance: must have at least 50% of bid amount
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('wallet_balance, phone_number')
+        .select('wallet_balance, frozen_balance, phone_number')
         .eq('id', user.id)
         .maybeSingle();
       if (profileError) {
-        console.error('Balance check failed:', profileError.message);
+        console.error('Profile check failed:', profileError.message);
       } else {
-        const balance = (profile?.wallet_balance ?? 0) as number;
-        const required = 0.5 * amt;
-        if (balance < required) {
-          alert(
-            `Insufficient wallet balance.\nYou need at least 50% of your bid amount available.\nRequired: $${required.toFixed(
-              2
-            )}, Current: $${balance.toFixed(2)}.`
-          );
+        const frozen = Number(profile?.frozen_balance ?? 0);
+        const target = Number(selectedMission.amount_target ?? amt);
+        if (!workerFrozenUsdMeetsTrustDeposit(frozen, selectedMission.category, target)) {
+          toast.error(t('insufficientTrustDeposit'));
           return;
         }
 
@@ -1011,6 +1035,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     onRequestAuth,
     placePendingBid,
     selectedMission,
+    t,
   ]);
 
   const handleCloseBidModal = useCallback(() => {
@@ -1057,23 +1082,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
       }
 
-      // Check wallet balance before bidding (must have at least 50% of bid amount)
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('wallet_balance, phone_number')
+        .select('wallet_balance, frozen_balance, phone_number')
         .eq('id', userId)
         .maybeSingle();
       if (profileError) {
-        console.error('Balance check failed:', profileError.message);
+        console.error('Profile check failed:', profileError.message);
       } else {
-        const balance = (profile?.wallet_balance ?? 0) as number;
-        const required = 0.5 * amount;
-        if (balance < required) {
-          setBidError(
-            `Insufficient wallet balance. You need at least 50% of your bid amount. Required: $${required.toFixed(
-              2
-            )}, Current: $${balance.toFixed(2)}.`
-          );
+        const frozen = Number(profile?.frozen_balance ?? 0);
+        const target = Number(bidJob.amount_target ?? amount);
+        if (!workerFrozenUsdMeetsTrustDeposit(frozen, bidJob.category, target)) {
+          setBidError(t('insufficientTrustDeposit'));
           return;
         }
 
@@ -1278,6 +1298,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setOrderSubmitting(false);
     }
   };
+
+  const missionTrustBlocked = useMemo(() => {
+    if (!showBidInput || !selectedMission || workerTrustSnapshot === null) return false;
+    return !workerFrozenUsdMeetsTrustDeposit(
+      workerTrustSnapshot.frozen,
+      selectedMission.category,
+      Number(selectedMission.amount_target ?? 0)
+    );
+  }, [showBidInput, selectedMission, workerTrustSnapshot]);
 
   return (
     <div className="w-full h-screen relative bg-black overflow-hidden">
@@ -2146,8 +2175,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       }
                       handleSubmitMissionBid();
                     }}
-                    disabled={isAccepting}
-                    className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all active:scale-[0.98] disabled:cursor-wait"
+                    disabled={isAccepting || missionTrustBlocked}
+                    className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isAccepting ? t('placing') : showBidInput ? t('placeBid') : t('makeABid')}
                   </button>
@@ -2268,6 +2297,24 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         if (!selectedMission) return;
                         if (!crowdfundBidAmount) return;
                         try {
+                          const {
+                            data: { session },
+                          } = await supabase.auth.getSession();
+                          if (!session?.user?.id) {
+                            onRequestAuth?.();
+                            return;
+                          }
+                          const { data: p } = await supabase
+                            .from('profiles')
+                            .select('frozen_balance')
+                            .eq('id', session.user.id)
+                            .maybeSingle();
+                          const frozen = Number(p?.frozen_balance ?? 0);
+                          const target = Number(selectedMission.amount_target ?? crowdfundBidAmount);
+                          if (!workerFrozenUsdMeetsTrustDeposit(frozen, selectedMission.category, target)) {
+                            toast.error(t('insufficientTrustDeposit'));
+                            return;
+                          }
                           setIsAccepting(true);
                           await handleCoFundMission(selectedMission.id, crowdfundBidAmount);
                           alert('Success! You co-funded this mission and closed the deal.');
@@ -2297,6 +2344,24 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         if (!selectedMission) return;
                         if (!crowdfundBidAmount) return;
                         try {
+                          const {
+                            data: { session },
+                          } = await supabase.auth.getSession();
+                          if (!session?.user?.id) {
+                            onRequestAuth?.();
+                            return;
+                          }
+                          const { data: p } = await supabase
+                            .from('profiles')
+                            .select('frozen_balance')
+                            .eq('id', session.user.id)
+                            .maybeSingle();
+                          const frozen = Number(p?.frozen_balance ?? 0);
+                          const target = Number(selectedMission.amount_target ?? crowdfundBidAmount);
+                          if (!workerFrozenUsdMeetsTrustDeposit(frozen, selectedMission.category, target)) {
+                            toast.error(t('insufficientTrustDeposit'));
+                            return;
+                          }
                           setIsAccepting(true);
                           await placePendingBid(selectedMission.id, crowdfundBidAmount);
                           await fetchMissions();
