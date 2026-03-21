@@ -24,7 +24,7 @@ import {
   SCOUT_STAKE_FEE_EGP,
 } from '../constants';
 import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
-import { usdInputToEgp } from '../src/lib/walletCredit';
+import { profileWalletBalanceEgp, usdInputToEgp } from '../src/lib/walletCredit';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const EGYPT_MAX_BOUNDS: [[number, number], [number, number]] = [[24.0, 21.0], [38.0, 32.5]];
@@ -101,18 +101,24 @@ function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng:
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/** Small square footprint (meters half-edge) for fill-extrusion towers from a point. */
-function footprintSquareRing(lng: number, lat: number, halfMeters = 6): [number, number][] {
-  const cos = Math.cos((lat * Math.PI) / 180);
-  const dLat = halfMeters / 111320;
-  const dLng = halfMeters / (111320 * Math.max(0.25, cos));
-  return [
-    [lng - dLng, lat - dLat],
-    [lng + dLng, lat - dLat],
-    [lng + dLng, lat + dLat],
-    [lng - dLng, lat + dLat],
-    [lng - dLng, lat - dLat],
-  ];
+/** Thin cylinder footprint: closed ring approximating a circle (meters radius). */
+function footprintCylinderRing(
+  lng: number,
+  lat: number,
+  radiusMeters = 2.5,
+  segments = 28
+): [number, number][] {
+  const cosLat = Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+  const ring: [number, number][] = [];
+  for (let i = 0; i <= segments; i++) {
+    const ang = (i / segments) * 2 * Math.PI;
+    const eastM = radiusMeters * Math.cos(ang);
+    const northM = radiusMeters * Math.sin(ang);
+    const dLng = eastM / (111320 * cosLat);
+    const dLat = northM / 111320;
+    ring.push([lng + dLng, lat + dLat]);
+  }
+  return ring;
 }
 
 /** Values must match fill-extrusion `match` paint (open / bidded / completed). */
@@ -1530,31 +1536,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           type: 'Feature' as const,
           geometry: {
             type: 'Polygon' as const,
-            coordinates: [footprintSquareRing(j.location_lng, j.location_lat, 6)],
-          },
-          properties: {
-            mission_id: j.id,
-            funding_egp: fundingEgp,
-            status: towerStatusForJob(j, bids),
-          },
-        };
-      });
-    return { type: 'FeatureCollection' as const, features };
-  }, [jobs, activeBidCounts]);
-
-  /** Point centers for ground glow (same missions as towers). */
-  const missionTowersPointsGeoJSON = useMemo(() => {
-    const features = (jobs || [])
-      .filter(missionEligibleForMapPin)
-      .filter((j) => Number.isFinite(j.location_lat) && Number.isFinite(j.location_lng))
-      .map((j) => {
-        const fundingEgp = Math.round(Math.max(0, Number(j.current_funding ?? 0)));
-        const bids = activeBidCounts[j.id] || 0;
-        return {
-          type: 'Feature' as const,
-          geometry: {
-            type: 'Point' as const,
-            coordinates: [j.location_lng, j.location_lat],
+            coordinates: [footprintCylinderRing(j.location_lng, j.location_lat, 2.5)],
           },
           properties: {
             mission_id: j.id,
@@ -1792,32 +1774,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           />
         </Source>
 
-        {/* Soft ground glow (cyan / yellow / green) — only with 3D towers (zoom > 12). */}
-        <Source id="mission-towers-points" type="geojson" data={missionTowersPointsGeoJSON}>
-          <Layer
-            id="mission-towers-glow"
-            type="circle"
-            minzoom={13}
-            paint={{
-              'circle-radius': 22,
-              'circle-blur': 0.85,
-              'circle-opacity': mapMarkerLayerSuppressed ? 0.04 : 0.55,
-              'circle-color': [
-                'match',
-                ['get', 'status'],
-                'open',
-                '#00FFFF',
-                'bidded',
-                '#FFFF00',
-                'completed',
-                '#00FF00',
-                '#00FFFF',
-              ],
-            }}
-          />
-        </Source>
-
-        {/* 3D funding towers — native fill-extrusion only at zoom > 12 (minzoom 13). */}
+        {/* 3D funding pillars (thin cylinders) — zoom > 12 (minzoom 13). */}
         <Source id="mission-towers" type="geojson" data={missionTowersGeoJSON}>
           <Layer
             id="mission-towers"
@@ -1842,12 +1799,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 'match',
                 ['get', 'status'],
                 'open',
-                '#00FFFF',
+                '#7DD3FC',
                 'bidded',
-                '#FFFF00',
+                '#FACC15',
                 'completed',
-                '#00FF00',
-                '#00FFFF',
+                '#4ADE80',
+                '#7DD3FC',
               ],
               'fill-extrusion-opacity': mapMarkerLayerSuppressed ? 0.06 : 0.8,
             }}
@@ -1876,7 +1833,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 200,
               ],
               'fill-extrusion-base': 0,
-              'fill-extrusion-color': '#00FFFF',
+              'fill-extrusion-color': '#38BDF8',
               'fill-extrusion-opacity': mapMarkerLayerSuppressed ? 0 : 1,
             }}
           />
@@ -1889,7 +1846,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               'text-size': 13,
               'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
               'text-anchor': 'bottom',
-              'text-offset': [0, 0],
+              'text-offset': [0, -0.6],
               'text-allow-overlap': true,
             }}
             paint={{
@@ -2766,19 +2723,22 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
             {(() => {
               const bid = Number(crowdfundBidAmount ?? 0);
-              const funded = Number(selectedMission.current_funding ?? 0);
-              const targetEgp = Number(selectedMission.amount_target ?? 0);
-              /** EGP still needed to reach the mission goal (same as co-fund RPC amount). */
-              const gapToCloseEgp = Math.max(
-                0,
-                Math.round((targetEgp - funded) * 100) / 100
-              );
+              const funded = Math.max(0, Number(selectedMission.current_funding ?? 0));
+              const targetEgp = Math.max(0, Number(selectedMission.amount_target ?? 0));
+              /** EGP still needed = goal − current funding (never use the user’s bid for this). */
+              const gapToCloseEgp = Math.max(0, Math.round(targetEgp - funded));
               return (
                 <>
                   <p className="text-sm text-slate-300">
                     {t('yourBidIs')}{' '}
                     <span className="font-black text-amber-300">{formatEgp(bid)}</span>. {t('currentFundingIs')}{' '}
                     <span className="font-black text-emerald-300">{formatEgp(funded)}</span>.
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {t('gapToGoalHint', {
+                      goal: formatEgp(targetEgp),
+                      gap: formatEgp(gapToCloseEgp),
+                    })}
                   </p>
                   <p className="mt-2 text-[11px] text-slate-500">
                     {t('chooseHowToProceed')}
@@ -2787,10 +2747,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   <div className="mt-5 grid grid-cols-1 gap-3">
                     <button
                       type="button"
-                      disabled={isAccepting || gapToCloseEgp <= 0}
+                      disabled={isAccepting}
                       onClick={async () => {
                         if (!selectedMission) return;
-                        if (gapToCloseEgp <= 0) return;
+                        if (gapToCloseEgp <= 0) {
+                          closeCrowdfundConfirm();
+                          handleCloseMissionBriefing();
+                          return;
+                        }
                         try {
                           const {
                             data: { session },
@@ -2804,8 +2768,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                             .select('wallet_balance, frozen_balance')
                             .eq('id', session.user.id)
                             .maybeSingle();
-                          const wb = Number(p?.wallet_balance ?? 0);
-                          const fr = Number(p?.frozen_balance ?? 0);
+                          const wb = profileWalletBalanceEgp(p?.wallet_balance);
+                          const fr = profileWalletBalanceEgp(p?.frozen_balance);
                           const target = Number(selectedMission.amount_target ?? gapToCloseEgp);
                           const sec = workerCanSecureMissionDeposit(
                             wb,
@@ -2836,11 +2800,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       className={`w-full px-4 py-4 text-left transition-all hover:border-amber-400/50 hover:bg-white/10 disabled:cursor-wait disabled:opacity-60 ${PROFILE_GLASS_PANEL}`}
                     >
                       <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">
-                        {t('addAmountToCloseDeal', { amount: formatEgp(gapToCloseEgp) })}
+                        {gapToCloseEgp > 0
+                          ? t('addAmountToCloseDeal', { amount: formatEgp(gapToCloseEgp) })
+                          : t('tapToConfirmBidNoTopUp')}
                       </p>
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        {t('differenceDeductedFromWallet')}
-                      </p>
+                      {gapToCloseEgp > 0 && (
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {t('differenceDeductedFromWallet')}
+                        </p>
+                      )}
                     </button>
 
                     <button
@@ -2862,8 +2830,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                             .select('wallet_balance, frozen_balance')
                             .eq('id', session.user.id)
                             .maybeSingle();
-                          const wb = Number(p?.wallet_balance ?? 0);
-                          const fr = Number(p?.frozen_balance ?? 0);
+                          const wb = profileWalletBalanceEgp(p?.wallet_balance);
+                          const fr = profileWalletBalanceEgp(p?.frozen_balance);
                           const target = Number(selectedMission.amount_target ?? crowdfundBidAmount);
                           const sec = workerCanSecureMissionDeposit(
                             wb,

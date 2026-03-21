@@ -34,3 +34,13 @@ export function egpInputToChargeUsd(inputEgp: number, usdPerEgpRate: number = US
   }
   return Math.round((inputEgp / usdPerEgpRate) * 10000) / 10000;
 }
+
+/**
+ * Profile `wallet_balance` / `frozen_balance` are stored in EGP (internal economy).
+ * Card top-ups convert USD → EGP using {@link USD_TO_EGP_RATE} (48.5) via {@link stripeUsdToWalletEgp}.
+ */
+export function profileWalletBalanceEgp(raw: number | null | undefined): number {
+  const n = Number(raw ?? 0);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.round(n * 100) / 100);
+}
