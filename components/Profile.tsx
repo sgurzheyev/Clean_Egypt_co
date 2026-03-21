@@ -1262,24 +1262,24 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex justify-end pt-[env(safe-area-inset-top)]"
+      className="fixed inset-0 z-[200] flex justify-end pt-[env(safe-area-inset-top)] isolate"
       aria-modal="true"
       role="dialog"
     >
-      {/* Backdrop */}
+      {/* Backdrop — above Mapbox canvas; blur reads the map behind */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 z-0 bg-black/60 backdrop-blur-md"
         onClick={onClose}
         aria-hidden="true"
       />
       {/* Sliding drawer — Gemini-style animated border on outer edge */}
       <div
-        className="relative w-full max-w-lg h-full flex flex-col animate-slide-in-right animated-border animated-border-drawer overflow-hidden"
+        className="relative z-10 w-full max-w-lg h-full flex flex-col animate-slide-in-right animated-border animated-border-drawer overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="animated-border-inner w-full h-full flex flex-col overflow-hidden bg-gradient-to-b from-slate-950 via-[#020617] to-slate-950">
-          {/* Header — fixed at top, never scrolls */}
-          <div className="flex-shrink-0 sticky top-0 z-20 flex items-center justify-between px-5 pb-4 pt-[env(safe-area-inset-top)] bg-[#020617]/95 backdrop-blur border-b border-gray-800">
+          {/* Header — fixed at top, never scrolls; stays above WebGL map when drawer animates */}
+          <div className="flex-shrink-0 sticky top-0 z-50 flex items-center justify-between px-5 pb-4 pt-[env(safe-area-inset-top)] bg-[#020617]/90 backdrop-blur-xl border-b border-gray-800 shadow-lg shadow-black/40">
             <button
               type="button"
               onClick={onClose}

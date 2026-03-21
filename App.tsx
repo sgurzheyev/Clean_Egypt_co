@@ -68,7 +68,7 @@ const App: React.FC = () => {
         element={
     <div className="relative w-full h-screen bg-slate-950 overflow-hidden">
       {/* Single map interface — never unmounts */}
-      <div className="fixed inset-0 z-0 w-full h-full">
+      <div className="fixed inset-0 z-0 w-full h-full isolate">
         <MapPicker
           onLocationSelect={() => {}}
           selectedCoords={null}

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Map, { Marker, NavigationControl, GeolocateControl, MapRef, Source, Layer } from 'react-map-gl';
+import type { GeoJSONSource } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
@@ -40,6 +41,22 @@ interface JobOnMap {
     phone_number?: string | null;
     is_verified?: boolean | null;
   } | null;
+}
+
+/** Same filter as mission markers — heatmap aligns with visible pins. */
+function missionEligibleForMapPin(job: JobOnMap): boolean {
+  if (job.status === 'pending') return true;
+  if (job.status === 'available') return true;
+  if (job.status === 'funding') return true;
+  if (job.status === 'in_progress') return true;
+  if (job.status === 'completed') {
+    const ts = job.created_at;
+    if (!ts) return false;
+    const completedAt = new Date(ts).getTime();
+    if (!Number.isFinite(completedAt)) return false;
+    return Date.now() - completedAt <= 24 * 60 * 60 * 1000;
+  }
+  return false;
 }
 
 interface MissionTransactionRow {
@@ -177,27 +194,6 @@ const customDarkStyle: any = {
       },
     },
     {
-      id: '3d-buildings',
-      type: 'fill-extrusion',
-      source: 'composite',
-      'source-layer': 'building',
-      minzoom: 15,
-      paint: {
-        'fill-extrusion-color': '#333333',
-        'fill-extrusion-height': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          15,
-          0,
-          16,
-          ['get', 'height'],
-        ],
-        'fill-extrusion-base': ['get', 'min_height'],
-        'fill-extrusion-opacity': 0.95,
-      },
-    },
-    {
       id: 'place_label',
       type: 'symbol',
       source: 'composite',
@@ -288,9 +284,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [viewState, setViewState] = useState({
     latitude: 27.2579,
     longitude: 33.8116,
-    zoom: 13,
-    pitch: 55,
-    bearing: -20,
+    zoom: 12,
+    pitch: 45,
+    bearing: 0,
   });
 
   const [jobs, setJobs] = useState<JobOnMap[]>([]);
@@ -1308,18 +1304,69 @@ const MapPicker: React.FC<MapPickerProps> = ({
     );
   }, [showBidInput, selectedMission, workerTrustSnapshot]);
 
+  const missionsHeatmapGeoJSON = useMemo(() => {
+    const features = (jobs || [])
+      .filter(missionEligibleForMapPin)
+      .filter(
+        (j) =>
+          Number.isFinite(j.location_lat) &&
+          Number.isFinite(j.location_lng)
+      )
+      .map((j) => ({
+        type: 'Feature' as const,
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [j.location_lng, j.location_lat],
+        },
+        properties: {
+          funding: Math.max(
+            0,
+            Number(j.current_funding ?? j.amount_target ?? 0)
+          ),
+        },
+      }));
+    return { type: 'FeatureCollection' as const, features };
+  }, [jobs]);
+
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map?.isStyleLoaded()) return;
+    const src = map.getSource('missions-heatmap') as GeoJSONSource | undefined;
+    if (src?.setData) {
+      src.setData(missionsHeatmapGeoJSON as Parameters<GeoJSONSource['setData']>[0]);
+    }
+  }, [missionsHeatmapGeoJSON]);
+
   return (
     <div className="w-full h-screen relative bg-black overflow-hidden">
       {/* Full-screen 3D map — no blocking overlays */}
       <Map
         ref={mapRef}
         {...viewState}
+        antialias
         onMove={(evt) => setViewState(evt.viewState)}
         onClick={handleMapClick}
         maxBounds={EGYPT_MAX_BOUNDS}
         onLoad={(e: any) => {
           const map = e?.target;
           if (!map) return;
+
+          map.setFog({
+            range: [0.8, 8],
+            color: '#1a1f35',
+            'horizon-blend': 0.5,
+            'high-color': '#000000',
+            'space-color': '#000000',
+            'star-intensity': 0.8,
+          });
+
+          const hour = new Date().getHours();
+          const isNight = hour >= 18 || hour < 6;
+          try {
+            map.setConfigProperty?.('basemap', 'lightPreset', isNight ? 'night' : 'day');
+          } catch {
+            /* Custom vector style may not expose Standard basemap config */
+          }
 
           const style = map.getStyle?.();
           const waterLikeLayers = (style?.layers || []).filter(
@@ -1334,6 +1381,74 @@ const MapPicker: React.FC<MapPickerProps> = ({
               map.setPaintProperty(layer.id, 'line-color', '#3ecfff');
               map.setPaintProperty(layer.id, 'line-opacity', 0.55);
             }
+          }
+
+          if (!map.getSource('missions-heatmap')) {
+            map.addSource('missions-heatmap', {
+              type: 'geojson',
+              data: { type: 'FeatureCollection', features: [] },
+            });
+            map.addLayer(
+              {
+                id: 'missions-heat',
+                type: 'heatmap',
+                source: 'missions-heatmap',
+                paint: {
+                  'heatmap-weight': [
+                    'interpolate',
+                    ['linear'],
+                    ['coalesce', ['get', 'funding'], 0],
+                    0,
+                    0,
+                    250,
+                    1,
+                  ],
+                  'heatmap-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['heatmap-density'],
+                    0,
+                    'rgba(0,255,255,0)',
+                    0.2,
+                    'rgba(0,255,255,0.5)',
+                    0.5,
+                    'rgba(128,0,255,0.7)',
+                    1,
+                    'rgba(255,0,128,1)',
+                  ],
+                  'heatmap-radius': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    10,
+                    15,
+                    15,
+                    30,
+                  ],
+                },
+              },
+              'place_label'
+            );
+          }
+
+          if (!map.getLayer('3d-buildings')) {
+            map.addLayer(
+              {
+                id: '3d-buildings',
+                source: 'composite',
+                'source-layer': 'building',
+                filter: ['==', 'extrude', 'true'],
+                type: 'fill-extrusion',
+                minzoom: 13,
+                paint: {
+                  'fill-extrusion-color': '#222',
+                  'fill-extrusion-height': ['get', 'height'],
+                  'fill-extrusion-base': ['get', 'min_height'],
+                  'fill-extrusion-opacity': 0.8,
+                },
+              },
+              'place_label'
+            );
           }
         }}
         mapStyle={customDarkStyle}
@@ -1373,37 +1488,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         <NavigationControl position="bottom-right" showCompass={false} />
 
         {/* Job markers — luxury pyramids (pending for all; in_progress only for assigned worker; completed as Hall of Fame) */}
-        {console.log('Jobs passing filter:', (jobs || []).filter((job) => {
-          if (job.status === 'pending') return true;
-          if (job.status === 'available') return true;
-          if (job.status === 'funding') return true;
-          if (job.status === 'in_progress') return true;
-          if (job.status === 'completed') {
-            const ts = job.created_at;
-            if (!ts) return false;
-            const completedAt = new Date(ts).getTime();
-            if (!Number.isFinite(completedAt)) return false;
-            const ageMs = Date.now() - completedAt;
-            return ageMs <= 24 * 60 * 60 * 1000;
-          }
-          return false;
-        }).length)}
         {(jobs || [])
-          .filter((job) => {
-            if (job.status === 'pending') return true;
-            if (job.status === 'available') return true;
-            if (job.status === 'funding') return true;
-            if (job.status === 'in_progress') return true;
-            if (job.status === 'completed') {
-              const ts = job.created_at;
-              if (!ts) return false;
-              const completedAt = new Date(ts).getTime();
-              if (!Number.isFinite(completedAt)) return false;
-              const ageMs = Date.now() - completedAt;
-              return ageMs <= 24 * 60 * 60 * 1000;
-            }
-            return false;
-          })
+          .filter(missionEligibleForMapPin)
           .map((job) => {
             const isMyActiveMission = job.status === 'in_progress' && job.cleaner_id === currentUserId;
             const bidCount = activeBidCounts[job.id] || 0;
