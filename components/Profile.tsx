@@ -30,6 +30,8 @@ import {
 } from '../src/lib/trustDeposit';
 import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
 import { computeWithdrawalExitBreakdown } from '../src/lib/withdrawalTax';
+import ModeratedMissionPhoto from './ModeratedMissionPhoto';
+import { isCensoredMissionPhotoUrl } from '../src/lib/missionPhotoModeration';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -199,6 +201,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [paymentSyncing, setPaymentSyncing] = useState(false);
   const [reviewJob, setReviewJob] = useState<Job | null>(null);
+  const [reviewCensoredDeleting, setReviewCensoredDeleting] = useState<string | null>(null);
   const [releasePaySubmitting, setReleasePaySubmitting] = useState(false);
   const [disputeSubmitting, setDisputeSubmitting] = useState(false);
   const [toastState, setToastState] = useState<ToastState>(null);
@@ -270,6 +273,42 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
       toastTimerRef.current = window.setTimeout(() => setToastState(null), 3000);
     },
+  };
+
+  /** Remove censored placeholder slot from mission (creator only). */
+  const removeCensoredPhotoFromReviewJob = async (which: 'before' | 'after', index: number) => {
+    if (!reviewJob?.id || reviewJob.creator_id !== _session?.user?.id) return;
+    if (which === 'before') {
+      const urls = ((reviewJob.photo_urls || (reviewJob as any).before_photo_urls) || []) as string[];
+      if (!isCensoredMissionPhotoUrl(urls[index])) return;
+      const next = urls.filter((_, i) => i !== index);
+      setReviewCensoredDeleting(`before-${index}`);
+      const { error } = await supabase
+        .from('missions')
+        .update({ photo_urls: next })
+        .eq('id', reviewJob.id);
+      setReviewCensoredDeleting(null);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setReviewJob({ ...reviewJob, photo_urls: next });
+      return;
+    }
+    const urls = (reviewJob.after_photo_urls || []) as string[];
+    if (!isCensoredMissionPhotoUrl(urls[index])) return;
+    const next = urls.filter((_, i) => i !== index);
+    setReviewCensoredDeleting(`after-${index}`);
+    const { error } = await supabase
+      .from('missions')
+      .update({ after_photo_urls: next })
+      .eq('id', reviewJob.id);
+    setReviewCensoredDeleting(null);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setReviewJob({ ...reviewJob, after_photo_urls: next });
   };
 
   const enforceMissionStatusCooldown = () => {
@@ -1407,7 +1446,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <h1 className="text-lg font-bold text-white">{t('yourAccount')}</h1>
           </div>
           {/* Scrollable content — job cards and forms */}
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 flex flex-col gap-4 pb-28 max-w-full">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 flex flex-col gap-4 pb-36 max-w-full">
           <div className="w-full max-w-md mx-auto flex flex-col gap-6 min-w-0">
         {showAdmin ? (
           <AdminDashboard onBack={() => setShowAdmin(false)} />
@@ -2785,7 +2824,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       <button
         type="button"
         onClick={onClose}
-        className="pointer-events-auto fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-[220] flex h-[3.75rem] w-[3.75rem] -translate-x-1/2 items-center justify-center rounded-full border border-orange-400/45 bg-white/10 shadow-[0_0_28px_rgba(249,115,22,0.75),0_0_56px_rgba(234,88,12,0.35)] backdrop-blur-md transition-all hover:bg-white/15 active:scale-95"
+        className="pointer-events-auto fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-1/2 z-[230] flex h-[3.75rem] w-[3.75rem] -translate-x-1/2 items-center justify-center rounded-full border border-orange-400/45 bg-white/10 shadow-[0_0_28px_rgba(249,115,22,0.75),0_0_56px_rgba(234,88,12,0.35)] backdrop-blur-md transition-all hover:bg-white/15 active:scale-95"
         aria-label={t('closeBackToMap')}
         title={t('closeBackToMap')}
       >
@@ -3111,11 +3150,24 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         Worker did not upload before photos.
                       </p>
                     )}
-                    {(((reviewJob.photo_urls || (reviewJob as any).before_photo_urls) || []) as string[]).map((url) => (
-                      <div key={url} className={`relative overflow-hidden ${PROFILE_GLASS_PANEL} !rounded-xl`}>
-                        <img src={url} alt="Before" className="w-full h-28 object-cover" />
-                      </div>
-                    ))}
+                    {(((reviewJob.photo_urls || (reviewJob as any).before_photo_urls) || []) as string[]).map(
+                      (url, idx) => (
+                        <div
+                          key={`before-${idx}-${url.slice(0, 32)}`}
+                          className={`relative overflow-hidden ${PROFILE_GLASS_PANEL} !rounded-xl`}
+                        >
+                          <ModeratedMissionPhoto
+                            url={url}
+                            alt="Before"
+                            imgClassName="w-full h-28 object-cover"
+                            showSafeBadge
+                            canDelete={reviewJob.creator_id === _session?.user?.id}
+                            deleting={reviewCensoredDeleting === `before-${idx}`}
+                            onDeleteCensored={() => void removeCensoredPhotoFromReviewJob('before', idx)}
+                          />
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
                 <div className={`${PROFILE_GLASS_PANEL} p-4`}>
@@ -3128,9 +3180,20 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         Worker did not upload after photos.
                       </p>
                     )}
-                    {(reviewJob.after_photo_urls || []).map((url) => (
-                      <div key={url} className={`relative overflow-hidden ${PROFILE_GLASS_PANEL} !rounded-xl`}>
-                        <img src={url} alt="After" className="w-full h-28 object-cover" />
+                    {(reviewJob.after_photo_urls || []).map((url, idx) => (
+                      <div
+                        key={`after-${idx}-${url.slice(0, 32)}`}
+                        className={`relative overflow-hidden ${PROFILE_GLASS_PANEL} !rounded-xl`}
+                      >
+                        <ModeratedMissionPhoto
+                          url={url}
+                          alt="After"
+                          imgClassName="w-full h-28 object-cover"
+                          showSafeBadge
+                          canDelete={reviewJob.creator_id === _session?.user?.id}
+                          deleting={reviewCensoredDeleting === `after-${idx}`}
+                          onDeleteCensored={() => void removeCensoredPhotoFromReviewJob('after', idx)}
+                        />
                       </div>
                     ))}
                   </div>

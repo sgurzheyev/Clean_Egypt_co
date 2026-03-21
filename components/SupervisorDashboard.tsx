@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { formatEgp } from '../src/lib/formatMoney';
 import { SMALL_CARDING_EGP_MAX } from '../constants';
+import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 
 interface MissionTransactionRow {
   id: string;
@@ -299,10 +300,11 @@ const SupervisorDashboard: React.FC = () => {
                                 key={`${mission.id}-before-${idx}`}
                                 className="aspect-square rounded-lg overflow-hidden border border-white/10 bg-slate-900"
                               >
-                                <img
-                                  src={url}
+                                <ModeratedMissionPhoto
+                                  url={url}
                                   alt="Before"
-                                  className="h-full w-full object-cover"
+                                  imgClassName="h-full w-full object-cover"
+                                  showSafeBadge={false}
                                 />
                               </div>
                             ))}
@@ -323,10 +325,11 @@ const SupervisorDashboard: React.FC = () => {
                                 key={`${mission.id}-after-${idx}`}
                                 className="aspect-square rounded-lg overflow-hidden border border-white/10 bg-slate-900"
                               >
-                                <img
-                                  src={url}
+                                <ModeratedMissionPhoto
+                                  url={url}
                                   alt="After"
-                                  className="h-full w-full object-cover"
+                                  imgClassName="h-full w-full object-cover"
+                                  showSafeBadge={false}
                                 />
                               </div>
                             ))}

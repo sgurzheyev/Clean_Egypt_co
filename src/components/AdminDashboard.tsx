@@ -5,6 +5,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { runMissionAiAnalysis } from '../lib/openai';
 import { ADMIN_FORCE_RELEASE_PAYMENT_BTN } from '../../constants';
 import { formatEgp } from '../lib/formatMoney';
+import ModeratedMissionPhoto from '../../components/ModeratedMissionPhoto';
 
 interface ProfileRow {
   id: string;
@@ -1178,7 +1179,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                           {(m.photo_urls || []).slice(0, 4).map((url) => (
                             <div key={url} className="aspect-square rounded-xl overflow-hidden border border-white/10 bg-black/30">
-                              <img src={url} alt="Before" className="h-full w-full object-cover" />
+                              <ModeratedMissionPhoto
+                                url={url}
+                                alt="Before"
+                                imgClassName="h-full w-full object-cover"
+                                showSafeBadge={false}
+                              />
                             </div>
                           ))}
                           {(m.photo_urls || []).length === 0 && (
@@ -1191,7 +1197,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                           {(m.after_photo_urls || []).slice(0, 4).map((url) => (
                             <div key={url} className="aspect-square rounded-xl overflow-hidden border border-white/10 bg-black/30">
-                              <img src={url} alt="After" className="h-full w-full object-cover" />
+                              <ModeratedMissionPhoto
+                                url={url}
+                                alt="After"
+                                imgClassName="h-full w-full object-cover"
+                                showSafeBadge={false}
+                              />
                             </div>
                           ))}
                           {(m.after_photo_urls || []).length === 0 && (

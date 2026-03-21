@@ -25,6 +25,9 @@ import {
 } from '../constants';
 import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
 import { profileWalletBalanceEgp, usdInputToEgp } from '../src/lib/walletCredit';
+import { fileToBase64Parts } from '../src/lib/imageBase64';
+import { MISSION_PHOTO_CENSORED_PLACEHOLDER } from '../src/lib/missionPhotoModeration';
+import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const EGYPT_MAX_BOUNDS: [[number, number], [number, number]] = [[24.0, 21.0], [38.0, 32.5]];
@@ -360,6 +363,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [mapToast, setMapToast] = useState<string | null>(null);
+  const [censoredPhotoDeletingIndex, setCensoredPhotoDeletingIndex] = useState<number | null>(null);
 
   const toast = {
     error: (message: string) => {
@@ -717,6 +721,29 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setIsTranslationLoading(false);
     }
   }, [appLanguage]);
+
+  const removeCensoredMissionPhotoSlot = useCallback(
+    async (missionId: string, index: number) => {
+      if (!selectedMission || selectedMission.id !== missionId) return;
+      if (selectedMission.creator_id !== currentUserId) return;
+      const next = [...(selectedMission.photo_urls || [])].filter((_, i) => i !== index);
+      setCensoredPhotoDeletingIndex(index);
+      const { error } = await supabase
+        .from('missions')
+        .update({ photo_urls: next })
+        .eq('id', missionId);
+      setCensoredPhotoDeletingIndex(null);
+      if (error) {
+        setMapToast(error.message || 'Could not remove photo');
+        window.setTimeout(() => setMapToast(null), 2600);
+        return;
+      }
+      setSelectedMission({ ...selectedMission, photo_urls: next });
+      setJobs((prev) => prev.map((j) => (j.id === missionId ? { ...j, photo_urls: next } : j)));
+    },
+    [selectedMission, currentUserId]
+  );
+
   const [selectedRating, setSelectedRating] = useState<number>(0);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewedMissions, setReviewedMissions] = useState<Set<string>>(new Set());
@@ -1384,6 +1411,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
           }
         }
         for (const file of compressedFiles) {
+          const { base64, mimeType } = await fileToBase64Parts(file);
+          const modRes = await fetch('/api/moderate-mission-photo-safety', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageBase64: base64, mimeType }),
+          });
+          const modData = (await modRes.json().catch(() => ({}))) as { verdict?: string };
+          if (modRes.ok && modData.verdict === 'EXPLICIT') {
+            uploaded.push(MISSION_PHOTO_CENSORED_PLACEHOLDER);
+            continue;
+          }
+          if (!modRes.ok || modData.verdict !== 'SAFE') {
+            throw new Error(t('photoSafetyCheckFailed'));
+          }
+
           const safeFileName = `mission_${Date.now()}_${Math.random().toString(36).substring(2)}.jpg`;
           const { error: uploadError } = await supabase.storage
             .from('order-photos')
@@ -1424,17 +1466,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
           const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN as string | undefined;
           const chatId = import.meta.env.VITE_TELEGRAM_ADMIN_CHAT_ID as string | undefined;
           const photoUrls = creatorPhotoUrls || [];
-          const hasPhoto = photoUrls.length > 0;
+          const firstHttpPhoto = photoUrls.find(
+            (u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://'))
+          );
+          const hasPhoto = Boolean(firstHttpPhoto);
           const caption = `🚨 *NEW MISSION* 🚨\n💰 Reward: ${formatEgp(Number(amount))}\n📝 Task: ${orderDescription || t('cityCleaning')}`;
 
           if (botToken && chatId) {
-            if (hasPhoto) {
+            if (hasPhoto && firstHttpPhoto) {
               fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   chat_id: chatId,
-                  photo: photoUrls[0],
+                  photo: firstHttpPhoto,
                   caption,
                   parse_mode: 'Markdown',
                 }),
@@ -2319,19 +2364,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <div className="mb-3">
                   <div className="flex overflow-x-auto snap-x snap-mandatory gap-2 pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {selectedMission.photo_urls.map((url, index) => (
-                      <div key={index} className="min-w-full snap-center shrink-0">
-                        <img
-                          src={url}
+                      <div key={`${url}-${index}`} className="min-w-full snap-center shrink-0">
+                        <ModeratedMissionPhoto
+                          url={url}
                           alt={`Before (work scope) ${index + 1}`}
-                          className="w-full h-48 object-cover rounded-xl shadow-md bg-slate-800"
-                          onError={(e) => {
-                            const el = e.currentTarget;
-                            el.onerror = null;
-                            el.src = 'data:image/svg+xml,' + encodeURIComponent(
-                              '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200"><rect fill="%23334155" width="400" height="200"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-size="14" font-family="system-ui">Image unavailable</text></svg>'
-                            );
-                            el.classList.add('object-contain');
-                          }}
+                          imgClassName="w-full h-48 object-cover rounded-xl shadow-md bg-slate-800"
+                          showSafeBadge
+                          canDelete={selectedMission.creator_id === currentUserId}
+                          deleting={censoredPhotoDeletingIndex === index}
+                          onDeleteCensored={() =>
+                            removeCensoredMissionPhotoSlot(selectedMission.id, index)
+                          }
                         />
                       </div>
                     ))}

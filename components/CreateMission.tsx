@@ -5,28 +5,12 @@ import {
   MISSION_DESCRIPTION_POLICY_ERROR,
 } from '../src/lib/missionContentPolicy';
 import { PROFILE_GLASS_PANEL } from '../constants';
+import { fileToBase64Parts } from '../src/lib/imageBase64';
 
 export interface PhotoVerificationState {
   verifying: boolean;
   allApproved: boolean;
   hasRejected: boolean;
-}
-
-function fileToBase64Parts(file: File): Promise<{ base64: string; mimeType: string }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
-      if (m) {
-        resolve({ mimeType: m[1], base64: m[2] });
-      } else {
-        reject(new Error('read failed'));
-      }
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
 }
 
 type Props = {
@@ -50,7 +34,9 @@ const CreateMission: React.FC<Props> = ({
 }) => {
   const { t } = useTranslation();
   const [checkingPhotos, setCheckingPhotos] = useState(false);
-  const [photoStatuses, setPhotoStatuses] = useState<('pending' | 'approved' | 'rejected')[]>([]);
+  const [photoStatuses, setPhotoStatuses] = useState<
+    ('pending' | 'approved' | 'rejected' | 'explicit')[]
+  >([]);
   const lastFilesKey = useRef<string>('');
 
   const runVerification = useCallback(
@@ -62,14 +48,46 @@ const CreateMission: React.FC<Props> = ({
       }
       setCheckingPhotos(true);
       onPhotoVerificationChange({ verifying: true, allApproved: false, hasRejected: false });
-      const statuses: ('pending' | 'approved' | 'rejected')[] = files.map(() => 'pending');
+      const statuses: ('pending' | 'approved' | 'rejected' | 'explicit')[] = files.map(
+        () => 'pending'
+      );
       setPhotoStatuses(statuses);
 
-      let anyRejected = false;
+      let anyWasteRejected = false;
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         try {
           const { base64, mimeType } = await fileToBase64Parts(file);
+
+          const safetyRes = await fetch('/api/moderate-mission-photo-safety', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageBase64: base64, mimeType }),
+          });
+          const safetyData = (await safetyRes.json().catch(() => ({}))) as {
+            verdict?: string;
+          };
+
+          if (!safetyRes.ok) {
+            statuses[i] = 'rejected';
+            anyWasteRejected = true;
+            setPhotoStatuses([...statuses]);
+            continue;
+          }
+
+          if (safetyData.verdict === 'EXPLICIT') {
+            statuses[i] = 'explicit';
+            setPhotoStatuses([...statuses]);
+            continue;
+          }
+
+          if (safetyData.verdict !== 'SAFE') {
+            statuses[i] = 'rejected';
+            anyWasteRejected = true;
+            setPhotoStatuses([...statuses]);
+            continue;
+          }
+
           const res = await fetch('/api/verify-mission-image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -78,26 +96,27 @@ const CreateMission: React.FC<Props> = ({
           const data = await res.json().catch(() => ({}));
           if (!res.ok) {
             statuses[i] = 'rejected';
-            anyRejected = true;
+            anyWasteRejected = true;
           } else if (data.status === 'approved') {
             statuses[i] = 'approved';
           } else {
             statuses[i] = 'rejected';
-            anyRejected = true;
+            anyWasteRejected = true;
           }
         } catch {
           statuses[i] = 'rejected';
-          anyRejected = true;
+          anyWasteRejected = true;
         }
         setPhotoStatuses([...statuses]);
       }
 
-      const allApproved = !anyRejected && statuses.every((s) => s === 'approved');
+      const allApproved = statuses.every((s) => s === 'approved' || s === 'explicit');
+      const hasRejected = anyWasteRejected;
       setCheckingPhotos(false);
       onPhotoVerificationChange({
         verifying: false,
         allApproved,
-        hasRejected: anyRejected,
+        hasRejected,
       });
     },
     [onPhotoVerificationChange]
@@ -163,16 +182,20 @@ const CreateMission: React.FC<Props> = ({
                     className={
                       photoStatuses[i] === 'approved'
                         ? 'text-emerald-400'
-                        : photoStatuses[i] === 'rejected'
-                          ? 'text-red-400'
-                          : 'text-amber-300'
+                        : photoStatuses[i] === 'explicit'
+                          ? 'text-rose-300'
+                          : photoStatuses[i] === 'rejected'
+                            ? 'text-red-400'
+                            : 'text-amber-300'
                     }
                   >
                     {photoStatuses[i] === 'pending' || checkingPhotos
                       ? t('aiVerifyingPhotoShort')
                       : photoStatuses[i] === 'approved'
                         ? '✓'
-                        : '✕'}
+                        : photoStatuses[i] === 'explicit'
+                          ? '🙈'
+                          : '✕'}
                   </span>
                 </li>
               ))}

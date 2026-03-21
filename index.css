@@ -27,6 +27,22 @@
   animation: slideInRight 0.3s ease-out forwards;
 }
 
+/* Mission photo moderation — “waste verification” style check on safe images */
+@keyframes moderation-safe-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.55);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 20px rgba(52, 211, 153, 0.95);
+  }
+}
+.animate-moderation-safe-pulse {
+  animation: moderation-safe-pulse 2.2s ease-in-out infinite;
+}
+
 /* Делаем кнопки навигации почти невидимыми, пока на них не наведут */
 .mapboxgl-ctrl-group {
     background: rgba(0, 0, 0, 0.2) !important;

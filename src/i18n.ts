@@ -160,6 +160,8 @@ const resources = {
       aiVerifyingPhotoShort: '…',
       waitForAiVerification: 'Please wait for AI photo verification.',
       missionPhotoRejected: 'One or more photos were rejected. Replace them with real cleanup context.',
+      moderationPhotoExplicit: 'Blocked (explicit content — not stored)',
+      photoSafetyCheckFailed: 'Photo safety check failed. Try another image.',
       // Map / Mission creation
       whatNeedsCleaning: 'What needs cleaning?',
       cleanCityArea: 'Clean City Area',
