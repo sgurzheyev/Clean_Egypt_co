@@ -15,8 +15,13 @@ const resources = {
       withdrawalConfirmSubtitle: 'Review the 12% platform exit tax before submitting.',
       withdrawalConfirmBody:
         'You are withdrawing ${{gross}}. Platform fee (12%) is ${{fee}}. You will receive ${{net}} to your destination account.',
+      withdrawalLineGross: 'Withdrawal amount: ${{amount}}',
+      withdrawalLineFee: 'Platform fee (12%): ${{fee}}',
+      withdrawalLineNet: 'You receive: ${{net}}',
       withdrawalBalanceHint:
-        'Max request: {{max}} USD (your full wallet balance). A 12% exit tax applies on withdrawal.',
+        'Max withdrawal: ${{max}} USD (wallet minus {{frozen}} USD frozen). 12% platform fee on payout.',
+      withdrawalExceedsAvailable:
+        'Amount exceeds withdrawable balance (wallet minus frozen security deposit).',
       withdrawalRequestQueued: 'Withdrawal request submitted. Our team will process your payout.',
       continueToConfirmWithdrawal: 'Review & confirm',
       withdrawalBackToEdit: 'Back',
@@ -97,11 +102,18 @@ const resources = {
       stripeNotReady: 'Payment system is not ready yet. Please try again.',
       stripeTopUpSuccess: 'Top-up successful! Your wallet has been updated.',
       stripeTopUpError: 'Payment failed. Please try again.',
-      stripeRealBalanceCredit:
-        'Real balance credit: ${{amount}} (after Stripe fees and currency conversion)',
+      stripeCreditToAccount:
+        'Credit to your account: ${{amount}} (after fees and conversion)',
       stripeApproxEgp: '≈ {{amount}} EGP (indicative)',
-      insufficientTrustDeposit:
-        'Insufficient Trust Deposit. Top up your wallet to start this mission type.',
+      stripeChargedUsdFromEgp: 'Card charged in USD: ~{{amount}} USD',
+      stripeFeeTransparentHint: 'Formula: (amount − $0.30) × 0.965 × 0.975 — Stripe ~3.5% + 2.5% FX buffer.',
+      stripeDepositLegalNote:
+        'By paying, you agree to the 12% platform fee on all future cash withdrawals.',
+      stripeMinimumCharge: 'Minimum card charge is $0.50 USD. Increase the amount.',
+      depositCurrencyUsd: 'USD',
+      depositCurrencyEgp: 'EGP',
+      amountEgp: 'Amount (EGP)',
+      insufficientTrustDeposit: 'Insufficient Trust Deposit',
       // Map / Mission creation
       whatNeedsCleaning: 'What needs cleaning?',
       cleanCityArea: 'Clean City Area',
@@ -195,7 +207,12 @@ const resources = {
       withdrawalConfirmSubtitle: 'راجع ضريبة المنصة 12٪ قبل الإرسال.',
       withdrawalConfirmBody:
         'أنت تسحب ${{gross}}. رسوم المنصة (12٪) هي ${{fee}}. ستصلك ${{net}} إلى حسابك.',
-      withdrawalBalanceHint: 'يمكنك طلب حتى ${{max}} (رصيد محفظتك كاملاً). تُطبق ضريبة خروج 12٪.',
+      withdrawalLineGross: 'مبلغ السحب: ${{amount}}',
+      withdrawalLineFee: 'رسوم المنصة (12٪): ${{fee}}',
+      withdrawalLineNet: 'صافي الاستلام: ${{net}}',
+      withdrawalBalanceHint:
+        'الحد الأقصى للسحب: ${{max}} USD (المحفظة ناقص {{frozen}} USD مجمّد). عمولة المنصة 12٪.',
+      withdrawalExceedsAvailable: 'المبلغ يتجاوز الرصيد القابل للسحب (المحفظة ناقص الوديعة المجمّدة).',
       withdrawalRequestQueued: 'تم إرسال طلب السحب. سيعالج فريقنا الدفع.',
       continueToConfirmWithdrawal: 'مراجعة وتأكيد',
       withdrawalBackToEdit: 'رجوع',
@@ -273,11 +290,18 @@ const resources = {
       stripeNotReady: 'نظام الدفع غير جاهز بعد. حاول مرة أخرى.',
       stripeTopUpSuccess: 'تم الشحن بنجاح! تم تحديث رصيد محفظتك.',
       stripeTopUpError: 'فشلت عملية الدفع. حاول مرة أخرى.',
-      stripeRealBalanceCredit:
-        'رصيد فعلي يُضاف: ${{amount}} (بعد رسوم Stripe وتحويل العملة)',
+      stripeCreditToAccount:
+        'سيصل إلى حسابك: ${{amount}} (بعد الرسوم والتحويل)',
       stripeApproxEgp: '≈ {{amount}} ج.م (تقريبي)',
-      insufficientTrustDeposit:
-        'وديعة الثقة غير كافية. اشحن محفظتك لبدء هذا النوع من المهام.',
+      stripeChargedUsdFromEgp: 'الخصم بالدولار: ~{{amount}} USD',
+      stripeFeeTransparentHint: '(المبلغ − ٠٫٣٠$) × ٠٫٩٦٥ × ٠٫٩٧٥ — Stripe ~٣٫٥٪ + احتياطي تحويل ٢٫٥٪.',
+      stripeDepositLegalNote:
+        'بالدفع فإنك توافق على رسوم المنصة ١٢٪ على جميع السحوبات النقدية لاحقًا.',
+      stripeMinimumCharge: 'الحد الأدنى للخصم ٠٫٥٠ USD. زد المبلغ.',
+      depositCurrencyUsd: 'USD',
+      depositCurrencyEgp: 'EGP',
+      amountEgp: 'المبلغ (ج.م)',
+      insufficientTrustDeposit: 'وديعة ثقة غير كافية',
       whatNeedsCleaning: 'ماذا يحتاج تنظيفاً؟',
       cleanCityArea: 'تنظيف منطقة المدينة',
       cleanYourHomeOffice: 'تنظيف منزلك/مكتبك',
@@ -362,7 +386,13 @@ const resources = {
       withdrawalConfirmSubtitle: 'Проверьте комиссию платформы 12%.',
       withdrawalConfirmBody:
         'Вы выводите ${{gross}}. Комиссия (12%): ${{fee}}. Получите ${{net}} на счёт.',
-      withdrawalBalanceHint: 'До ${{max}} (весь баланс). Комиссия при выводе 12%.',
+      withdrawalLineGross: 'Сумма вывода: ${{amount}}',
+      withdrawalLineFee: 'Комиссия платформы (12%): ${{fee}}',
+      withdrawalLineNet: 'К получению: ${{net}}',
+      withdrawalBalanceHint:
+        'Макс. вывод: ${{max}} USD (кошелёк минус {{frozen}} USD заморожено). Комиссия платформы 12%.',
+      withdrawalExceedsAvailable:
+        'Сумма превышает доступный баланс (кошелёк минус замороженный залог).',
       withdrawalRequestQueued: 'Заявка отправлена. Обработаем выплату.',
       continueToConfirmWithdrawal: 'Проверить и подтвердить',
       withdrawalBackToEdit: 'Назад',
@@ -441,11 +471,19 @@ const resources = {
       stripeNotReady: 'Платёжная система ещё не готова. Попробуйте позже.',
       stripeTopUpSuccess: 'Пополнение успешно! Баланс кошелька обновлён.',
       stripeTopUpError: 'Платёж не прошёл. Попробуйте снова.',
-      stripeRealBalanceCredit:
-        'Реальный зачисляемый баланс: ${{amount}} (после комиссий Stripe и конвертации)',
+      stripeCreditToAccount:
+        'На ваш счет поступит: ${{amount}} (после комиссий и конвертации)',
       stripeApproxEgp: '≈ {{amount}} EGP (ориентировочно)',
-      insufficientTrustDeposit:
-        'Недостаточно залога доверия. Пополните кошелёк для этого типа заданий.',
+      stripeChargedUsdFromEgp: 'Списание карты в USD: ~{{amount}} USD',
+      stripeFeeTransparentHint:
+        'Формула: (сумма − $0.30) × 0.965 × 0.975 — Stripe ~3.5% + буфер конвертации 2.5%.',
+      stripeDepositLegalNote:
+        'Оплачивая, вы соглашаетесь с комиссией платформы 12% при всех будущих выводах средств.',
+      stripeMinimumCharge: 'Минимальное списание $0.50 USD. Увеличьте сумму.',
+      depositCurrencyUsd: 'USD',
+      depositCurrencyEgp: 'EGP',
+      amountEgp: 'Сумма (EGP)',
+      insufficientTrustDeposit: 'Недостаточно залога доверия',
       whatNeedsCleaning: 'Что нужно очистить?',
       cleanCityArea: 'Очистить район города',
       cleanYourHomeOffice: 'Очистить дом/офис',
@@ -537,7 +575,13 @@ const resources = {
       withdrawalConfirmSubtitle: '12% Plattformgebühr prüfen.',
       withdrawalConfirmBody:
         'Du hebst ${{gross}} ab. Gebühr (12%): ${{fee}}. Du erhältst ${{net}}.',
-      withdrawalBalanceHint: 'Bis ${{max}} (volles Guthaben). 12% Ausstiegssteuer.',
+      withdrawalLineGross: 'Auszahlungsbetrag: ${{amount}}',
+      withdrawalLineFee: 'Plattformgebühr (12%): ${{fee}}',
+      withdrawalLineNet: 'Auszahlungsbetrag netto: ${{net}}',
+      withdrawalBalanceHint:
+        'Max. Auszahlung: ${{max}} USD (Wallet abzüglich {{frozen}} USD Sicherheit). 12% Gebühr.',
+      withdrawalExceedsAvailable:
+        'Betrag übersteigt verfügbares Guthaben (Wallet minus eingefrorene Kaution).',
       withdrawalRequestQueued: 'Antrag gesendet.',
       continueToConfirmWithdrawal: 'Prüfen & bestätigen',
       withdrawalBackToEdit: 'Zurück',
@@ -615,11 +659,18 @@ const resources = {
       stripeNotReady: 'Das Bezahlsystem ist noch nicht bereit. Bitte versuche es erneut.',
       stripeTopUpSuccess: 'Aufladung erfolgreich! Dein Wallet-Guthaben wurde aktualisiert.',
       stripeTopUpError: 'Zahlung fehlgeschlagen. Bitte versuche es erneut.',
-      stripeRealBalanceCredit:
-        'Tatsächliches Guthaben: ${{amount}} (nach Stripe-Gebühren und Währung)',
+      stripeCreditToAccount:
+        'Gutschrift auf Ihr Konto: ${{amount}} (nach Gebühren und Umrechnung)',
       stripeApproxEgp: '≈ {{amount}} EGP (ungefähr)',
-      insufficientTrustDeposit:
-        'Unzureichende Vertrauens-Kaution. Bitte Wallet aufladen.',
+      stripeChargedUsdFromEgp: 'Kartenbelastung in USD: ~{{amount}} USD',
+      stripeFeeTransparentHint: 'Formel: (Betrag − $0,30) × 0,965 × 0,975 — Stripe ~3,5% + 2,5% FX-Puffer.',
+      stripeDepositLegalNote:
+        'Mit der Zahlung akzeptieren Sie die 12% Plattformgebühr bei künftigen Auszahlungen.',
+      stripeMinimumCharge: 'Mindestbetrag $0,50 USD. Bitte erhöhen.',
+      depositCurrencyUsd: 'USD',
+      depositCurrencyEgp: 'EGP',
+      amountEgp: 'Betrag (EGP)',
+      insufficientTrustDeposit: 'Unzureichende Vertrauenskaution',
       whatNeedsCleaning: 'Was soll gereinigt werden?',
       cleanCityArea: 'Stadtbereich reinigen',
       cleanYourHomeOffice: 'Zuhause/Büro reinigen',
@@ -704,7 +755,13 @@ const resources = {
       withdrawalConfirmSubtitle: 'Verifica la commissione 12%.',
       withdrawalConfirmBody:
         'Stai prelevando ${{gross}}. Commissione (12%): ${{fee}}. Riceverai ${{net}}.',
-      withdrawalBalanceHint: 'Fino a ${{max}} (saldo pieno). Tassa uscita 12%.',
+      withdrawalLineGross: 'Importo prelievo: ${{amount}}',
+      withdrawalLineFee: 'Commissione piattaforma (12%): ${{fee}}',
+      withdrawalLineNet: 'Netto da ricevere: ${{net}}',
+      withdrawalBalanceHint:
+        'Max prelievo: ${{max}} USD (wallet meno {{frozen}} USD bloccati). Commissione 12%.',
+      withdrawalExceedsAvailable:
+        'Importo superiore al disponibile (wallet meno deposito vincolato).',
       withdrawalRequestQueued: 'Richiesta inviata.',
       continueToConfirmWithdrawal: 'Rivedi e conferma',
       withdrawalBackToEdit: 'Indietro',
@@ -782,11 +839,19 @@ const resources = {
       stripeNotReady: 'Il sistema di pagamento non è ancora pronto. Riprova più tardi.',
       stripeTopUpSuccess: 'Ricarica riuscita! Il saldo del portafoglio è stato aggiornato.',
       stripeTopUpError: 'Pagamento non riuscito. Riprova.',
-      stripeRealBalanceCredit:
-        'Credito reale: ${{amount}} (dopo commissioni Stripe e cambio valuta)',
+      stripeCreditToAccount:
+        'Accredito sul tuo conto: ${{amount}} (dopo commissioni e conversione)',
       stripeApproxEgp: '≈ {{amount}} EGP (indicativo)',
-      insufficientTrustDeposit:
-        'Deposito cauzionale insufficiente. Ricarica il wallet.',
+      stripeChargedUsdFromEgp: 'Addebito carta in USD: ~{{amount}} USD',
+      stripeFeeTransparentHint:
+        'Formula: (importo − $0,30) × 0,965 × 0,975 — Stripe ~3,5% + buffer FX 2,5%.',
+      stripeDepositLegalNote:
+        'Pagando accetti la commissione piattaforma del 12% su tutti i futuri prelievi.',
+      stripeMinimumCharge: 'Addebito minimo $0,50 USD. Aumenta l’importo.',
+      depositCurrencyUsd: 'USD',
+      depositCurrencyEgp: 'EGP',
+      amountEgp: 'Importo (EGP)',
+      insufficientTrustDeposit: 'Deposito cauzionale insufficiente',
       whatNeedsCleaning: 'Cosa va pulito?',
       cleanCityArea: 'Pulisci area città',
       cleanYourHomeOffice: 'Pulisci casa/ufficio',
@@ -871,7 +936,13 @@ const resources = {
       withdrawalConfirmSubtitle: 'Revisa la comisión del 12%.',
       withdrawalConfirmBody:
         'Retiras ${{gross}}. Comisión (12%): ${{fee}}. Recibirás ${{net}}.',
-      withdrawalBalanceHint: 'Hasta ${{max}} (saldo completo). Impuesto de salida 12%.',
+      withdrawalLineGross: 'Importe del retiro: ${{amount}}',
+      withdrawalLineFee: 'Comisión de la plataforma (12%): ${{fee}}',
+      withdrawalLineNet: 'A recibir: ${{net}}',
+      withdrawalBalanceHint:
+        'Máx. retiro: ${{max}} USD (cartera menos {{frozen}} USD congelados). Comisión 12%.',
+      withdrawalExceedsAvailable:
+        'El importe supera el saldo disponible (cartera menos depósito congelado).',
       withdrawalRequestQueued: 'Solicitud enviada.',
       continueToConfirmWithdrawal: 'Revisar y confirmar',
       withdrawalBackToEdit: 'Atrás',
@@ -949,11 +1020,19 @@ const resources = {
       stripeNotReady: 'El sistema de pago aún no está listo. Inténtalo de nuevo más tarde.',
       stripeTopUpSuccess: 'Recarga exitosa. Tu saldo de billetera ha sido actualizado.',
       stripeTopUpError: 'El pago ha fallado. Inténtalo de nuevo.',
-      stripeRealBalanceCredit:
-        'Saldo real acreditado: ${{amount}} (tras comisiones Stripe y conversión)',
+      stripeCreditToAccount:
+        'Abonará a tu cuenta: ${{amount}} (después de comisiones y conversión)',
       stripeApproxEgp: '≈ {{amount}} EGP (indicativo)',
-      insufficientTrustDeposit:
-        'Depósito de confianza insuficiente. Recarga tu cartera.',
+      stripeChargedUsdFromEgp: 'Cargo en USD: ~{{amount}} USD',
+      stripeFeeTransparentHint:
+        'Fórmula: (importe − $0,30) × 0,965 × 0,975 — Stripe ~3,5% + colchón FX 2,5%.',
+      stripeDepositLegalNote:
+        'Al pagar aceptas la comisión del 12% en todos los retiros futuros.',
+      stripeMinimumCharge: 'Cargo mínimo $0,50 USD. Aumenta el importe.',
+      depositCurrencyUsd: 'USD',
+      depositCurrencyEgp: 'EGP',
+      amountEgp: 'Importe (EGP)',
+      insufficientTrustDeposit: 'Depósito de confianza insuficiente',
       whatNeedsCleaning: '¿Qué hay que limpiar?',
       cleanCityArea: 'Limpiar zona ciudad',
       cleanYourHomeOffice: 'Limpiar casa/oficina',

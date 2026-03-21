@@ -2180,6 +2180,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   >
                     {isAccepting ? t('placing') : showBidInput ? t('placeBid') : t('makeABid')}
                   </button>
+                  {missionTrustBlocked && showBidInput && (
+                    <p className="mt-2 text-center text-[10px] text-amber-300">{t('insufficientTrustDeposit')}</p>
+                  )}
                 </div>
 
                 {selectedMission.category === 'public' &&

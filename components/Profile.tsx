@@ -13,7 +13,7 @@ import {
   CLIENT_APPROVE_RELEASE_BTN_MODAL,
   CLIENT_OPEN_DISPUTE_BTN_MODAL,
 } from '../constants';
-import { workerFrozenUsdMeetsTrustDeposit, requiredTrustDepositEgp } from '../src/lib/trustDeposit';
+import { workerFrozenUsdMeetsTrustDeposit } from '../src/lib/trustDeposit';
 import { computeWithdrawalExitBreakdown } from '../src/lib/withdrawalTax';
 
 interface ProfileProps {
@@ -87,6 +87,14 @@ interface ProfileRow {
 }
 
 const SUPPORT_TELEGRAM = 'https://t.me/CleanEgypt_Admin_Bot';
+
+/** Max USD user may request to withdraw: wallet minus frozen security (cannot cash out frozen funds). */
+function maxWithdrawableUsd(profile: ProfileRow | null): number {
+  if (!profile) return 0;
+  const w = Number(profile.wallet_balance ?? 0);
+  const f = Number(profile.frozen_balance ?? 0);
+  return Math.max(0, Math.round((w - f) * 100) / 100);
+}
 
 const shortId = (id: unknown): string => {
   if (id == null) return 'N/A';
@@ -347,8 +355,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       alert('Please enter a positive payout amount.');
       return;
     }
-    if (amountNum > (userProfile.wallet_balance ?? 0)) {
-      alert('Payout amount cannot exceed your wallet balance.');
+    const maxWd = maxWithdrawableUsd(userProfile);
+    if (amountNum > maxWd + 0.0001) {
+      alert(t('withdrawalExceedsAvailable'));
       return;
     }
     if (!payoutDetails.trim()) {
@@ -362,6 +371,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     if (!userProfile) return;
     const amountNum = Number(payoutAmount);
     if (!Number.isFinite(amountNum) || amountNum <= 0) return;
+    const maxWd = maxWithdrawableUsd(userProfile);
+    if (amountNum > maxWd + 0.0001) {
+      alert(t('withdrawalExceedsAvailable'));
+      return;
+    }
     try {
       setPayoutSubmitting(true);
       const { data: { session } } = await supabase.auth.getSession();
@@ -1392,7 +1406,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               Balance: ${Number(balance ?? 0).toFixed(2)}
             </p>
             <p className="text-sm text-gray-400 mt-1">
-              {t('withdrawalBalanceHint', { max: Number(balance ?? 0).toFixed(2) })}
+              {t('withdrawalBalanceHint', {
+                max: maxWithdrawableUsd(userProfile).toFixed(2),
+                frozen: Number(userProfile?.frozen_balance ?? 0).toFixed(2),
+              })}
             </p>
             {userProfile?.frozen_balance && userProfile.frozen_balance > 0 && (
               <p className="mt-1 text-[11px] text-amber-300">
@@ -1928,12 +1945,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                   const frozen = Number(bid.worker_frozen_balance ?? 0);
                                   const ok = workerFrozenUsdMeetsTrustDeposit(frozen, job.category, target);
                                   if (ok) return null;
-                                  const reqEgp = requiredTrustDepositEgp(job.category, target);
                                   return (
-                                    <p className="mt-2 text-[10px] text-amber-300">
-                                      Worker needs ≥ {reqEgp.toFixed(0)} EGP frozen security deposit (Trust) to
-                                      take this mission.
-                                    </p>
+                                    <p className="mt-2 text-[10px] text-amber-300">{t('insufficientTrustDeposit')}</p>
                                   );
                                 })()}
                               </div>
@@ -2174,12 +2187,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                     const frozen = Number(bid.worker_frozen_balance ?? 0);
                                     const ok = workerFrozenUsdMeetsTrustDeposit(frozen, job.category, target);
                                     if (ok) return null;
-                                    const reqEgp = requiredTrustDepositEgp(job.category, target);
                                     return (
-                                      <p className="mt-2 text-[10px] text-amber-300">
-                                        Worker needs ≥ {reqEgp.toFixed(0)} EGP frozen security deposit (Trust) to
-                                        take this mission.
-                                      </p>
+                                      <p className="mt-2 text-[10px] text-amber-300">{t('insufficientTrustDeposit')}</p>
                                     );
                                   })()}
                                 </div>
@@ -2689,6 +2698,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   <input
                     type="number"
                     min="0"
+                    max={userProfile ? maxWithdrawableUsd(userProfile) : undefined}
                     step="0.01"
                     value={payoutAmount}
                     onChange={(e) => setPayoutAmount(e.target.value)}
@@ -2698,7 +2708,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   {userProfile && (
                     <p className="mt-1 text-[11px] text-slate-500">
                       {t('withdrawalBalanceHint', {
-                        max: Number(userProfile.wallet_balance ?? 0).toFixed(2),
+                        max: maxWithdrawableUsd(userProfile).toFixed(2),
+                        frozen: Number(userProfile.frozen_balance ?? 0).toFixed(2),
                       })}
                     </p>
                   )}
@@ -2759,13 +2770,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   const b = computeWithdrawalExitBreakdown(Number(payoutAmount));
                   return (
                     <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-4 space-y-2">
-                      <p className="text-sm text-slate-200 leading-relaxed">
-                        {t('withdrawalConfirmBody', {
-                          gross: b.gross.toFixed(2),
-                          fee: b.fee.toFixed(2),
-                          net: b.net.toFixed(2),
-                        })}
-                      </p>
+                      <div className="text-sm text-slate-200 leading-relaxed space-y-1.5">
+                        <p className="font-semibold">
+                          {t('withdrawalLineGross', { amount: b.gross.toFixed(2) })}
+                        </p>
+                        <p className="text-amber-200/90">
+                          {t('withdrawalLineFee', { fee: b.fee.toFixed(2) })}
+                        </p>
+                        <p className="text-emerald-300 font-bold">
+                          {t('withdrawalLineNet', { net: b.net.toFixed(2) })}
+                        </p>
+                      </div>
                       <p className="text-[11px] text-slate-500">
                         {payoutMethod} • {payoutDetails.trim()}
                       </p>
