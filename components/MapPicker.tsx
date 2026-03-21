@@ -1,11 +1,10 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import Map, { Marker, NavigationControl, GeolocateControl, MapRef, Source, Layer } from 'react-map-gl';
+import Map, { NavigationControl, GeolocateControl, MapRef, Source, Layer } from 'react-map-gl';
 import type { GeoJSONSource, MapMouseEvent, PointLike } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabaseClient';
-import MissionMarker from './MissionMarker';
 import TrustDepositInfoModal from './TrustDepositInfoModal';
 import {
   workerCanSecureMissionDeposit,
@@ -1543,6 +1542,48 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return { type: 'FeatureCollection' as const, features };
   }, [jobs, activeBidCounts]);
 
+  /** Point centers for ground glow (same missions as towers). */
+  const missionTowersPointsGeoJSON = useMemo(() => {
+    const features = (jobs || [])
+      .filter(missionEligibleForMapPin)
+      .filter((j) => Number.isFinite(j.location_lat) && Number.isFinite(j.location_lng))
+      .map((j) => {
+        const fundingEgp = Math.round(Math.max(0, Number(j.current_funding ?? 0)));
+        const bids = activeBidCounts[j.id] || 0;
+        return {
+          type: 'Feature' as const,
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [j.location_lng, j.location_lat],
+          },
+          properties: {
+            mission_id: j.id,
+            funding_egp: fundingEgp,
+            status: towerStatusForJob(j, bids),
+          },
+        };
+      });
+    return { type: 'FeatureCollection' as const, features };
+  }, [jobs, activeBidCounts]);
+
+  /** Native Mapbox draft location (replaces HTML MissionMarker). */
+  const draftPinGeoJSON = useMemo(() => {
+    if (!selectedLocation) return { type: 'FeatureCollection' as const, features: [] };
+    return {
+      type: 'FeatureCollection' as const,
+      features: [
+        {
+          type: 'Feature' as const,
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [selectedLocation.lng, selectedLocation.lat],
+          },
+          properties: { kind: 'draft' },
+        },
+      ],
+    };
+  }, [selectedLocation]);
+
   useEffect(() => {
     const map = mapRef.current?.getMap();
     if (!map?.isStyleLoaded()) return;
@@ -1734,11 +1775,54 @@ const MapPicker: React.FC<MapPickerProps> = ({
         />
         <NavigationControl position="bottom-right" showCompass={false} />
 
-        {/* 3D funding towers (fill-extrusion) + labels — missions are not HTML markers */}
+        {/* Draft tap location — native circle only (no HTML markers). */}
+        <Source id="draft-pin" type="geojson" data={draftPinGeoJSON}>
+          <Layer
+            id="draft-pin"
+            type="circle"
+            filter={['==', ['get', 'kind'], 'draft']}
+            paint={{
+              'circle-radius': 11,
+              'circle-color': '#00ffff',
+              'circle-opacity': mapMarkerLayerSuppressed ? 0.08 : 0.92,
+              'circle-stroke-width': 2,
+              'circle-stroke-color': '#ffffff',
+              'circle-stroke-opacity': mapMarkerLayerSuppressed ? 0.08 : 0.95,
+            }}
+          />
+        </Source>
+
+        {/* Soft ground glow (cyan / yellow / green) — only with 3D towers (zoom > 12). */}
+        <Source id="mission-towers-points" type="geojson" data={missionTowersPointsGeoJSON}>
+          <Layer
+            id="mission-towers-glow"
+            type="circle"
+            minzoom={13}
+            paint={{
+              'circle-radius': 22,
+              'circle-blur': 0.85,
+              'circle-opacity': mapMarkerLayerSuppressed ? 0.04 : 0.55,
+              'circle-color': [
+                'match',
+                ['get', 'status'],
+                'open',
+                '#00FFFF',
+                'bidded',
+                '#FFFF00',
+                'completed',
+                '#00FF00',
+                '#00FFFF',
+              ],
+            }}
+          />
+        </Source>
+
+        {/* 3D funding towers — native fill-extrusion only at zoom > 12 (minzoom 13). */}
         <Source id="mission-towers" type="geojson" data={missionTowersGeoJSON}>
           <Layer
             id="mission-towers"
             type="fill-extrusion"
+            minzoom={13}
             paint={{
               'fill-extrusion-height': [
                 'interpolate',
@@ -1768,10 +1852,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
               'fill-extrusion-opacity': mapMarkerLayerSuppressed ? 0.06 : 0.8,
             }}
           />
-          {/* Hover: full opacity + cyan shell (Mapbox GL v2 has no flood-color; glow via bright fill). */}
           <Layer
             id="mission-towers-hover"
             type="fill-extrusion"
+            minzoom={13}
             filter={
               hoveredTowerMissionId
                 ? (['==', ['get', 'mission_id'], hoveredTowerMissionId] as any)
@@ -1804,8 +1888,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
               'text-field': ['to-string', ['round', ['coalesce', ['get', 'funding_egp'], 0]]],
               'text-size': 13,
               'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-              'text-anchor': 'center',
-              'text-offset': [0, -2.2],
+              'text-anchor': 'bottom',
+              'text-offset': [0, 0],
               'text-allow-overlap': true,
             }}
             paint={{
@@ -1817,32 +1901,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }}
           />
         </Source>
-
-        {/* Draft pin — crystal marker when user drops a pin on the map */}
-        {selectedLocation && (
-          <Marker
-            latitude={selectedLocation.lat}
-            longitude={selectedLocation.lng}
-            anchor="bottom"
-            style={{
-              zIndex: 10,
-              opacity: mapMarkerLayerSuppressed ? 0.06 : 1,
-              pointerEvents: mapMarkerLayerSuppressed ? 'none' : 'auto',
-              transition: 'opacity 0.2s ease',
-            }}
-          >
-            <MissionMarker
-              currentFundingEgp={0}
-              targetEgp={Math.max(
-                1,
-                parseFloat(orderAmount.replace(',', '.')) ||
-                  (taskType === 'city' ? CITY_MIN_PRICE : HOME_MIN_PRICE)
-              )}
-              orderType={taskType}
-              isDraft
-            />
-          </Marker>
-        )}
       </Map>
 
       {/* Minimalist overlays — wrapper is pointer-events-none so map stays interactive */}
