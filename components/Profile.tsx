@@ -361,6 +361,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [plasticKg, setPlasticKg] = useState<string>('0');
   const [glassKg, setGlassKg] = useState<string>('0');
   const [constructionKg, setConstructionKg] = useState<string>('0');
+  const [woodKg, setWoodKg] = useState<string>('0');
 
   // Create proof preview object URLs and revoke them when the set of files changes/unmounts.
   useEffect(() => {
@@ -998,6 +999,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     setShowPhantomCapture(false);
     setProofError(null);
     setProofSuccess(null);
+    setPlasticKg('0');
+    setGlassKg('0');
+    setConstructionKg('0');
+    setWoodKg('0');
   };
 
   const closeProofModal = () => {
@@ -1270,8 +1275,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         const plastic = Number.parseFloat(plasticKg || '0') || 0;
         const glass = Number.parseFloat(glassKg || '0') || 0;
         const debris = Number.parseFloat(constructionKg || '0') || 0;
+        const wood = Number.parseFloat(woodKg || '0') || 0;
         try {
-          await fetch('/api/notify-mission-submitted', {
+          const origin =
+            typeof window !== 'undefined' && window.location?.origin
+              ? window.location.origin
+              : '';
+          const notifyUrl = origin ? `${origin}/api/notify-mission-submitted` : '/api/notify-mission-submitted';
+          const notifyRes = await fetch(notifyUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1280,8 +1291,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               plastic,
               glass,
               debris,
+              wood,
             }),
           });
+          if (!notifyRes.ok) {
+            const errText = await notifyRes.text().catch(() => '');
+            console.warn('notify-mission-submitted HTTP', notifyRes.status, errText);
+          }
         } catch (notifyErr) {
           console.warn('notify-mission-submitted failed:', notifyErr);
         }
@@ -3185,7 +3201,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       ),
                     })}
                   </p>
-                  <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex flex-col gap-3 w-full min-w-0 sm:flex-row sm:items-stretch">
                     <button
                       type="button"
                       onClick={async () => {
@@ -3198,7 +3214,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       {releasePaySubmitting && (
                         <span className="inline-block h-4 w-4 shrink-0 rounded-full border-2 border-black/30 border-t-black animate-spin" aria-hidden />
                       )}
-                      <span>{releasePaySubmitting ? 'Processing...' : 'Approve & Release Payment'}</span>
+                      <span>
+                        {releasePaySubmitting
+                          ? t('waitingForAdminRelease')
+                          : 'Approve & Release Payment'}
+                      </span>
                     </button>
                     <button
                       type="button"
@@ -3410,8 +3430,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
                     Eco-Report (approx. kg collected)
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="min-w-0">
                       <label className="flex items-center gap-1 text-[10px] font-semibold text-slate-300 mb-1">
                         <span>🥤</span>
                         <span className="uppercase tracking-[0.16em]">Plastic</span>
@@ -3426,7 +3446,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         placeholder="0"
                       />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="flex items-center gap-1 text-[10px] font-semibold text-slate-300 mb-1">
                         <span>🪟</span>
                         <span className="uppercase tracking-[0.16em]">Glass</span>
@@ -3441,7 +3461,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         placeholder="0"
                       />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="flex items-center gap-1 text-[10px] font-semibold text-slate-300 mb-1">
                         <span>🧱</span>
                         <span className="uppercase tracking-[0.16em]">Debris</span>
@@ -3453,6 +3473,21 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         value={constructionKg}
                         onChange={(e) => setConstructionKg(e.target.value)}
                         className={`w-full border border-amber-500/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500 ${PROFILE_GLASS_PANEL}`}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label className="flex items-center gap-1 text-[10px] font-semibold text-slate-300 mb-1">
+                        <span>🪵</span>
+                        <span className="uppercase tracking-[0.16em]">Wood</span>
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.1"
+                        value={woodKg}
+                        onChange={(e) => setWoodKg(e.target.value)}
+                        className={`w-full border border-emerald-500/30 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-400/80 ${PROFILE_GLASS_PANEL}`}
                         placeholder="0"
                       />
                     </div>
@@ -3485,7 +3520,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         )
                       )
                     }
-                    className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-wait active:scale-95 active:opacity-80"
+                    className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all transition-transform text-white bg-[#020617] hover:brightness-110 disabled:cursor-wait active:scale-95 active:opacity-80"
                   >
                     <span className="inline-flex items-center gap-2">
                       {proofSubmitting && (

@@ -242,17 +242,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     setPendingPayoutsLoading(true);
     setPendingPayoutsError(null);
     try {
-      const { data, error: txErr } = await supabase
+      const fullSelect =
+        'id, user_id, mission_id, amount, type, gateway, created_at, status, payout_method, payout_details, withdrawal_gross_usd, withdrawal_fee_usd, withdrawal_net_usd';
+
+      const res1 = await supabase
         .from('transactions')
-        .select(
-          'id, user_id, mission_id, amount, type, gateway, created_at, status, payout_method, payout_details, withdrawal_gross_usd, withdrawal_fee_usd, withdrawal_net_usd'
-        )
+        .select(fullSelect)
         .eq('type', 'withdrawal')
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(200);
-      if (txErr) throw txErr;
-      setPendingPayouts((data || []) as TransactionRow[]);
+
+      const res =
+        res1.error && String(res1.error.message || '').toLowerCase().includes('status')
+          ? await supabase
+              .from('transactions')
+              .select(
+                'id, user_id, mission_id, amount, type, gateway, created_at, payout_method, payout_details, withdrawal_gross_usd, withdrawal_fee_usd, withdrawal_net_usd'
+              )
+              .eq('type', 'withdrawal')
+              .order('created_at', { ascending: false })
+              .limit(200)
+          : res1;
+
+      if (res.error) throw res.error;
+
+      const rows = (res.data || []) as TransactionRow[];
+      const pendingOnly = rows.filter((r) => {
+        const s = (r as any).status as string | undefined;
+        if (s === 'completed' || s === 'failed') return false;
+        return s === 'pending' || s == null || s === undefined;
+      });
+      setPendingPayouts(pendingOnly);
     } catch (e: any) {
       console.error('Pending payouts fetch error:', e);
       setPendingPayoutsError(e?.message || 'Failed to load pending payouts.');
