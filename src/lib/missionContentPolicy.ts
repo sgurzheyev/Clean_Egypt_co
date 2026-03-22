@@ -23,6 +23,15 @@ const PHONE_EGYPT = /\b01[0125][\s\-\.]?\d{3}[\s\-\.]?\d{4}\b/g;
 const EMAIL = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 const URL = /https?:\/\/[^\s]+|www\.[^\s]+|\b[a-zA-Z0-9][-a-zA-Z0-9.]*\.(com|net|org|io|co|me|eg|ru|ua)(\/[^\s]*)?/gi;
 
+/** Cash / numbers (English, Russian, Arabic) — replace with *** */
+const CASH_NUMBERS_PATTERNS: RegExp[] = [
+  /\bcash\b/gi,
+  /\b(кеш|кэш)\b/gi,
+  /(كاش|كَاش)/gi,
+  /\b(номер|номера|номерам)\b/gi,
+  /(ارقام|أرقام|رقم)\b/gi,
+];
+
 /** Minimal blacklist (Russian/Arabic profanity) — replace with *** */
 const PROFANITY_PATTERNS: RegExp[] = [
   /\b(сука|блять|хуй|пизда|ебать|ебал|хер|гондо|мудак)\b/gi,
@@ -62,18 +71,25 @@ export type FilterMissionDescriptionResult = {
   textWarning?: string;
 };
 
-/**
- * Filter mission description: replace phones, emails, URLs, profanity with ***.
- * If warning keywords (cash, obkhod, call, etc.) are found, return textWarning.
- */
-export function filterMissionDescription(text: string): FilterMissionDescriptionResult {
+/** Clean text: replace phones, links, cash/numbers (EN/RU/AR) with ***. */
+export function cleanText(text: string): string {
   const s = String(text || '');
-  let filtered = s
+  let out = s
     .replace(PHONE_INTL, CENSOR)
     .replace(PHONE_EGYPT, CENSOR)
     .replace(EMAIL, CENSOR)
     .replace(URL, CENSOR);
-  filtered = replaceAll(filtered, PROFANITY_PATTERNS, CENSOR);
+  out = replaceAll(out, CASH_NUMBERS_PATTERNS, CENSOR);
+  out = replaceAll(out, PROFANITY_PATTERNS, CENSOR);
+  return out;
+}
+
+/**
+ * Filter mission description: uses cleanText; if warning keywords found, return textWarning.
+ */
+export function filterMissionDescription(text: string): FilterMissionDescriptionResult {
+  const s = String(text || '');
+  let filtered = cleanText(s);
 
   const hasWarning = WARNING_KEYWORDS.some((re) => re.test(s));
   const textWarning = hasWarning

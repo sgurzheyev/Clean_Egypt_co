@@ -29,7 +29,10 @@ import {
 import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
 import { profileWalletBalanceEgp, usdInputToEgp } from '../src/lib/walletCredit';
 import { fileToBase64Parts } from '../src/lib/imageBase64';
-import { MISSION_PHOTO_CENSORED_PLACEHOLDER } from '../src/lib/missionPhotoModeration';
+import {
+  MISSION_PHOTO_CENSORED_PLACEHOLDER,
+  isCensoredMissionPhotoUrl,
+} from '../src/lib/missionPhotoModeration';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -1536,19 +1539,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
   };
 
-  const missionTrustBlocked = useMemo(() => {
-    if (!showBidInput || !selectedMission || workerTrustSnapshot === null) return false;
+  const { missionTrustBlocked, missionTrustShortfallEgp } = useMemo(() => {
+    if (!showBidInput || !selectedMission || workerTrustSnapshot === null) {
+      return { missionTrustBlocked: false, missionTrustShortfallEgp: 0 };
+    }
     const homeOk = checkHomeMissionWorkerVerification(
       selectedMission.category,
       workerTrustSnapshot.isVerified
     );
-    if (!homeOk.ok) return true;
-    return !workerCanSecureMissionDeposit(
+    if (!homeOk.ok) return { missionTrustBlocked: true, missionTrustShortfallEgp: 0 };
+    const sec = workerCanSecureMissionDeposit(
       workerTrustSnapshot.wallet,
       workerTrustSnapshot.frozen,
       selectedMission.category,
       Number(selectedMission.amount_target ?? 0)
-    ).ok;
+    );
+    if (sec.ok) return { missionTrustBlocked: false, missionTrustShortfallEgp: 0 };
+    const shortfall = isSecurityDepositFailure(sec) ? (sec.shortfallEgp ?? 0) : 0;
+    return {
+      missionTrustBlocked: true,
+      missionTrustShortfallEgp: shortfall,
+    };
   }, [showBidInput, selectedMission, workerTrustSnapshot]);
 
   const missionsHeatmapGeoJSON = useMemo(() => {
@@ -2381,7 +2392,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           alt={`Before (work scope) ${index + 1}`}
                           imgClassName="w-full h-48 object-cover rounded-xl shadow-md bg-slate-800"
                           showSafeBadge
-                          canDelete={selectedMission.creator_id === currentUserId}
+                          canDelete={
+                            isCensoredMissionPhotoUrl(url) &&
+                            selectedMission.creator_id === currentUserId
+                          }
                           deleting={censoredPhotoDeletingIndex === index}
                           onDeleteCensored={() =>
                             removeCensoredMissionPhotoSlot(selectedMission.id, index)
@@ -2669,8 +2683,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     {isAccepting ? t('placing') : showBidInput ? t('placeBid') : t('makeABid')}
                   </button>
                   {missionTrustBlocked && showBidInput && (
-                    <div className="mt-2 flex flex-col items-center gap-1.5">
+                    <div className="mt-2 flex flex-col items-center gap-2">
                       <p className="text-center text-[10px] text-amber-300">{t('insufficientTrustDeposit')}</p>
+                      {missionTrustShortfallEgp > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => onAvatarClick?.()}
+                          className="w-full rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] border border-emerald-500/50 text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all"
+                        >
+                          {t('addFunds') || 'Add Funds'} {formatEgp(missionTrustShortfallEgp)}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setTrustDepositInfoOpen(true)}
@@ -2726,11 +2749,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
                               />
                               <button
                                 type="button"
-                                disabled={donating}
+                                disabled={donating || !(parseFloat(String(donateAmount).replace(',', '.')) > 0)}
                                 onClick={() => handleDonate(parseFloat(donateAmount.replace(',', '.')))}
-                                className="w-full px-3 py-1.5 rounded-full bg-emerald-500 text-[11px] font-black uppercase tracking-[0.16em] text-black hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait mt-1.5"
+                                className="w-full px-3 py-1.5 rounded-full bg-emerald-500 text-[11px] font-black uppercase tracking-[0.16em] text-black hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed mt-1.5"
                               >
-                                {donating ? t('sendingDonation') : t('donate')}
+                                {donating
+                                  ? t('sendingDonation')
+                                  : parseFloat(String(donateAmount).replace(',', '.')) > 0
+                                    ? `${t('addFunds') || 'Add'} ${formatEgp(parseFloat(donateAmount.replace(',', '.')))}`
+                                    : t('donate')}
                               </button>
                             </div>
                           </div>

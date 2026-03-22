@@ -31,7 +31,9 @@ import {
 import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
 import { computeWithdrawalExitBreakdown } from '../src/lib/withdrawalTax';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
-import { isCensoredMissionPhotoUrl } from '../src/lib/missionPhotoModeration';
+import {
+  isCensoredMissionPhotoUrl,
+} from '../src/lib/missionPhotoModeration';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -3161,7 +3163,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             alt="Before"
                             imgClassName="w-full h-28 object-cover"
                             showSafeBadge
-                            canDelete={reviewJob.creator_id === _session?.user?.id}
+                            canDelete={
+                              isCensoredMissionPhotoUrl(url) &&
+                              reviewJob.creator_id === _session?.user?.id
+                            }
                             deleting={reviewCensoredDeleting === `before-${idx}`}
                             onDeleteCensored={() => void removeCensoredPhotoFromReviewJob('before', idx)}
                           />
@@ -3190,7 +3195,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           alt="After"
                           imgClassName="w-full h-28 object-cover"
                           showSafeBadge
-                          canDelete={reviewJob.creator_id === _session?.user?.id}
+                          canDelete={
+                            isCensoredMissionPhotoUrl(url) &&
+                            reviewJob.creator_id === _session?.user?.id
+                          }
                           deleting={reviewCensoredDeleting === `after-${idx}`}
                           onDeleteCensored={() => void removeCensoredPhotoFromReviewJob('after', idx)}
                         />

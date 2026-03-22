@@ -163,6 +163,7 @@ const resources = {
       moderationPhotoExplicit: 'Blocked (explicit content — not stored)',
       photoSafetyCheckFailed: 'Photo safety check failed. Try another image.',
       aiSuggestions: 'AI suggestions',
+      addFunds: 'Add Funds',
       contactsForbiddenModerated: 'Контакты запрещены. Описание будет отмодерировано.',
       // Map / Mission creation
       whatNeedsCleaning: 'What needs cleaning?',
