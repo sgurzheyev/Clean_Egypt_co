@@ -67,6 +67,8 @@ interface JobOnMap {
 
 /** Same filter as mission markers — heatmap aligns with visible pins. */
 function missionEligibleForMapPin(job: JobOnMap): boolean {
+  // Phantom pins (unpaid Paymob drafts) must never appear on the map.
+  if (job.status === 'pending_payment') return false;
   if (job.status === 'pending') return true;
   if (job.status === 'available') return true;
   if (job.status === 'funding') return true;
@@ -123,16 +125,6 @@ function footprintCylinderRing(
     ring.push([lng + dLng, lat + dLat]);
   }
   return ring;
-}
-
-/** Mission has an assigned worker or is past the open crowdfunding phase. */
-function isMissionTaken(job: JobOnMap): boolean {
-  if (job.cleaner_id) return true;
-  return (
-    job.status === 'in_progress' ||
-    job.status === 'review' ||
-    job.status === 'pending_approval'
-  );
 }
 
 function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
@@ -469,11 +461,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
       return;
     }
 
-    const list: JobOnMap[] = (data || []).filter(
-      (row: any) =>
-        typeof row.location_lat === 'number' &&
-        typeof row.location_lng === 'number'
-    ) as JobOnMap[];
+    const list: JobOnMap[] = (data || [])
+      .filter((row: any) => row.status !== 'pending_payment')
+      .filter(
+        (row: any) =>
+          typeof row.location_lat === 'number' &&
+          typeof row.location_lng === 'number'
+      ) as JobOnMap[];
 
     setJobs(list);
 
@@ -1625,8 +1619,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
           !!currentUserId &&
           j.cleaner_id === currentUserId &&
           j.status === 'in_progress';
-        const taken = isMissionTaken(j) ? 1 : 0;
-        const completed = j.status === 'completed' ? 1 : 0;
+        /** Open on map for workers (Constitution v6.0 “available” for green/gold). */
+        const isAvailable =
+          j.status === 'pending' || j.status === 'available' || j.status === 'funding' ? 1 : 0;
+        const hasCleaner = j.cleaner_id != null && String(j.cleaner_id).length > 0 ? 1 : 0;
         return {
           type: 'Feature' as const,
           geometry: {
@@ -1637,10 +1633,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
             mission_id: j.id,
             /** Rounded integer EGP for label + extrusion height scale */
             funding_egp: fundingEgp,
-            is_completed: completed,
-            is_taken: taken,
-            /** City / street cleanup — DB category `public` */
-            is_city_donation: j.category === 'public' ? 1 : 0,
+            /** For Mapbox paint: cleaner assigned OR active workflow statuses */
+            has_cleaner: hasCleaner,
+            mission_status: j.status,
+            category: j.category,
+            is_available: isAvailable,
             is_selected: selectedMission?.id === j.id ? 1 : 0,
             is_user_active: isUserActive ? 1 : 0,
           },
@@ -1951,17 +1948,36 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 ],
               ] as any,
               'fill-extrusion-base': 0,
+              // Constitution v6.0 tower colors (case order matters).
               'fill-extrusion-color': [
                 'case',
                 ['==', ['get', 'is_selected'], 1],
                 '#00FFFF',
-                ['==', ['get', 'is_completed'], 1],
-                '#4ADE80',
-                ['==', ['get', 'is_taken'], 1],
+                [
+                  'any',
+                  ['==', ['get', 'has_cleaner'], 1],
+                  ['==', ['get', 'mission_status'], 'in_progress'],
+                  ['==', ['get', 'mission_status'], 'review'],
+                  ['==', ['get', 'mission_status'], 'pending_approval'],
+                ],
                 '#0000FF',
-                ['==', ['get', 'is_city_donation'], 1],
+                [
+                  'all',
+                  ['==', ['get', 'category'], 'public'],
+                  ['==', ['get', 'is_available'], 1],
+                ],
                 '#00FF00',
+                [
+                  'all',
+                  [
+                    'any',
+                    ['==', ['get', 'category'], 'private'],
+                    ['==', ['get', 'category'], 'home'],
+                  ],
+                  ['==', ['get', 'is_available'], 1],
+                ],
                 '#FFD700',
+                '#64748b',
               ] as any,
               'fill-extrusion-opacity': mapMarkerLayerSuppressed ? 0.06 : 0.8,
             }}
