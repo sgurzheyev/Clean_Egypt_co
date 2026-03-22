@@ -1421,12 +1421,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       />
       {/* Sliding drawer — Gemini-style animated border on outer edge */}
       <div
-        className="relative z-10 w-full min-w-0 max-w-[min(100vw,32rem)] h-full flex flex-col animate-slide-in-right animated-border animated-border-drawer overflow-hidden overflow-x-hidden"
+        className="relative z-10 w-full min-w-0 max-w-[min(100vw,32rem)] h-[calc(100dvh-env(safe-area-inset-top))] max-h-[calc(100dvh-env(safe-area-inset-top))] flex flex-col animate-slide-in-right animated-border animated-border-drawer overflow-x-hidden min-h-0"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="animated-border-inner w-full h-full max-w-full flex flex-col overflow-hidden overflow-x-hidden bg-gradient-to-b from-slate-950 via-[#020617] to-slate-950">
-          {/* Header — fixed at top, never scrolls; stays above WebGL map when drawer animates */}
-          <div className="flex-shrink-0 sticky top-0 z-50 flex items-center justify-between px-5 pb-4 pt-[env(safe-area-inset-top)] bg-[#020617]/90 backdrop-blur-xl border-b border-gray-800 shadow-lg shadow-black/40">
+        <div className="animated-border-inner w-full min-h-0 flex-1 flex flex-col max-w-full overflow-x-hidden bg-gradient-to-b from-slate-950 via-[#020617] to-slate-950">
+          {/* Header — sticky per .cursorrules; stays visible while content scrolls */}
+          <div className="flex-shrink-0 sticky top-0 z-50 flex items-center justify-between px-5 pb-4 pt-[env(safe-area-inset-top)] bg-slate-950/90 backdrop-blur-xl border-b border-gray-800 shadow-lg shadow-black/40">
             <button
               type="button"
               onClick={onClose}
@@ -1438,7 +1438,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <h1 className="text-lg font-bold text-white">{t('yourAccount')}</h1>
           </div>
           {/* Scrollable content — job cards and forms */}
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 flex flex-col gap-4 pb-36 max-w-full">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain overflow-x-hidden p-4 flex flex-col gap-4 pb-[max(9rem,env(safe-area-inset-bottom))] max-w-full">
           <div className="w-full max-w-md mx-auto flex flex-col gap-6 min-w-0">
         {showAdmin ? (
           <AdminDashboard onBack={() => setShowAdmin(false)} />
@@ -2817,7 +2817,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       <button
         type="button"
         onClick={onClose}
-        className="pointer-events-auto fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-1/2 z-[300] flex h-[3.75rem] w-[3.75rem] -translate-x-1/2 items-center justify-center rounded-full border border-orange-400/45 bg-white/10 shadow-[0_0_28px_rgba(249,115,22,0.75),0_0_56px_rgba(234,88,12,0.35)] backdrop-blur-md transition-all hover:bg-white/15 active:scale-95"
+        className="pointer-events-auto fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-1/2 z-[400] flex h-[3.75rem] w-[3.75rem] -translate-x-1/2 items-center justify-center rounded-full border border-orange-400/45 bg-white/10 shadow-[0_0_28px_rgba(249,115,22,0.75),0_0_56px_rgba(234,88,12,0.35)] backdrop-blur-md transition-all hover:bg-white/15 active:scale-95"
         aria-label={t('closeBackToMap')}
         title={t('closeBackToMap')}
       >

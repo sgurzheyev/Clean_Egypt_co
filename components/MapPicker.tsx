@@ -365,15 +365,30 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
-  const [mapToast, setMapToast] = useState<string | null>(null);
+  const [mapToast, setMapToast] = useState<{
+    message: string;
+    variant: 'error' | 'success' | 'notice';
+  } | null>(null);
   const [textWarning, setTextWarning] = useState<string | null>(null);
 
-  const toast = {
-    error: (message: string) => {
-      setMapToast(message);
-      window.setTimeout(() => setMapToast(null), 2600);
-    },
-  };
+  const toast = useMemo(
+    () => ({
+      error: (message: string) => {
+        setMapToast({ message, variant: 'error' });
+        window.setTimeout(() => setMapToast(null), 3200);
+      },
+      success: (message: string) => {
+        setMapToast({ message, variant: 'success' });
+        window.setTimeout(() => setMapToast(null), 3200);
+      },
+      /** Non-blocking tip (e.g. add WhatsApp in Profile) */
+      notice: (message: string) => {
+        setMapToast({ message, variant: 'notice' });
+        window.setTimeout(() => setMapToast(null), 4500);
+      },
+    }),
+    []
+  );
 
   const selectTaskType = useCallback((type: TaskType) => {
     setTaskType(type);
@@ -946,7 +961,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       if (!selectedMission) return;
       const value = Math.floor(Number(amount));
       if (!Number.isFinite(value) || value <= 0) {
-        alert(t('enterPositiveEgpAmount'));
+        toast.error(t('enterPositiveEgpAmount'));
         return;
       }
       try {
@@ -961,7 +976,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           p_amount: value,
         });
         if (error) {
-          alert(error.message || 'Failed to process donation. Please try again.');
+          toast.error(t('mapToastDonationFailed'));
           return;
         }
         // Optimistically update local mission funding so UI reflects change immediately
@@ -973,12 +988,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
               }
             : prev
         );
-        alert('Thank you for your donation!');
+        toast.success(t('mapToastDonationThanks'));
         setShowDonate(false);
         setDonateAmount('');
         await fetchMissions();
       } catch (e: any) {
-        alert(e?.message || 'Failed to process donation. Please try again.');
+        toast.error(t('mapToastDonationFailed'));
       } finally {
         setDonating(false);
       }
@@ -990,7 +1005,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     async (rating: number) => {
       if (!selectedMission || !selectedMission.cleaner_id) return;
       if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
-        alert('Please select a rating between 1 and 5 stars.');
+        toast.error(t('mapToastRatingRange'));
         return;
       }
       try {
@@ -1009,11 +1024,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
           p_rating: rating,
         });
         if (error) {
-          alert(error.message || 'Failed to submit rating. Please try again.');
+          toast.error(t('mapToastRatingSubmitFailed'));
           return;
         }
 
-        alert('Thank you for rating the cleaner!');
+        toast.success(t('mapToastRatingThanks'));
         setReviewedMissions((prev) => {
           const next = new Set(prev);
           next.add(selectedMission.id);
@@ -1021,7 +1036,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         });
         setSelectedRating(0);
       } catch (e: any) {
-        alert(e?.message || 'Failed to submit rating. Please try again.');
+        toast.error(t('mapToastRatingSubmitFailed'));
       } finally {
         setIsSubmittingReview(false);
       }
@@ -1152,12 +1167,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
       if (selectedMission.creator_id && selectedMission.creator_id === user.id) {
-        alert('You cannot bid on your own job.');
+        toast.error(t('mapToastCannotBidOwnMission'));
         return;
       }
       const amtEgp = parseIntegerEgpFromInput(String(missionBidAmount || ''));
       if (amtEgp <= 0) {
-        alert(t('enterPositiveEgpAmount'));
+        toast.error(t('enterPositiveEgpAmount'));
         return;
       }
 
@@ -1174,7 +1189,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           profile?.is_verified
         );
         if (!homeOk.ok) {
-          alert(t('verificationPromptOnlyVerified'));
+          toast.error(t('verificationPromptOnlyVerified'));
           return;
         }
         const wb = Number(profile?.wallet_balance ?? 0);
@@ -1183,7 +1198,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const sec = workerCanSecureMissionDeposit(wb, fr, selectedMission.category, target);
         if (isSecurityDepositFailure(sec)) {
           if (sec.reason === 'insufficient_funds' && sec.shortfallEgp != null && sec.shortfallEgp > 0) {
-            alert(t('needDepositEgp', { amount: formatEgp(sec.shortfallEgp) }));
+            toast.error(t('needDepositEgp', { amount: formatEgp(sec.shortfallEgp) }));
           } else {
             toast.error(
               sec.reason === 'frozen_exceeds_wallet'
@@ -1195,9 +1210,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
 
         if (!profile?.phone_number || String(profile.phone_number).trim().length === 0) {
-          alert(
-            'Tip: Add your WhatsApp number in your Profile so we can notify you about mission updates.'
-          );
+          toast.notice(t('mapToastWhatsAppProfileTip'));
         }
       }
 
@@ -1215,7 +1228,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       handleCloseMissionBriefing();
       void fetchMissions();
     } catch (err: any) {
-      alert(err?.message || 'Something went wrong. Please try again.');
+      toast.error(t('mapToastBidUnexpectedError'));
     } finally {
       setIsAccepting(false);
     }
@@ -1228,6 +1241,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     placePendingBid,
     selectedMission,
     t,
+    toast.error,
+    toast.notice,
   ]);
 
   const handleCloseBidModal = useCallback(() => {
@@ -1258,7 +1273,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       } = await supabase.auth.getSession();
 
       if (!session?.user?.id) {
-        setBidError('You must be signed in to place a bid.');
+        setBidError(t('signInToPlaceBid'));
         return;
       }
       const userId = session.user.id;
@@ -1294,9 +1309,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
 
         if (!profile?.phone_number || String(profile.phone_number).trim().length === 0) {
-          setBidError(
-            'Tip: Add your WhatsApp number in your Profile so we can notify you about mission updates.'
-          );
+          setBidError(t('mapToastWhatsAppProfileTip'));
           return;
         }
       }
@@ -1317,7 +1330,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       void fetchMissions();
     } catch (err) {
       console.error('Bid exception:', err);
-      setBidError('Unexpected error. Please try again.');
+      setBidError(t('mapToastBidUnexpectedError'));
     } finally {
       setBidSubmitting(false);
     }
@@ -2233,7 +2246,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 onPhotoVerificationChange={setPhotoVerification}
                 onTextWarning={(w) => {
                   setTextWarning(w ?? null);
-                  if (w) setMapToast(w);
+                  if (w) toast.notice(w);
                 }}
                 hasTextWarning={!!textWarning}
               />
@@ -2674,7 +2687,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    alert('Mission accepted! Redirecting to profile...');
+                    toast.success(t('mapToastMissionAcceptedProfile'));
                     handleCloseMissionBriefing();
                     onAvatarClick?.();
                   }}
@@ -2956,12 +2969,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           }
                           setIsAccepting(true);
                           await handleCoFundMission(selectedMission.id, floorEgp(coFundEgp));
-                          alert('Success! You co-funded this mission and closed the deal.');
+                          toast.success(t('mapToastCoFundSuccess'));
                           await fetchMissions();
                           closeCrowdfundConfirm();
                           handleCloseMissionBriefing();
                         } catch (e: any) {
-                          alert(e?.message || 'Failed to co-fund mission. Please try again.');
+                          toast.error(t('mapToastCoFundFailed'));
                         } finally {
                           setIsAccepting(false);
                         }
@@ -3019,7 +3032,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           closeCrowdfundConfirm();
                           handleCloseMissionBriefing();
                         } catch (e: any) {
-                          alert(e?.message || 'Failed to place bid. Please try again.');
+                          toast.error(t('mapToastPendingBidFailed'));
                         } finally {
                           setIsAccepting(false);
                         }
@@ -3112,9 +3125,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
       <TrustDepositInfoModal open={trustDepositInfoOpen} onClose={() => setTrustDepositInfoOpen(false)} />
 
       {mapToast && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[10000] pointer-events-none">
-          <div className="rounded-xl border border-red-300/30 bg-red-500/85 px-4 py-2 text-xs font-bold text-white shadow-xl backdrop-blur-sm">
-            {mapToast}
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[10000] pointer-events-none max-w-[min(92vw,24rem)]">
+          <div
+            className={`rounded-xl border px-4 py-2 text-xs font-bold shadow-xl backdrop-blur-sm ${
+              mapToast.variant === 'success'
+                ? 'border-emerald-400/35 bg-emerald-600/90 text-white'
+                : mapToast.variant === 'notice'
+                  ? 'border-amber-400/40 bg-amber-950/90 text-amber-100'
+                  : 'border-red-300/30 bg-red-500/85 text-white'
+            }`}
+          >
+            {mapToast.message}
           </div>
         </div>
       )}

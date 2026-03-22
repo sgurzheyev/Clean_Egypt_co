@@ -68,9 +68,13 @@ function replaceAll(text: string, patterns: RegExp[], replacement: string): stri
   return out;
 }
 
+/** i18n key for optional toast when description looks like contact solicitation */
+export const DESCRIPTION_CONTACT_WARNING_I18N_KEY = 'descriptionContactWarning' as const;
+
 export type FilterMissionDescriptionResult = {
   filteredText: string;
-  textWarning?: string;
+  /** Pass to `t(textWarningKey)` in UI — do not show raw strings */
+  textWarningKey?: typeof DESCRIPTION_CONTACT_WARNING_I18N_KEY;
 };
 
 /** Clean text: replace phones, links, cash/numbers (EN/RU/AR) with ***. */
@@ -95,11 +99,9 @@ export function filterMissionDescription(text: string): FilterMissionDescription
   let filtered = cleanText(s);
 
   const hasWarning = WARNING_KEYWORDS.some((re) => re.test(s));
-  const textWarning = hasWarning
-    ? 'Контакты запрещены. Описание будет отмодерировано.'
-    : undefined;
+  const textWarningKey = hasWarning ? DESCRIPTION_CONTACT_WARNING_I18N_KEY : undefined;
 
-  return { filteredText: filtered, textWarning };
+  return { filteredText: filtered, textWarningKey };
 }
 
 /** True if text looks like a phone / long number / external contact (for live UI warnings). */

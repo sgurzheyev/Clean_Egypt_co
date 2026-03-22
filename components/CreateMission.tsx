@@ -161,16 +161,16 @@ const CreateMission: React.FC<Props> = ({
   }, [orderPhotos, runVerification]);
 
   useEffect(() => {
-    const { textWarning: tw } = filterMissionDescription(orderDescription);
-    onTextWarning?.(tw ?? null);
-  }, [orderDescription, onTextWarning]);
+    const { textWarningKey } = filterMissionDescription(orderDescription);
+    onTextWarning?.(textWarningKey ? t(textWarningKey) : null);
+  }, [orderDescription, onTextWarning, t]);
 
   const handleDescriptionChange = (v: string) => {
     setOrderDescription(v);
     const r = validateMissionDescription(v);
     onDescriptionPolicyError(r.ok ? null : MISSION_DESCRIPTION_POLICY_ERROR);
-    const { textWarning } = filterMissionDescription(v);
-    onTextWarning?.(textWarning ?? null);
+    const { textWarningKey } = filterMissionDescription(v);
+    onTextWarning?.(textWarningKey ? t(textWarningKey) : null);
   };
 
   return (
@@ -265,8 +265,8 @@ const CreateMission: React.FC<Props> = ({
                   setOrderDescription(newVal);
                   const r = validateMissionDescription(newVal);
                   onDescriptionPolicyError(r.ok ? null : MISSION_DESCRIPTION_POLICY_ERROR);
-                  const { textWarning: tw } = filterMissionDescription(newVal);
-                  onTextWarning?.(tw ?? null);
+                  const { textWarningKey } = filterMissionDescription(newVal);
+                  onTextWarning?.(textWarningKey ? t(textWarningKey) : null);
                   requestAnimationFrame(() => resizeDescription());
                 }}
                 className="rounded-full border border-teal-500/40 bg-teal-500/15 px-2.5 py-1 text-[10px] font-semibold text-teal-100 shadow-sm ring-1 ring-teal-500/15 cursor-pointer transition-all hover:bg-teal-500/25 hover:border-teal-400/60 hover:ring-teal-400/30 active:scale-95"
