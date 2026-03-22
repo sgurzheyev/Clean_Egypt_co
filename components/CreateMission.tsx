@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   validateMissionDescription,
+  filterMissionDescription,
   MISSION_DESCRIPTION_POLICY_ERROR,
 } from '../src/lib/missionContentPolicy';
 import { PROFILE_GLASS_PANEL } from '../constants';
@@ -21,6 +22,8 @@ type Props = {
   setOrderPhotos: (files: File[]) => void;
   onDescriptionPolicyError: (msg: string | null) => void;
   onPhotoVerificationChange: (s: PhotoVerificationState) => void;
+  onTextWarning?: (msg: string | null) => void;
+  hasTextWarning?: boolean;
 };
 
 const CreateMission: React.FC<Props> = ({
@@ -31,12 +34,15 @@ const CreateMission: React.FC<Props> = ({
   setOrderPhotos,
   onDescriptionPolicyError,
   onPhotoVerificationChange,
+  onTextWarning,
+  hasTextWarning = false,
 }) => {
   const { t } = useTranslation();
   const [checkingPhotos, setCheckingPhotos] = useState(false);
   const [photoStatuses, setPhotoStatuses] = useState<
     ('pending' | 'approved' | 'rejected' | 'explicit')[]
   >([]);
+  const [aiKeywords, setAiKeywords] = useState<string[]>([]);
   const lastFilesKey = useRef<string>('');
 
   const runVerification = useCallback(
@@ -54,6 +60,7 @@ const CreateMission: React.FC<Props> = ({
       setPhotoStatuses(statuses);
 
       let anyWasteRejected = false;
+      let collectedKeywords: string[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         try {
@@ -93,12 +100,22 @@ const CreateMission: React.FC<Props> = ({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ imageBase64: base64, mimeType }),
           });
-          const data = await res.json().catch(() => ({}));
+          const data = (await res.json().catch(() => ({}))) as {
+            status?: string;
+            keywords?: string[];
+          };
           if (!res.ok) {
             statuses[i] = 'rejected';
             anyWasteRejected = true;
           } else if (data.status === 'approved') {
             statuses[i] = 'approved';
+            if (
+              Array.isArray(data.keywords) &&
+              data.keywords.length > 0 &&
+              collectedKeywords.length === 0
+            ) {
+              collectedKeywords = data.keywords.slice(0, 3);
+            }
           } else {
             statuses[i] = 'rejected';
             anyWasteRejected = true;
@@ -112,6 +129,7 @@ const CreateMission: React.FC<Props> = ({
 
       const allApproved = statuses.every((s) => s === 'approved' || s === 'explicit');
       const hasRejected = anyWasteRejected;
+      if (collectedKeywords.length > 0) setAiKeywords(collectedKeywords);
       setCheckingPhotos(false);
       onPhotoVerificationChange({
         verifying: false,
@@ -126,13 +144,21 @@ const CreateMission: React.FC<Props> = ({
     const key = orderPhotos.map((f) => `${f.name}-${f.size}-${f.lastModified}`).join('|');
     if (key === lastFilesKey.current) return;
     lastFilesKey.current = key;
+    setAiKeywords([]);
     void runVerification(orderPhotos);
   }, [orderPhotos, runVerification]);
+
+  useEffect(() => {
+    const { textWarning: tw } = filterMissionDescription(orderDescription);
+    onTextWarning?.(tw ?? null);
+  }, [orderDescription, onTextWarning]);
 
   const handleDescriptionChange = (v: string) => {
     setOrderDescription(v);
     const r = validateMissionDescription(v);
     onDescriptionPolicyError(r.ok ? null : MISSION_DESCRIPTION_POLICY_ERROR);
+    const { textWarning } = filterMissionDescription(v);
+    onTextWarning?.(textWarning ?? null);
   };
 
   return (
@@ -215,8 +241,35 @@ const CreateMission: React.FC<Props> = ({
           placeholder={
             taskType === 'city' ? t('describeCitySpot') : t('describeHomeTask')
           }
-          className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none`}
+          className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none ${
+            hasTextWarning ? 'border-b-2 border-dashed border-[#ea580c]' : ''
+          }`}
         />
+        {aiKeywords.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider">
+              {t('aiSuggestions') || 'ИИ подсказки'}:
+            </span>
+            {aiKeywords.map((kw) => (
+              <button
+                key={kw}
+                type="button"
+                onClick={() => {
+                  const newVal =
+                    orderDescription.trim() ? `${orderDescription.trim()} ${kw}` : kw;
+                  setOrderDescription(newVal);
+                  const r = validateMissionDescription(newVal);
+                  onDescriptionPolicyError(r.ok ? null : MISSION_DESCRIPTION_POLICY_ERROR);
+                  const { textWarning: tw } = filterMissionDescription(newVal);
+                  onTextWarning?.(tw ?? null);
+                }}
+                className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 hover:border-cyan-400/60"
+              >
+                {kw}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );

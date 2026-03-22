@@ -13,7 +13,10 @@ import {
 } from '../src/lib/trustDeposit';
 import CreateMission from './CreateMission';
 import type { PhotoVerificationState } from './CreateMission';
-import { validateMissionDescription } from '../src/lib/missionContentPolicy';
+import {
+  validateMissionDescription,
+  filterMissionDescription,
+} from '../src/lib/missionContentPolicy';
 import {
   PROFILE_GLASS_PANEL,
   HOME_MIN_PRICE,
@@ -364,6 +367,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [mapToast, setMapToast] = useState<string | null>(null);
   const [censoredPhotoDeletingIndex, setCensoredPhotoDeletingIndex] = useState<number | null>(null);
+  const [textWarning, setTextWarning] = useState<string | null>(null);
 
   const toast = {
     error: (message: string) => {
@@ -1340,6 +1344,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setOrderError('error' in policy ? policy.error : 'Invalid description.');
       return;
     }
+    const { filteredText } = filterMissionDescription(orderDescription);
+    const descriptionToSave = filteredText.trim() || orderDescription.trim();
     if (orderPhotos.length > 0) {
       if (photoVerification.verifying) {
         setOrderError(t('waitForAiVerification'));
@@ -1365,7 +1371,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             amount,
             location_lat: selectedLocation.lat,
             location_lng: selectedLocation.lng,
-            description: orderDescription || '',
+            description: descriptionToSave || orderDescription || '',
           })
         );
         setOrderSubmitting(false);
@@ -1444,8 +1450,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // 2) For City (public) missions, create mission via RPC (Scout Stake fee in EGP in DB)
       if (taskType === 'city') {
         const { error } = await supabase.rpc('create_public_mission_with_fee', {
-          p_title: orderDescription || 'City Mission',
-          p_description: orderDescription || null,
+          p_title: descriptionToSave || 'City Mission',
+          p_description: descriptionToSave || null,
           p_amount_target: amount,
           p_location_lat: selectedLocation.lat,
           p_location_lng: selectedLocation.lng,
@@ -1470,7 +1476,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             (u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://'))
           );
           const hasPhoto = Boolean(firstHttpPhoto);
-          const caption = `🚨 *NEW MISSION* 🚨\n💰 Reward: ${formatEgp(Number(amount))}\n📝 Task: ${orderDescription || t('cityCleaning')}`;
+          const caption = `🚨 *NEW MISSION* 🚨\n💰 Reward: ${formatEgp(Number(amount))}\n📝 Task: ${descriptionToSave || t('cityCleaning')}`;
 
           if (botToken && chatId) {
             if (hasPhoto && firstHttpPhoto) {
@@ -1516,7 +1522,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         amount,
         taskType,
         location: selectedLocation,
-        description: orderDescription || '',
+        description: descriptionToSave || orderDescription || '',
         creatorPhotos: creatorPhotoUrls,
       });
     } catch (err) {
@@ -2124,6 +2130,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 setOrderPhotos={setOrderPhotos}
                 onDescriptionPolicyError={setDescriptionPolicyError}
                 onPhotoVerificationChange={setPhotoVerification}
+                onTextWarning={(w) => {
+                  setTextWarning(w ?? null);
+                  if (w) setMapToast(w);
+                }}
+                hasTextWarning={!!textWarning}
               />
 
               {(orderError || descriptionPolicyError) && (

@@ -17,6 +17,72 @@ function hasForbiddenKeyword(s: string): boolean {
   return false;
 }
 
+/** Regexes for find-and-replace text filtering */
+const PHONE_INTL = /\+?\d{1,4}[\s\-\.()]*\d{2,4}[\s\-\.()]*\d{2,4}[\s\-\.()]*\d{2,4}[\s\-\.()]*\d{2,4}([\s\-\.()]*\d+)?/g;
+const PHONE_EGYPT = /\b01[0125][\s\-\.]?\d{3}[\s\-\.]?\d{4}\b/g;
+const EMAIL = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+const URL = /https?:\/\/[^\s]+|www\.[^\s]+|\b[a-zA-Z0-9][-a-zA-Z0-9.]*\.(com|net|org|io|co|me|eg|ru|ua)(\/[^\s]*)?/gi;
+
+/** Minimal blacklist (Russian/Arabic profanity) — replace with *** */
+const PROFANITY_PATTERNS: RegExp[] = [
+  /\b(сука|блять|хуй|пизда|ебать|ебал|хер|гондо|мудак)\b/gi,
+  /\b(бля|бл[яа])\b/gi,
+  /(كس|شرموطة|زبي|طيز)\b/gi,
+];
+
+/** Keywords that trigger textWarning (contacts/cash deals) — highlight description */
+const WARNING_KEYWORDS = [
+  /\bcash\b/i,
+  /кеш/i,
+  /\bobkhod\b/i,
+  /в\s+обход/i,
+  /\bcall\b/i,
+  /звони/i,
+  /\bномер\b/i,
+  /\bphone\b/i,
+  /\bтелефон\b/i,
+  /\bwhatsapp\b/i,
+  /\btelegram\b/i,
+  /\bвацап\b/i,
+  /\bватсап\b/i,
+];
+
+const CENSOR = '***';
+
+function replaceAll(text: string, patterns: RegExp[], replacement: string): string {
+  let out = text;
+  for (const p of patterns) {
+    out = out.replace(p, replacement);
+  }
+  return out;
+}
+
+export type FilterMissionDescriptionResult = {
+  filteredText: string;
+  textWarning?: string;
+};
+
+/**
+ * Filter mission description: replace phones, emails, URLs, profanity with ***.
+ * If warning keywords (cash, obkhod, call, etc.) are found, return textWarning.
+ */
+export function filterMissionDescription(text: string): FilterMissionDescriptionResult {
+  const s = String(text || '');
+  let filtered = s
+    .replace(PHONE_INTL, CENSOR)
+    .replace(PHONE_EGYPT, CENSOR)
+    .replace(EMAIL, CENSOR)
+    .replace(URL, CENSOR);
+  filtered = replaceAll(filtered, PROFANITY_PATTERNS, CENSOR);
+
+  const hasWarning = WARNING_KEYWORDS.some((re) => re.test(s));
+  const textWarning = hasWarning
+    ? 'Контакты запрещены. Описание будет отмодерировано.'
+    : undefined;
+
+  return { filteredText: filtered, textWarning };
+}
+
 /** True if text looks like a phone / long number / external contact (for live UI warnings). */
 export function descriptionLooksLikeContactOrPhone(text: string): boolean {
   const s = String(text || '');

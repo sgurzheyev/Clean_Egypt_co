@@ -3,16 +3,20 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 type VisionResult = {
   status: 'approved' | 'rejected';
   reason?: 'sexual_content' | 'unrelated' | string;
+  keywords?: string[];
+  suggestions?: string;
 };
 
-const PROMPT =
-  `Analyze this image for a cleanup platform. Return ONLY JSON: {"status": "approved" | "rejected", "reason": "sexual_content" | "unrelated"}.
+const PROMPT = `Analyze this image for a cleanup platform. Return ONLY valid JSON with this exact structure:
 
-REJECT if: sexual content, nudity, or adult material.
+{"status": "approved" | "rejected", "reason": "sexual_content" | "unrelated" | null, "keywords": ["keyword1", "keyword2", "keyword3"], "suggestions": "one-line cleanup recommendation"}
 
-REJECT if: it's a generic selfie, meme, or clean nature with no garbage/mess.
+RULES:
+- REJECT if: sexual content, nudity, or adult material.
+- REJECT if: it's a generic selfie, meme, or clean nature with no garbage/mess.
+- APPROVE if: it contains city waste, trash, debris, or a messy home environment needing cleaning.
 
-APPROVE if: it contains city waste, trash, debris, or a messy home environment needing cleaning.`;
+When APPROVED: Provide up to 3 relevant, concise keywords to describe the cleanup task (e.g. "Уборка пластика", "Крупногабаритный мусор", "Street debris"). Recommend specific cleanup actions in suggestions.`;
 
 function extractJson(text: string): VisionResult | null {
   const start = text.indexOf('{');
@@ -20,7 +24,10 @@ function extractJson(text: string): VisionResult | null {
   if (start === -1 || end === -1 || end <= start) return null;
   try {
     const parsed = JSON.parse(text.slice(start, end + 1)) as VisionResult;
-    if (parsed.status === 'approved' || parsed.status === 'rejected') return parsed;
+    if (parsed.status === 'approved' || parsed.status === 'rejected') {
+      if (!Array.isArray(parsed.keywords)) parsed.keywords = [];
+      return parsed;
+    }
   } catch {
     /* ignore */
   }
@@ -58,7 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        max_tokens: 200,
+        max_tokens: 256,
         messages: [
           {
             role: 'user',

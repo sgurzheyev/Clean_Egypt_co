@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const PROMPT =
-  'Is this image safe for a conservative public platform? Analyze for explicit material or nudity. Return only "SAFE" or "EXPLICIT".';
+  'Analyze the image. Only return "EXPLICIT" if there is hardcore nudity, pornographic material, or explicit sexual acts. Otherwise, for anything else (faces, animals, trash, general clutter, messy environments), return "SAFE". Return only "SAFE" or "EXPLICIT".';
 
 function parseVerdict(text: string): 'SAFE' | 'EXPLICIT' | null {
   const t = text.trim().toUpperCase();
