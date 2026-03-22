@@ -27,51 +27,92 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       missionId, // needed for deposits
       description,
       creator_photos,
+      /** Resume Paymob checkout for an existing unpaid mission (no duplicate row). */
+      existing_mission_id,
     } = req.body;
 
-    // Whole EGP only — Paymob piastres must be integer; avoids check_integer_egp / float drift (e.g. 251 vs 250).
-    const finalAmountTarget = Math.floor(Math.max(0, Number(amount_target)));
-    const latNum = typeof location_lat === 'number' ? location_lat : Number(location_lat);
-    const lngNum = typeof location_lng === 'number' ? location_lng : Number(location_lng);
+    let finalAmountTarget = Math.floor(Math.max(0, Number(amount_target)));
+    let latNum = typeof location_lat === 'number' ? location_lat : Number(location_lat);
+    let lngNum = typeof location_lng === 'number' ? location_lng : Number(location_lng);
     let missionIdForMetadata: string;
 
     // --- 1. HANDLE MISSION CREATION ---
     if (type === 'mission_creation') {
-      if (!userId || !category) {
-        return res.status(400).json({ error: 'Missing required fields for mission creation (userId/category)' });
-      }
-      if (!Number.isFinite(finalAmountTarget) || finalAmountTarget <= 0) {
-        return res.status(400).json({ error: 'Invalid or missing amount_target for mission creation' });
-      }
-      if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
-        return res.status(400).json({ error: 'Invalid or missing location_lat/location_lng for mission creation' });
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing required field userId' });
       }
 
-      // Create mission in 'pending_payment' so it does NOT appear on the map until paid
-      const { data: newMission, error: missionError } = await supabase
-        .from('missions')
-        .insert({
-          creator_id: userId,
-          category,
-          amount_target: finalAmountTarget,
-          location_lat: latNum,
-          location_lng: lngNum,
-          status: 'pending_payment',
-          description: description || null,
-          photo_urls: creator_photos || [],
-        })
-        .select('id')
-        .single();
+      const resumeId =
+        typeof existing_mission_id === 'string' && existing_mission_id.length > 0
+          ? existing_mission_id
+          : null;
 
-      if (missionError) {
-        console.error('Mission insert error:', missionError.message);
-        return res.status(500).json({ error: 'Failed to create mission in database' });
+      if (resumeId) {
+        const { data: existing, error: exErr } = await supabase
+          .from('missions')
+          .select(
+            'id, creator_id, category, amount_target, location_lat, location_lng, status, description, photo_urls'
+          )
+          .eq('id', resumeId)
+          .maybeSingle();
+
+        if (exErr || !existing) {
+          return res.status(400).json({ error: 'Mission not found' });
+        }
+        if (existing.creator_id !== userId) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+        if (existing.status !== 'pending_payment') {
+          return res.status(400).json({ error: 'Mission is not awaiting payment' });
+        }
+
+        missionIdForMetadata = existing.id;
+        finalAmountTarget = Math.floor(Math.max(0, Number(existing.amount_target)));
+        latNum = Number(existing.location_lat);
+        lngNum = Number(existing.location_lng);
+        if (!Number.isFinite(finalAmountTarget) || finalAmountTarget <= 0) {
+          return res.status(400).json({ error: 'Invalid amount_target on mission' });
+        }
+        if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+          return res.status(400).json({ error: 'Invalid coordinates on mission' });
+        }
+      } else {
+        if (!category) {
+          return res.status(400).json({ error: 'Missing required fields for mission creation (category)' });
+        }
+        if (!Number.isFinite(finalAmountTarget) || finalAmountTarget <= 0) {
+          return res.status(400).json({ error: 'Invalid or missing amount_target for mission creation' });
+        }
+        if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+          return res.status(400).json({ error: 'Invalid or missing location_lat/location_lng for mission creation' });
+        }
+
+        // Create mission in 'pending_payment' so it does NOT appear on the map until paid
+        const { data: newMission, error: missionError } = await supabase
+          .from('missions')
+          .insert({
+            creator_id: userId,
+            category,
+            amount_target: finalAmountTarget,
+            location_lat: latNum,
+            location_lng: lngNum,
+            status: 'pending_payment',
+            description: description || null,
+            photo_urls: creator_photos || [],
+          })
+          .select('id')
+          .single();
+
+        if (missionError) {
+          console.error('Mission insert error:', missionError.message);
+          return res.status(500).json({ error: 'Failed to create mission in database' });
+        }
+
+        missionIdForMetadata = newMission.id;
+
+        // IMPORTANT:
+        // Do NOT notify here. Only after payment succeeds (paymob-webhook will do it).
       }
-
-      missionIdForMetadata = newMission.id;
-
-      // IMPORTANT:
-      // Do NOT notify here. Only after payment succeeds (paymob-webhook will do it).
     }
     // --- 2. HANDLE WORKER DEPOSIT ---
     else if (type === 'worker_deposit') {

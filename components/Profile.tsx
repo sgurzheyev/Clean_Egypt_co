@@ -220,6 +220,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
+  /** Loading id for Retry/Cancel on `pending_payment` (Phantom Pin) cards. */
+  const [phantomPaymentActionId, setPhantomPaymentActionId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -810,6 +812,30 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     }
   };
 
+  const redirectToPaymobMissionCheckout = (data: {
+    paymentUrl?: string;
+    paymentToken?: string;
+    missionId?: string;
+  }) => {
+    if (data.missionId) {
+      sessionStorage.setItem('paymobPendingMissionId', data.missionId);
+    }
+    if (data.paymentUrl) {
+      sessionStorage.setItem('paymentReturnType', 'mission_creation');
+      window.location.assign(data.paymentUrl);
+      return;
+    }
+    if (data.paymentToken) {
+      sessionStorage.setItem('paymentReturnType', 'mission_creation');
+      const iframeId =
+        (import.meta.env.VITE_PAYMOB_IFRAME_ID as string | undefined) || '1007120';
+      const url = `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${data.paymentToken}`;
+      window.location.assign(url);
+      return;
+    }
+    throw new Error('No payment URL or token received.');
+  };
+
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     setOrderError(null);
@@ -868,26 +894,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         missionId?: string;
       };
 
-      if (data.missionId) {
-        sessionStorage.setItem('paymobPendingMissionId', data.missionId);
-      }
-
-      if (data.paymentUrl) {
-        sessionStorage.setItem('paymentReturnType', 'mission_creation');
-        window.location.assign(data.paymentUrl);
-        return;
-      }
-
-      if (data.paymentToken) {
-        sessionStorage.setItem('paymentReturnType', 'mission_creation');
-        const iframeId =
-          (import.meta.env.VITE_PAYMOB_IFRAME_ID as string | undefined) || '1007120';
-        const url = `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${data.paymentToken}`;
-        window.location.assign(url);
-        return;
-      }
-
-      throw new Error('No payment URL or token received.');
+      redirectToPaymobMissionCheckout(data);
     } catch (err) {
       console.error('Create task exception:', err);
       setOrderError(
@@ -895,6 +902,67 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       );
     } finally {
       setOrderSubmitting(false);
+    }
+  };
+
+  const retryPendingPaymentMission = async (job: Job) => {
+    try {
+      setPhantomPaymentActionId(job.id);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) {
+        toast.error(t('signIn'));
+        return;
+      }
+      const res = await fetch('/api/paymob-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'mission_creation',
+          userId,
+          existing_mission_id: job.id,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(
+          (errData as { error?: string }).error || `Payment init failed (${res.status})`
+        );
+      }
+      const data = (await res.json()) as {
+        paymentUrl?: string;
+        paymentToken?: string;
+        missionId?: string;
+      };
+      redirectToPaymobMissionCheckout(data);
+    } catch (e) {
+      console.error('retryPendingPaymentMission:', e);
+      toast.error(t('retryPaymentFailed'));
+    } finally {
+      setPhantomPaymentActionId(null);
+    }
+  };
+
+  const cancelPendingPaymentMission = async (job: Job, list: 'home' | 'city') => {
+    try {
+      setPhantomPaymentActionId(job.id);
+      const { error } = await supabase.rpc('cancel_pending_payment_mission', {
+        p_mission_id: job.id,
+      });
+      if (error) throw error;
+      if (list === 'home') {
+        setMyHomeJobs((prev) => prev.filter((j) => j.id !== job.id));
+      } else {
+        setMyCityJobs((prev) => prev.filter((j) => j.id !== job.id));
+      }
+      toast.success(t('missionCancelled'));
+    } catch (e) {
+      console.error('cancelPendingPaymentMission:', e);
+      toast.error(t('cancelMissionFailed'));
+    } finally {
+      setPhantomPaymentActionId(null);
     }
   };
 
@@ -2032,6 +2100,50 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 .filter((job) => job.status !== 'finished')
                 .map((job) => {
                 const bids = (jobBidsById[job.id] || []).filter((b) => b.status === 'pending');
+                const isPhantomPayment = job.status === 'pending_payment';
+                if (isPhantomPayment) {
+                  const busy = phantomPaymentActionId === job.id;
+                  return (
+                    <div
+                      key={job.id}
+                      className={`${PROFILE_GLASS_PANEL} p-4 opacity-70 border border-dashed border-red-500/40`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">#{shortId(job.id)}</span>
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wider">{new Date(job.created_at).toLocaleDateString()}</span>
+                      </div>
+                      <div className="mb-3">
+                        <div className="inline-block bg-red-500/20 text-red-400 border border-red-500/50 rounded px-2 py-1 text-xs">
+                          {t('paymentPendingBadge')}
+                        </div>
+                      </div>
+                      <p className="text-sm text-slate-300 mb-3">
+                        <span className="text-amber-400 font-bold">{formatEgp(Number(job.amount_target))}</span>
+                        {job.description && (
+                          <span className="ml-2 text-slate-400">— {job.description}</span>
+                        )}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => retryPendingPaymentMission(job)}
+                          className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-emerald-600/90 hover:bg-emerald-500 border border-emerald-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {t('retryPayment')}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => cancelPendingPaymentMission(job, 'home')}
+                          className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {t('cancelMission')}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div key={job.id} className={`${PROFILE_GLASS_PANEL} p-4`}>
                     <div className="flex justify-between items-start mb-2">
@@ -2289,11 +2401,58 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               (myCityJobs || [])
                 .filter((job) => job.status !== 'finished')
                 .map((job) => {
-                  const hasCoords =
-                    typeof job.location_lat === 'number' && typeof job.location_lng === 'number';
                   const displayTitle = (job.title && job.title.trim().length > 0)
                     ? job.title
                     : 'City Donation';
+                  const isPhantomPayment = job.status === 'pending_payment';
+                  if (isPhantomPayment) {
+                    const busy = phantomPaymentActionId === job.id;
+                    return (
+                      <div
+                        key={job.id}
+                        className={`${PROFILE_GLASS_PANEL} p-4 opacity-70 border border-dashed border-red-500/40`}
+                      >
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
+                          <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <div className="mb-3">
+                          <div className="inline-block bg-red-500/20 text-red-400 border border-red-500/50 rounded px-2 py-1 text-xs">
+                            {t('paymentPendingBadge')}
+                          </div>
+                        </div>
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-400 font-bold mb-1">
+                          {displayTitle}
+                        </p>
+                        <p className="text-sm font-bold text-emerald-400 mb-3">
+                          {formatEgp(Number(job.amount_target))}
+                        </p>
+                        {job.description && (
+                          <p className="text-xs text-slate-400 mb-3">{job.description}</p>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => retryPendingPaymentMission(job)}
+                            className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-emerald-600/90 hover:bg-emerald-500 border border-emerald-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {t('retryPayment')}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => cancelPendingPaymentMission(job, 'city')}
+                            className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {t('cancelMission')}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  const hasCoords =
+                    typeof job.location_lat === 'number' && typeof job.location_lng === 'number';
                   return (
                     <div key={job.id} className={`${PROFILE_GLASS_PANEL} p-4`}>
                       <div className="flex justify-between items-center mb-2">
