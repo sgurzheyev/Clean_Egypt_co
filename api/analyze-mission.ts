@@ -1,3 +1,8 @@
+/**
+ * Read-only AI audit of mission before/after photo URLs (OpenAI).
+ * Constitution v6.0: does NOT mutate wallets, balances, or mission financial state.
+ * Mission status / payouts are handled only by dedicated RPCs (e.g. supervisor approval).
+ */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
