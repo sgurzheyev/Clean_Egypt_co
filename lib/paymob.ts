@@ -1,7 +1,8 @@
 // lib/paymob.ts
 
 export const generatePaymobLink = async (
-  amountInDollars: number,
+  /** Whole EGP amount; charged as EGP piastres (×100). */
+  amountEgpWhole: number,
   userEmail: string,
   userFirstName: string = 'Eco',
   userLastName: string = 'Hero',
@@ -11,8 +12,7 @@ export const generatePaymobLink = async (
   const integrationId = import.meta.env.VITE_PAYMOB_INTEGRATION_ID;
   const iframeId = import.meta.env.VITE_PAYMOB_IFRAME_ID;
 
-  // PayMob требует сумму в центах (или пиастрах, если EGP)
-  const amountInCents = amountInDollars * 100;
+  const amountInCents = Math.floor(Math.max(0, amountEgpWhole)) * 100;
 
   try {
     // ШАГ 1: Аутентификация (Authentication Request)
@@ -32,7 +32,7 @@ export const generatePaymobLink = async (
         auth_token: authToken,
         delivery_needed: "false",
         amount_cents: amountInCents,
-        currency: "USD", // Или "EGP", в зависимости от настроек вашей интеграции
+        currency: 'EGP',
         items: [], // Можно оставить пустым или добавить описание
       }),
     });
@@ -63,7 +63,7 @@ export const generatePaymobLink = async (
           last_name: userLastName,
           state: "Red Sea"
         },
-        currency: "USD", // Должно совпадать с шагом 2
+        currency: 'EGP',
         integration_id: integrationId
       }),
     });

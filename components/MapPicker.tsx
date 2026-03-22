@@ -23,11 +23,10 @@ import {
   HOME_MAX_PRICE,
   CITY_MIN_PRICE,
   CITY_MAX_PRICE,
-  USD_TO_EGP_RATE,
   SCOUT_STAKE_FEE_EGP,
 } from '../constants';
 import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
-import { profileWalletBalanceEgp, usdInputToEgp } from '../src/lib/walletCredit';
+import { profileWalletBalanceEgp } from '../src/lib/walletCredit';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -395,8 +394,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
   // Bidding modal state
   const [bidJob, setBidJob] = useState<JobOnMap | null>(null);
   const [bidAmount, setBidAmount] = useState('');
-  /** Bid modal: raw input is interpreted as EGP or USD (converted at {@link USD_TO_EGP_RATE}). */
-  const [bidInputCurrency, setBidInputCurrency] = useState<'EGP' | 'USD'>('EGP');
   const [bidSubmitting, setBidSubmitting] = useState(false);
   const [bidError, setBidError] = useState<string | null>(null);
   const [bidSuccess, setBidSuccess] = useState<string | null>(null);
@@ -714,7 +711,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
   } | null>(null);
   const [showBidInput, setShowBidInput] = useState(false);
   const [missionBidAmount, setMissionBidAmount] = useState<string>('');
-  const [missionBidCurrency, setMissionBidCurrency] = useState<'EGP' | 'USD'>('EGP');
   const [showCrowdfundConfirm, setShowCrowdfundConfirm] = useState(false);
   const [crowdfundBidAmount, setCrowdfundBidAmount] = useState<number | null>(null);
   /** User-entered EGP for "close deal" co-fund (any positive amount, not tied to gap) */
@@ -890,7 +886,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setSelectedMission(job);
     setShowBidInput(false);
     setMissionBidAmount(String(job.amount_target ?? ''));
-    setMissionBidCurrency('EGP');
   }, []);
 
   const handleMapClickWithTowers = useCallback(
@@ -920,7 +915,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setShowTranslateAction(false);
     setShowBidInput(false);
     setMissionBidAmount('');
-    setMissionBidCurrency('EGP');
     setShowDonate(false);
     setDonateAmount('');
     setSelectedRating(0);
@@ -1162,10 +1156,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         alert(t('enterPositiveEgpAmount'));
         return;
       }
-      const amtEgp =
-        missionBidCurrency === 'USD'
-          ? usdInputToEgp(raw, USD_TO_EGP_RATE)
-          : Math.round(raw * 100) / 100;
+      const amtEgp = Math.max(0, Math.floor(raw));
       if (amtEgp <= 0) {
         alert(t('enterPositiveEgpAmount'));
         return;
@@ -1234,7 +1225,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     fetchMissions,
     handleCloseMissionBriefing,
     missionBidAmount,
-    missionBidCurrency,
     onRequestAuth,
     placePendingBid,
     selectedMission,
@@ -1245,7 +1235,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     if (!bidSubmitting) {
       setBidJob(null);
       setBidAmount('');
-      setBidInputCurrency('EGP');
       setBidError(null);
       setBidSuccess(null);
     }
@@ -1262,10 +1251,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setBidError(t('enterPositiveEgpAmount'));
       return;
     }
-    const bidEgp =
-      bidInputCurrency === 'USD'
-        ? usdInputToEgp(raw, USD_TO_EGP_RATE)
-        : Math.round(raw * 100) / 100;
+    const bidEgp = Math.max(0, Math.floor(raw));
     if (bidEgp <= 0) {
       setBidError(t('enterPositiveEgpAmount'));
       return;
@@ -1586,29 +1572,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
     if (!selectedMission || !showBidInput) return null;
     const raw = parseFloat(String(missionBidAmount || '').replace(',', '.'));
     if (!Number.isFinite(raw) || raw <= 0) return null;
-    const inputEgp =
-      missionBidCurrency === 'USD'
-        ? usdInputToEgp(raw, USD_TO_EGP_RATE)
-        : Math.round(raw * 100) / 100;
+    const inputEgp = Math.max(0, Math.floor(raw));
     const target = Number(selectedMission.amount_target ?? 0);
     const current = Number(selectedMission.current_funding ?? 0);
     const remainder = target - (current + inputEgp);
     return { remainder, target, current, inputEgp };
-  }, [selectedMission, showBidInput, missionBidAmount, missionBidCurrency]);
+  }, [selectedMission, showBidInput, missionBidAmount]);
 
   const bidModalFundingGapPreview = useMemo(() => {
     if (!bidJob) return null;
     const raw = parseFloat(String(bidAmount || '').replace(',', '.'));
     if (!Number.isFinite(raw) || raw <= 0) return null;
-    const inputEgp =
-      bidInputCurrency === 'USD'
-        ? usdInputToEgp(raw, USD_TO_EGP_RATE)
-        : Math.round(raw * 100) / 100;
+    const inputEgp = Math.max(0, Math.floor(raw));
     const target = Number(bidJob.amount_target ?? 0);
     const current = Number(bidJob.current_funding ?? 0);
     const remainder = target - (current + inputEgp);
     return { remainder, target, current, inputEgp };
-  }, [bidJob, bidAmount, bidInputCurrency]);
+  }, [bidJob, bidAmount]);
 
   const missionsHeatmapGeoJSON = useMemo(() => {
     const features = (jobs || [])
@@ -2120,7 +2100,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       ? isRu
                         ? 'Цель сбора (Предполагаемая стоимость)'
                         : 'Collection Target (Goal)'
-                      : t('amountUsd')}
+                      : t('amountEgp')}
                   </label>
                   <input
                     type="number"
@@ -2363,46 +2343,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
             <form onSubmit={handlePlaceBid} className="space-y-4">
               <div>
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
-                    {bidInputCurrency === 'USD' ? t('bidAmountLabelUsd') : t('bidAmountLabelEgp')}
-                  </label>
-                  <div className="flex rounded-full border border-slate-600 p-0.5 bg-slate-900/80">
-                    <button
-                      type="button"
-                      onClick={() => setBidInputCurrency('EGP')}
-                      className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                        bidInputCurrency === 'EGP' ? 'bg-emerald-500 text-black' : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {t('depositCurrencyEgp')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBidInputCurrency('USD')}
-                      className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                        bidInputCurrency === 'USD' ? 'bg-emerald-500 text-black' : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {t('depositCurrencyUsd')}
-                    </button>
-                  </div>
-                </div>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                  {t('bidAmountLabelEgp')}
+                </label>
                 <input
                   type="number"
                   inputMode="decimal"
-                  step="0.01"
+                  step="1"
                   min="0"
                   value={bidAmount}
                   onChange={(e) => setBidAmount(e.target.value)}
                   placeholder="Enter your bid amount"
                   className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500`}
                 />
-                {bidInputCurrency === 'USD' && bidAmount && Number(bidAmount) > 0 && (
-                  <p className="mt-2 text-[10px] text-amber-200/90">
-                    ≈ {formatEgp(usdInputToEgp(Number(bidAmount), USD_TO_EGP_RATE))} — {t('bidUsdToEgpHint', { rate: String(USD_TO_EGP_RATE) })}
-                  </p>
-                )}
                 {bidModalFundingGapPreview && (
                   <p className="mt-2 text-[11px] text-cyan-200/95 font-semibold tabular-nums">
                     {t('goalMinusFundedMinusBid')}: {formatEgp(bidModalFundingGapPreview.remainder)}
@@ -2433,10 +2386,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     ? 'Placing bid...'
                     : (() => {
                         const amt = parseFloat(String(bidAmount).replace(',', '.'));
-                        const egp =
-                          bidInputCurrency === 'USD'
-                            ? usdInputToEgp(amt, USD_TO_EGP_RATE)
-                            : amt;
+                        const egp = Math.max(0, Math.floor(amt));
                         return amt > 0
                           ? `Place bid ${formatEgp(egp)}`
                           : 'Place bid';
@@ -2751,35 +2701,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
               <div className="space-y-4">
                 {showBidInput && (
                   <div className={`px-4 py-3 ${PROFILE_GLASS_PANEL}`}>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                        {missionBidCurrency === 'USD' ? t('bidAmountLabelUsd') : t('bidAmountLabelEgp')}
-                      </label>
-                      <div className="flex rounded-full border border-slate-600 p-0.5 bg-slate-900/80">
-                        <button
-                          type="button"
-                          onClick={() => setMissionBidCurrency('EGP')}
-                          className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                            missionBidCurrency === 'EGP' ? 'bg-emerald-500 text-black' : 'text-slate-400 hover:text-white'
-                          }`}
-                        >
-                          {t('depositCurrencyEgp')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setMissionBidCurrency('USD')}
-                          className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                            missionBidCurrency === 'USD' ? 'bg-emerald-500 text-black' : 'text-slate-400 hover:text-white'
-                          }`}
-                        >
-                          {t('depositCurrencyUsd')}
-                        </button>
-                      </div>
-                    </div>
+                    <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
+                      {t('bidAmountLabelEgp')}
+                    </label>
                     <input
                       type="number"
-                      inputMode="decimal"
-                      step="0.01"
+                      inputMode="numeric"
+                      step="1"
                       min="0"
                       value={missionBidAmount}
                       onChange={(e) => setMissionBidAmount(e.target.value)}
@@ -2790,12 +2718,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       }`}
                       placeholder={`Default: ${formatEgp(Number(selectedMission.amount_target))}`}
                     />
-                    {missionBidCurrency === 'USD' && missionBidAmount && Number(missionBidAmount) > 0 && (
-                      <p className="mt-2 text-[10px] text-amber-200/90">
-                        ≈ {formatEgp(usdInputToEgp(Number(missionBidAmount), USD_TO_EGP_RATE))} —{' '}
-                        {t('bidUsdToEgpHint', { rate: String(USD_TO_EGP_RATE) })}
-                      </p>
-                    )}
                     {missionBidFundingGapPreview && (
                       <p className="mt-2 text-[11px] text-cyan-200/95 font-semibold tabular-nums">
                         {t('goalMinusFundedMinusBid')}: {formatEgp(missionBidFundingGapPreview.remainder)}
@@ -2836,10 +2758,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           const amt = parseFloat(
                             String(missionBidAmount || '0').replace(',', '.')
                           );
-                          const egp =
-                            missionBidCurrency === 'USD'
-                              ? usdInputToEgp(amt, USD_TO_EGP_RATE)
-                              : amt;
+                          const egp = Math.max(0, Math.floor(amt));
                           return showBidInput && amt > 0
                             ? `${t('placeBid')} ${formatEgp(egp)}`
                             : showBidInput

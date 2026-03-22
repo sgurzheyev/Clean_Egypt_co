@@ -10,13 +10,12 @@ import {
 } from '@stripe/react-stripe-js';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabaseClient';
-import { stripeUsdToWalletEgp, stripeEgpInputToWalletEgp, egpInputToChargeUsd } from '../lib/walletCredit';
+import { stripeEgpInputToWalletEgp, egpInputToChargeUsd } from '../lib/walletCredit';
 import { USD_TO_EGP_RATE } from '../../constants';
 import { formatEgp } from '../lib/formatMoney';
 
 /**
- * Card is charged in USD (Stripe); `stripe-intent` sends USD dollars and the edge function converts to cents.
- * Wallet `top_up_wallet` credits the computed net amount in EGP.
+ * User enters EGP; Stripe charges the USD equivalent (card network); wallet credits net EGP.
  */
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string);
 
@@ -36,15 +35,11 @@ const CARD_ELEMENT_OPTIONS = {
   },
 };
 
-export type DepositCurrency = 'USD' | 'EGP';
-
 interface StripeTopUpFormProps {
   amount: string;
   onAmountChange: (value: string) => void;
   onClose: () => void;
   userId: string | null;
-  currency: DepositCurrency;
-  onCurrencyChange: (c: DepositCurrency) => void;
 }
 
 function StripeTopUpForm({
@@ -52,8 +47,6 @@ function StripeTopUpForm({
   onAmountChange,
   onClose,
   userId,
-  currency,
-  onCurrencyChange,
 }: StripeTopUpFormProps) {
   const { t } = useTranslation();
   const stripe = useStripe();
@@ -64,18 +57,10 @@ function StripeTopUpForm({
   const inputValid = Number.isFinite(numericInput) && numericInput > 0;
 
   const chargeUsd =
-    currency === 'USD'
-      ? numericInput
-      : inputValid
-        ? egpInputToChargeUsd(numericInput, USD_TO_EGP_RATE)
-        : 0;
+    inputValid ? egpInputToChargeUsd(numericInput, USD_TO_EGP_RATE) : 0;
 
   const netEgp =
-    inputValid && chargeUsd > 0
-      ? currency === 'USD'
-        ? stripeUsdToWalletEgp(numericInput)
-        : stripeEgpInputToWalletEgp(numericInput)
-      : null;
+    inputValid && chargeUsd > 0 ? stripeEgpInputToWalletEgp(numericInput) : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,19 +78,14 @@ function StripeTopUpForm({
       return;
     }
 
-    /** USD dollar amount; `stripe-intent` multiplies by 100 for Stripe (integer cents). */
-    const chargeUsdForStripe =
-      currency === 'USD' ? numericInput : egpInputToChargeUsd(numericInput, USD_TO_EGP_RATE);
+    const chargeUsdForStripe = egpInputToChargeUsd(numericInput, USD_TO_EGP_RATE);
 
     if (!Number.isFinite(chargeUsdForStripe) || chargeUsdForStripe <= 0) {
       alert(t('invalidAmount'));
       return;
     }
 
-    const netCreditEgp =
-      currency === 'USD'
-        ? stripeUsdToWalletEgp(numericInput)
-        : stripeEgpInputToWalletEgp(numericInput);
+    const netCreditEgp = stripeEgpInputToWalletEgp(numericInput);
 
     if (netCreditEgp <= 0) {
       alert(t('invalidAmount'));
@@ -139,7 +119,7 @@ function StripeTopUpForm({
       }
 
       const { error: rpcError } = await supabase.rpc('top_up_wallet', {
-        p_amount: Math.round(Number(netCreditEgp)),
+        p_amount: Math.floor(Number(netCreditEgp)),
       });
       if (rpcError) throw rpcError;
 
@@ -158,50 +138,18 @@ function StripeTopUpForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
-            {currency === 'USD' ? t('amountUsd') : t('amountEgp')}
-          </label>
-          <div className="flex rounded-full border border-slate-600 p-0.5 bg-slate-900/80">
-            <button
-              type="button"
-              onClick={() => {
-                onCurrencyChange('USD');
-                onAmountChange('');
-              }}
-              className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-all ${
-                currency === 'USD'
-                  ? 'bg-emerald-500 text-black'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              {t('depositCurrencyUsd')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onCurrencyChange('EGP');
-                onAmountChange('');
-              }}
-              className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-all ${
-                currency === 'EGP'
-                  ? 'bg-emerald-500 text-black'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              {t('depositCurrencyEgp')}
-            </button>
-          </div>
-        </div>
+        <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+          {t('amountEgp')}
+        </label>
         <input
           type="number"
           min="0"
-          step="0.01"
-          inputMode="decimal"
+          step="1"
+          inputMode="numeric"
           value={amount}
           onChange={(e) => onAmountChange(e.target.value)}
-          placeholder="0.00"
-          aria-label={currency === 'USD' ? t('amountUsd') : t('amountEgp')}
+          placeholder="0"
+          aria-label={t('amountEgp')}
           className="w-full rounded-2xl bg-slate-900/80 border border-slate-600 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 transition-all"
         />
         {netEgp != null && netEgp > 0 && (
@@ -210,10 +158,8 @@ function StripeTopUpForm({
               {t('stripeCreditToAccount', { amount: formatEgp(netEgp) })}
             </p>
             <p className="text-[10px] text-slate-500 leading-snug">{t('stripeFeeTransparentHint')}</p>
-            {currency === 'EGP' && chargeUsd > 0 && (
-              <p className="text-[10px] text-slate-400">
-                {t('stripeChargedUsdFromEgp', { amount: chargeUsd.toFixed(2) })}
-              </p>
+            {chargeUsd > 0 && (
+              <p className="text-[10px] text-slate-400">{t('stripeCardProcessingNote')}</p>
             )}
           </div>
         )}
@@ -279,7 +225,6 @@ interface StripeTopUpProps {
 const StripeTopUp: React.FC<StripeTopUpProps> = ({ onClose, userId }) => {
   const { t } = useTranslation();
   const [amount, setAmount] = useState('');
-  const [depositCurrency, setDepositCurrency] = useState<DepositCurrency>('EGP');
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -306,8 +251,6 @@ const StripeTopUp: React.FC<StripeTopUpProps> = ({ onClose, userId }) => {
             onAmountChange={setAmount}
             onClose={onClose}
             userId={userId}
-            currency={depositCurrency}
-            onCurrencyChange={setDepositCurrency}
           />
         </Elements>
       </div>

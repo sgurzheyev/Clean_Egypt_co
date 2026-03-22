@@ -1914,7 +1914,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     ? isRu
                       ? 'Цель сбора (Предполагаемая стоимость)'
                       : 'Collection Target (Goal)'
-                    : t('amountUsd')}
+                    : t('amountEgp')}
                 </label>
                 <input
                   type="number"

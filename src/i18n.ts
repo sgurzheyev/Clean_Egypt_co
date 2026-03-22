@@ -70,8 +70,7 @@ const resources = {
       cityPinScoutStakeFormHint:
         'Creating a public pin costs {{amount}} (Scout Stake). The target amount is your crowdfunding goal (EGP).',
       bidAmountLabelEgp: 'Your bid (EGP)',
-      bidAmountLabelUsd: 'Your bid (USD)',
-      bidUsdToEgpHint: 'Converted at {{rate}} EGP per USD; bids are stored in EGP.',
+      bidUsdToEgpHint: 'Bids are entered and stored in EGP.',
       cityMissionCreatedScout: 'City mission created! Your {{amount}} Scout Stake has been locked.',
       acceptBidConfirm: 'Accept bid of {{amount}} from this worker?',
       logout: 'Logout',
@@ -115,12 +114,12 @@ const resources = {
       newHero: 'New Hero',
       topUpWithCard: 'Top up with card',
       topUpProcessingDisclaimer:
-        'Payments are processed in USD/EGP, and your balance will be credited in Egyptian Pounds (EGP).',
+        'Enter an amount in EGP. Your wallet is credited in Egyptian Pounds (EGP).',
       releaseWorkerReceives: 'Worker receives (90% of funded amount): {{amount}}',
       payWithCardStripe: 'Pay with card (Stripe)',
       stripeFeeAdvisory:
         '💡 Card processor fee applies. Top-ups credit your wallet in EGP after conversion.',
-      stripeCommissionNote: '💡 International card: settlement may show in USD; wallet balance is EGP.',
+      stripeCommissionNote: '💡 Wallet balance is always in EGP.',
       availableToWithdraw: 'Available to withdraw: {{amount}} EGP',
       frozenDepositTag: '🔒 Frozen deposit: {{amount}} EGP',
       payoutFeeNote: '*12% platform fee applies on payout.',
@@ -139,15 +138,17 @@ const resources = {
       stripeTopUpError: 'Payment failed. Please try again.',
       stripeCreditToAccount: 'Credit to your account: {{amount}}',
       stripeApproxEgp: '≈ {{amount}} (indicative)',
-      stripeChargedUsdFromEgp: 'Card charged in USD: ~{{amount}} USD',
+      stripeCardProcessingNote:
+        'International cards may route through a processor; your credited amount is fixed in EGP as shown above.',
       stripeFeeTransparentHint:
-        'International card: wallet credit = USD charged × 48.5 × 0.97 (3% currency risk buffer). EGP input: credit ≈ amount × 0.97.',
+        'Wallet credit uses the platform rate and a small currency-risk buffer on card top-ups.',
       stripeDepositLegalNote:
         'By paying, you agree to the 12% platform fee on all future cash withdrawals.',
       stripeMinimumCharge: 'Minimum card charge is about 25 EGP equivalent. Increase the amount.',
-      depositCurrencyUsd: 'USD',
       depositCurrencyEgp: 'EGP',
       amountEgp: 'Amount (EGP)',
+      orderFormAmountHintEgp: 'City goal: min–max from city rules. Home: min 250 EGP. All amounts are EGP.',
+      paymentsEgpOnlyNote: 'Payments for missions on this form are in EGP. No currency conversion step.',
       insufficientTrustDeposit: 'Insufficient Trust Deposit',
       frozenDepositInfoTitle: 'About frozen deposit',
       frozenDepositInfoBody:
@@ -171,7 +172,6 @@ const resources = {
       whatNeedsCleaning: 'What needs cleaning?',
       cleanCityArea: 'Clean City Area',
       cleanYourHomeOffice: 'Clean Your Home/Office',
-      amountUsd: 'Amount (USD)',
       location: 'Location',
       tapMapToSetLocation: 'Please tap on the map to set a location.',
       geofenceEgyptShelf: 'Pins can only be placed within Egypt and its shelf!',
@@ -270,7 +270,7 @@ const resources = {
       withdrawalLineFee: 'رسوم المنصة (12٪): ${{fee}}',
       withdrawalLineNet: 'صافي الاستلام: ${{net}}',
       withdrawalBalanceHint:
-        'الحد الأقصى للسحب: ${{max}} USD (المحفظة ناقص {{frozen}} USD مجمّد). عمولة المنصة 12٪.',
+        'الحد الأقصى للسحب: {{max}} ج.م (المحفظة ناقص {{frozen}} ج.م مجمّد). عمولة المنصة 12٪.',
       withdrawalExceedsAvailable: 'المبلغ يتجاوز الرصيد القابل للسحب (المحفظة ناقص الوديعة المجمّدة).',
       withdrawalRequestQueued: 'تم إرسال طلب السحب. سيعالج فريقنا الدفع.',
       continueToConfirmWithdrawal: 'مراجعة وتأكيد',
@@ -317,8 +317,7 @@ const resources = {
       cityPinScoutStakeFormHint:
         'إنشاء دبوس المدينة يكلف {{amount}} (عمولة الكشافة). الهدف هو هدف التمويل الجماعي (ج.م).',
       bidAmountLabelEgp: 'عرضك (ج.م)',
-      bidAmountLabelUsd: 'عرضك (دولار)',
-      bidUsdToEgpHint: 'يُحوَّل بسعر {{rate}} ج.م لكل دولار؛ يُخزَّن العرض بالجنيه.',
+      bidUsdToEgpHint: 'يُدخل العرض ويُخزَّن بالجنيه المصري.',
       cityMissionCreatedScout: 'تم إنشاء مهمة المدينة! تم قفل {{amount}} كعربون كشافة.',
       acceptBidConfirm: 'قبول عرض {{amount}} من هذا العامل؟',
       logout: 'تسجيل الخروج',
@@ -385,12 +384,12 @@ const resources = {
       stripeCreditToAccount:
         'سيصل إلى حسابك: {{amount}} (بعد الرسوم والتحويل)',
       stripeApproxEgp: '≈ {{amount}} ج.م (تقريبي)',
-      stripeChargedUsdFromEgp: 'الخصم بالدولار: ~{{amount}} USD',
+      stripeCardProcessingNote:
+        'قد تعالج البطاقة الدولية عبر شبكة أجنبية؛ الرصيد المُضاف ثابت بالجنيه كما هو موضح.',
       stripeFeeTransparentHint: '(المبلغ − ٠٫٣٠$) × ٠٫٩٦٥ × ٠٫٩٧٥ — Stripe ~٣٫٥٪ + احتياطي تحويل ٢٫٥٪.',
       stripeDepositLegalNote:
         'بالدفع فإنك توافق على رسوم المنصة ١٢٪ على جميع السحوبات النقدية لاحقًا.',
-      stripeMinimumCharge: 'الحد الأدنى للخصم ٠٫٥٠ USD. زد المبلغ.',
-      depositCurrencyUsd: 'USD',
+      stripeMinimumCharge: 'الحد الأدنى للخصم يعادل نحو ٢٥ ج.م. زد المبلغ.',
       depositCurrencyEgp: 'EGP',
       amountEgp: 'المبلغ (ج.م)',
       insufficientTrustDeposit: 'وديعة ثقة غير كافية',
@@ -404,7 +403,6 @@ const resources = {
       whatNeedsCleaning: 'ماذا يحتاج تنظيفاً؟',
       cleanCityArea: 'تنظيف منطقة المدينة',
       cleanYourHomeOffice: 'تنظيف منزلك/مكتبك',
-      amountUsd: 'المبلغ (دولار)',
       location: 'الموقع',
       tapMapToSetLocation: 'انقر على الخريطة لتعيين الموقع.',
       geofenceEgyptShelf: 'لا يمكن وضع الدبابيس إلا داخل مصر وجرفها القاري!',
@@ -435,7 +433,7 @@ const resources = {
       viewPhotos: 'عرض الصور',
       workInProgress: 'جاري العمل. بطل ينظف هذا الموقع حالياً.',
       startWorkUploadProof: 'بدء العمل / رفع الإثبات',
-      yourBidUsd: 'عرضك (دولار)',
+      yourBidUsd: 'عرضك (ج.م)',
       makeABid: 'تقديم عرض',
       placeBid: 'تأكيد العرض',
       waitingForAdminRelease: 'بانتظار المسؤول...',
@@ -495,7 +493,7 @@ const resources = {
       withdrawalLineFee: 'Комиссия платформы (12%): ${{fee}}',
       withdrawalLineNet: 'К получению: ${{net}}',
       withdrawalBalanceHint:
-        'Макс. вывод: ${{max}} USD (кошелёк минус {{frozen}} USD заморожено). Комиссия платформы 12%.',
+        'Макс. вывод: {{max}} EGP (кошелёк минус {{frozen}} EGP заморожено). Комиссия платформы 12%.',
       withdrawalExceedsAvailable:
         'Сумма превышает доступный баланс (кошелёк минус замороженный залог).',
       withdrawalRequestQueued: 'Заявка отправлена. Обработаем выплату.',
@@ -543,8 +541,7 @@ const resources = {
       cityPinScoutStakeFormHint:
         'Городской пин стоит {{amount}} (Scout Stake). Цель — ваша сумма краудфандинга (EGP).',
       bidAmountLabelEgp: 'Ставка (EGP)',
-      bidAmountLabelUsd: 'Ставка (USD)',
-      bidUsdToEgpHint: 'Конвертация по {{rate}} EGP за USD; ставка хранится в EGP.',
+      bidUsdToEgpHint: 'Ставка вводится и хранится в EGP.',
       cityMissionCreatedScout: 'Городская миссия создана! Заблокировано {{amount}} как Scout Stake.',
       acceptBidConfirm: 'Принять ставку {{amount}} от этого исполнителя?',
       logout: 'Выйти',
@@ -588,7 +585,7 @@ const resources = {
       newHero: 'Новый герой',
       topUpWithCard: 'Пополнить картой',
       topUpProcessingDisclaimer:
-        'Платежи проходят в USD/EGP, а баланс кошелька зачисляется в египетских фунтах (EGP).',
+        'Введите сумму в EGP. Баланс кошелька — в египетских фунтах (EGP).',
       releaseWorkerReceives: 'Исполнитель получит (90% от собранной суммы): {{amount}}',
       payWithCardStripe: 'Оплатить картой (Stripe)',
       stripeFeeAdvisory: '💡 Комиссия Stripe: 3.5% + $0.3 за транзакцию! Лучше начинать 🎮 игру от $9.99',
@@ -612,15 +609,18 @@ const resources = {
       stripeCreditToAccount:
         'На ваш счет поступит: {{amount}} (после комиссий и конвертации)',
       stripeApproxEgp: '≈ {{amount}} EGP (ориентировочно)',
-      stripeChargedUsdFromEgp: 'Списание карты в USD: ~{{amount}} USD',
+      stripeCardProcessingNote:
+        'Международная карта может идти через чужую валюту; зачисление в EGP — как показано выше.',
       stripeFeeTransparentHint:
         'Формула: (сумма − $0.30) × 0.965 × 0.975 — Stripe ~3.5% + буфер конвертации 2.5%.',
       stripeDepositLegalNote:
         'Оплачивая, вы соглашаетесь с комиссией платформы 12% при всех будущих выводах средств.',
-      stripeMinimumCharge: 'Минимальное списание $0.50 USD. Увеличьте сумму.',
-      depositCurrencyUsd: 'USD',
+      stripeMinimumCharge: 'Минимальное списание — эквивалент ~25 EGP. Увеличьте сумму.',
       depositCurrencyEgp: 'EGP',
       amountEgp: 'Сумма (EGP)',
+      orderFormAmountHintEgp:
+        'Город: диапазон по правилам. Дом: от 250 EGP. Все суммы только в EGP.',
+      paymentsEgpOnlyNote: 'Оплата миссий в этой форме — в EGP, без шага конвертации валют.',
       insufficientTrustDeposit: 'Недостаточно залога доверия',
       frozenDepositInfoTitle: 'О замороженном залоге',
       frozenDepositInfoBody:
@@ -632,7 +632,6 @@ const resources = {
       whatNeedsCleaning: 'Что нужно очистить?',
       cleanCityArea: 'Очистить район города',
       cleanYourHomeOffice: 'Очистить дом/офис',
-      amountUsd: 'Сумма (USD)',
       location: 'Место',
       tapMapToSetLocation: 'Нажмите на карту, чтобы указать место.',
       geofenceEgyptShelf: 'Пины можно ставить только на территории Египта и его шельфа!',
@@ -663,11 +662,11 @@ const resources = {
       viewPhotos: 'Смотреть фото',
       workInProgress: 'Идёт работа. Герой уже чистит это место.',
       startWorkUploadProof: 'Начать работу / Загрузить отчёт',
-      yourBidUsd: 'Ваша ставка (USD)',
+      yourBidUsd: 'Ваша ставка (EGP)',
       makeABid: 'СДЕЛАТЬ СТАВКУ',
       placeBid: 'ПОДТВЕРДИТЬ СТАВКУ',
       waitingForAdminRelease: 'ОЖИДАНИЕ АДМИНА...',
-  placing: 'ОТПРАВКА...',
+      placing: 'ОТПРАВКА...',
       donateToCause: 'ПОДДЕРЖАТЬ ПРОЕКТ',
       boostMissionFunding: 'Помогите собрать средства, чтобы исполнители могли ставить выше.',
       customAmount: 'Своя сумма (EGP)',
@@ -728,7 +727,7 @@ const resources = {
       withdrawalLineFee: 'Plattformgebühr (12%): ${{fee}}',
       withdrawalLineNet: 'Auszahlungsbetrag netto: ${{net}}',
       withdrawalBalanceHint:
-        'Max. Auszahlung: ${{max}} USD (Wallet abzüglich {{frozen}} USD Sicherheit). 12% Gebühr.',
+        'Max. Auszahlung: {{max}} EGP (Wallet abzüglich {{frozen}} EGP Sicherheit). 12% Gebühr.',
       withdrawalExceedsAvailable:
         'Betrag übersteigt verfügbares Guthaben (Wallet minus eingefrorene Kaution).',
       withdrawalRequestQueued: 'Antrag gesendet.',
@@ -776,8 +775,7 @@ const resources = {
       cityPinScoutStakeFormHint:
         'Ein City-Pin kostet {{amount}} (Scout Stake). Das Ziel ist dein Crowdfunding-Ziel (EGP).',
       bidAmountLabelEgp: 'Gebot (EGP)',
-      bidAmountLabelUsd: 'Gebot (USD)',
-      bidUsdToEgpHint: 'Umrechnung {{rate}} EGP pro USD; Gebote werden in EGP gespeichert.',
+      bidUsdToEgpHint: 'Gebote werden in EGP eingegeben und gespeichert.',
       cityMissionCreatedScout: 'Stadtmission erstellt! {{amount}} Scout Stake gesperrt.',
       acceptBidConfirm: 'Gebot {{amount}} von diesem Worker annehmen?',
       logout: 'Abmelden',
@@ -821,7 +819,7 @@ const resources = {
       newHero: 'Neuer Held',
       topUpWithCard: 'Mit Karte aufladen',
       topUpProcessingDisclaimer:
-        'Zahlungen laufen in USD/EGP; dein Guthaben wird in ägyptischen Pfund (EGP) gutgeschrieben.',
+        'Gib einen Betrag in EGP ein. Guthaben in ägyptischen Pfund (EGP).',
       releaseWorkerReceives: 'Arbeiter erhält (90 % des finanzierten Betrags): {{amount}}',
       payWithCardStripe: 'Mit Karte zahlen (Stripe)',
       stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
@@ -844,12 +842,12 @@ const resources = {
       stripeCreditToAccount:
         'Gutschrift auf Ihr Konto: {{amount}} (nach Gebühren und Umrechnung)',
       stripeApproxEgp: '≈ {{amount}} EGP (ungefähr)',
-      stripeChargedUsdFromEgp: 'Kartenbelastung in USD: ~{{amount}} USD',
+      stripeCardProcessingNote:
+        'Internationale Karten können über Fremdwährung laufen; Gutschrift erfolgt in EGP wie angezeigt.',
       stripeFeeTransparentHint: 'Formel: (Betrag − $0,30) × 0,965 × 0,975 — Stripe ~3,5% + 2,5% FX-Puffer.',
       stripeDepositLegalNote:
         'Mit der Zahlung akzeptieren Sie die 12% Plattformgebühr bei künftigen Auszahlungen.',
-      stripeMinimumCharge: 'Mindestbetrag $0,50 USD. Bitte erhöhen.',
-      depositCurrencyUsd: 'USD',
+      stripeMinimumCharge: 'Mindestbetrag entspricht ca. 25 EGP. Bitte erhöhen.',
       depositCurrencyEgp: 'EGP',
       amountEgp: 'Betrag (EGP)',
       insufficientTrustDeposit: 'Unzureichende Vertrauenskaution',
@@ -863,7 +861,6 @@ const resources = {
       whatNeedsCleaning: 'Was soll gereinigt werden?',
       cleanCityArea: 'Stadtbereich reinigen',
       cleanYourHomeOffice: 'Zuhause/Büro reinigen',
-      amountUsd: 'Betrag (USD)',
       location: 'Standort',
       tapMapToSetLocation: 'Tippe auf die Karte, um den Standort zu setzen.',
       geofenceEgyptShelf: 'Pins koennen nur innerhalb Aegyptens und seines Schelfs gesetzt werden!',
@@ -894,7 +891,7 @@ const resources = {
       viewPhotos: 'Fotos ansehen',
       workInProgress: 'In Arbeit. Ein Eco-Hero reinigt gerade diese Stelle.',
       startWorkUploadProof: 'Arbeit starten / Nachweis hochladen',
-      yourBidUsd: 'Dein Gebot (USD)',
+      yourBidUsd: 'Dein Gebot (EGP)',
       makeABid: 'GEBOT ABGEBEN',
       placeBid: 'GEBOT BESTÄTIGEN',
       placing: 'WIRD GESENDET...',
@@ -951,7 +948,7 @@ const resources = {
       withdrawalLineFee: 'Commissione piattaforma (12%): ${{fee}}',
       withdrawalLineNet: 'Netto da ricevere: ${{net}}',
       withdrawalBalanceHint:
-        'Max prelievo: ${{max}} USD (wallet meno {{frozen}} USD bloccati). Commissione 12%.',
+        'Max prelievo: {{max}} EGP (wallet meno {{frozen}} EGP bloccati). Commissione 12%.',
       withdrawalExceedsAvailable:
         'Importo superiore al disponibile (wallet meno deposito vincolato).',
       withdrawalRequestQueued: 'Richiesta inviata.',
@@ -999,8 +996,7 @@ const resources = {
       cityPinScoutStakeFormHint:
         'Un pin città costa {{amount}} (Scout Stake). L’obiettivo è il tuo goal di crowdfunding (EGP).',
       bidAmountLabelEgp: 'Offerta (EGP)',
-      bidAmountLabelUsd: 'Offerta (USD)',
-      bidUsdToEgpHint: 'Convertito a {{rate}} EGP per USD; le offerte sono in EGP.',
+      bidUsdToEgpHint: 'L’offerta è in EGP.',
       cityMissionCreatedScout: 'Missione città creata! Bloccato {{amount}} come Scout Stake.',
       acceptBidConfirm: 'Accettare offerta {{amount}} da questo worker?',
       logout: 'Esci',
@@ -1044,7 +1040,7 @@ const resources = {
       newHero: 'Nuovo eroe',
       topUpWithCard: 'Ricarica con carta',
       topUpProcessingDisclaimer:
-        'I pagamenti sono elaborati in USD/EGP e il saldo viene accreditato in sterline egiziane (EGP).',
+        'Inserisci un importo in EGP. Il saldo è accreditato in sterline egiziane (EGP).',
       releaseWorkerReceives: 'Il lavoratore riceve (90% dell’importo finanziato): {{amount}}',
       payWithCardStripe: 'Paga con carta (Stripe)',
       stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
@@ -1067,13 +1063,13 @@ const resources = {
       stripeCreditToAccount:
         'Accredito sul tuo conto: {{amount}} (dopo commissioni e conversione)',
       stripeApproxEgp: '≈ {{amount}} EGP (indicativo)',
-      stripeChargedUsdFromEgp: 'Addebito carta in USD: ~{{amount}} USD',
+      stripeCardProcessingNote:
+        'Le carte internazionali possono passare in altra valuta; il credito è in EGP come indicato.',
       stripeFeeTransparentHint:
         'Formula: (importo − $0,30) × 0,965 × 0,975 — Stripe ~3,5% + buffer FX 2,5%.',
       stripeDepositLegalNote:
         'Pagando accetti la commissione piattaforma del 12% su tutti i futuri prelievi.',
-      stripeMinimumCharge: 'Addebito minimo $0,50 USD. Aumenta l’importo.',
-      depositCurrencyUsd: 'USD',
+      stripeMinimumCharge: 'Addebito minimo equivalente a ~25 EGP. Aumenta l’importo.',
       depositCurrencyEgp: 'EGP',
       amountEgp: 'Importo (EGP)',
       insufficientTrustDeposit: 'Deposito cauzionale insufficiente',
@@ -1087,7 +1083,6 @@ const resources = {
       whatNeedsCleaning: 'Cosa va pulito?',
       cleanCityArea: 'Pulisci area città',
       cleanYourHomeOffice: 'Pulisci casa/ufficio',
-      amountUsd: 'Importo (USD)',
       location: 'Posizione',
       tapMapToSetLocation: 'Tocca la mappa per impostare la posizione.',
       geofenceEgyptShelf: "I pin possono essere posizionati solo in Egitto e nella sua piattaforma continentale!",
@@ -1118,7 +1113,7 @@ const resources = {
       viewPhotos: 'Vedi foto',
       workInProgress: 'Lavoro in corso. Un Eco-Hero sta pulendo questo punto.',
       startWorkUploadProof: 'Inizia lavoro / Carica prova',
-      yourBidUsd: 'La tua offerta (USD)',
+      yourBidUsd: 'La tua offerta (EGP)',
       makeABid: 'FAI UN\'OFFERTA',
       placeBid: 'CONFERMA OFFERTA',
       placing: 'INVIO IN CORSO...',
@@ -1175,7 +1170,7 @@ const resources = {
       withdrawalLineFee: 'Comisión de la plataforma (12%): ${{fee}}',
       withdrawalLineNet: 'A recibir: ${{net}}',
       withdrawalBalanceHint:
-        'Máx. retiro: ${{max}} USD (cartera menos {{frozen}} USD congelados). Comisión 12%.',
+        'Máx. retiro: {{max}} EGP (cartera menos {{frozen}} EGP congelados). Comisión 12%.',
       withdrawalExceedsAvailable:
         'El importe supera el saldo disponible (cartera menos depósito congelado).',
       withdrawalRequestQueued: 'Solicitud enviada.',
@@ -1223,8 +1218,7 @@ const resources = {
       cityPinScoutStakeFormHint:
         'Un pin urbano cuesta {{amount}} (Scout Stake). El objetivo es tu meta de crowdfunding (EGP).',
       bidAmountLabelEgp: 'Puja (EGP)',
-      bidAmountLabelUsd: 'Puja (USD)',
-      bidUsdToEgpHint: 'Convertido a {{rate}} EGP por USD; las pujas se guardan en EGP.',
+      bidUsdToEgpHint: 'La puja se introduce y guarda en EGP.',
       cityMissionCreatedScout: '¡Misión ciudad creada! Bloqueado {{amount}} como Scout Stake.',
       acceptBidConfirm: '¿Aceptar oferta de {{amount}} de este trabajador?',
       logout: 'Cerrar sesión',
@@ -1268,7 +1262,7 @@ const resources = {
       newHero: 'Nuevo héroe',
       topUpWithCard: 'Recargar con tarjeta',
       topUpProcessingDisclaimer:
-        'Los pagos se procesan en USD/EGP y tu saldo se acredita en libras egipcias (EGP).',
+        'Introduce un importe en EGP. El saldo se acredita en libras egipcias (EGP).',
       releaseWorkerReceives: 'El trabajador recibe (90% del monto financiado): {{amount}}',
       payWithCardStripe: 'Pagar con tarjeta (Stripe)',
       stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
@@ -1291,13 +1285,13 @@ const resources = {
       stripeCreditToAccount:
         'Abonará a tu cuenta: {{amount}} (después de comisiones y conversión)',
       stripeApproxEgp: '≈ {{amount}} EGP (indicativo)',
-      stripeChargedUsdFromEgp: 'Cargo en USD: ~{{amount}} USD',
+      stripeCardProcessingNote:
+        'Las tarjetas internacionales pueden liquidar en otra moneda; el abono es en EGP como se muestra.',
       stripeFeeTransparentHint:
         'Fórmula: (importe − $0,30) × 0,965 × 0,975 — Stripe ~3,5% + colchón FX 2,5%.',
       stripeDepositLegalNote:
         'Al pagar aceptas la comisión del 12% en todos los retiros futuros.',
-      stripeMinimumCharge: 'Cargo mínimo $0,50 USD. Aumenta el importe.',
-      depositCurrencyUsd: 'USD',
+      stripeMinimumCharge: 'Cargo mínimo equivalente a ~25 EGP. Aumenta el importe.',
       depositCurrencyEgp: 'EGP',
       amountEgp: 'Importe (EGP)',
       insufficientTrustDeposit: 'Depósito de confianza insuficiente',
@@ -1311,7 +1305,6 @@ const resources = {
       whatNeedsCleaning: '¿Qué hay que limpiar?',
       cleanCityArea: 'Limpiar zona ciudad',
       cleanYourHomeOffice: 'Limpiar casa/oficina',
-      amountUsd: 'Importe (USD)',
       location: 'Ubicación',
       tapMapToSetLocation: 'Toca el mapa para fijar la ubicación.',
       geofenceEgyptShelf: 'Los pines solo se pueden colocar dentro de Egipto y su plataforma continental.',
@@ -1342,7 +1335,7 @@ const resources = {
       viewPhotos: 'Ver fotos',
       workInProgress: 'En curso. Un Eco-Hero está limpiando este punto.',
       startWorkUploadProof: 'Empezar trabajo / Subir prueba',
-      yourBidUsd: 'Tu oferta (USD)',
+      yourBidUsd: 'Tu oferta (EGP)',
       makeABid: 'HACER OFERTA',
       placeBid: 'CONFIRMAR OFERTA',
       placing: 'ENVIANDO...',
