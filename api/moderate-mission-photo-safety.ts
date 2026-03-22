@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const PROMPT =
-  'Strict task: Return "EXPLICIT" ONLY if the image contains: 1. Hardcore pornography or nudity. 2. Visible phone numbers, social media handles, or QR codes written on objects/walls/paper in the photo. For ALL other content (trash, faces, animals, vehicles), you MUST return "SAFE". Your default is SAFE unless sex or contact info is detected. Return only "SAFE" or "EXPLICIT".';
+  'Analyze the image. Only return "EXPLICIT" if there is hardcore pornography, nudity, or explicit sexual acts. Otherwise, for ANYTHING else (faces, animals, trash, general clutter, vehicles, etc.), return "SAFE". Do not actively look for text or QR codes. Your default is SAFE. Return only "SAFE" or "EXPLICIT".';
 
 function parseVerdict(text: string): 'SAFE' | 'EXPLICIT' | null {
   const t = text.trim().toUpperCase();
@@ -40,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         max_tokens: 24,
         temperature: 0,
         messages: [

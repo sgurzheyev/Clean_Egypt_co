@@ -17,11 +17,13 @@ function hasForbiddenKeyword(s: string): boolean {
   return false;
 }
 
-/** Regexes for find-and-replace text filtering */
+/** Regexes for find-and-replace text filtering (applied automatically) */
 const PHONE_INTL = /\+?\d{1,4}[\s\-\.()]*\d{2,4}[\s\-\.()]*\d{2,4}[\s\-\.()]*\d{2,4}[\s\-\.()]*\d{2,4}([\s\-\.()]*\d+)?/g;
 const PHONE_EGYPT = /\b01[0125][\s\-\.]?\d{3}[\s\-\.]?\d{4}\b/g;
+const PHONE_UA = /\+380[\s\-\.()]*\d{2}[\s\-\.()]*\d{3}[\s\-\.()]*\d{2}[\s\-\.()]*\d{2}/g;
 const EMAIL = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-const URL = /https?:\/\/[^\s]+|www\.[^\s]+|\b[a-zA-Z0-9][-a-zA-Z0-9.]*\.(com|net|org|io|co|me|eg|ru|ua)(\/[^\s]*)?/gi;
+const URL =
+  /https?:\/\/[^\s]+|www\.[^\s]+|t\.me\/[^\s]*|wa\.me\/[^\s]*|telegram\.me\/[^\s]*|wa\.whatsapp\.com\/[^\s]*|\b[a-zA-Z0-9][-a-zA-Z0-9.]*\.(com|net|org|io|co|me|eg|ru|ua)(\/[^\s]*)?/gi;
 
 /** Cash / numbers (English, Russian, Arabic) — replace with *** */
 const CASH_NUMBERS_PATTERNS: RegExp[] = [
@@ -77,6 +79,7 @@ export function cleanText(text: string): string {
   let out = s
     .replace(PHONE_INTL, CENSOR)
     .replace(PHONE_EGYPT, CENSOR)
+    .replace(PHONE_UA, CENSOR)
     .replace(EMAIL, CENSOR)
     .replace(URL, CENSOR);
   out = replaceAll(out, CASH_NUMBERS_PATTERNS, CENSOR);

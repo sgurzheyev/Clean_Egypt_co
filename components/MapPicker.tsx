@@ -2292,10 +2292,24 @@ const MapPicker: React.FC<MapPickerProps> = ({
               <div className={`rounded-full animated-border-home ${bidSubmitting ? 'opacity-60' : ''}`}>
                 <button
                   type="submit"
-                  disabled={bidSubmitting}
-                  className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all disabled:cursor-wait active:scale-[0.98]"
+                  disabled={
+                    bidSubmitting ||
+                    !(parseFloat(String(bidAmount).replace(',', '.')) > 0)
+                  }
+                  className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all disabled:cursor-not-allowed disabled:opacity-60 active:scale-[0.98]"
                 >
-                  {bidSubmitting ? 'Placing bid...' : 'Place bid'}
+                  {bidSubmitting
+                    ? 'Placing bid...'
+                    : (() => {
+                        const amt = parseFloat(String(bidAmount).replace(',', '.'));
+                        const egp =
+                          bidInputCurrency === 'USD'
+                            ? usdInputToEgp(amt, USD_TO_EGP_RATE)
+                            : amt;
+                        return amt > 0
+                          ? `Place bid ${formatEgp(egp)}`
+                          : 'Place bid';
+                      })()}
                 </button>
               </div>
             </form>
@@ -2672,15 +2686,34 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     onClick={() => {
                       if (!showBidInput) {
                         setShowBidInput(true);
-                        if (!missionBidAmount) setMissionBidAmount(String(selectedMission.amount_target ?? ''));
+                        if (!missionBidAmount)
+                          setMissionBidAmount(String(selectedMission.amount_target ?? ''));
                         return;
                       }
                       handleSubmitMissionBid();
                     }}
-                    disabled={isAccepting || missionTrustBlocked}
+                    disabled={
+                      isAccepting ||
+                      !(parseFloat(String(missionBidAmount || '0').replace(',', '.')) > 0)
+                    }
                     className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {isAccepting ? t('placing') : showBidInput ? t('placeBid') : t('makeABid')}
+                    {isAccepting
+                      ? t('placing')
+                      : (() => {
+                          const amt = parseFloat(
+                            String(missionBidAmount || '0').replace(',', '.')
+                          );
+                          const egp =
+                            missionBidCurrency === 'USD'
+                              ? usdInputToEgp(amt, USD_TO_EGP_RATE)
+                              : amt;
+                          return showBidInput && amt > 0
+                            ? `${t('placeBid')} ${formatEgp(egp)}`
+                            : showBidInput
+                              ? t('placeBid')
+                              : t('makeABid');
+                        })()}
                   </button>
                   {missionTrustBlocked && showBidInput && (
                     <div className="mt-2 flex flex-col items-center gap-2">
