@@ -14,6 +14,7 @@ import {
   validateMissionDescription,
 } from '../src/lib/missionContentPolicy';
 import { formatEgp } from '../src/lib/formatMoney';
+import { parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '../src/lib/integerEgpInput';
 
 interface Props {
   selectedLocation: { lat: number; lng: number } | null;
@@ -38,11 +39,7 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
 
   const policyCheck = useMemo(() => validateMissionDescription(shortDescription), [shortDescription]);
 
-  const parseEgp = (): number => {
-    const raw = parseFloat(String(amountEgp).replace(',', '.'));
-    if (!Number.isFinite(raw) || raw <= 0) return 0;
-    return Math.floor(raw);
-  };
+  const parseEgp = (): number => parseIntegerEgpFromInput(amountEgp);
 
   /** Paymob mission_creation: amount_target is integer EGP (see /api/paymob-intent). */
   const startPaymobMission = async (category: 'public' | 'home', egp: number) => {
@@ -66,7 +63,7 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
         body: JSON.stringify({
           type: 'mission_creation',
           category,
-          amount_target: egp,
+          amount_target: Math.floor(Math.max(0, egp)),
           userId,
           location_lat: selectedLocation.lat,
           location_lng: selectedLocation.lng,
@@ -180,14 +177,14 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
       <div className="space-y-2">
         <label className="text-[10px] text-gray-400 uppercase tracking-widest ml-1">{t('amountEgp')}</label>
         <input
-          type="number"
+          type="text"
           inputMode="numeric"
-          min={0}
-          step={1}
+          autoComplete="off"
+          pattern="\d*"
           value={amountEgp}
-          onChange={(e) => setAmountEgp(e.target.value)}
+          onChange={(e) => setAmountEgp(sanitizeIntegerEgpDigits(e.target.value))}
           placeholder={t('anyAmount')}
-          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:border-[#00f2ff] outline-none transition-all"
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:border-[#00f2ff] outline-none transition-all tabular-nums"
         />
         <p className="text-[10px] text-gray-500">
           {t('orderFormAmountHintEgp')}

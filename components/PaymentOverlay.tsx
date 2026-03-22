@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { formatEgp } from '../src/lib/formatMoney';
+import { floorEgp } from '../src/lib/integerEgpInput';
 
 interface PaymentOverlayProps {
   onClose: (pyramidId?: string) => void;
@@ -53,7 +54,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
           body: JSON.stringify({
             type: 'mission_creation',
             category: type === 'city' ? 'public' : 'home',
-            amount_target: amount,
+            amount_target: floorEgp(amount),
             userId: currentUserId,
             location_lat: lat,
             location_lng: lng,
@@ -125,7 +126,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
                 Clean<span className="text-cyan-400">Egypt</span>
               </h2>
               <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">
-                {formatEgp(amount)}
+                {formatEgp(floorEgp(amount))}
               </p>
             </div>
           </div>

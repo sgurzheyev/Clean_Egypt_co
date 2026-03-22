@@ -5,8 +5,17 @@ import {
   filterMissionDescription,
   MISSION_DESCRIPTION_POLICY_ERROR,
 } from '../src/lib/missionContentPolicy';
+import imageCompression from 'browser-image-compression';
 import { PROFILE_GLASS_PANEL } from '../constants';
 import { fileToBase64Parts } from '../src/lib/imageBase64';
+
+/** Before /api/verify-mission-image — keeps payload under Vercel body limits (~4.5MB). */
+const VERIFY_MISSION_IMAGE_COMPRESSION = {
+  maxWidthOrHeight: 1200,
+  initialQuality: 0.7,
+  useWebWorker: true,
+  fileType: 'image/jpeg' as const,
+};
 
 export interface PhotoVerificationState {
   verifying: boolean;
@@ -107,7 +116,8 @@ const CreateMission: React.FC<Props> = ({
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         try {
-          const { base64, mimeType } = await fileToBase64Parts(file);
+          const compressed = await imageCompression(file, VERIFY_MISSION_IMAGE_COMPRESSION);
+          const { base64, mimeType } = await fileToBase64Parts(compressed);
           const res = await fetch('/api/verify-mission-image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

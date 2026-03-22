@@ -31,6 +31,7 @@ import {
 } from '../src/lib/trustDeposit';
 import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
 import { computeWithdrawalExitBreakdown } from '../src/lib/withdrawalTax';
+import { floorEgp, parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '../src/lib/integerEgpInput';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 
 interface ProfileProps {
@@ -447,8 +448,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const handlePayoutFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!userProfile) return;
-    const amountNum = Number(payoutAmount);
-    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+    const amountNum = floorEgp(parseIntegerEgpFromInput(payoutAmount));
+    if (amountNum <= 0) {
       alert('Please enter a positive payout amount.');
       return;
     }
@@ -466,8 +467,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
   const handleConfirmWithdrawal = async () => {
     if (!userProfile) return;
-    const amountNum = Number(payoutAmount);
-    if (!Number.isFinite(amountNum) || amountNum <= 0) return;
+    const amountNum = floorEgp(parseIntegerEgpFromInput(payoutAmount));
+    if (amountNum <= 0) return;
     const maxWd = maxWithdrawableEgp(userProfile);
     if (amountNum > maxWd + 0.0001) {
       alert(t('withdrawalExceedsAvailable'));
@@ -506,8 +507,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
   const handleTopUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const amountNum = Number(topUpAmount);
-    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+    const amountNum = floorEgp(parseIntegerEgpFromInput(topUpAmount));
+    if (amountNum <= 0) {
       alert('Please enter a positive amount to top up.');
       return;
     }
@@ -519,7 +520,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         return;
       }
       const { error } = await supabase.rpc('top_up_wallet', {
-        p_amount: Math.round(amountNum),
+        p_amount: amountNum,
       });
       if (error) {
         alert(error.message || 'Failed to top up wallet. Please try again.');
@@ -814,12 +815,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     setOrderError(null);
     setOrderSuccess(null);
 
-    const rawAmount = parseFloat(orderAmount.replace(',', '.'));
-    if (isNaN(rawAmount) || rawAmount <= 0) {
-      setOrderError(t('enterPositiveEgpAmount'));
-      return;
-    }
-    const amount = Math.floor(rawAmount);
+    const amount = floorEgp(parseIntegerEgpFromInput(orderAmount));
     if (amount <= 0) {
       setOrderError(t('enterPositiveEgpAmount'));
       return;
@@ -852,7 +848,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         body: JSON.stringify({
           type: 'mission_creation',
           category: taskType === 'city' ? 'public' : 'home',
-          amount_target: amount,
+          amount_target: floorEgp(amount),
           userId: creatorId,
           // TODO: wire actual map location; using fallback center for now
           location_lat: 27.2579,
@@ -1622,13 +1618,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 </p>
                 <form onSubmit={handleTopUp} className="flex gap-2">
                   <input
-                    type="number"
-                    min={1}
-                    step="0.01"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    pattern="\d*"
                     placeholder={t('amountInUsd')}
                     value={topUpAmount}
-                    onChange={(e) => setTopUpAmount(e.target.value)}
-                    className={`flex-1 ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/60`}
+                    onChange={(e) => setTopUpAmount(sanitizeIntegerEgpDigits(e.target.value))}
+                    className={`flex-1 ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/60 tabular-nums`}
                   />
                   <button
                     type="submit"
@@ -1917,14 +1914,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     : t('amountEgp')}
                 </label>
                 <input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min="0"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  pattern="\d*"
                   value={orderAmount}
-                  onChange={(e) => setOrderAmount(e.target.value)}
+                  onChange={(e) => setOrderAmount(sanitizeIntegerEgpDigits(e.target.value))}
                   placeholder={taskType === 'city' ? (isRu ? 'Цель сбора (Предполагаемая стоимость)' : 'Collection Target (Goal)') : t('anyAmount')}
-                  className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500`}
+                  className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 tabular-nums`}
                 />
                 {taskType === 'city' && (
                   <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
@@ -2939,13 +2936,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     {t('amountInUsd')}
                   </label>
                   <input
-                    type="number"
-                    min="0"
-                    max={userProfile ? maxWithdrawableEgp(userProfile) : undefined}
-                    step="0.01"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    pattern="\d*"
                     value={payoutAmount}
-                    onChange={(e) => setPayoutAmount(e.target.value)}
-                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
+                    onChange={(e) => setPayoutAmount(sanitizeIntegerEgpDigits(e.target.value))}
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500 tabular-nums`}
                     placeholder="Enter amount to withdraw"
                   />
                   {userProfile && (
@@ -3031,7 +3028,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             ) : (
               <div className="space-y-4">
                 {(() => {
-                  const b = computeWithdrawalExitBreakdown(Number(payoutAmount));
+                  const b = computeWithdrawalExitBreakdown(floorEgp(parseIntegerEgpFromInput(payoutAmount)));
                   return (
                     <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-4 space-y-2">
                       <div className="text-sm text-slate-200 leading-relaxed space-y-1.5">

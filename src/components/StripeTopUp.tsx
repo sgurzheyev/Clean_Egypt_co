@@ -11,6 +11,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabaseClient';
 import { stripeEgpInputToWalletEgp, egpInputToChargeUsd } from '../lib/walletCredit';
+import { parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '../lib/integerEgpInput';
 import { USD_TO_EGP_RATE } from '../../constants';
 import { formatEgp } from '../lib/formatMoney';
 
@@ -119,7 +120,7 @@ function StripeTopUpForm({
       }
 
       const { error: rpcError } = await supabase.rpc('top_up_wallet', {
-        p_amount: Math.floor(Number(netCreditEgp)),
+        p_amount: Math.floor(Math.max(0, Number(netCreditEgp))),
       });
       if (rpcError) throw rpcError;
 
@@ -142,15 +143,15 @@ function StripeTopUpForm({
           {t('amountEgp')}
         </label>
         <input
-          type="number"
-          min="0"
-          step="1"
+          type="text"
           inputMode="numeric"
+          autoComplete="off"
+          pattern="\d*"
           value={amount}
           onChange={(e) => onAmountChange(e.target.value)}
           placeholder="0"
           aria-label={t('amountEgp')}
-          className="w-full rounded-2xl bg-slate-900/80 border border-slate-600 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 transition-all"
+          className="w-full rounded-2xl bg-slate-900/80 border border-slate-600 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 transition-all tabular-nums"
         />
         {netEgp != null && netEgp > 0 && (
           <div className="mt-3 space-y-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-3 py-2.5">
@@ -248,7 +249,7 @@ const StripeTopUp: React.FC<StripeTopUpProps> = ({ onClose, userId }) => {
         <Elements stripe={stripePromise}>
           <StripeTopUpForm
             amount={amount}
-            onAmountChange={setAmount}
+            onAmountChange={(v) => setAmount(sanitizeIntegerEgpDigits(v))}
             onClose={onClose}
             userId={userId}
           />

@@ -27,6 +27,7 @@ import {
 } from '../constants';
 import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
 import { profileWalletBalanceEgp } from '../src/lib/walletCredit';
+import { floorEgp, parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '../src/lib/integerEgpInput';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -584,7 +585,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         body: JSON.stringify({
           type: 'mission_creation',
           category: payload.taskType === 'city' ? 'public' : 'home',
-          amount_target: payload.amount,
+          amount_target: floorEgp(payload.amount),
           userId: session.user.id,
           location_lat: payload.location.lat,
           location_lng: payload.location.lng,
@@ -645,8 +646,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
           location_lng?: number;
           description?: string;
         };
-        const amount = typeof saved.amount === 'number' ? saved.amount : parseFloat(String(saved.amount || '0').replace(',', '.'));
-        if (isNaN(amount) || amount <= 0) {
+        const amount =
+          typeof saved.amount === 'number'
+            ? floorEgp(saved.amount)
+            : parseIntegerEgpFromInput(String(saved.amount ?? ''));
+        if (amount <= 0) {
           localStorage.removeItem(PENDING_SUBMIT_KEY);
           return;
         }
@@ -885,7 +889,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const handleMarkerClick = useCallback((job: JobOnMap) => {
     setSelectedMission(job);
     setShowBidInput(false);
-    setMissionBidAmount(String(job.amount_target ?? ''));
+    setMissionBidAmount(String(Math.floor(Number(job.amount_target ?? 0))));
   }, []);
 
   const handleMapClickWithTowers = useCallback(
@@ -930,7 +934,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     async (missionId: string, bidAmount: number) => {
       const { error } = await supabase.rpc('co_fund_and_accept_mission', {
         p_mission_id: missionId,
-        p_bid_amount: bidAmount,
+        p_bid_amount: floorEgp(bidAmount),
       });
       if (error) throw error;
     },
@@ -1040,7 +1044,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const { error } = await supabase.from('mission_bids').insert({
         mission_id: missionId,
         cleaner_id: user.id,
-        bid_amount: bidAmount,
+        bid_amount: floorEgp(bidAmount),
         status: 'pending',
       });
       if (error) {
@@ -1054,7 +1058,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const completeFundingAndAssign = useCallback(async (missionId: string, bidAmountEgp: number) => {
     const { error } = await supabase.rpc('complete_funding_and_assign', {
       p_mission_id: missionId,
-      p_bid_amount: bidAmountEgp,
+      p_bid_amount: floorEgp(bidAmountEgp),
     });
     if (error) throw error;
   }, []);
@@ -1151,12 +1155,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         alert('You cannot bid on your own job.');
         return;
       }
-      const raw = parseFloat((missionBidAmount || '').replace(',', '.'));
-      if (isNaN(raw) || raw <= 0) {
-        alert(t('enterPositiveEgpAmount'));
-        return;
-      }
-      const amtEgp = Math.max(0, Math.floor(raw));
+      const amtEgp = parseIntegerEgpFromInput(String(missionBidAmount || ''));
       if (amtEgp <= 0) {
         alert(t('enterPositiveEgpAmount'));
         return;
@@ -1246,12 +1245,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setBidError(null);
     setBidSuccess(null);
 
-    const raw = parseFloat(bidAmount.replace(',', '.'));
-    if (isNaN(raw) || raw <= 0) {
-      setBidError(t('enterPositiveEgpAmount'));
-      return;
-    }
-    const bidEgp = Math.max(0, Math.floor(raw));
+    const bidEgp = parseIntegerEgpFromInput(bidAmount);
     if (bidEgp <= 0) {
       setBidError(t('enterPositiveEgpAmount'));
       return;
@@ -1334,12 +1328,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setOrderError(null);
     setOrderSuccess(null);
 
-    const rawAmount = parseFloat(orderAmount.replace(',', '.'));
-    if (isNaN(rawAmount) || rawAmount <= 0) {
-      setOrderError(t('enterPositiveEgpAmount'));
-      return;
-    }
-    const amount = Math.floor(rawAmount);
+    const amount = parseIntegerEgpFromInput(orderAmount);
     if (amount <= 0) {
       setOrderError(t('enterPositiveEgpAmount'));
       return;
@@ -1460,9 +1449,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const { error } = await supabase.rpc('create_public_mission_with_fee', {
           p_title: descriptionToSave || 'City Mission',
           p_description: descriptionToSave || null,
-          p_amount_target: amount,
-          p_location_lat: selectedLocation.lat,
-          p_location_lng: selectedLocation.lng,
+          p_amount_target: floorEgp(amount),
+          p_location_lat: Number(selectedLocation.lat),
+          p_location_lng: Number(selectedLocation.lng),
           p_photo_urls: creatorPhotoUrls || [],
         });
 
@@ -1570,9 +1559,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   /** Target − (current funding + bid input); button enable is NOT tied to this — preview only. */
   const missionBidFundingGapPreview = useMemo(() => {
     if (!selectedMission || !showBidInput) return null;
-    const raw = parseFloat(String(missionBidAmount || '').replace(',', '.'));
-    if (!Number.isFinite(raw) || raw <= 0) return null;
-    const inputEgp = Math.max(0, Math.floor(raw));
+    const inputEgp = parseIntegerEgpFromInput(String(missionBidAmount || ''));
+    if (inputEgp <= 0) return null;
     const target = Number(selectedMission.amount_target ?? 0);
     const current = Number(selectedMission.current_funding ?? 0);
     const remainder = target - (current + inputEgp);
@@ -1581,9 +1569,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const bidModalFundingGapPreview = useMemo(() => {
     if (!bidJob) return null;
-    const raw = parseFloat(String(bidAmount || '').replace(',', '.'));
-    if (!Number.isFinite(raw) || raw <= 0) return null;
-    const inputEgp = Math.max(0, Math.floor(raw));
+    const inputEgp = parseIntegerEgpFromInput(String(bidAmount || ''));
+    if (inputEgp <= 0) return null;
     const target = Number(bidJob.amount_target ?? 0);
     const current = Number(bidJob.current_funding ?? 0);
     const remainder = target - (current + inputEgp);
@@ -1620,7 +1607,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       .filter(missionEligibleForMapPin)
       .filter((j) => Number.isFinite(j.location_lat) && Number.isFinite(j.location_lng))
       .map((j) => {
-        const fundingEgp = Math.round(Math.max(0, Number(j.current_funding ?? 0)));
+        const fundingEgp = Math.floor(Math.max(0, Number(j.current_funding ?? 0)));
         const isUserActive =
           !!currentUserId &&
           j.cleaner_id === currentUserId &&
@@ -2103,12 +2090,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       : t('amountEgp')}
                   </label>
                   <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    pattern="\d*"
                     value={orderAmount}
-                    onChange={(e) => setOrderAmount(e.target.value)}
+                    onChange={(e) => setOrderAmount(sanitizeIntegerEgpDigits(e.target.value))}
                     placeholder={
                       taskType === 'city'
                         ? isRu
@@ -2116,7 +2103,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           : 'Collection Target (Goal)'
                         : t('anyAmount')
                     }
-                    className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500`}
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 tabular-nums`}
                   />
                   {taskType === 'city' && (
                     <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
@@ -2347,14 +2334,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   {t('bidAmountLabelEgp')}
                 </label>
                 <input
-                  type="number"
-                  inputMode="decimal"
-                  step="1"
-                  min="0"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  pattern="\d*"
                   value={bidAmount}
-                  onChange={(e) => setBidAmount(e.target.value)}
+                  onChange={(e) => setBidAmount(sanitizeIntegerEgpDigits(e.target.value))}
                   placeholder="Enter your bid amount"
-                  className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500`}
+                  className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 tabular-nums`}
                 />
                 {bidModalFundingGapPreview && (
                   <p className="mt-2 text-[11px] text-cyan-200/95 font-semibold tabular-nums">
@@ -2378,16 +2365,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   type="submit"
                   disabled={
                     bidSubmitting ||
-                    !(parseFloat(String(bidAmount).replace(',', '.')) > 0)
+                    parseIntegerEgpFromInput(bidAmount) <= 0
                   }
                   className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all disabled:cursor-not-allowed disabled:opacity-60 active:scale-95"
                 >
                   {bidSubmitting
                     ? 'Placing bid...'
                     : (() => {
-                        const amt = parseFloat(String(bidAmount).replace(',', '.'));
-                        const egp = Math.max(0, Math.floor(amt));
-                        return amt > 0
+                        const egp = parseIntegerEgpFromInput(bidAmount);
+                        return egp > 0
                           ? `Place bid ${formatEgp(egp)}`
                           : 'Place bid';
                       })()}
@@ -2705,13 +2691,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       {t('bidAmountLabelEgp')}
                     </label>
                     <input
-                      type="number"
+                      type="text"
                       inputMode="numeric"
-                      step="1"
-                      min="0"
+                      autoComplete="off"
+                      pattern="\d*"
                       value={missionBidAmount}
-                      onChange={(e) => setMissionBidAmount(e.target.value)}
-                      className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none ${
+                      onChange={(e) => setMissionBidAmount(sanitizeIntegerEgpDigits(e.target.value))}
+                      className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none tabular-nums ${
                         selectedMission.category === 'public'
                           ? 'focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
                           : 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500'
@@ -2740,7 +2726,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       if (!showBidInput) {
                         setShowBidInput(true);
                         if (!missionBidAmount)
-                          setMissionBidAmount(String(selectedMission.amount_target ?? ''));
+                          setMissionBidAmount(
+                            String(Math.floor(Number(selectedMission.amount_target ?? 0)))
+                          );
                         return;
                       }
                       handleSubmitMissionBid();
@@ -2748,18 +2736,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     disabled={
                       isAccepting ||
                       (showBidInput &&
-                        !(parseFloat(String(missionBidAmount || '0').replace(',', '.')) > 0))
+                        parseIntegerEgpFromInput(String(missionBidAmount || '0')) <= 0)
                     }
                     className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isAccepting
                       ? t('placing')
                       : (() => {
-                          const amt = parseFloat(
-                            String(missionBidAmount || '0').replace(',', '.')
-                          );
-                          const egp = Math.max(0, Math.floor(amt));
-                          return showBidInput && amt > 0
+                          const egp = parseIntegerEgpFromInput(String(missionBidAmount || '0'));
+                          return showBidInput && egp > 0
                             ? `${t('placeBid')} ${formatEgp(egp)}`
                             : showBidInput
                               ? t('placeBid')
@@ -2826,26 +2811,26 @@ const MapPicker: React.FC<MapPickerProps> = ({
                                   EGP
                                 </span>
                                 <input
-                                  type="number"
-                                  min="0"
-                                  step="0.5"
-                                  inputMode="decimal"
+                                  type="text"
+                                  inputMode="numeric"
+                                  autoComplete="off"
+                                  pattern="\d*"
                                   value={donateAmount}
-                                  onChange={(e) => setDonateAmount(e.target.value)}
-                                  className={`min-w-0 flex-1 bg-transparent border-0 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-0`}
+                                  onChange={(e) => setDonateAmount(sanitizeIntegerEgpDigits(e.target.value))}
+                                  className={`min-w-0 flex-1 bg-transparent border-0 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 tabular-nums`}
                                   placeholder={t('customAmountEgpPlaceholder')}
                                 />
                               </div>
                               <button
                                 type="button"
-                                disabled={donating || !(parseFloat(String(donateAmount).replace(',', '.')) > 0)}
-                                onClick={() => handleDonate(parseFloat(donateAmount.replace(',', '.')))}
+                                disabled={donating || parseIntegerEgpFromInput(donateAmount) <= 0}
+                                onClick={() => handleDonate(parseIntegerEgpFromInput(donateAmount))}
                                 className="w-full px-3 py-1.5 rounded-full bg-emerald-500 text-[11px] font-black uppercase tracking-[0.16em] text-black hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed mt-1.5"
                               >
                                 {donating
                                   ? t('sendingDonation')
-                                  : parseFloat(String(donateAmount).replace(',', '.')) > 0
-                                    ? `${t('addFunds') || 'Add'} ${formatEgp(parseFloat(donateAmount.replace(',', '.')))}`
+                                  : parseIntegerEgpFromInput(donateAmount) > 0
+                                    ? `${t('addFunds') || 'Add'} ${formatEgp(parseIntegerEgpFromInput(donateAmount))}`
                                     : t('donate')}
                               </button>
                             </div>
@@ -2895,7 +2880,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               const bid = Number(crowdfundBidAmount ?? 0);
               const funded = Math.max(0, Number(selectedMission.current_funding ?? 0));
               const targetEgp = Math.max(0, Number(selectedMission.amount_target ?? 0));
-              const gapToCloseEgp = Math.max(0, Math.round(targetEgp - funded));
+              const gapToCloseEgp = Math.max(0, Math.floor(targetEgp - funded));
               return (
                 <>
                   <p className="text-sm text-slate-300">
@@ -2919,23 +2904,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         {t('bidAmountLabelEgp')} ({t('coFundCustomHint') || 'any amount'})
                       </label>
                       <input
-                        type="number"
-                        inputMode="decimal"
-                        step="0.01"
-                        min="0"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        pattern="\d*"
                         value={crowdfundCoFundInput}
-                        onChange={(e) => setCrowdfundCoFundInput(e.target.value)}
+                        onChange={(e) => setCrowdfundCoFundInput(sanitizeIntegerEgpDigits(e.target.value))}
                         placeholder={gapToCloseEgp > 0 ? String(gapToCloseEgp) : '10'}
-                        className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white`}
+                        className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white tabular-nums`}
                       />
                     </div>
                     <button
                       type="button"
-                      disabled={isAccepting || !(parseFloat(String(crowdfundCoFundInput).replace(',', '.')) > 0)}
+                      disabled={isAccepting || parseIntegerEgpFromInput(crowdfundCoFundInput) <= 0}
                       onClick={async () => {
                         if (!selectedMission) return;
-                        const coFundEgp = parseFloat(String(crowdfundCoFundInput).replace(',', '.'));
-                        if (!Number.isFinite(coFundEgp) || coFundEgp <= 0) {
+                        const coFundEgp = parseIntegerEgpFromInput(crowdfundCoFundInput);
+                        if (coFundEgp <= 0) {
                           toast.error(t('enterPositiveEgpAmount'));
                           return;
                         }
@@ -2970,7 +2955,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                             return;
                           }
                           setIsAccepting(true);
-                          await handleCoFundMission(selectedMission.id, coFundEgp);
+                          await handleCoFundMission(selectedMission.id, floorEgp(coFundEgp));
                           alert('Success! You co-funded this mission and closed the deal.');
                           await fetchMissions();
                           closeCrowdfundConfirm();
@@ -2996,7 +2981,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       disabled={isAccepting || !(Number(crowdfundBidAmount ?? 0) > 0)}
                       onClick={async () => {
                         if (!selectedMission) return;
-                        const amt = Number(crowdfundBidAmount ?? 0);
+                        const amt = floorEgp(crowdfundBidAmount ?? 0);
                         if (!(amt > 0)) return;
                         try {
                           const {
