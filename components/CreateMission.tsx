@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   validateMissionDescription,
@@ -28,6 +28,28 @@ type Props = {
   hasTextWarning?: boolean;
 };
 
+function mergeKeywordsFromResponse(data: {
+  keywords?: string[];
+  suggestions?: string;
+}): string[] {
+  const out: string[] = [];
+  const push = (s: string) => {
+    const t = s.trim();
+    if (t && !out.includes(t)) out.push(t);
+  };
+  if (Array.isArray(data.keywords)) {
+    for (const k of data.keywords) {
+      if (typeof k === 'string') push(k);
+    }
+  }
+  if (typeof data.suggestions === 'string' && data.suggestions.trim()) {
+    const parts = data.suggestions.split(/[,;|]/).map((p) => p.trim()).filter(Boolean);
+    for (const p of parts) push(p);
+    if (parts.length === 0) push(data.suggestions.trim());
+  }
+  return out.slice(0, 8);
+}
+
 const CreateMission: React.FC<Props> = ({
   taskType,
   orderDescription,
@@ -44,11 +66,25 @@ const CreateMission: React.FC<Props> = ({
   const [photoStatuses, setPhotoStatuses] = useState<('pending' | 'done')[]>([]);
   const [aiKeywords, setAiKeywords] = useState<string[]>([]);
   const lastFilesKey = useRef<string>('');
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const resizeDescription = useCallback(() => {
+    const el = descriptionRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const next = Math.min(Math.max(el.scrollHeight, 72), 320);
+    el.style.height = `${next}px`;
+  }, []);
+
+  useLayoutEffect(() => {
+    resizeDescription();
+  }, [orderDescription, resizeDescription]);
 
   const runVerification = useCallback(
     async (files: File[]) => {
       if (files.length === 0) {
         setPhotoStatuses([]);
+        setAiKeywords([]);
         onPhotoVerificationChange({
           verifying: false,
           allApproved: true,
@@ -80,13 +116,11 @@ const CreateMission: React.FC<Props> = ({
           const data = (await res.json().catch(() => ({}))) as {
             status?: string;
             keywords?: string[];
+            suggestions?: string;
           };
-          if (Array.isArray(data?.keywords) && data.keywords.length > 0) {
-            for (const kw of data.keywords) {
-              if (kw && !collectedKeywords.includes(kw)) {
-                collectedKeywords.push(kw);
-              }
-            }
+          const merged = mergeKeywordsFromResponse(data);
+          for (const kw of merged) {
+            if (!collectedKeywords.includes(kw)) collectedKeywords.push(kw);
           }
         } catch {
           /* ignore — non-blocking */
@@ -95,13 +129,14 @@ const CreateMission: React.FC<Props> = ({
         setPhotoStatuses([...statuses]);
       }
 
-      if (collectedKeywords.length > 0) setAiKeywords(collectedKeywords.slice(0, 5));
+      const tags = collectedKeywords.slice(0, 8);
+      setAiKeywords(tags);
       setCheckingPhotos(false);
       onPhotoVerificationChange({
         verifying: false,
         allApproved: true,
         hasRejected: false,
-        aiTags: collectedKeywords.slice(0, 5),
+        aiTags: tags,
       });
     },
     [onPhotoVerificationChange]
@@ -194,24 +229,25 @@ const CreateMission: React.FC<Props> = ({
           {t('shortDescriptionAndArea')}
         </label>
         <textarea
+          ref={descriptionRef}
           value={orderDescription}
           onChange={(e) => handleDescriptionChange(e.target.value)}
           rows={2}
           placeholder={
             taskType === 'city' ? t('describeCitySpot') : t('describeHomeTask')
           }
-          className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none ${
+          className={`w-full min-h-[4.5rem] max-h-[20rem] overflow-y-auto ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none ${
             hasTextWarning ? 'border-b-2 border-dashed border-[#ea580c]' : ''
           }`}
         />
         {aiKeywords.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider shrink-0">
               {t('aiSuggestions') || 'AI suggestions'}:
             </span>
-            {aiKeywords.map((kw) => (
+            {aiKeywords.map((kw, idx) => (
               <button
-                key={kw}
+                key={`${kw}-${idx}`}
                 type="button"
                 onClick={() => {
                   const newVal =
@@ -221,8 +257,9 @@ const CreateMission: React.FC<Props> = ({
                   onDescriptionPolicyError(r.ok ? null : MISSION_DESCRIPTION_POLICY_ERROR);
                   const { textWarning: tw } = filterMissionDescription(newVal);
                   onTextWarning?.(tw ?? null);
+                  requestAnimationFrame(() => resizeDescription());
                 }}
-                className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 hover:border-cyan-400/60"
+                className="rounded-full border border-teal-500/50 bg-teal-500/10 px-2.5 py-1 text-[10px] font-medium text-teal-200 transition hover:bg-teal-500/20 hover:border-teal-400/70"
               >
                 {kw}
               </button>

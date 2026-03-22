@@ -665,6 +665,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [missionBidCurrency, setMissionBidCurrency] = useState<'EGP' | 'USD'>('EGP');
   const [showCrowdfundConfirm, setShowCrowdfundConfirm] = useState(false);
   const [crowdfundBidAmount, setCrowdfundBidAmount] = useState<number | null>(null);
+  /** User-entered EGP for "close deal" co-fund (any positive amount, not tied to gap) */
+  const [crowdfundCoFundInput, setCrowdfundCoFundInput] = useState('');
   const [showDonate, setShowDonate] = useState(false);
   const [donateAmount, setDonateAmount] = useState<string>('');
   const [donating, setDonating] = useState(false);
@@ -875,6 +877,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const closeCrowdfundConfirm = useCallback(() => {
     setShowCrowdfundConfirm(false);
     setCrowdfundBidAmount(null);
+    setCrowdfundCoFundInput('');
   }, []);
 
   const handleCoFundMission = useCallback(
@@ -1107,16 +1110,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      // Crowdfunding logic for public missions (amounts in EGP):
-      if (selectedMission.category === 'public') {
-        const currentFunding = Number(selectedMission.current_funding ?? 0);
-        if (Number.isFinite(currentFunding) && amtEgp > currentFunding) {
-          setCrowdfundBidAmount(amtEgp);
-          setShowCrowdfundConfirm(true);
-          return;
-        }
-      }
-
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('wallet_balance, frozen_balance, phone_number, is_verified')
@@ -1157,7 +1150,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
       }
 
-      // Default behavior: place a pending bid (EGP)
       await placePendingBid(selectedMission.id, amtEgp);
 
       await fetchMissions();
@@ -1220,17 +1212,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
       const userId = session.user.id;
 
-      // Crowdfunding logic for public missions (bid modal) — compare EGP to EGP
-      if (bidJob.category === 'public') {
-        const currentFunding = Number(bidJob.current_funding ?? 0);
-        if (Number.isFinite(currentFunding) && bidEgp > currentFunding) {
-          setCrowdfundBidAmount(bidEgp);
-          setSelectedMission(bidJob);
-          setShowCrowdfundConfirm(true);
-          return;
-        }
-      }
-
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('wallet_balance, frozen_balance, phone_number, is_verified')
@@ -1274,9 +1255,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setBidSuccess('Bid placed successfully.');
       setBidAmount('');
       await fetchMissions();
-      setTimeout(() => {
-        handleCloseBidModal();
-      }, 1200);
+      handleCloseBidModal();
     } catch (err) {
       console.error('Bid exception:', err);
       setBidError('Unexpected error. Please try again.');
@@ -2787,7 +2766,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
               const bid = Number(crowdfundBidAmount ?? 0);
               const funded = Math.max(0, Number(selectedMission.current_funding ?? 0));
               const targetEgp = Math.max(0, Number(selectedMission.amount_target ?? 0));
-              /** EGP still needed = goal − current funding (never use the user’s bid for this). */
               const gapToCloseEgp = Math.max(0, Math.round(targetEgp - funded));
               return (
                 <>
@@ -2807,14 +2785,29 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   </p>
 
                   <div className="mt-5 grid grid-cols-1 gap-3">
+                    <div className={`space-y-2 border border-amber-500/20 rounded-xl px-3 py-3 ${PROFILE_GLASS_PANEL}`}>
+                      <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                        {t('bidAmountLabelEgp')} ({t('coFundCustomHint') || 'any amount'})
+                      </label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={crowdfundCoFundInput}
+                        onChange={(e) => setCrowdfundCoFundInput(e.target.value)}
+                        placeholder={gapToCloseEgp > 0 ? String(gapToCloseEgp) : '10'}
+                        className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white`}
+                      />
+                    </div>
                     <button
                       type="button"
-                      disabled={isAccepting}
+                      disabled={isAccepting || !(parseFloat(String(crowdfundCoFundInput).replace(',', '.')) > 0)}
                       onClick={async () => {
                         if (!selectedMission) return;
-                        if (gapToCloseEgp <= 0) {
-                          closeCrowdfundConfirm();
-                          handleCloseMissionBriefing();
+                        const coFundEgp = parseFloat(String(crowdfundCoFundInput).replace(',', '.'));
+                        if (!Number.isFinite(coFundEgp) || coFundEgp <= 0) {
+                          toast.error(t('enterPositiveEgpAmount'));
                           return;
                         }
                         try {
@@ -2832,7 +2825,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                             .maybeSingle();
                           const wb = profileWalletBalanceEgp(p?.wallet_balance);
                           const fr = profileWalletBalanceEgp(p?.frozen_balance);
-                          const target = Number(selectedMission.amount_target ?? gapToCloseEgp);
+                          const target = Number(selectedMission.amount_target ?? coFundEgp);
                           const sec = workerCanSecureMissionDeposit(
                             wb,
                             fr,
@@ -2848,7 +2841,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                             return;
                           }
                           setIsAccepting(true);
-                          await handleCoFundMission(selectedMission.id, gapToCloseEgp);
+                          await handleCoFundMission(selectedMission.id, coFundEgp);
                           alert('Success! You co-funded this mission and closed the deal.');
                           await fetchMissions();
                           closeCrowdfundConfirm();
@@ -2859,26 +2852,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           setIsAccepting(false);
                         }
                       }}
-                      className={`w-full px-4 py-4 text-left transition-all hover:border-amber-400/50 hover:bg-white/10 disabled:cursor-wait disabled:opacity-60 ${PROFILE_GLASS_PANEL}`}
+                      className={`w-full px-4 py-4 text-left transition-all hover:border-amber-400/50 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 ${PROFILE_GLASS_PANEL}`}
                     >
                       <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">
-                        {gapToCloseEgp > 0
-                          ? t('addAmountToCloseDeal', { amount: formatEgp(gapToCloseEgp) })
-                          : t('tapToConfirmBidNoTopUp')}
+                        {t('addFunds') || 'Add Funds'} / {t('closeDeal') || 'Close deal'}
                       </p>
-                      {gapToCloseEgp > 0 && (
-                        <p className="mt-1 text-[11px] text-slate-500">
-                          {t('differenceDeductedFromWallet')}
-                        </p>
-                      )}
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        {t('differenceDeductedFromWallet')}
+                      </p>
                     </button>
 
                     <button
                       type="button"
-                      disabled={isAccepting}
+                      disabled={isAccepting || !(Number(crowdfundBidAmount ?? 0) > 0)}
                       onClick={async () => {
                         if (!selectedMission) return;
-                        if (!crowdfundBidAmount) return;
+                        const amt = Number(crowdfundBidAmount ?? 0);
+                        if (!(amt > 0)) return;
                         try {
                           const {
                             data: { session },
@@ -2910,7 +2900,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                             return;
                           }
                           setIsAccepting(true);
-                          await placePendingBid(selectedMission.id, crowdfundBidAmount);
+                          await placePendingBid(selectedMission.id, amt);
                           await fetchMissions();
                           closeCrowdfundConfirm();
                           handleCloseMissionBriefing();
@@ -2920,7 +2910,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           setIsAccepting(false);
                         }
                       }}
-                      className={`w-full px-4 py-4 text-left transition-all hover:border-sky-400/50 hover:bg-white/10 disabled:cursor-wait disabled:opacity-60 ${PROFILE_GLASS_PANEL}`}
+                      className={`w-full px-4 py-4 text-left transition-all hover:border-sky-400/50 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 ${PROFILE_GLASS_PANEL}`}
                     >
                       <p className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-300">
                         {t('waitUntilFillsUpDonation')}
