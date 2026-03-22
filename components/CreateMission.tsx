@@ -12,6 +12,8 @@ export interface PhotoVerificationState {
   verifying: boolean;
   allApproved: boolean;
   hasRejected: boolean;
+  /** AI-generated tags for mission metadata (non-blocking) */
+  aiTags?: string[];
 }
 
 type Props = {
@@ -39,9 +41,7 @@ const CreateMission: React.FC<Props> = ({
 }) => {
   const { t } = useTranslation();
   const [checkingPhotos, setCheckingPhotos] = useState(false);
-  const [photoStatuses, setPhotoStatuses] = useState<
-    ('pending' | 'approved' | 'rejected' | 'explicit')[]
-  >([]);
+  const [photoStatuses, setPhotoStatuses] = useState<('pending' | 'done')[]>([]);
   const [aiKeywords, setAiKeywords] = useState<string[]>([]);
   const lastFilesKey = useRef<string>('');
 
@@ -49,52 +49,29 @@ const CreateMission: React.FC<Props> = ({
     async (files: File[]) => {
       if (files.length === 0) {
         setPhotoStatuses([]);
-        onPhotoVerificationChange({ verifying: false, allApproved: true, hasRejected: false });
+        onPhotoVerificationChange({
+          verifying: false,
+          allApproved: true,
+          hasRejected: false,
+          aiTags: [],
+        });
         return;
       }
       setCheckingPhotos(true);
-      onPhotoVerificationChange({ verifying: true, allApproved: false, hasRejected: false });
-      const statuses: ('pending' | 'approved' | 'rejected' | 'explicit')[] = files.map(
-        () => 'pending'
-      );
+      onPhotoVerificationChange({
+        verifying: true,
+        allApproved: true,
+        hasRejected: false,
+        aiTags: [],
+      });
+      const statuses: ('pending' | 'done')[] = files.map(() => 'pending');
       setPhotoStatuses(statuses);
 
-      let anyWasteRejected = false;
-      let collectedKeywords: string[] = [];
+      const collectedKeywords: string[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         try {
           const { base64, mimeType } = await fileToBase64Parts(file);
-
-          const safetyRes = await fetch('/api/moderate-mission-photo-safety', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageBase64: base64, mimeType }),
-          });
-          const safetyData = (await safetyRes.json().catch(() => ({}))) as {
-            verdict?: string;
-          };
-
-          if (!safetyRes.ok) {
-            statuses[i] = 'rejected';
-            anyWasteRejected = true;
-            setPhotoStatuses([...statuses]);
-            continue;
-          }
-
-          if (safetyData.verdict === 'EXPLICIT') {
-            statuses[i] = 'explicit';
-            setPhotoStatuses([...statuses]);
-            continue;
-          }
-
-          if (safetyData.verdict !== 'SAFE') {
-            statuses[i] = 'rejected';
-            anyWasteRejected = true;
-            setPhotoStatuses([...statuses]);
-            continue;
-          }
-
           const res = await fetch('/api/verify-mission-image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -104,37 +81,27 @@ const CreateMission: React.FC<Props> = ({
             status?: string;
             keywords?: string[];
           };
-          if (!res.ok) {
-            statuses[i] = 'rejected';
-            anyWasteRejected = true;
-          } else if (data.status === 'approved') {
-            statuses[i] = 'approved';
-            if (
-              Array.isArray(data.keywords) &&
-              data.keywords.length > 0 &&
-              collectedKeywords.length === 0
-            ) {
-              collectedKeywords = data.keywords.slice(0, 3);
+          if (Array.isArray(data?.keywords) && data.keywords.length > 0) {
+            for (const kw of data.keywords) {
+              if (kw && !collectedKeywords.includes(kw)) {
+                collectedKeywords.push(kw);
+              }
             }
-          } else {
-            statuses[i] = 'rejected';
-            anyWasteRejected = true;
           }
         } catch {
-          statuses[i] = 'rejected';
-          anyWasteRejected = true;
+          /* ignore — non-blocking */
         }
+        statuses[i] = 'done';
         setPhotoStatuses([...statuses]);
       }
 
-      const allApproved = statuses.every((s) => s === 'approved' || s === 'explicit');
-      const hasRejected = anyWasteRejected;
-      if (collectedKeywords.length > 0) setAiKeywords(collectedKeywords);
+      if (collectedKeywords.length > 0) setAiKeywords(collectedKeywords.slice(0, 5));
       setCheckingPhotos(false);
       onPhotoVerificationChange({
         verifying: false,
-        allApproved,
-        hasRejected,
+        allApproved: true,
+        hasRejected: false,
+        aiTags: collectedKeywords.slice(0, 5),
       });
     },
     [onPhotoVerificationChange]
@@ -206,22 +173,14 @@ const CreateMission: React.FC<Props> = ({
                   <span className="truncate">{f.name}</span>
                   <span
                     className={
-                      photoStatuses[i] === 'approved'
+                      photoStatuses[i] === 'done'
                         ? 'text-emerald-400'
-                        : photoStatuses[i] === 'explicit'
-                          ? 'text-rose-300'
-                          : photoStatuses[i] === 'rejected'
-                            ? 'text-red-400'
-                            : 'text-amber-300'
+                        : 'text-amber-300'
                     }
                   >
                     {photoStatuses[i] === 'pending' || checkingPhotos
                       ? t('aiVerifyingPhotoShort')
-                      : photoStatuses[i] === 'approved'
-                        ? '✓'
-                        : photoStatuses[i] === 'explicit'
-                          ? '🙈'
-                          : '✕'}
+                      : '✓'}
                   </span>
                 </li>
               ))}
@@ -248,7 +207,7 @@ const CreateMission: React.FC<Props> = ({
         {aiKeywords.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
             <span className="text-[10px] text-slate-500 uppercase tracking-wider">
-              {t('aiSuggestions') || 'ИИ подсказки'}:
+              {t('aiSuggestions') || 'AI suggestions'}:
             </span>
             {aiKeywords.map((kw) => (
               <button

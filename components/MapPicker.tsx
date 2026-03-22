@@ -28,11 +28,6 @@ import {
 } from '../constants';
 import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
 import { profileWalletBalanceEgp, usdInputToEgp } from '../src/lib/walletCredit';
-import { fileToBase64Parts } from '../src/lib/imageBase64';
-import {
-  MISSION_PHOTO_CENSORED_PLACEHOLDER,
-  isCensoredMissionPhotoUrl,
-} from '../src/lib/missionPhotoModeration';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -369,7 +364,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [mapToast, setMapToast] = useState<string | null>(null);
-  const [censoredPhotoDeletingIndex, setCensoredPhotoDeletingIndex] = useState<number | null>(null);
   const [textWarning, setTextWarning] = useState<string | null>(null);
 
   const toast = {
@@ -728,28 +722,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setIsTranslationLoading(false);
     }
   }, [appLanguage]);
-
-  const removeCensoredMissionPhotoSlot = useCallback(
-    async (missionId: string, index: number) => {
-      if (!selectedMission || selectedMission.id !== missionId) return;
-      if (selectedMission.creator_id !== currentUserId) return;
-      const next = [...(selectedMission.photo_urls || [])].filter((_, i) => i !== index);
-      setCensoredPhotoDeletingIndex(index);
-      const { error } = await supabase
-        .from('missions')
-        .update({ photo_urls: next })
-        .eq('id', missionId);
-      setCensoredPhotoDeletingIndex(null);
-      if (error) {
-        setMapToast(error.message || 'Could not remove photo');
-        window.setTimeout(() => setMapToast(null), 2600);
-        return;
-      }
-      setSelectedMission({ ...selectedMission, photo_urls: next });
-      setJobs((prev) => prev.map((j) => (j.id === missionId ? { ...j, photo_urls: next } : j)));
-    },
-    [selectedMission, currentUserId]
-  );
 
   const [selectedRating, setSelectedRating] = useState<number>(0);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
@@ -1348,16 +1320,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
       return;
     }
     const { filteredText } = filterMissionDescription(orderDescription);
-    const descriptionToSave = filteredText.trim() || orderDescription.trim();
-    if (orderPhotos.length > 0) {
-      if (photoVerification.verifying) {
-        setOrderError(t('waitForAiVerification'));
-        return;
-      }
-      if (!photoVerification.allApproved) {
-        setOrderError(t('missionPhotoRejected'));
-        return;
-      }
+    let descriptionToSave = filteredText.trim() || orderDescription.trim();
+    const tags = photoVerification.aiTags;
+    if (Array.isArray(tags) && tags.length > 0) {
+      const tagStr = tags.filter(Boolean).join(', ');
+      if (tagStr) descriptionToSave = descriptionToSave ? `${descriptionToSave} [${tagStr}]` : tagStr;
+    }
+    if (orderPhotos.length > 0 && photoVerification.verifying) {
+      setOrderError(t('waitForAiVerification'));
+      return;
     }
 
     try {
@@ -1420,21 +1391,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
           }
         }
         for (const file of compressedFiles) {
-          const { base64, mimeType } = await fileToBase64Parts(file);
-          const modRes = await fetch('/api/moderate-mission-photo-safety', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageBase64: base64, mimeType }),
-          });
-          const modData = (await modRes.json().catch(() => ({}))) as { verdict?: string };
-          if (modRes.ok && modData.verdict === 'EXPLICIT') {
-            uploaded.push(MISSION_PHOTO_CENSORED_PLACEHOLDER);
-            continue;
-          }
-          if (!modRes.ok || modData.verdict !== 'SAFE') {
-            throw new Error(t('photoSafetyCheckFailed'));
-          }
-
           const safeFileName = `mission_${Date.now()}_${Math.random().toString(36).substring(2)}.jpg`;
           const { error: uploadError } = await supabase.storage
             .from('order-photos')
@@ -2164,7 +2120,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   !selectedLocation ||
                   !!descriptionPolicyError ||
                   (orderPhotos.length > 0 &&
-                    (!photoVerification.allApproved || photoVerification.verifying))
+                    photoVerification.verifying)
                     ? 'opacity-60'
                     : ''
                 }`}
@@ -2177,7 +2133,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     !selectedLocation ||
                     !!descriptionPolicyError ||
                     (orderPhotos.length > 0 &&
-                      (!photoVerification.allApproved || photoVerification.verifying))
+                      photoVerification.verifying)
                   }
                   className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] transition-all text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] disabled:cursor-not-allowed active:scale-[0.98]"
                 >
@@ -2406,14 +2362,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           alt={`Before (work scope) ${index + 1}`}
                           imgClassName="w-full h-48 object-cover rounded-xl shadow-md bg-slate-800"
                           showSafeBadge
-                          canDelete={
-                            isCensoredMissionPhotoUrl(url) &&
-                            selectedMission.creator_id === currentUserId
-                          }
-                          deleting={censoredPhotoDeletingIndex === index}
-                          onDeleteCensored={() =>
-                            removeCensoredMissionPhotoSlot(selectedMission.id, index)
-                          }
                         />
                       </div>
                     ))}

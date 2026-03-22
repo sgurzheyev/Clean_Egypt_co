@@ -7,16 +7,13 @@ type VisionResult = {
   suggestions?: string;
 };
 
-const PROMPT = `Analyze this image for a cleanup platform. Return ONLY valid JSON with this exact structure:
+const PROMPT = `Analyze this image for a cleanup platform. Return ONLY valid JSON:
 
-{"status": "approved" | "rejected", "reason": "sexual_content" | "unrelated" | null, "keywords": ["keyword1", "keyword2", "keyword3"], "suggestions": "one-line cleanup recommendation"}
+{"status": "approved" | "rejected", "reason": null, "keywords": ["keyword1", "keyword2", "keyword3"], "suggestions": "one-line recommendation"}
 
-RULES:
-- REJECT if: sexual content, nudity, or adult material.
-- REJECT if: it's a generic selfie, meme, or clean nature with no garbage/mess.
-- APPROVE if: it contains city waste, trash, debris, or a messy home environment needing cleaning.
+For ANY image, always provide up to 3 descriptive keywords (e.g. "Plastic", "Street debris", "Large waste", "Trash pile", "Home clutter"). Use simple English when possible.
 
-When APPROVED: Provide up to 3 relevant, concise keywords to describe the cleanup task (e.g. "Уборка пластика", "Крупногабаритный мусор", "Street debris"). Recommend specific cleanup actions in suggestions.`;
+Status: APPROVE if it shows waste, trash, debris, or messy environment. REJECT otherwise (selfie, meme, clean nature).`;
 
 function extractJson(text: string): VisionResult | null {
   const start = text.indexOf('{');

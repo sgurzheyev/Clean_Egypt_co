@@ -31,9 +31,6 @@ import {
 import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
 import { computeWithdrawalExitBreakdown } from '../src/lib/withdrawalTax';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
-import {
-  isCensoredMissionPhotoUrl,
-} from '../src/lib/missionPhotoModeration';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -203,7 +200,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [paymentSyncing, setPaymentSyncing] = useState(false);
   const [reviewJob, setReviewJob] = useState<Job | null>(null);
-  const [reviewCensoredDeleting, setReviewCensoredDeleting] = useState<string | null>(null);
   const [releasePaySubmitting, setReleasePaySubmitting] = useState(false);
   const [disputeSubmitting, setDisputeSubmitting] = useState(false);
   const [toastState, setToastState] = useState<ToastState>(null);
@@ -275,42 +271,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
       toastTimerRef.current = window.setTimeout(() => setToastState(null), 3000);
     },
-  };
-
-  /** Remove censored placeholder slot from mission (creator only). */
-  const removeCensoredPhotoFromReviewJob = async (which: 'before' | 'after', index: number) => {
-    if (!reviewJob?.id || reviewJob.creator_id !== _session?.user?.id) return;
-    if (which === 'before') {
-      const urls = ((reviewJob.photo_urls || (reviewJob as any).before_photo_urls) || []) as string[];
-      if (!isCensoredMissionPhotoUrl(urls[index])) return;
-      const next = urls.filter((_, i) => i !== index);
-      setReviewCensoredDeleting(`before-${index}`);
-      const { error } = await supabase
-        .from('missions')
-        .update({ photo_urls: next })
-        .eq('id', reviewJob.id);
-      setReviewCensoredDeleting(null);
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      setReviewJob({ ...reviewJob, photo_urls: next });
-      return;
-    }
-    const urls = (reviewJob.after_photo_urls || []) as string[];
-    if (!isCensoredMissionPhotoUrl(urls[index])) return;
-    const next = urls.filter((_, i) => i !== index);
-    setReviewCensoredDeleting(`after-${index}`);
-    const { error } = await supabase
-      .from('missions')
-      .update({ after_photo_urls: next })
-      .eq('id', reviewJob.id);
-    setReviewCensoredDeleting(null);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setReviewJob({ ...reviewJob, after_photo_urls: next });
   };
 
   const enforceMissionStatusCooldown = () => {
@@ -3163,12 +3123,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             alt="Before"
                             imgClassName="w-full h-28 object-cover"
                             showSafeBadge
-                            canDelete={
-                              isCensoredMissionPhotoUrl(url) &&
-                              reviewJob.creator_id === _session?.user?.id
-                            }
-                            deleting={reviewCensoredDeleting === `before-${idx}`}
-                            onDeleteCensored={() => void removeCensoredPhotoFromReviewJob('before', idx)}
                           />
                         </div>
                       )
@@ -3195,12 +3149,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           alt="After"
                           imgClassName="w-full h-28 object-cover"
                           showSafeBadge
-                          canDelete={
-                            isCensoredMissionPhotoUrl(url) &&
-                            reviewJob.creator_id === _session?.user?.id
-                          }
-                          deleting={reviewCensoredDeleting === `after-${idx}`}
-                          onDeleteCensored={() => void removeCensoredPhotoFromReviewJob('after', idx)}
                         />
                       </div>
                     ))}

@@ -1,21 +1,17 @@
 import React from 'react';
-import { isCensoredMissionPhotoUrl } from '../src/lib/missionPhotoModeration';
 
 type Props = {
   url: string;
   alt: string;
   className?: string;
   imgClassName?: string;
-  /** Show green waste-style check on safe photos */
+  /** Show green verification checkmark on uploaded photos */
   showSafeBadge?: boolean;
-  /** Censored: allow creator to remove slot */
-  canDelete?: boolean;
-  onDeleteCensored?: () => void | Promise<void>;
-  deleting?: boolean;
 };
 
 /**
- * Renders a mission photo: real image + optional safe badge, or censored placeholder + delete.
+ * Renders a mission photo with optional green checkmark badge.
+ * All successfully uploaded photos get the verification checkmark.
  */
 const ModeratedMissionPhoto: React.FC<Props> = ({
   url,
@@ -23,33 +19,16 @@ const ModeratedMissionPhoto: React.FC<Props> = ({
   className = '',
   imgClassName = 'w-full h-48 object-cover rounded-xl shadow-md bg-slate-800',
   showSafeBadge = true,
-  canDelete = false,
-  onDeleteCensored,
-  deleting = false,
 }) => {
-  const censored = isCensoredMissionPhotoUrl(url);
+  const isInvalidUrl =
+    typeof url !== 'string' || !url || url.startsWith('censored://');
 
-  if (censored) {
+  if (isInvalidUrl) {
     return (
-      <div className={`relative h-full min-h-[12rem] overflow-hidden rounded-xl ${className}`}>
-        <div className="relative flex h-full min-h-[12rem] w-full flex-col items-center justify-center bg-black px-4 py-8">
-          <p className="text-center text-sm font-bold text-white">Sexual photo forbidden 🙈</p>
-          {canDelete && onDeleteCensored && (
-            <button
-              type="button"
-              disabled={deleting}
-              onClick={(e) => {
-                e.stopPropagation();
-                void onDeleteCensored();
-              }}
-              className="absolute right-2 top-2 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-red-600 text-lg font-black text-white shadow-lg ring-2 ring-red-400/50 transition hover:bg-red-500 hover:scale-105 disabled:opacity-50"
-              aria-label="Remove censored slot"
-              title="Remove"
-            >
-              ×
-            </button>
-          )}
-        </div>
+      <div
+        className={`relative flex min-h-[12rem] w-full items-center justify-center rounded-xl bg-slate-800 ${className}`}
+      >
+        <p className="text-center text-xs text-slate-500">Image unavailable</p>
       </div>
     );
   }
