@@ -125,12 +125,14 @@ function footprintCylinderRing(
   return ring;
 }
 
-/** Values must match fill-extrusion `match` paint (open / bidded / completed). */
-function towerStatusForJob(job: JobOnMap, bidCount: number): 'open' | 'bidded' | 'completed' {
-  if (job.status === 'completed') return 'completed';
-  if (job.status === 'in_progress') return 'bidded';
-  if (bidCount > 0) return 'bidded';
-  return 'open';
+/** Mission has an assigned worker or is past the open crowdfunding phase. */
+function isMissionTaken(job: JobOnMap): boolean {
+  if (job.cleaner_id) return true;
+  return (
+    job.status === 'in_progress' ||
+    job.status === 'review' ||
+    job.status === 'pending_approval'
+  );
 }
 
 function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
@@ -1004,6 +1006,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
     [onRequestAuth]
   );
 
+  /** Wallet debit + assign cleaner + in_progress when funding reaches goal (RPC). */
+  const completeFundingAndAssign = useCallback(async (missionId: string, bidAmountEgp: number) => {
+    const { error } = await supabase.rpc('complete_funding_and_assign', {
+      p_mission_id: missionId,
+      p_bid_amount: bidAmountEgp,
+    });
+    if (error) throw error;
+  }, []);
+
   const handleCloseHallOfFame = useCallback(() => {
     setHallOfFameMission(null);
     setHallOfFameCleanerName(null);
@@ -1150,16 +1161,26 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
       }
 
-      await placePendingBid(selectedMission.id, amtEgp);
+      const funded = Number(selectedMission.current_funding ?? 0);
+      const goal = Number(selectedMission.amount_target ?? 0);
+      const totalAfterBid = funded + amtEgp;
+      const closesAtGoal = goal > 0 && totalAfterBid + 0.01 >= goal;
 
-      await fetchMissions();
+      if (closesAtGoal) {
+        await completeFundingAndAssign(selectedMission.id, amtEgp);
+      } else {
+        await placePendingBid(selectedMission.id, amtEgp);
+      }
+
       handleCloseMissionBriefing();
+      void fetchMissions();
     } catch (err: any) {
       alert(err?.message || 'Something went wrong. Please try again.');
     } finally {
       setIsAccepting(false);
     }
   }, [
+    completeFundingAndAssign,
     fetchMissions,
     handleCloseMissionBriefing,
     missionBidAmount,
@@ -1250,12 +1271,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
       }
 
-      await placePendingBid(bidJob.id, bidEgp);
+      const funded = Number(bidJob.current_funding ?? 0);
+      const goal = Number(bidJob.amount_target ?? 0);
+      const totalAfterBid = funded + bidEgp;
+      const closesAtGoal = goal > 0 && totalAfterBid + 0.01 >= goal;
 
-      setBidSuccess('Bid placed successfully.');
+      if (closesAtGoal) {
+        await completeFundingAndAssign(bidJob.id, bidEgp);
+      } else {
+        await placePendingBid(bidJob.id, bidEgp);
+      }
+
       setBidAmount('');
-      await fetchMissions();
       handleCloseBidModal();
+      void fetchMissions();
     } catch (err) {
       console.error('Bid exception:', err);
       setBidError('Unexpected error. Please try again.');
@@ -1557,11 +1586,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
       .filter((j) => Number.isFinite(j.location_lat) && Number.isFinite(j.location_lng))
       .map((j) => {
         const fundingEgp = Math.round(Math.max(0, Number(j.current_funding ?? 0)));
-        const bids = activeBidCounts[j.id] || 0;
         const isUserActive =
           !!currentUserId &&
           j.cleaner_id === currentUserId &&
           j.status === 'in_progress';
+        const taken = isMissionTaken(j) ? 1 : 0;
+        const completed = j.status === 'completed' ? 1 : 0;
         return {
           type: 'Feature' as const,
           geometry: {
@@ -1572,8 +1602,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
             mission_id: j.id,
             /** Rounded integer EGP for label + extrusion height scale */
             funding_egp: fundingEgp,
-            tower_status: towerStatusForJob(j, bids),
-            /** City / street cleanup crowdfunding — maps DB `public` to "city_donation" palette */
+            is_completed: completed,
+            is_taken: taken,
+            /** City / street cleanup — DB category `public` */
             is_city_donation: j.category === 'public' ? 1 : 0,
             is_selected: selectedMission?.id === j.id ? 1 : 0,
             is_user_active: isUserActive ? 1 : 0,
@@ -1581,7 +1612,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         };
       });
     return { type: 'FeatureCollection' as const, features };
-  }, [jobs, activeBidCounts, selectedMission?.id, currentUserId]);
+  }, [jobs, selectedMission?.id, currentUserId]);
 
   /** Purple pulse anchor for missions where the current user is the active cleaner. */
   const activeWorkerPulseGeoJSON = useMemo(() => {
@@ -1889,17 +1920,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 'case',
                 ['==', ['get', 'is_selected'], 1],
                 '#00FFFF',
-                [
-                  'all',
-                  ['==', ['get', 'tower_status'], 'open'],
-                  ['==', ['get', 'is_city_donation'], 1],
-                ],
-                '#00FF00',
-                ['==', ['get', 'tower_status'], 'bidded'],
-                '#0000FF',
-                ['==', ['get', 'tower_status'], 'completed'],
+                ['==', ['get', 'is_completed'], 1],
                 '#4ADE80',
-                '#64748B',
+                ['==', ['get', 'is_taken'], 1],
+                '#0000FF',
+                ['==', ['get', 'is_city_donation'], 1],
+                '#00FF00',
+                '#FFD700',
               ] as any,
               'fill-extrusion-opacity': mapMarkerLayerSuppressed ? 0.06 : 0.8,
             }}
@@ -2820,16 +2847,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
                               </button>
                             ))}
                             <div className="flex-1 min-w-[120px] space-y-2">
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.5"
-                                inputMode="decimal"
-                                value={donateAmount}
-                                onChange={(e) => setDonateAmount(e.target.value)}
-                                className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
-                                placeholder={t('customAmount')}
-                              />
+                              <div className="flex items-center gap-2 rounded-xl border border-slate-600/80 bg-slate-950/50 px-2 py-1 focus-within:border-emerald-400/60">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/90 shrink-0">
+                                  EGP
+                                </span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.5"
+                                  inputMode="decimal"
+                                  value={donateAmount}
+                                  onChange={(e) => setDonateAmount(e.target.value)}
+                                  className={`min-w-0 flex-1 bg-transparent border-0 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-0`}
+                                  placeholder={t('customAmountEgpPlaceholder')}
+                                />
+                              </div>
                               <button
                                 type="button"
                                 disabled={donating || !(parseFloat(String(donateAmount).replace(',', '.')) > 0)}
