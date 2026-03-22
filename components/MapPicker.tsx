@@ -2016,14 +2016,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
               <button
                 type="button"
                 onClick={() => selectTaskType('city')}
-                className="rounded-full px-6 py-3.5 bg-black/60 backdrop-blur-md border-2 border-emerald-400/60 text-white font-medium text-sm shadow-[0_0_28px_rgba(52,211,153,0.5)] hover:shadow-[0_0_36px_rgba(52,211,153,0.6)] hover:border-emerald-400 transition-all active:scale-[0.98]"
+                className="rounded-full px-6 py-3.5 bg-black/60 backdrop-blur-md border-2 border-emerald-400/60 text-white font-medium text-sm shadow-[0_0_28px_rgba(52,211,153,0.5)] hover:shadow-[0_0_36px_rgba(52,211,153,0.6)] hover:border-emerald-400 transition-all active:scale-95"
               >
                 {t('cleanCityArea')}
               </button>
               <button
                 type="button"
                 onClick={() => selectTaskType('home')}
-                className="rounded-full px-6 py-3.5 bg-black/60 backdrop-blur-md border-2 border-amber-400/60 text-white font-medium text-sm shadow-[0_0_28px_rgba(251,191,36,0.5)] hover:shadow-[0_0_36px_rgba(251,191,36,0.6)] hover:border-amber-400 transition-all active:scale-[0.98]"
+                className="rounded-full px-6 py-3.5 bg-black/60 backdrop-blur-md border-2 border-amber-400/60 text-white font-medium text-sm shadow-[0_0_28px_rgba(251,191,36,0.5)] hover:shadow-[0_0_36px_rgba(251,191,36,0.6)] hover:border-amber-400 transition-all active:scale-95"
               >
                 {t('cleanYourHomeOffice')}
               </button>
@@ -2247,7 +2247,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     (orderPhotos.length > 0 &&
                       photoVerification.verifying)
                   }
-                  className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] transition-all text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] disabled:cursor-not-allowed active:scale-[0.98]"
+                  className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] transition-all text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] disabled:cursor-not-allowed active:scale-95"
                 >
                   {uploadingProof || orderSubmitting
                     ? t('processing')
@@ -2372,7 +2372,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     bidSubmitting ||
                     !(parseFloat(String(bidAmount).replace(',', '.')) > 0)
                   }
-                  className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all disabled:cursor-not-allowed disabled:opacity-60 active:scale-[0.98]"
+                  className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all disabled:cursor-not-allowed disabled:opacity-60 active:scale-95"
                 >
                   {bidSubmitting
                     ? 'Placing bid...'
@@ -2625,7 +2625,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     <button
                       type="button"
                       onClick={() => setHallOfFameMission(selectedMission)}
-                      className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
+                      className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-95"
                     >
                       {t('viewPhotos')}
                     </button>
@@ -2687,7 +2687,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     handleCloseMissionBriefing();
                     onAvatarClick?.();
                   }}
-                  className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
+                  className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-95"
                 >
                   {t('startWorkUploadProof')}
                 </button>
@@ -2773,7 +2773,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       (showBidInput &&
                         !(parseFloat(String(missionBidAmount || '0').replace(',', '.')) > 0))
                     }
-                    className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isAccepting
                       ? t('placing')

@@ -40,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `🥤 Plastic: ${plasticVal}\n` +
       `🪟 Glass: ${glassVal}\n` +
       `🧱 Debris: ${debrisVal}\n` +
-      `🪵 Wood: ${woodVal}`;
+      `🪵 Wood / Дерево: ${woodVal} kg`;
 
     await sendTelegramAlert(message);
     return res.status(200).json({ ok: true, notified: true });

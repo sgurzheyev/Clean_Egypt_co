@@ -242,32 +242,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     setPendingPayoutsLoading(true);
     setPendingPayoutsError(null);
     try {
-      const fullSelect =
-        'id, user_id, mission_id, amount, type, gateway, created_at, status, payout_method, payout_details, withdrawal_gross_usd, withdrawal_fee_usd, withdrawal_net_usd';
-
-      const res1 = await supabase
+      const { data, error } = await supabase
         .from('transactions')
-        .select(fullSelect)
+        .select('*')
         .eq('type', 'withdrawal')
-        .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(200);
 
-      const res =
-        res1.error && String(res1.error.message || '').toLowerCase().includes('status')
-          ? await supabase
-              .from('transactions')
-              .select(
-                'id, user_id, mission_id, amount, type, gateway, created_at, payout_method, payout_details, withdrawal_gross_usd, withdrawal_fee_usd, withdrawal_net_usd'
-              )
-              .eq('type', 'withdrawal')
-              .order('created_at', { ascending: false })
-              .limit(200)
-          : res1;
+      if (error) throw error;
 
-      if (res.error) throw res.error;
-
-      const rows = (res.data || []) as TransactionRow[];
+      const rows = (data || []) as TransactionRow[];
       const pendingOnly = rows.filter((r) => {
         const s = (r as any).status as string | undefined;
         if (s === 'completed' || s === 'failed') return false;
@@ -584,7 +568,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     setForcePayLoadingId(mission.id);
     try {
       const exchangeRate = 50;
-      const payoutEgp = Math.round((mission.amount_target || 0) * exchangeRate);
+      const payoutEgp = Math.floor(Math.max(0, Number(mission.amount_target || 0)) * exchangeRate);
 
       const { data: workerProfile, error: workerErr } = await supabase
         .from('profiles')
@@ -694,8 +678,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         👑 Admin Panel Pro
       </h2>
 
-      <div className="overflow-x-auto whitespace-nowrap -mx-1 px-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
-        <div className="inline-flex gap-2">
+      <div className="w-full -mx-1 px-1">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {([
           { id: 'god', label: 'God Mode' },
           { id: 'missions', label: 'Mission Control' },
@@ -715,7 +699,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                 if (tab.id === 'disputes') await loadDisputes();
               }}
               className={[
-                'px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border transition-all',
+                'px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border transition-all active:scale-95',
                 active
                   ? 'border-orange-500/50 text-orange-200 bg-orange-500/10 shadow-[0_0_14px_rgba(249,115,22,0.22)]'
                   : 'border-white/15 text-slate-300 bg-white/5 hover:bg-white/10',
@@ -864,7 +848,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                           type="button"
                           onClick={() => handleApprovePayout(tx)}
                           disabled={payoutActionLoadingId === tx.id}
-                          className="px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-orange-500/50 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_14px_rgba(249,115,22,0.22)] disabled:opacity-60 disabled:cursor-wait transition-all"
+                          className="px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-orange-500/50 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_14px_rgba(249,115,22,0.22)] disabled:opacity-60 disabled:cursor-wait transition-all active:scale-95"
                         >
                           {payoutActionLoadingId === tx.id ? '...' : 'Mark as Paid'}
                         </button>
@@ -1012,11 +996,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                 <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-300/90">
                   Mission Control
                 </h3>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
                   <button
                     type="button"
                     onClick={cleanGhostPins}
-                    className="px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-red-500/50 text-red-200 bg-red-500/10 hover:bg-red-500/20 hover:shadow-[0_0_16px_rgba(239,68,68,0.25)] transition-all"
+                    className="px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-red-500/50 text-red-200 bg-red-500/10 hover:bg-red-500/20 hover:shadow-[0_0_16px_rgba(239,68,68,0.25)] transition-all active:scale-95"
                   >
                     Clean Ghost Pins
                   </button>
@@ -1024,7 +1008,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                     type="button"
                     onClick={loadMissionControl}
                     disabled={missionsLoading}
-                    className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-orange-500/40 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 disabled:opacity-60 transition-all"
+                    className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-orange-500/40 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 disabled:opacity-60 transition-all active:scale-95"
                   >
                     {missionsLoading ? '...' : 'Refresh'}
                   </button>
@@ -1130,69 +1114,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
               <div className="space-y-4">
                 {disputes.map((m) => (
                   <div key={m.id} className="rounded-2xl bg-cyan-950/20 backdrop-blur-md border border-orange-500/10 p-4">
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <p className="text-[11px] font-mono text-slate-200">#{m.id.slice(0, 8)}</p>
                         <p className="text-[10px] text-slate-500 uppercase tracking-[0.18em]">{m.status}</p>
                         {m.description && <p className="mt-2 text-xs text-slate-300">{m.description}</p>}
                       </div>
                       {m.status === 'completed' ? (
-                        <span className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+                        <span className="shrink-0 px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
                           Completed & Paid
                         </span>
-                      ) : (
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => runAiForMission(m)}
-                            disabled={aiRunningMissionId === m.id}
-                            className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-cyan-500/30 text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/15 hover:shadow-[0_0_14px_rgba(34,211,238,0.22)] disabled:opacity-60 disabled:cursor-wait transition-all"
-                          >
-                            {aiRunningMissionId === m.id ? '...' : '🤖 Run AI Analysis'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => resolveDispute(m.id, 'approve')}
-                            className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-500/40 text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/15 transition-all"
-                          >
-                            Approve & Payout
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => resolveDispute(m.id, 'reject')}
-                            className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-red-500/40 text-red-200 bg-red-500/10 hover:bg-red-500/20 transition-all"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      )}
+                      ) : null}
                     </div>
-
-                    {(typeof m.ai_confidence_score === 'number' || m.ai_verdict) && (
-                      <div className="w-full mb-6">
-                        <div className="mb-2 flex flex-wrap items-center gap-2">
-                          {typeof m.ai_confidence_score === 'number' && (
-                            <span
-                              className={[
-                                'inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-[0.18em] border',
-                                m.ai_confidence_score > 85
-                                  ? 'border-emerald-500/40 text-emerald-200 bg-emerald-500/10'
-                                  : m.ai_confidence_score > 50
-                                    ? 'border-amber-500/40 text-amber-200 bg-amber-500/10'
-                                    : 'border-red-500/40 text-red-200 bg-red-500/10',
-                              ].join(' ')}
-                            >
-                              AI {m.ai_confidence_score}%
-                            </span>
-                          )}
-                        </div>
-                        {m.ai_verdict && (
-                          <div className="text-sm md:text-base leading-relaxed p-4 bg-slate-900/50 rounded-lg border border-cyan-900/30 w-full mb-6 text-slate-200 whitespace-pre-wrap break-words">
-                            {m.ai_verdict}
-                          </div>
-                        )}
-                      </div>
-                    )}
 
                     <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div>
@@ -1232,6 +1165,62 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                         </div>
                       </div>
                     </div>
+
+                    {m.status !== 'completed' && (
+                      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => runAiForMission(m)}
+                          disabled={aiRunningMissionId === m.id}
+                          className="w-full sm:w-auto sm:flex-1 min-w-0 px-3 py-2.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-cyan-500/30 text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/15 hover:shadow-[0_0_14px_rgba(34,211,238,0.22)] disabled:opacity-60 disabled:cursor-wait transition-all active:scale-95"
+                        >
+                          {aiRunningMissionId === m.id ? '...' : '🤖 Run AI Analysis'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => resolveDispute(m.id, 'approve')}
+                          className="w-full sm:w-auto sm:flex-1 min-w-0 px-3 py-2.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-500/40 text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/15 transition-all active:scale-95"
+                        >
+                          Approve & Payout
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => resolveDispute(m.id, 'reject')}
+                          className="w-full sm:w-auto sm:flex-1 min-w-0 px-3 py-2.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-red-500/40 text-red-200 bg-red-500/10 hover:bg-red-500/20 transition-all active:scale-95"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
+
+                    {(typeof m.ai_confidence_score === 'number' || m.ai_verdict) && (
+                      <details className="mt-4 w-full rounded-xl border border-cyan-500/25 bg-slate-950/60 px-3 py-2 text-left max-h-[50vh] overflow-y-auto">
+                        <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-cyan-200/95 [&::-webkit-details-marker]:hidden">
+                          🔍 AI Verification Details
+                        </summary>
+                        <div className="mt-2 space-y-2 text-[11px] text-slate-300">
+                          {typeof m.ai_confidence_score === 'number' && (
+                            <span
+                              className={[
+                                'inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-[0.18em] border',
+                                m.ai_confidence_score > 85
+                                  ? 'border-emerald-500/40 text-emerald-200 bg-emerald-500/10'
+                                  : m.ai_confidence_score > 50
+                                    ? 'border-amber-500/40 text-amber-200 bg-amber-500/10'
+                                    : 'border-red-500/40 text-red-200 bg-red-500/10',
+                              ].join(' ')}
+                            >
+                              AI {m.ai_confidence_score}%
+                            </span>
+                          )}
+                          {m.ai_verdict && (
+                            <pre className="whitespace-pre-wrap break-words font-sans text-sm md:text-base leading-relaxed text-slate-200">
+                              {m.ai_verdict}
+                            </pre>
+                          )}
+                        </div>
+                      </details>
+                    )}
 
                     {isAllowedAdmin && (
                       <div className="mt-4 rounded text-xs font-mono text-cyan-500/70 bg-slate-950/50 p-2 border border-cyan-900/30">
@@ -1452,11 +1441,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
               className="w-full rounded-2xl bg-black/40 border border-orange-500/20 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
             />
 
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 onClick={() => setEditBalanceUser(null)}
-                className="flex-1 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-white/15 text-slate-300 hover:bg-white/10 transition-all"
+                className="flex-1 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-white/15 text-slate-300 hover:bg-white/10 transition-all active:scale-95"
               >
                 Cancel
               </button>
@@ -1464,7 +1453,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                 type="button"
                 onClick={submitBalanceEdit}
                 disabled={editBalanceSubmitting}
-                className="flex-1 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-orange-500/50 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 disabled:opacity-60 disabled:cursor-wait transition-all"
+                className="flex-1 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-orange-500/50 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 disabled:opacity-60 disabled:cursor-wait transition-all active:scale-95"
               >
                 {editBalanceSubmitting ? '...' : 'Save'}
               </button>

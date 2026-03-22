@@ -59,6 +59,8 @@ interface Job {
   retry_count?: number | null;
   rejection_reason?: string | null;
   rating?: number | null;
+  ai_confidence_score?: number | null;
+  ai_verdict?: string | null;
   cleaner?: {
     full_name?: string | null;
     telegram_username?: string | null;
@@ -121,6 +123,11 @@ const shortId = (id: unknown): string => {
     return 'N/A';
   }
 };
+
+/** Whole EGP worker share (90%) — matches DB floor() in resolve_mission_dispute. */
+function workerPayoutFromFundingEgp(f: number | null | undefined): number {
+  return Math.floor(Math.max(0, Number(f ?? 0)) * 0.9);
+}
 
 function ProfileAccordion({
   title,
@@ -666,7 +673,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: homeJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason')
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, ai_confidence_score, ai_verdict')
         .eq('creator_id', userId)
         .eq('category', 'home')
         .order('created_at', { ascending: false });
@@ -674,7 +681,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: cityJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason')
+        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, ai_confidence_score, ai_verdict')
         .eq('creator_id', userId)
         .eq('category', 'public')
         .order('created_at', { ascending: false });
@@ -2127,9 +2134,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         <p className="mt-2 text-[10px] text-emerald-200/90 text-center font-bold">
                           {t('releaseWorkerReceives', {
                             amount: formatEgp(
-                              Math.round(
-                                Number(job.current_funding ?? job.amount_target ?? 0) * 0.9 * 100,
-                              ) / 100,
+                              workerPayoutFromFundingEgp(
+                                Number(job.current_funding ?? job.amount_target ?? 0),
+                              ),
                             ),
                           })}
                         </p>
@@ -2389,9 +2396,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <p className="mt-2 text-[10px] text-emerald-200/90 text-center font-bold">
                             {t('releaseWorkerReceives', {
                               amount: formatEgp(
-                                Math.round(
-                                  Number(job.current_funding ?? job.amount_target ?? 0) * 0.9 * 100,
-                                ) / 100,
+                                workerPayoutFromFundingEgp(
+                                  Number(job.current_funding ?? job.amount_target ?? 0),
+                                ),
                               ),
                             })}
                           </p>
@@ -2410,9 +2417,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <p className="mt-2 text-[10px] text-emerald-200/90 text-center font-bold">
                             {t('releaseWorkerReceives', {
                               amount: formatEgp(
-                                Math.round(
-                                  Number(job.current_funding ?? job.amount_target ?? 0) * 0.9 * 100,
-                                ) / 100,
+                                workerPayoutFromFundingEgp(
+                                  Number(job.current_funding ?? job.amount_target ?? 0),
+                                ),
                               ),
                             })}
                           </p>
@@ -3195,9 +3202,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   <p className="text-[11px] text-emerald-200/95 text-center font-bold px-2">
                     {t('releaseWorkerReceives', {
                       amount: formatEgp(
-                        Math.round(
-                          Number(reviewJob.current_funding ?? reviewJob.amount_target ?? 0) * 0.9 * 100,
-                        ) / 100,
+                        workerPayoutFromFundingEgp(
+                          Number(reviewJob.current_funding ?? reviewJob.amount_target ?? 0),
+                        ),
                       ),
                     })}
                   </p>
@@ -3259,6 +3266,25 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       <span>{disputeSubmitting ? 'Processing...' : 'Open Dispute'}</span>
                     </button>
                   </div>
+                  {(typeof reviewJob.ai_confidence_score === 'number' || reviewJob.ai_verdict) && (
+                    <details className="mt-2 w-full rounded-xl border border-cyan-500/25 bg-slate-950/60 px-3 py-2 text-left max-h-[40vh] overflow-y-auto">
+                      <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-cyan-200/95 [&::-webkit-details-marker]:hidden">
+                        🔍 AI Verification Details
+                      </summary>
+                      <div className="mt-2 space-y-2 text-[11px] text-slate-300">
+                        {typeof reviewJob.ai_confidence_score === 'number' && (
+                          <p className="font-semibold text-emerald-200/90">
+                            Confidence: {reviewJob.ai_confidence_score}%
+                          </p>
+                        )}
+                        {reviewJob.ai_verdict && (
+                          <pre className="whitespace-pre-wrap break-words font-sans text-slate-300 leading-relaxed">
+                            {reviewJob.ai_verdict}
+                          </pre>
+                        )}
+                      </div>
+                    </details>
+                  )}
                 </div>
               )}
             </div>
@@ -3477,9 +3503,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       />
                     </div>
                     <div className="min-w-0">
-                      <label className="flex items-center gap-1 text-[10px] font-semibold text-slate-300 mb-1">
-                        <span>🪵</span>
-                        <span className="uppercase tracking-[0.16em]">Wood</span>
+                      <label className="flex flex-col gap-0.5 text-[10px] font-semibold text-slate-300 mb-1">
+                        <span className="flex items-center gap-1">
+                          <span>🪵</span>
+                          <span className="uppercase tracking-[0.16em]">Wood / Дерево</span>
+                        </span>
+                        <span className="text-[9px] font-normal text-slate-500 normal-case tracking-normal">
+                          approx. kg
+                        </span>
                       </label>
                       <input
                         type="number"
