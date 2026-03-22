@@ -325,6 +325,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const { t, i18n } = useTranslation();
   const isRu = (i18n.language || '').toLowerCase().startsWith('ru');
   const mapRef = React.useRef<MapRef>(null);
+  const orderFormRef = React.useRef<HTMLFormElement>(null);
+  /** When true, next home submit uses wallet (defer Paymob) instead of card checkout. */
+  const orderFormWalletPayRef = React.useRef(false);
+  /** Creator wallet (EGP) for "pay from wallet" on home missions. */
+  const [creatorWalletEgp, setCreatorWalletEgp] = useState<number | null>(null);
   const [viewState, setViewState] = useState({
     latitude: 27.2579,
     longitude: 33.8116,
@@ -398,6 +403,29 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setDescriptionPolicyError(null);
     }
   }, [orderSubmitting]);
+
+  useEffect(() => {
+    if (!taskTypeSelected) return;
+    let cancelled = false;
+    (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        if (!cancelled) setCreatorWalletEgp(null);
+        return;
+      }
+      const { data: p } = await supabase
+        .from('profiles')
+        .select('wallet_balance')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (!cancelled) setCreatorWalletEgp(profileWalletBalanceEgp(p?.wallet_balance));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [taskTypeSelected]);
 
   // Bidding modal state
   const [bidJob, setBidJob] = useState<JobOnMap | null>(null);
@@ -1521,14 +1549,63 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      // 3) For Home missions, keep existing Paymob flow with creator photos
-      await executePaymentFlow({
-        amount,
-        taskType,
-        location: selectedLocation,
-        description: descriptionToSave || orderDescription || '',
-        creatorPhotos: creatorPhotoUrls,
-      });
+      // 3) For Home missions: wallet instant pay OR Paymob
+      if (taskType === 'home') {
+        const payFromWallet = orderFormWalletPayRef.current;
+        orderFormWalletPayRef.current = false;
+
+        if (payFromWallet) {
+          const res = await fetch('/api/paymob-intent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'mission_creation',
+              category: 'home',
+              amount_target: floorEgp(amount),
+              userId: session.user.id,
+              location_lat: selectedLocation.lat,
+              location_lng: selectedLocation.lng,
+              description: descriptionToSave || undefined,
+              creator_photos: creatorPhotoUrls && creatorPhotoUrls.length > 0 ? creatorPhotoUrls : undefined,
+              defer_payment: true,
+            }),
+          });
+          const data = (await res.json().catch(() => ({}))) as { error?: string; missionId?: string };
+          if (!res.ok) {
+            throw new Error(data.error || `Wallet checkout failed (${res.status})`);
+          }
+          if (!data.missionId) {
+            throw new Error('No mission id returned');
+          }
+          const { error: rpcErr } = await supabase.rpc('pay_mission_from_wallet', {
+            p_mission_id: data.missionId,
+          });
+          if (rpcErr) throw rpcErr;
+
+          toast.success(t('paymentWalletSuccess'));
+          window.dispatchEvent(new CustomEvent('paymentSuccess'));
+          setOrderSuccess(t('paymentWalletSuccess'));
+          setOrderAmount('');
+          setOrderDescription('');
+          setOrderPhotos([]);
+          setDescriptionPolicyError(null);
+          setPhotoVerification({ verifying: false, allApproved: true, hasRejected: false });
+          setSelectedLocation(null);
+          setCreatorWalletEgp((w) =>
+            w == null ? w : Math.max(0, w - floorEgp(amount))
+          );
+          await fetchMissions();
+          return;
+        }
+
+        await executePaymentFlow({
+          amount,
+          taskType,
+          location: selectedLocation,
+          description: descriptionToSave || orderDescription || '',
+          creatorPhotos: creatorPhotoUrls,
+        });
+      }
     } catch (err) {
       console.error('Job submit exception:', err);
       setOrderError(
@@ -1539,6 +1616,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setOrderSubmitting(false);
     }
   };
+
+  const showHomeWalletPay = useMemo(() => {
+    if (taskType !== 'home') return false;
+    const amt = floorEgp(parseIntegerEgpFromInput(orderAmount));
+    if (amt < HOME_MIN_PRICE || amt > HOME_MAX_PRICE) return false;
+    if (creatorWalletEgp === null) return false;
+    return creatorWalletEgp >= amt;
+  }, [taskType, orderAmount, creatorWalletEgp]);
 
   const { missionTrustBlocked, missionTrustShortfallEgp } = useMemo(() => {
     if (!showBidInput || !selectedMission || workerTrustSnapshot === null) {
@@ -2094,7 +2179,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             aria-hidden
           />
           <div className={`pointer-events-auto relative z-[1] w-full max-w-xl space-y-4 animate-slide-up p-5 shadow-2xl ${PROFILE_GLASS_PANEL}`}>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form ref={orderFormRef} onSubmit={handleSubmit} className="space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <button
                   type="button"
@@ -2274,6 +2359,28 @@ const MapPicker: React.FC<MapPickerProps> = ({
               )}
               {orderSuccess && (
                 <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
+              )}
+
+              {showHomeWalletPay && (
+                <div className="w-full mt-2 rounded-full animated-border-home">
+                  <button
+                    type="button"
+                    disabled={
+                      orderSubmitting ||
+                      uploadingProof ||
+                      !selectedLocation ||
+                      !!descriptionPolicyError ||
+                      (orderPhotos.length > 0 && photoVerification.verifying)
+                    }
+                    onClick={() => {
+                      orderFormWalletPayRef.current = true;
+                      orderFormRef.current?.requestSubmit();
+                    }}
+                    className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.2em] transition-all text-black bg-gradient-to-r from-cyan-300 to-emerald-400 border border-cyan-400/60 hover:brightness-110 shadow-[0_0_22px_rgba(34,211,238,0.35)] disabled:cursor-not-allowed disabled:opacity-50 active:scale-95"
+                  >
+                    {t('payInstantWithWallet')}
+                  </button>
+                </div>
               )}
 
               <div

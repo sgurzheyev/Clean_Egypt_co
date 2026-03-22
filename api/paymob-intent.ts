@@ -29,6 +29,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       creator_photos,
       /** Resume Paymob checkout for an existing unpaid mission (no duplicate row). */
       existing_mission_id,
+      /** Skip Paymob: create/resume mission row only; client calls `pay_mission_from_wallet`. */
+      defer_payment,
     } = req.body;
 
     let finalAmountTarget = Math.floor(Math.max(0, Number(amount_target)));
@@ -123,6 +125,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       missionIdForMetadata = userId;
     } else {
        return res.status(400).json({ error: 'Invalid payment type' });
+    }
+
+    /** Wallet-only checkout: mission row exists (or resume); no Paymob session. */
+    if (type === 'mission_creation' && defer_payment) {
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing required field userId' });
+      }
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('wallet_balance')
+        .eq('id', userId)
+        .maybeSingle();
+      const wb = Math.floor(Number(prof?.wallet_balance ?? 0));
+      if (wb < finalAmountTarget) {
+        return res.status(400).json({ error: 'Insufficient wallet balance' });
+      }
+      return res.status(200).json({
+        missionId: missionIdForMetadata,
+        deferred: true,
+        amountEgp: finalAmountTarget,
+      });
     }
 
     // Integer EGP → piastres (1 EGP = 100); avoid float rounding (e.g. 250.999 → wrong cents).

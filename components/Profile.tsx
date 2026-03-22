@@ -966,6 +966,23 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     }
   };
 
+  const payMissionFromWallet = async (job: Job) => {
+    try {
+      setPhantomPaymentActionId(job.id);
+      const { error } = await supabase.rpc('pay_mission_from_wallet', {
+        p_mission_id: job.id,
+      });
+      if (error) throw error;
+      toast.success(t('paymentWalletSuccess'));
+      await fetchProfileData();
+    } catch (e) {
+      console.error('payMissionFromWallet:', e);
+      toast.error(t('retryPaymentFailed'));
+    } finally {
+      setPhantomPaymentActionId(null);
+    }
+  };
+
   const handleAcceptBid = async (job: Job, bid: Bid) => {
     if (!enforceMissionStatusCooldown()) return;
     const missionValue = Number(bid.bid_amount ?? 0);
@@ -2103,6 +2120,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 const isPhantomPayment = job.status === 'pending_payment';
                 if (isPhantomPayment) {
                   const busy = phantomPaymentActionId === job.id;
+                  const targetEgp = floorEgp(Number(job.amount_target ?? 0));
+                  const canPayFromWallet = balance >= targetEgp && targetEgp > 0;
                   return (
                     <div
                       key={job.id}
@@ -2123,23 +2142,42 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <span className="ml-2 text-slate-400">— {job.description}</span>
                         )}
                       </p>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => retryPendingPaymentMission(job)}
-                          className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-emerald-600/90 hover:bg-emerald-500 border border-emerald-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {t('retryPayment')}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => cancelPendingPaymentMission(job, 'home')}
-                          className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {t('cancelMission')}
-                        </button>
+                      <div className="flex flex-col gap-2">
+                        {canPayFromWallet && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => payMissionFromWallet(job)}
+                            className="w-full rounded-full px-4 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-black bg-gradient-to-r from-cyan-300 to-emerald-400 hover:brightness-110 border border-cyan-400/60 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(34,211,238,0.35)]"
+                          >
+                            {t('payFromWallet')}
+                          </button>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => retryPendingPaymentMission(job)}
+                              className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-emerald-600/90 hover:bg-emerald-500 border border-emerald-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {t('retryPayment')}
+                            </button>
+                            {!canPayFromWallet && (
+                              <p className="text-[9px] text-amber-300/90 leading-snug max-w-[14rem]">
+                                {t('insufficientWalletBalance')}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => cancelPendingPaymentMission(job, 'home')}
+                            className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed self-start"
+                          >
+                            {t('cancelMission')}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -2407,6 +2445,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   const isPhantomPayment = job.status === 'pending_payment';
                   if (isPhantomPayment) {
                     const busy = phantomPaymentActionId === job.id;
+                    const targetEgp = floorEgp(Number(job.amount_target ?? 0));
+                    const canPayFromWallet = balance >= targetEgp && targetEgp > 0;
                     return (
                       <div
                         key={job.id}
@@ -2430,23 +2470,42 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         {job.description && (
                           <p className="text-xs text-slate-400 mb-3">{job.description}</p>
                         )}
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => retryPendingPaymentMission(job)}
-                            className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-emerald-600/90 hover:bg-emerald-500 border border-emerald-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {t('retryPayment')}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => cancelPendingPaymentMission(job, 'city')}
-                            className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {t('cancelMission')}
-                          </button>
+                        <div className="flex flex-col gap-2">
+                          {canPayFromWallet && (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => payMissionFromWallet(job)}
+                              className="w-full rounded-full px-4 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-black bg-gradient-to-r from-cyan-300 to-emerald-400 hover:brightness-110 border border-cyan-400/60 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(34,211,238,0.35)]"
+                            >
+                              {t('payFromWallet')}
+                            </button>
+                          )}
+                          <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-col gap-1 min-w-0">
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => retryPendingPaymentMission(job)}
+                                className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-emerald-600/90 hover:bg-emerald-500 border border-emerald-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {t('retryPayment')}
+                              </button>
+                              {!canPayFromWallet && (
+                                <p className="text-[9px] text-amber-300/90 leading-snug max-w-[14rem]">
+                                  {t('insufficientWalletBalance')}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => cancelPendingPaymentMission(job, 'city')}
+                              className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed self-start"
+                            >
+                              {t('cancelMission')}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );

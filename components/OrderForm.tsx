@@ -1,7 +1,9 @@
 // src/components/OrderForm.tsx — amounts are always EGP (Paymob charges EGP piastres; no USD conversion on this form).
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabase';
+import { profileWalletBalanceEgp } from '../src/lib/walletCredit';
+import { floorEgp } from '../src/lib/integerEgpInput';
 import {
   HOME_MIN_PRICE,
   SCOUT_STAKE_FEE_EGP,
@@ -31,6 +33,8 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
   const [shortDescription, setShortDescription] = useState('');
   /** User-entered mission price / goal in EGP only */
   const [amountEgp, setAmountEgp] = useState('');
+  const [walletEgp, setWalletEgp] = useState<number | null>(null);
+  const [walletPaySuccess, setWalletPaySuccess] = useState(false);
 
   const contactWarning = useMemo(
     () => descriptionLooksLikeContactOrPhone(shortDescription),
@@ -40,6 +44,86 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
   const policyCheck = useMemo(() => validateMissionDescription(shortDescription), [shortDescription]);
 
   const parseEgp = (): number => parseIntegerEgpFromInput(amountEgp);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        if (!cancelled) setWalletEgp(null);
+        return;
+      }
+      const { data: p } = await supabase
+        .from('profiles')
+        .select('wallet_balance')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (!cancelled) setWalletEgp(profileWalletBalanceEgp(p?.wallet_balance));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** Create pending_payment mission via API, then pay from wallet (no Paymob redirect). */
+  const startWalletMission = async (category: 'public' | 'home', egp: number) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    if (!userId) {
+      alert(t('signIn'));
+      return;
+    }
+    if (!selectedLocation) return;
+
+    setLoading(true);
+    setWalletPaySuccess(false);
+    if (onOrderStarted) onOrderStarted();
+
+    try {
+      const res = await fetch('/api/paymob-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'mission_creation',
+          category,
+          amount_target: Math.floor(Math.max(0, egp)),
+          userId,
+          location_lat: selectedLocation.lat,
+          location_lng: selectedLocation.lng,
+          description: shortDescription.trim() || undefined,
+          defer_payment: true,
+        }),
+      });
+
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        missionId?: string;
+      };
+      if (!res.ok) {
+        throw new Error(data.error || `Wallet payment failed (${res.status})`);
+      }
+      if (!data.missionId) {
+        throw new Error('No mission id');
+      }
+
+      const { error: rpcErr } = await supabase.rpc('pay_mission_from_wallet', {
+        p_mission_id: data.missionId,
+      });
+      if (rpcErr) throw rpcErr;
+
+      setWalletPaySuccess(true);
+      setWalletEgp((w) => (w == null ? w : Math.max(0, w - floorEgp(egp))));
+    } catch (error: unknown) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : t('retryPaymentFailed'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   /** Paymob mission_creation: amount_target is integer EGP (see /api/paymob-intent). */
   const startPaymobMission = async (category: 'public' | 'home', egp: number) => {
@@ -158,6 +242,75 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
     await startPaymobMission('home', egp);
   };
 
+  const onCityPinWallet = async () => {
+    if (!selectedLocation) return alert('Tap on map first! 📍');
+    if (!email || !email.includes('@')) return alert('Enter valid Email to start! 📧');
+
+    const desc = shortDescription.trim();
+    if (desc.length > 0) {
+      const policy = validateMissionDescription(desc);
+      if (policy.ok === false) {
+        alert(policy.error);
+        return;
+      }
+    }
+
+    const egp = parseEgp();
+    if (egp < CITY_MIN_PRICE || egp > CITY_MAX_PRICE) {
+      alert(t('cityPriceRangeEgp', { min: CITY_MIN_PRICE, max: CITY_MAX_PRICE }));
+      return;
+    }
+    if (walletEgp == null || walletEgp < egp) {
+      alert(t('insufficientWalletBalance'));
+      return;
+    }
+
+    const ok = window.confirm(
+      t('cityPinScoutStakeConfirm', { amount: formatEgp(SCOUT_STAKE_FEE_EGP) })
+    );
+    if (!ok) return;
+
+    await startWalletMission('public', egp);
+  };
+
+  const onHomeMissionWallet = async () => {
+    if (!selectedLocation) return alert('Tap on map first! 📍');
+    if (!email || !email.includes('@')) return alert('Enter valid Email to start! 📧');
+
+    const desc = shortDescription.trim();
+    if (desc.length > 0) {
+      const policy = validateMissionDescription(desc);
+      if (policy.ok === false) {
+        alert(policy.error);
+        return;
+      }
+    }
+
+    const egp = parseEgp();
+    if (egp < HOME_MIN_PRICE || egp > HOME_MAX_PRICE) {
+      alert(t('homePriceRangeEgp', { min: HOME_MIN_PRICE, max: HOME_MAX_PRICE }));
+      return;
+    }
+    if (walletEgp == null || walletEgp < egp) {
+      alert(t('insufficientWalletBalance'));
+      return;
+    }
+
+    await startWalletMission('home', egp);
+  };
+
+  const egpPreview = parseEgp();
+  const canWalletCity =
+    walletEgp !== null &&
+    egpPreview >= CITY_MIN_PRICE &&
+    egpPreview <= CITY_MAX_PRICE &&
+    walletEgp >= egpPreview;
+  const canWalletHome =
+    walletEgp !== null &&
+    egpPreview >= HOME_MIN_PRICE &&
+    egpPreview <= HOME_MAX_PRICE &&
+    walletEgp >= egpPreview;
+
   const descriptionInvalid = shortDescription.trim().length > 0 && !policyCheck.ok;
   const policyRejectText = policyCheck.ok === false ? policyCheck.error : null;
 
@@ -241,6 +394,35 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
           HOME ({HOME_MIN_PRICE}+ EGP)
         </button>
       </div>
+
+      {(canWalletCity || canWalletHome) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {canWalletCity && (
+            <button
+              type="button"
+              disabled={loading || contactWarning || descriptionInvalid}
+              onClick={() => void onCityPinWallet()}
+              className="py-3 rounded-xl font-black text-[11px] uppercase tracking-wide bg-gradient-to-r from-cyan-500/30 to-emerald-500/30 border border-cyan-400/50 text-cyan-200 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {t('payInstantWithWallet')} — City
+            </button>
+          )}
+          {canWalletHome && (
+            <button
+              type="button"
+              disabled={loading || contactWarning || descriptionInvalid}
+              onClick={() => void onHomeMissionWallet()}
+              className="py-3 rounded-xl font-black text-[11px] uppercase tracking-wide bg-gradient-to-r from-amber-500/25 to-yellow-500/20 border border-amber-400/50 text-amber-200 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {t('payInstantWithWallet')} — Home
+            </button>
+          )}
+        </div>
+      )}
+
+      {walletPaySuccess && (
+        <p className="text-xs text-center font-semibold text-emerald-400">{t('paymentWalletSuccess')}</p>
+      )}
 
       <p className="mt-2 text-[10px] text-gray-500 text-center">{t('paymentsEgpOnlyNote')}</p>
     </div>
