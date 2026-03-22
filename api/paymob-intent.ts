@@ -29,8 +29,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       creator_photos,
     } = req.body;
 
-    // Normalize and validate numeric fields
-    const finalAmountTarget = Number(amount_target);
+    // Whole EGP only — Paymob piastres must be integer; avoids check_integer_egp / float drift (e.g. 251 vs 250).
+    const finalAmountTarget = Math.floor(Math.max(0, Number(amount_target)));
     const latNum = typeof location_lat === 'number' ? location_lat : Number(location_lat);
     const lngNum = typeof location_lng === 'number' ? location_lng : Number(location_lng);
     let missionIdForMetadata: string;
@@ -75,16 +75,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     // --- 2. HANDLE WORKER DEPOSIT ---
     else if (type === 'worker_deposit') {
-      if (!missionId || !userId || !finalAmountTarget) {
+      if (!userId || !finalAmountTarget) {
         return res.status(400).json({ error: 'Missing fields for deposit' });
       }
-      missionIdForMetadata = missionId;
+      // Webhook parses merchant_order_id as `worker_deposit:<userId>_...` and credits that profile.
+      missionIdForMetadata = userId;
     } else {
        return res.status(400).json({ error: 'Invalid payment type' });
     }
 
-    // amount_target is stored in EGP; Paymob expects amount in piastres (1 EGP = 100)
-    const amountCents = Math.round(finalAmountTarget * 100).toString();
+    // Integer EGP → piastres (1 EGP = 100); avoid float rounding (e.g. 250.999 → wrong cents).
+    const amountCents = String(Math.floor(finalAmountTarget * 100));
 
     // --- 3. PAYMOB AUTH ---
     const authRes = await fetch('https://accept.paymob.com/api/auth/tokens', {
@@ -155,6 +156,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       paymentUrl,
       mode: type,
       missionId: missionIdForMetadata,
+      /** Integer EGP charged (matches Paymob amount_cents / 100). */
+      amountEgp: finalAmountTarget,
     });
 
   } catch (error: any) {

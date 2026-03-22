@@ -7,8 +7,8 @@ import { CURRENCY_RISK_BUFFER_FACTOR, USD_TO_EGP_RATE } from '../../constants';
 export function stripeUsdToWalletEgp(usdCharged: number): number {
   if (!Number.isFinite(usdCharged) || usdCharged <= 0) return 0;
   const raw = usdCharged * USD_TO_EGP_RATE * CURRENCY_RISK_BUFFER_FACTOR;
-  /** Whole EGP in wallet (no fractional piastres in DB display). */
-  return Math.max(0, Math.round(raw));
+  /** Whole EGP integers only (check_integer_egp / wallet storage). */
+  return Math.max(0, Math.floor(raw));
 }
 
 /**
@@ -24,7 +24,7 @@ export function stripeEgpInputToWalletEgp(inputEgp: number): number {
 /** Convert bid/deposit input: USD → EGP using platform rate (internal wallet is EGP-only). */
 export function usdInputToEgp(usd: number, rate: number = USD_TO_EGP_RATE): number {
   if (!Number.isFinite(usd) || usd <= 0 || !Number.isFinite(rate) || rate <= 0) return 0;
-  return Math.round(usd * rate * 100) / 100;
+  return Math.max(0, Math.floor(usd * rate));
 }
 
 /** USD amount Stripe will charge for an EGP-denominated deposit input. */
@@ -42,5 +42,5 @@ export function egpInputToChargeUsd(inputEgp: number, usdPerEgpRate: number = US
 export function profileWalletBalanceEgp(raw: number | null | undefined): number {
   const n = Number(raw ?? 0);
   if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.round(n * 100) / 100);
+  return Math.max(0, Math.floor(n));
 }

@@ -259,7 +259,7 @@ const CreateMission: React.FC<Props> = ({
                   onTextWarning?.(tw ?? null);
                   requestAnimationFrame(() => resizeDescription());
                 }}
-                className="rounded-full border border-teal-600/35 bg-teal-500/[0.14] px-2.5 py-1 text-[10px] font-medium text-teal-100/95 transition hover:bg-teal-500/25 hover:border-teal-400/55"
+                className="rounded-full border border-teal-500/40 bg-teal-500/15 px-2.5 py-1 text-[10px] font-semibold text-teal-100 shadow-sm ring-1 ring-teal-500/15 cursor-pointer transition-all hover:bg-teal-500/25 hover:border-teal-400/60 hover:ring-teal-400/30 active:scale-95"
               >
                 {kw}
               </button>

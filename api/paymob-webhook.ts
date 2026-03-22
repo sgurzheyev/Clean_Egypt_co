@@ -105,13 +105,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).send('Bad merchant_order_id');
     }
 
-    const amountPaid = obj.amount_cents / 100;
+    // Integer EGP credited to wallet / transactions (satisfies check_integer_egp).
+    const amountPaid = Math.floor(Number(obj.amount_cents) / 100);
 
     // --- Scenario A: Mission creation payment ---
     if (type === 'mission_creation') {
       const missionId = idPart;
 
-      // 1) Update mission status from "pending_payment" to "available"
+      // 1) Update mission status from "pending_payment" to "available" (live / active on map — missions do not use a separate "active" enum)
       const { data: mission, error: missionErr } = await supabase
         .from('missions')
         .update({ status: 'available' })
@@ -138,6 +139,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         amount: amountPaid,
         type: 'deposit',
         gateway: 'paymob',
+        payout_details: `paymob_amount_cents=${obj.amount_cents}`,
       });
 
       if (txErr) {
@@ -150,7 +152,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const botToken = process.env.TELEGRAM_BOT_TOKEN || process.env.VITE_TELEGRAM_BOT_TOKEN;
         const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID || process.env.VITE_TELEGRAM_ADMIN_CHAT_ID;
         if (botToken && chatId) {
-          const caption = `✅ *PAID MISSION LIVE* ✅\nMission: \`${missionId}\`\nAmount: $${amountPaid.toFixed(2)}`;
+          const caption = `✅ *PAID MISSION LIVE* ✅\nMission: \`${missionId}\`\nAmount: ${amountPaid} EGP`;
           fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -185,7 +187,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).send('Profile load failed');
       }
 
-      const currentBalance = (profile?.wallet_balance ?? 0) as number;
+      const currentBalance = Math.floor(Number(profile?.wallet_balance ?? 0));
 
       const { error: updateErr } = await supabase
         .from('profiles')
@@ -202,6 +204,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         mission_id: null,
         amount: amountPaid,
         type: 'wallet_topup',
+        gateway: 'paymob',
+        payout_details: `paymob_amount_cents=${obj.amount_cents}`,
       });
 
       if (txErr) {

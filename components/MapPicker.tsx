@@ -509,6 +509,51 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return () => window.removeEventListener('paymentSuccess', onPaymentSuccess);
   }, [fetchMissions]);
 
+  /** When Paymob completes, webhook flips pending_payment → available; refresh as soon as Supabase emits the row change. */
+  useEffect(() => {
+    const mid = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('paymobPendingMissionId') : null;
+    if (!mid) return;
+
+    const channel = supabase
+      .channel(`mission-paymob-${mid}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'missions',
+          filter: `id=eq.${mid}`,
+        },
+        (payload) => {
+          const st = (payload.new as { status?: string })?.status;
+          if (st && st !== 'pending_payment') {
+            sessionStorage.removeItem('paymobPendingMissionId');
+            void fetchMissions();
+            window.dispatchEvent(new CustomEvent('paymentSuccess'));
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [fetchMissions]);
+
+  useEffect(() => {
+    const bump = () => {
+      if (sessionStorage.getItem('paymobPendingMissionId')) {
+        void fetchMissions();
+      }
+    };
+    window.addEventListener('pageshow', bump);
+    document.addEventListener('visibilitychange', bump);
+    return () => {
+      window.removeEventListener('pageshow', bump);
+      document.removeEventListener('visibilitychange', bump);
+    };
+  }, [fetchMissions]);
+
   // Fly to job location when requested from Profile "View on Map"
   useEffect(() => {
     if (!flyToTarget || !mapRef.current) return;
@@ -562,7 +607,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const data = (await res.json()) as {
         paymentUrl?: string;
         paymentToken?: string;
+        missionId?: string;
       };
+
+      if (data.missionId) {
+        sessionStorage.setItem('paymobPendingMissionId', data.missionId);
+      }
 
       if (data.paymentUrl) {
         sessionStorage.setItem('paymentReturnType', 'mission_creation');
@@ -896,7 +946,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const handleDonate = useCallback(
     async (amount: number) => {
       if (!selectedMission) return;
-      const value = Number(amount);
+      const value = Math.floor(Number(amount));
       if (!Number.isFinite(value) || value <= 0) {
         alert(t('enterPositiveEgpAmount'));
         return;
@@ -921,7 +971,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           prev
             ? {
                 ...prev,
-                current_funding: Number(prev.current_funding || 0) + value,
+                current_funding: Math.floor(Number(prev.current_funding || 0)) + value,
               }
             : prev
         );
@@ -1298,8 +1348,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setOrderError(null);
     setOrderSuccess(null);
 
-    const amount = parseFloat(orderAmount.replace(',', '.'));
-    if (isNaN(amount) || amount <= 0) {
+    const rawAmount = parseFloat(orderAmount.replace(',', '.'));
+    if (isNaN(rawAmount) || rawAmount <= 0) {
+      setOrderError(t('enterPositiveEgpAmount'));
+      return;
+    }
+    const amount = Math.floor(rawAmount);
+    if (amount <= 0) {
       setOrderError(t('enterPositiveEgpAmount'));
       return;
     }
@@ -1364,7 +1419,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // For City (public) missions, confirm Scout Stake before proceeding
       if (taskType === 'city') {
         const confirmed = window.confirm(
-          t('cityPinScoutStakeConfirm', { amount: formatEgp(CITY_MIN_PRICE) })
+          t('cityPinScoutStakeConfirm', { amount: formatEgp(SCOUT_STAKE_FEE_EGP) })
         );
         if (!confirmed) {
           setOrderSubmitting(false);
@@ -1429,7 +1484,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           console.error('Create public mission error:', error);
           setOrderError(
             error.message ||
-              t('cityMissionWalletHint', { amount: formatEgp(CITY_MIN_PRICE) })
+              t('cityMissionWalletHint', { amount: formatEgp(SCOUT_STAKE_FEE_EGP) })
           );
           return;
         }
@@ -1473,7 +1528,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           console.error('Telegram notification error:', err);
         }
 
-        setOrderSuccess(t('cityMissionCreatedScout', { amount: formatEgp(CITY_MIN_PRICE) }));
+        setOrderSuccess(t('cityMissionCreatedScout', { amount: formatEgp(SCOUT_STAKE_FEE_EGP) }));
         setOrderAmount('');
         setOrderDescription('');
         setOrderPhotos([]);
@@ -2835,7 +2890,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                             {t('boostMissionFunding')}
                           </p>
                           <div className="flex flex-wrap gap-2">
-                            {[1, 5, 10].map((preset) => (
+                            {[50, 100, 500].map((preset) => (
                               <button
                                 key={preset}
                                 type="button"

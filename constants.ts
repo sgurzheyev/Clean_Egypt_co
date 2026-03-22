@@ -44,8 +44,8 @@ export const INTERNAL_CURRENCY = 'EGP' as const;
 /** 1 USD → EGP (Stripe / Paymob conversion for international card payments). */
 export const USD_TO_EGP_RATE = 48.5;
 
-/** ~$1 city “Scout Stake” fee expressed in EGP for UI copy. */
-export const SCOUT_STAKE_FEE_EGP = Math.round(USD_TO_EGP_RATE);
+/** City pin / Scout Stake fee (EGP, integer) — must match `create_public_mission_with_fee` and wallet debits. */
+export const SCOUT_STAKE_FEE_EGP = 49;
 
 /** Anti-fraud: repeated micro-tx at or below this EGP amount (wallet is EGP). */
 export const SMALL_CARDING_EGP_MAX = 100;
@@ -62,6 +62,7 @@ export const DISPLAY_CURRENCY_SUFFIX = 'EGP';
 /** Min/max mission prices in EGP (aligned with former USD limits × ~48.5). */
 export const HOME_MIN_PRICE = 250;
 export const HOME_MAX_PRICE = 25000;
+/** Minimum crowdfunding goal for city missions (EGP), separate from {@link SCOUT_STAKE_FEE_EGP}. */
 export const CITY_MIN_PRICE = 50;
 export const CITY_MAX_PRICE = 5000;
 

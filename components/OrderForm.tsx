@@ -1,6 +1,7 @@
 // src/components/OrderForm.tsx
 import React, { useMemo, useState } from 'react';
 import { supabase } from '../services/supabase';
+import { HOME_MIN_PRICE, SCOUT_STAKE_FEE_EGP } from '../constants';
 import {
   descriptionLooksLikeContactOrPhone,
   validateMissionDescription,
@@ -125,19 +126,19 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
         <button
           type="button"
           disabled={loading || contactWarning || descriptionInvalid}
-          onClick={() => createOrder('egypt', 1)}
+          onClick={() => createOrder('egypt', SCOUT_STAKE_FEE_EGP)}
           className="py-4 bg-[#39FF14]/10 border border-[#39FF14]/40 text-[#39FF14] rounded-xl font-black italic hover:bg-[#39FF14] hover:text-black transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          CITY PIN (EGP)
+          CITY PIN ({SCOUT_STAKE_FEE_EGP} EGP)
         </button>
 
         <button
           type="button"
           disabled={loading || contactWarning || descriptionInvalid}
-          onClick={() => createOrder('home', 5)}
+          onClick={() => createOrder('home', HOME_MIN_PRICE)}
           className="py-4 bg-[#f8ff14]/10 border border-[#f8ff14]/40 text-[#f8ff14] rounded-xl font-black italic hover:bg-[#f8ff14] hover:text-black transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          HOME (≈250 EGP)
+          HOME ({HOME_MIN_PRICE} EGP)
         </button>
       </div>
 

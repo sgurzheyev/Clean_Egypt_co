@@ -17,6 +17,7 @@ import {
   HOME_MAX_PRICE,
   CITY_MIN_PRICE,
   CITY_MAX_PRICE,
+  SCOUT_STAKE_FEE_EGP,
 } from '../constants';
 import {
   EGYPT_MARKETPLACE_CITIES,
@@ -813,8 +814,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     setOrderError(null);
     setOrderSuccess(null);
 
-    const amount = parseFloat(orderAmount.replace(',', '.'));
-    if (isNaN(amount) || amount <= 0) {
+    const rawAmount = parseFloat(orderAmount.replace(',', '.'));
+    if (isNaN(rawAmount) || rawAmount <= 0) {
+      setOrderError(t('enterPositiveEgpAmount'));
+      return;
+    }
+    const amount = Math.floor(rawAmount);
+    if (amount <= 0) {
       setOrderError(t('enterPositiveEgpAmount'));
       return;
     }
@@ -863,7 +869,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       const data = (await res.json()) as {
         paymentUrl?: string;
         paymentToken?: string;
+        missionId?: string;
       };
+
+      if (data.missionId) {
+        sessionStorage.setItem('paymobPendingMissionId', data.missionId);
+      }
 
       if (data.paymentUrl) {
         sessionStorage.setItem('paymentReturnType', 'mission_creation');
@@ -1918,8 +1929,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 {taskType === 'city' && (
                   <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
                     {isRu
-                      ? 'Создание городской метки стоит $1 (Scout Stake). Цель — ваш краудфандинговый сбор.'
-                      : 'Creating a public pin costs $1 (Scout Stake). The target is just your crowdfunding goal.'}
+                      ? `Создание городской метки стоит ${formatEgp(SCOUT_STAKE_FEE_EGP)} (Scout Stake). Цель — ваш краудфандинговый сбор.`
+                      : `Creating a public pin costs ${formatEgp(SCOUT_STAKE_FEE_EGP)} (Scout Stake). The target is just your crowdfunding goal.`}
                   </p>
                 )}
               </div>

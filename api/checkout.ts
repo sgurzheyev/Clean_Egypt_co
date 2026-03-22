@@ -10,7 +10,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { amountUsd, billingData } = req.body;
     /** Legacy param name: amount charged in USD on card → Paymob EGP piastres */
     const USD_TO_EGP_RATE = 48.5;
-    const amountCents = Math.round(Number(amountUsd) * USD_TO_EGP_RATE * 100);
+    const amountCents = Math.floor(Math.max(0, Number(amountUsd)) * USD_TO_EGP_RATE * 100);
 
     // 1. Аутентификация
     const authRes = await fetch('https://accept.paymob.com/api/auth/tokens', {
