@@ -1497,6 +1497,35 @@ const MapPicker: React.FC<MapPickerProps> = ({
     };
   }, [showBidInput, selectedMission, workerTrustSnapshot]);
 
+  /** Target − (current funding + bid input); button enable is NOT tied to this — preview only. */
+  const missionBidFundingGapPreview = useMemo(() => {
+    if (!selectedMission || !showBidInput) return null;
+    const raw = parseFloat(String(missionBidAmount || '').replace(',', '.'));
+    if (!Number.isFinite(raw) || raw <= 0) return null;
+    const inputEgp =
+      missionBidCurrency === 'USD'
+        ? usdInputToEgp(raw, USD_TO_EGP_RATE)
+        : Math.round(raw * 100) / 100;
+    const target = Number(selectedMission.amount_target ?? 0);
+    const current = Number(selectedMission.current_funding ?? 0);
+    const remainder = target - (current + inputEgp);
+    return { remainder, target, current, inputEgp };
+  }, [selectedMission, showBidInput, missionBidAmount, missionBidCurrency]);
+
+  const bidModalFundingGapPreview = useMemo(() => {
+    if (!bidJob) return null;
+    const raw = parseFloat(String(bidAmount || '').replace(',', '.'));
+    if (!Number.isFinite(raw) || raw <= 0) return null;
+    const inputEgp =
+      bidInputCurrency === 'USD'
+        ? usdInputToEgp(raw, USD_TO_EGP_RATE)
+        : Math.round(raw * 100) / 100;
+    const target = Number(bidJob.amount_target ?? 0);
+    const current = Number(bidJob.current_funding ?? 0);
+    const remainder = target - (current + inputEgp);
+    return { remainder, target, current, inputEgp };
+  }, [bidJob, bidAmount, bidInputCurrency]);
+
   const missionsHeatmapGeoJSON = useMemo(() => {
     const features = (jobs || [])
       .filter(missionEligibleForMapPin)
@@ -1529,6 +1558,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
       .map((j) => {
         const fundingEgp = Math.round(Math.max(0, Number(j.current_funding ?? 0)));
         const bids = activeBidCounts[j.id] || 0;
+        const isUserActive =
+          !!currentUserId &&
+          j.cleaner_id === currentUserId &&
+          j.status === 'in_progress';
         return {
           type: 'Feature' as const,
           geometry: {
@@ -1537,13 +1570,41 @@ const MapPicker: React.FC<MapPickerProps> = ({
           },
           properties: {
             mission_id: j.id,
+            /** Rounded integer EGP for label + extrusion height scale */
             funding_egp: fundingEgp,
-            status: towerStatusForJob(j, bids),
+            tower_status: towerStatusForJob(j, bids),
+            /** City / street cleanup crowdfunding — maps DB `public` to "city_donation" palette */
+            is_city_donation: j.category === 'public' ? 1 : 0,
+            is_selected: selectedMission?.id === j.id ? 1 : 0,
+            is_user_active: isUserActive ? 1 : 0,
           },
         };
       });
     return { type: 'FeatureCollection' as const, features };
-  }, [jobs, activeBidCounts]);
+  }, [jobs, activeBidCounts, selectedMission?.id, currentUserId]);
+
+  /** Purple pulse anchor for missions where the current user is the active cleaner. */
+  const activeWorkerPulseGeoJSON = useMemo(() => {
+    const features = (jobs || [])
+      .filter(missionEligibleForMapPin)
+      .filter(
+        (j) =>
+          j.status === 'in_progress' &&
+          !!currentUserId &&
+          j.cleaner_id === currentUserId &&
+          Number.isFinite(j.location_lat) &&
+          Number.isFinite(j.location_lng)
+      )
+      .map((j) => ({
+        type: 'Feature' as const,
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [j.location_lng, j.location_lat],
+        },
+        properties: { mission_id: j.id },
+      }));
+    return { type: 'FeatureCollection' as const, features };
+  }, [jobs, currentUserId]);
 
   /** Native Mapbox draft location (replaces HTML MissionMarker). */
   const draftPinGeoJSON = useMemo(() => {
@@ -1771,6 +1832,33 @@ const MapPicker: React.FC<MapPickerProps> = ({
           />
         </Source>
 
+        {/* Active worker (your in-progress mission): purple pulse — pillar height is 0 there */}
+        <Source id="mission-worker-pulse" type="geojson" data={activeWorkerPulseGeoJSON}>
+          <Layer
+            id="mission-worker-pulse-outer"
+            type="circle"
+            minzoom={12}
+            paint={{
+              'circle-radius': 18,
+              'circle-color': 'rgba(168, 85, 247, 0.22)',
+              'circle-opacity': mapMarkerLayerSuppressed ? 0 : 0.85,
+              'circle-blur': 0.8,
+            }}
+          />
+          <Layer
+            id="mission-worker-pulse-inner"
+            type="circle"
+            minzoom={12}
+            paint={{
+              'circle-radius': 7,
+              'circle-color': '#a855f7',
+              'circle-opacity': mapMarkerLayerSuppressed ? 0 : 0.92,
+              'circle-stroke-width': 2,
+              'circle-stroke-color': '#e9d5ff',
+            }}
+          />
+        </Source>
+
         {/* 3D funding pillars (thin cylinders) — zoom > 12 (minzoom 13). */}
         <Source id="mission-towers" type="geojson" data={missionTowersGeoJSON}>
           <Layer
@@ -1779,30 +1867,40 @@ const MapPicker: React.FC<MapPickerProps> = ({
             minzoom={13}
             paint={{
               'fill-extrusion-height': [
-                'interpolate',
-                ['linear'],
-                ['coalesce', ['get', 'funding_egp'], 0],
+                'case',
+                ['==', ['get', 'is_user_active'], 1],
                 0,
-                0,
-                100,
-                10,
-                1000,
-                50,
-                10000,
-                200,
-              ],
+                [
+                  'interpolate',
+                  ['linear'],
+                  ['coalesce', ['to-number', ['get', 'funding_egp'], 0], 0],
+                  0,
+                  0,
+                  100,
+                  10,
+                  1000,
+                  50,
+                  10000,
+                  200,
+                ],
+              ] as any,
               'fill-extrusion-base': 0,
               'fill-extrusion-color': [
-                'match',
-                ['get', 'status'],
-                'open',
-                '#7DD3FC',
-                'bidded',
-                '#FACC15',
-                'completed',
+                'case',
+                ['==', ['get', 'is_selected'], 1],
+                '#00FFFF',
+                [
+                  'all',
+                  ['==', ['get', 'tower_status'], 'open'],
+                  ['==', ['get', 'is_city_donation'], 1],
+                ],
+                '#00FF00',
+                ['==', ['get', 'tower_status'], 'bidded'],
+                '#0000FF',
+                ['==', ['get', 'tower_status'], 'completed'],
                 '#4ADE80',
-                '#7DD3FC',
-              ],
+                '#64748B',
+              ] as any,
               'fill-extrusion-opacity': mapMarkerLayerSuppressed ? 0.06 : 0.8,
             }}
           />
@@ -1817,21 +1915,26 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }
             paint={{
               'fill-extrusion-height': [
-                'interpolate',
-                ['linear'],
-                ['coalesce', ['get', 'funding_egp'], 0],
+                'case',
+                ['==', ['get', 'is_user_active'], 1],
                 0,
-                0,
-                100,
-                10,
-                1000,
-                50,
-                10000,
-                200,
-              ],
+                [
+                  'interpolate',
+                  ['linear'],
+                  ['coalesce', ['to-number', ['get', 'funding_egp'], 0], 0],
+                  0,
+                  0,
+                  100,
+                  10,
+                  1000,
+                  50,
+                  10000,
+                  200,
+                ],
+              ] as any,
               'fill-extrusion-base': 0,
-              'fill-extrusion-color': '#38BDF8',
-              'fill-extrusion-opacity': mapMarkerLayerSuppressed ? 0 : 1,
+              'fill-extrusion-color': '#00FFFF',
+              'fill-extrusion-opacity': mapMarkerLayerSuppressed ? 0 : 0.8,
             }}
           />
           <Layer
@@ -1839,7 +1942,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
             type="symbol"
             minzoom={13}
             layout={{
-              'text-field': ['to-string', ['round', ['coalesce', ['get', 'funding_egp'], 0]]],
+              'text-field': [
+                'to-string',
+                ['round', ['coalesce', ['to-number', ['get', 'funding_egp'], 0], 0]],
+              ] as any,
               'text-size': 13,
               'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
               'text-anchor': 'bottom',
@@ -2213,6 +2319,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 {bidInputCurrency === 'USD' && bidAmount && Number(bidAmount) > 0 && (
                   <p className="mt-2 text-[10px] text-amber-200/90">
                     ≈ {formatEgp(usdInputToEgp(Number(bidAmount), USD_TO_EGP_RATE))} — {t('bidUsdToEgpHint', { rate: String(USD_TO_EGP_RATE) })}
+                  </p>
+                )}
+                {bidModalFundingGapPreview && (
+                  <p className="mt-2 text-[11px] text-cyan-200/95 font-semibold tabular-nums">
+                    {t('goalMinusFundedMinusBid')}: {formatEgp(bidModalFundingGapPreview.remainder)}
+                    {bidModalFundingGapPreview.remainder <= 0
+                      ? ` — ${t('goalMetOrExceededShort')}`
+                      : ''}
                   </p>
                 )}
               </div>
@@ -2600,6 +2714,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         {t('bidUsdToEgpHint', { rate: String(USD_TO_EGP_RATE) })}
                       </p>
                     )}
+                    {missionBidFundingGapPreview && (
+                      <p className="mt-2 text-[11px] text-cyan-200/95 font-semibold tabular-nums">
+                        {t('goalMinusFundedMinusBid')}: {formatEgp(missionBidFundingGapPreview.remainder)}
+                        {missionBidFundingGapPreview.remainder <= 0
+                          ? ` — ${t('goalMetOrExceededShort')}`
+                          : ''}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -2621,7 +2743,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     }}
                     disabled={
                       isAccepting ||
-                      !(parseFloat(String(missionBidAmount || '0').replace(',', '.')) > 0)
+                      (showBidInput &&
+                        !(parseFloat(String(missionBidAmount || '0').replace(',', '.')) > 0))
                     }
                     className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                   >
