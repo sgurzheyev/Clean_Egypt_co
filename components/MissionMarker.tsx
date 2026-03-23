@@ -29,7 +29,7 @@ type Theme = {
 const MissionMarker: React.FC<MissionMarkerProps> = ({
   currentFundingEgp,
   targetEgp: _targetEgp,
-  orderType: _orderType,
+  orderType,
   label,
   onClick,
   isDraft = false,
@@ -50,21 +50,20 @@ const MissionMarker: React.FC<MissionMarkerProps> = ({
     if (isDraft) {
       return { neon: '#00FFFF', rgb: '0,255,255', animClass: 'mission-marker-crystal--draft' };
     }
-    if (variant === 'completed') {
-      return { neon: '#F472B6', rgb: '244,114,182', animClass: 'mission-marker-crystal--accent' };
-    }
-    if (variant === 'in_progress') {
-      return { neon: '#38BDF8', rgb: '56,189,248', animClass: 'mission-marker-crystal--accent' };
-    }
-    if (isActive) {
-      return { neon: '#FFD700', rgb: '255,215,0', animClass: 'mission-marker-crystal--accent' };
-    }
-    return { neon: '#FFB000', rgb: '255,176,0', animClass: 'mission-marker-crystal--live' };
-  }, [isDraft, isActive, variant]);
+    // Constitution v6.0 neon mapping:
+    // city (public)  -> intense neon green
+    // home (private) -> intense neon gold/orange
+    const isPublic = orderType === 'city';
+    return {
+      neon: isPublic ? '#00FF00' : '#F97316',
+      rgb: isPublic ? '34,197,94' : '249,115,22',
+      animClass: 'mission-marker-crystal--accent',
+    };
+  }, [isDraft, orderType]);
 
   const fundingWhole = Math.round(Number(currentFundingEgp) || 0);
 
-  const textGlow = `0 0 10px rgba(${theme.rgb},0.85), 0 0 2px rgba(255,255,255,0.95), 0 1px 0 rgba(0,0,0,0.9)`;
+  const textGlow = `0 0 10px rgba(${theme.rgb},0.85), 0 0 2px rgba(255,255,255,0.95), 0 2px 4px rgba(0,0,0,0.9)`;
 
   const mainContent = isDraft ? (
     <span
@@ -120,6 +119,27 @@ const MissionMarker: React.FC<MissionMarkerProps> = ({
       }}
       aria-label={isDraft ? 'Create mission' : `Mission funding ${formatEgpDigits(currentFundingEgp)} EGP`}
     >
+      {/* Radar pulse (ground point) */}
+      <div
+        className="pointer-events-none absolute -bottom-1.5 left-1/2 -translate-x-1/2 z-[0]"
+        aria-hidden
+      >
+        <div
+          className="h-3 w-3 rounded-full animate-ping"
+          style={{
+            backgroundColor: `rgba(${theme.rgb},0.15)`,
+            boxShadow: `0 0 15px rgba(${theme.rgb},0.8)`,
+          }}
+        />
+        <div
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[6px] w-[6px] rounded-full"
+          style={{
+            backgroundColor: `rgba(${theme.rgb},0.65)`,
+            boxShadow: `0 0 10px rgba(${theme.rgb},0.75)`,
+          }}
+        />
+      </div>
+
       {/* Chrono-Glass crystal body */}
       <div
         className={[
@@ -128,6 +148,8 @@ const MissionMarker: React.FC<MissionMarkerProps> = ({
           entered ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0',
           'transition-all duration-300 ease-out',
           'group-hover:brightness-110',
+          // Elevation: float above GPS coordinate to avoid clipping into buildings.
+          '-translate-y-6',
         ].join(' ')}
         style={{
           clipPath: CLIP_CRYSTAL,
@@ -164,7 +186,7 @@ const MissionMarker: React.FC<MissionMarkerProps> = ({
           aria-hidden
         />
 
-        <div className="relative z-[1] flex flex-col items-center justify-center text-center w-full min-h-[2rem] antialiased [text-rendering:geometricPrecision]">
+        <div className="relative z-[1] flex flex-col items-center justify-center text-center w-full min-h-[2rem] antialiased [text-rendering:geometricPrecision] -translate-y-1">
           {mainContent}
           {!isDraft && !isActive && bidCount > 0 && (
             <span

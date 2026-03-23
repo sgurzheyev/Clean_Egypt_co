@@ -34,6 +34,11 @@ const JobMarker: React.FC<JobMarkerProps> = ({
   }, []);
 
   const isHome = orderType === 'home';
+  // Constitution v6.0 neon mapping:
+  // city (public)  -> neon green
+  // home (private) -> neon gold/orange
+  const neonRgb = isHome ? '249,115,22' : '34,197,94';
+  const neonTextClass = isHome ? 'text-orange-400' : 'text-emerald-300';
   const hasVipAvatar = false;
   const showVerifiedBadge = false;
   const icon =
@@ -113,6 +118,27 @@ const JobMarker: React.FC<JobMarkerProps> = ({
         </div>
       ) : (
         <>
+          {/* Radar pulse (ground point — stays on GPS coordinate) */}
+          <div
+            className="pointer-events-none absolute -bottom-1.5 left-1/2 -translate-x-1/2 z-0"
+            aria-hidden
+          >
+            <div
+              className="h-3 w-3 rounded-full animate-ping"
+              style={{
+                backgroundColor: `rgba(${neonRgb},0.15)`,
+                boxShadow: `0 0 15px rgba(${neonRgb},0.8)`,
+              }}
+            />
+            <div
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[6px] w-[6px] rounded-full"
+              style={{
+                backgroundColor: `rgba(${neonRgb},0.65)`,
+                boxShadow: `0 0 10px rgba(${neonRgb},0.75)`,
+              }}
+            />
+          </div>
+
           {/* Floating pill label — task-colored animated border */}
           <div
             className={[
@@ -125,7 +151,9 @@ const JobMarker: React.FC<JobMarkerProps> = ({
               'group-hover:scale-105',
             ].join(' ')}
           >
-            <div className="animated-border-inner px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.1em] min-w-[1.75rem] text-orange-400 bg-slate-950">
+            <div
+              className={`animated-border-inner px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.1em] min-w-[1.75rem] ${neonTextClass} bg-slate-950`}
+            >
               <span className="inline-flex items-center gap-1">
                 <span>{pillContent}</span>
                 {!isDraft && !isActive && bidCount > 0 && (
@@ -136,14 +164,15 @@ const JobMarker: React.FC<JobMarkerProps> = ({
           </div>
 
           {/* Pyramid container — anchor at tip (bottom) */}
-          <div
-            className={[
-              'relative flex flex-col items-center',
-              'transition-all duration-400 ease-out',
-              entered ? 'translate-y-0 scale-100' : '-translate-y-1 scale-95 opacity-80',
-              'group-hover:scale-110 group-hover:-translate-y-0.5',
-            ].join(' ')}
-          >
+          <div className="-translate-y-6">
+            <div
+              className={[
+                'relative flex flex-col items-center',
+                'transition-all duration-400 ease-out',
+                entered ? 'scale-100' : 'scale-95 opacity-80',
+                'group-hover:scale-110 group-hover:-translate-y-0.5',
+              ].join(' ')}
+            >
             {/* Base glow — soft pulse, hover/breathe */}
             <div
               className={`absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full pointer-events-none ${pyramidGlowClass}`}
@@ -156,6 +185,7 @@ const JobMarker: React.FC<JobMarkerProps> = ({
               <span className="text-[10px] leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.8)] z-10">
                 {icon}
               </span>
+            </div>
             </div>
           </div>
         </>
