@@ -3,8 +3,10 @@ import Map, { NavigationControl, GeolocateControl, MapRef, Source, Layer } from 
 import type { GeoJSONSource, MapMouseEvent, PointLike } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabaseClient';
+import { Recycle, Navigation, Camera, X } from 'lucide-react';
 import TrustDepositInfoModal from './TrustDepositInfoModal';
 import {
   workerCanSecureMissionDeposit,
@@ -32,6 +34,12 @@ import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const EGYPT_MAX_BOUNDS: [[number, number], [number, number]] = [[24.0, 21.0], [38.0, 32.5]];
+const PROOF_IMAGE_COMPRESSION = {
+  maxWidthOrHeight: 1200,
+  initialQuality: 0.7,
+  useWebWorker: true,
+  fileType: 'image/jpeg' as const,
+};
 
 const isInsideEgyptBounds = (lng: number, lat: number) =>
   lng >= EGYPT_MAX_BOUNDS[0][0] &&
@@ -55,6 +63,7 @@ interface JobOnMap {
   photo_urls?: string[] | null;
   after_photo_urls?: string[] | null;
   created_at?: string | null;
+  started_at?: string | null;
   completion_lat?: number | null;
   completion_lng?: number | null;
   completion_distance_meters?: number | null;
@@ -168,6 +177,443 @@ function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
         <span>{t('after')}</span>
       </div>
     </div>
+  );
+}
+
+function LiveMarketFeed({
+  open,
+  onClose,
+  mapCenter,
+  onOpenMission,
+}: {
+  open: boolean;
+  onClose: () => void;
+  mapCenter: { lat: number; lng: number };
+  onOpenMission: (mission: JobOnMap) => void;
+}) {
+  const [missions, setMissions] = useState<JobOnMap[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    (async () => {
+      const { data, error } = await supabase
+        .from('missions')
+        .select(`
+          id,
+          category,
+          amount_target,
+          current_funding,
+          location_lat,
+          location_lng,
+          status,
+          cleaner_id,
+          creator_id,
+          description,
+          photo_urls,
+          created_at,
+          creator:profiles!creator_id (
+            avatar_url,
+            phone_number,
+            is_verified
+          )
+        `)
+        .eq('status', 'available')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (cancelled) return;
+      if (error) {
+        setLoadError(error.message || 'Failed to load missions');
+        setMissions([]);
+      } else {
+        const list = ((data || []) as JobOnMap[]).filter(
+          (m) =>
+            Number.isFinite(m.location_lat) &&
+            Number.isFinite(m.location_lng) &&
+            m.status === 'available'
+        );
+        setMissions(list);
+      }
+      setLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[140] bg-black/55 backdrop-blur-sm pointer-events-auto"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ y: 40, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 30, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 280, damping: 24 }}
+            onClick={(e) => e.stopPropagation()}
+            className={`absolute inset-x-4 bottom-4 mx-auto max-w-xl rounded-3xl p-4 ${PROFILE_GLASS_PANEL}`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_rgba(52,211,153,0.85)]" />
+                <p className="text-sm font-black uppercase tracking-[0.18em] text-cyan-300">
+                  LIVE MARKET
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-7 w-7 rounded-full border border-cyan-500/50 text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 text-xs font-black"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mt-3 max-h-[52vh] overflow-y-auto pr-1 space-y-2">
+              {loading && (
+                <p className="text-xs text-slate-400 px-1 py-3">Loading live opportunities...</p>
+              )}
+              {!loading && loadError && (
+                <p className="text-xs text-red-300 px-1 py-3">{loadError}</p>
+              )}
+              {!loading && !loadError && missions.length === 0 && (
+                <p className="text-xs text-slate-400 px-1 py-3">No available missions right now.</p>
+              )}
+              {!loading &&
+                !loadError &&
+                missions.map((mission) => {
+                  const cover = mission.photo_urls?.[0] || null;
+                  const isCity = mission.category === 'public';
+                  const meters = haversineMeters(mapCenter, {
+                    lat: mission.location_lat,
+                    lng: mission.location_lng,
+                  });
+                  const distanceLabel =
+                    meters < 1000 ? `${Math.round(meters)} m away` : `${(meters / 1000).toFixed(1)} km away`;
+                  const distanceTierClass =
+                    meters <= 3000
+                      ? 'text-emerald-300'
+                      : meters <= 10000
+                        ? 'text-amber-300'
+                        : 'text-red-300';
+                  const createdTs = mission.created_at ? new Date(mission.created_at).getTime() : NaN;
+                  const isNewMission =
+                    Number.isFinite(createdTs) && Date.now() - createdTs <= 60 * 60 * 1000;
+                  return (
+                    <button
+                      key={mission.id}
+                      type="button"
+                      onClick={() => onOpenMission(mission)}
+                      className="group relative w-full overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70 text-left transition-all hover:border-cyan-400/55 hover:shadow-[0_0_18px_rgba(34,211,238,0.28)]"
+                    >
+                      {cover ? (
+                        <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                      ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950" />
+                      )}
+                      <div className="absolute inset-0 bg-black/70" />
+                      <div className="relative z-10 p-3 min-h-[112px] flex flex-col justify-between">
+                        <div className="flex items-start justify-between">
+                          {isNewMission ? (
+                            <span className="inline-flex rounded-full border border-cyan-400/60 bg-cyan-500/20 px-2 py-0.5 text-[10px] font-black tracking-[0.14em] text-cyan-200 shadow-[0_0_10px_rgba(34,211,238,0.35)]">
+                              NEW
+                            </span>
+                          ) : (
+                            <span />
+                          )}
+                          <p className={`text-xl font-black tabular-nums ${isCity ? 'text-emerald-300' : 'text-amber-300'} drop-shadow-[0_0_12px_rgba(255,255,255,0.25)]`}>
+                            {formatEgp(Number(mission.amount_target ?? 0))}
+                          </p>
+                        </div>
+                        <div className="flex items-end justify-between gap-3">
+                          <div>
+                            <p className={`text-[10px] font-black uppercase tracking-[0.17em] ${isCity ? 'text-emerald-300' : 'text-amber-300'}`}>
+                              {isCity ? 'City Mission' : 'Home Mission'}
+                            </p>
+                            <p className={`text-xs ${distanceTierClass}`}>{distanceLabel}</p>
+                          </div>
+                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-cyan-400/55 bg-cyan-500/10 text-cyan-200 text-sm">
+                            ›
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function ActiveMissionWidget({
+  mission,
+  onNavigate,
+  onUploadProof,
+}: {
+  mission: JobOnMap;
+  onNavigate: () => void;
+  onUploadProof: () => void;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const started = mission.started_at ? new Date(mission.started_at).getTime() : NaN;
+  const endAt = Number.isFinite(started) ? started + 2 * 60 * 60 * 1000 : NaN;
+  const msLeft = Number.isFinite(endAt) ? Math.max(0, endAt - now) : 0;
+  const mins = Math.floor(msLeft / 60000);
+  const secs = Math.floor((msLeft % 60000) / 1000);
+
+  return (
+    <motion.div
+      initial={{ y: 28, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: 20, opacity: 0 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+      className={`pointer-events-auto w-full max-w-xl rounded-3xl p-4 ${PROFILE_GLASS_PANEL} border border-orange-500/35 shadow-[0_0_28px_rgba(249,115,22,0.2)]`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-lg font-black text-orange-300 tabular-nums">
+          {formatEgp(Number(mission.amount_target ?? 0))}
+        </p>
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-300 tabular-nums">
+          {`${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`}
+        </p>
+        <button
+          type="button"
+          onClick={onNavigate}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-cyan-500/55 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 transition-all"
+          aria-label="Navigate"
+        >
+          <Navigation className="h-4 w-4" />
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={onUploadProof}
+        className="mt-3 w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.2em] text-orange-200 border border-orange-500/60 bg-orange-500/15 hover:bg-orange-500/25 hover:shadow-[0_0_20px_rgba(249,115,22,0.35)] transition-all"
+      >
+        UPLOAD WORK PROOF
+      </button>
+    </motion.div>
+  );
+}
+
+function ProofUploadModal({
+  open,
+  mission,
+  onClose,
+  onSuccess,
+  toast,
+}: {
+  open: boolean;
+  mission: JobOnMap | null;
+  onClose: () => void;
+  onSuccess: () => Promise<void> | void;
+  toast: { error: (msg: string) => void; success: (msg: string) => void };
+}) {
+  const [files, setFiles] = useState<File[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open) setFiles([]);
+  }, [open]);
+
+  const onFilesChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const next = Array.from(event.target.files || []).filter((f) => f.type.startsWith('image/'));
+    setFiles(next);
+    event.target.value = '';
+  }, []);
+
+  const removeFileAt = useCallback((index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const previewUrls = useMemo(() => files.map((file) => URL.createObjectURL(file)), [files]);
+
+  useEffect(() => {
+    return () => {
+      for (const url of previewUrls) URL.revokeObjectURL(url);
+    };
+  }, [previewUrls]);
+
+  const submitProof = useCallback(async () => {
+    if (!mission) return;
+    if (files.length === 0) {
+      toast.error('Please add at least one after photo.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        toast.error('Please sign in first.');
+        return;
+      }
+
+      const uploadedUrls: string[] = [];
+      for (const file of files.slice(0, 9)) {
+        let toUpload: File = file;
+        try {
+          const compressed = await imageCompression(file, PROOF_IMAGE_COMPRESSION);
+          toUpload = compressed as File;
+        } catch {
+          // keep original when compression fails
+        }
+
+        const fileName = `proof_${mission.id}_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+        let uploadError: Error | null = null;
+
+        const tryPrimary = await supabase.storage
+          .from('mission-proofs')
+          .upload(fileName, toUpload, { upsert: false, contentType: 'image/jpeg' });
+        if (tryPrimary.error) {
+          const tryFallback = await supabase.storage
+            .from('order-photos')
+            .upload(fileName, toUpload, { upsert: false, contentType: 'image/jpeg' });
+          if (tryFallback.error) uploadError = tryFallback.error;
+          else {
+            const {
+              data: { publicUrl },
+            } = supabase.storage.from('order-photos').getPublicUrl(fileName);
+            uploadedUrls.push(publicUrl);
+          }
+        } else {
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from('mission-proofs').getPublicUrl(fileName);
+          uploadedUrls.push(publicUrl);
+        }
+
+        if (uploadError) throw uploadError;
+      }
+
+      const { error: updateError } = await supabase
+        .from('missions')
+        .update({
+          after_photo_urls: uploadedUrls,
+          status: 'review',
+          report_submitted_at: new Date().toISOString(),
+        })
+        .eq('id', mission.id)
+        .eq('cleaner_id', session.user.id)
+        .eq('status', 'in_progress');
+      if (updateError) throw updateError;
+
+      toast.success('Proof uploaded! EGP will be credited after quick review.');
+      await onSuccess();
+      onClose();
+      setFiles([]);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to upload proof. Try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [files, mission, onClose, onSuccess, toast]);
+
+  return (
+    <AnimatePresence>
+      {open && mission && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[150] bg-black/85 backdrop-blur-md pointer-events-auto"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ y: 28, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 20, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+            onClick={(e) => e.stopPropagation()}
+            className={`absolute inset-x-3 bottom-3 mx-auto max-w-2xl rounded-3xl p-5 ${PROFILE_GLASS_PANEL}`}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-2xl sm:text-3xl font-black uppercase tracking-[0.12em] text-orange-300">
+                MISSION ACCOMPLISHED?
+              </h3>
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-8 w-8 rounded-full border border-white/20 text-slate-300 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <label className="mt-4 block w-full cursor-pointer rounded-2xl border-2 border-dashed border-cyan-400/65 bg-cyan-500/5 p-8 text-center hover:bg-cyan-500/10 transition-all">
+              <div className="mx-auto mb-3 inline-flex h-14 w-14 items-center justify-center rounded-full border border-cyan-400/60 bg-black/50 text-cyan-300">
+                <Camera className="h-6 w-6" />
+              </div>
+              <p className="text-sm font-bold text-cyan-200">Tap to capture/upload AFTER photos</p>
+              <p className="mt-1 text-xs text-slate-400">Drag & drop supported, up to 9 photos</p>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                multiple
+                onChange={onFilesChange}
+                disabled={submitting}
+                className="hidden"
+              />
+            </label>
+
+            {files.length > 0 && (
+              <>
+                <p className="mt-3 text-xs text-emerald-300 font-semibold">{files.length} photo(s) selected</p>
+                <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {previewUrls.map((url, idx) => (
+                    <div
+                      key={`${url}-${idx}`}
+                      className="relative overflow-hidden rounded-xl border border-cyan-500/35 bg-black/50 shadow-[0_0_12px_rgba(34,211,238,0.15)]"
+                    >
+                      <img src={url} alt={`Proof ${idx + 1}`} className="h-28 w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeFileAt(idx)}
+                        className="absolute top-1.5 right-1.5 inline-flex h-7 w-7 items-center justify-center rounded-full border border-red-400/70 bg-red-500/25 text-red-100 hover:bg-red-500/35 hover:shadow-[0_0_12px_rgba(248,113,113,0.55)] transition-all"
+                        aria-label="Remove image"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={submitProof}
+              disabled={submitting || files.length === 0}
+              className="mt-5 w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.2em] text-orange-100 border border-orange-500/70 bg-orange-500/20 hover:bg-orange-500/30 hover:shadow-[0_0_24px_rgba(249,115,22,0.45)] disabled:opacity-60"
+            >
+              {submitting ? 'SUBMITTING...' : 'SUBMIT PROOF & GET PAID'}
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -348,6 +794,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   // Adaptive UI: task type selected = show form overlay
   const [taskTypeSelected, setTaskTypeSelected] = useState<TaskType | null>(null);
+  const [dashboardExpanded, setDashboardExpanded] = useState(false);
+  const [showLiveMarketFeed, setShowLiveMarketFeed] = useState(false);
+  const [proofUploadMission, setProofUploadMission] = useState<JobOnMap | null>(null);
   const [taskType, setTaskType] = useState<TaskType>('city');
   const [orderAmount, setOrderAmount] = useState('');
   const [orderDescription, setOrderDescription] = useState('');
@@ -388,6 +837,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   );
 
   const selectTaskType = useCallback((type: TaskType) => {
+    setDashboardExpanded(false);
+    setShowLiveMarketFeed(false);
+    setProofUploadMission(null);
     setTaskType(type);
     setTaskTypeSelected(type);
     setOrderError(null);
@@ -465,6 +917,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         photo_urls,
         after_photo_urls,
         created_at,
+        started_at,
         completion_lat,
         completion_lng,
         completion_distance_meters,
@@ -1754,6 +2207,22 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return { type: 'FeatureCollection' as const, features };
   }, [jobs, currentUserId]);
 
+  const activeWorkerMission = useMemo(
+    () =>
+      (jobs || []).find(
+        (j) =>
+          j.status === 'in_progress' &&
+          !!currentUserId &&
+          j.cleaner_id === currentUserId &&
+          Number.isFinite(j.location_lat) &&
+          Number.isFinite(j.location_lng)
+      ) ?? null,
+    [jobs, currentUserId]
+  );
+
+  const showWorkerDashboard = !taskTypeSelected && !!activeWorkerMission;
+  const showDefaultDashboard = !taskTypeSelected && !activeWorkerMission;
+
   /** Native Mapbox draft location (replaces HTML MissionMarker). */
   const draftPinGeoJSON = useMemo(() => {
     if (!selectedLocation) return { type: 'FeatureCollection' as const, features: [] };
@@ -1811,6 +2280,33 @@ const MapPicker: React.FC<MapPickerProps> = ({
       map.getCanvas().style.cursor = '';
     };
   }, [mapMarkerLayerSuppressed, missionTowersGeoJSON]);
+
+  const navigateToActiveMission = useCallback(() => {
+    if (!activeWorkerMission) return;
+    mapRef.current?.flyTo({
+      center: [activeWorkerMission.location_lng, activeWorkerMission.location_lat],
+      zoom: 16,
+      essential: true,
+      duration: 1200,
+    });
+  }, [activeWorkerMission]);
+
+  const openActiveMissionProof = useCallback(() => {
+    if (activeWorkerMission) {
+      setProofUploadMission(activeWorkerMission);
+    }
+  }, [activeWorkerMission]);
+
+  const openLiveMarketMission = useCallback((mission: JobOnMap) => {
+    setShowLiveMarketFeed(false);
+    setSelectedMission(mission);
+    mapRef.current?.flyTo({
+      center: [mission.location_lng, mission.location_lat],
+      zoom: 16,
+      essential: true,
+      duration: 1300,
+    });
+  }, []);
 
   return (
     <div className="w-full h-screen relative bg-black overflow-hidden">
@@ -2142,30 +2638,89 @@ const MapPicker: React.FC<MapPickerProps> = ({
           </button>
         </header>
 
-        {/* Upper center: heading is non-interactive; only pill buttons capture clicks */}
-        {!taskTypeSelected && (
-          <div className="flex-1 flex flex-col items-center pt-[18vh] px-6">
-            <h2 className="text-xl sm:text-2xl font-semibold text-white mb-10 text-center tracking-tight pointer-events-none">
-              {t('whatNeedsCleaning')}
-            </h2>
-            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm justify-center pointer-events-auto">
-              <button
-                type="button"
-                onClick={() => selectTaskType('city')}
-                className="rounded-full px-6 py-3.5 bg-black/60 backdrop-blur-md border-2 border-emerald-400/60 text-white font-medium text-sm shadow-[0_0_28px_rgba(52,211,153,0.5)] hover:shadow-[0_0_36px_rgba(52,211,153,0.6)] hover:border-emerald-400 transition-all active:scale-95"
+        <div className="mt-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))] flex justify-center">
+          <AnimatePresence mode="wait">
+            {showWorkerDashboard && activeWorkerMission ? (
+              <ActiveMissionWidget
+                key="worker-dashboard"
+                mission={activeWorkerMission}
+                onNavigate={navigateToActiveMission}
+                onUploadProof={openActiveMissionProof}
+              />
+            ) : showDefaultDashboard ? (
+              <motion.div
+                key="default-dashboard"
+                initial={{ y: 24, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 18, opacity: 0 }}
+                className="pointer-events-auto relative h-44 w-44"
               >
-                {t('cleanCityArea')}
-              </button>
-              <button
-                type="button"
-                onClick={() => selectTaskType('home')}
-                className="rounded-full px-6 py-3.5 bg-black/60 backdrop-blur-md border-2 border-amber-400/60 text-white font-medium text-sm shadow-[0_0_28px_rgba(251,191,36,0.5)] hover:shadow-[0_0_36px_rgba(251,191,36,0.6)] hover:border-amber-400 transition-all active:scale-95"
-              >
-                {t('cleanYourHomeOffice')}
-              </button>
-            </div>
-          </div>
-        )}
+                <AnimatePresence>
+                  {dashboardExpanded && (
+                    <>
+                      <motion.p
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 4 }}
+                        className="absolute left-1/2 top-2 -translate-x-1/2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-300"
+                      >
+                        Just Now / Earn
+                      </motion.p>
+                      <motion.button
+                        initial={{ scale: 0.4, opacity: 0, x: 0, y: 0 }}
+                        animate={{ scale: 1, opacity: 1, x: -72, y: -34 }}
+                        exit={{ scale: 0.4, opacity: 0, x: 0, y: 0 }}
+                        transition={{ type: 'spring', stiffness: 360, damping: 22 }}
+                        type="button"
+                        onClick={() => selectTaskType('city')}
+                        className="absolute left-1/2 top-1/2 -ml-7 -mt-7 h-14 w-14 rounded-full border border-emerald-400/70 bg-emerald-500/20 text-2xl shadow-[0_0_20px_rgba(34,197,94,0.5)]"
+                        aria-label="City mission"
+                      >
+                        🧹
+                      </motion.button>
+                      <motion.button
+                        initial={{ scale: 0.4, opacity: 0, x: 0, y: 0 }}
+                        animate={{ scale: 1, opacity: 1, x: 72, y: -34 }}
+                        exit={{ scale: 0.4, opacity: 0, x: 0, y: 0 }}
+                        transition={{ type: 'spring', stiffness: 360, damping: 22, delay: 0.03 }}
+                        type="button"
+                        onClick={() => selectTaskType('home')}
+                        className="absolute left-1/2 top-1/2 -ml-7 -mt-7 h-14 w-14 rounded-full border border-amber-400/80 bg-amber-500/20 text-2xl shadow-[0_0_20px_rgba(251,191,36,0.5)]"
+                        aria-label="Home mission"
+                      >
+                        🧽
+                      </motion.button>
+                      <motion.button
+                        initial={{ scale: 0.4, opacity: 0, x: 0, y: 0 }}
+                        animate={{ scale: 1, opacity: 1, x: 0, y: -94 }}
+                        exit={{ scale: 0.4, opacity: 0, x: 0, y: 0 }}
+                        transition={{ type: 'spring', stiffness: 360, damping: 22, delay: 0.06 }}
+                        type="button"
+                        onClick={() => {
+                          setDashboardExpanded(false);
+                          setShowLiveMarketFeed(true);
+                        }}
+                        className="absolute left-1/2 top-1/2 -ml-7 -mt-7 h-14 w-14 rounded-full border border-cyan-400/80 bg-cyan-500/20 text-lg font-black text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.45)]"
+                        aria-label="Just Now Earn"
+                      >
+                        $
+                      </motion.button>
+                    </>
+                  )}
+                </AnimatePresence>
+                <motion.button
+                  whileTap={{ scale: 0.94 }}
+                  type="button"
+                  onClick={() => setDashboardExpanded((s) => !s)}
+                  className="absolute left-1/2 top-1/2 -ml-9 -mt-9 h-[4.5rem] w-[4.5rem] rounded-full border-2 border-cyan-400/70 bg-black/65 backdrop-blur-lg text-cyan-200 shadow-[0_0_34px_rgba(34,211,238,0.35)] flex items-center justify-center"
+                  aria-label="Open action menu"
+                >
+                  <Recycle className="h-7 w-7" />
+                </motion.button>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Adaptive form — slides up from bottom only after City or Home selected */}
@@ -3267,6 +3822,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
           </div>
         </div>
       )}
+
+      <LiveMarketFeed
+        open={showLiveMarketFeed}
+        onClose={() => setShowLiveMarketFeed(false)}
+        mapCenter={{ lat: viewState.latitude, lng: viewState.longitude }}
+        onOpenMission={openLiveMarketMission}
+      />
+      <ProofUploadModal
+        open={!!proofUploadMission}
+        mission={proofUploadMission}
+        onClose={() => setProofUploadMission(null)}
+        onSuccess={async () => {
+          await fetchMissions();
+          setProofUploadMission(null);
+        }}
+        toast={toast}
+      />
 
     </div>
   );
