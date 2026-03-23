@@ -2178,8 +2178,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
             className="absolute inset-0 bg-black/55 backdrop-blur-md pointer-events-none"
             aria-hidden
           />
-          <div className={`pointer-events-auto relative z-[1] w-full max-w-xl space-y-4 animate-slide-up p-5 shadow-2xl ${PROFILE_GLASS_PANEL}`}>
-            <form ref={orderFormRef} onSubmit={handleSubmit} className="space-y-4">
+          <div className={`pointer-events-auto relative z-[1] w-full max-w-xl flex flex-col h-full max-h-[85vh] animate-slide-up p-5 shadow-2xl ${PROFILE_GLASS_PANEL}`}>
+            <form ref={orderFormRef} onSubmit={handleSubmit} className="flex flex-col h-full">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-2 pb-8 space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <button
                   type="button"
@@ -2361,6 +2362,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
               )}
 
+              </div>
+
+              <div className="mt-auto pb-[env(safe-area-inset-bottom)]">
               {showHomeWalletPay && (
                 <div className="w-full mt-2 rounded-full animated-border-home">
                   <button
@@ -2411,6 +2415,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     ? t('processing')
                     : t('submitTaskAndPay')}
                 </button>
+              </div>
               </div>
             </form>
           </div>
