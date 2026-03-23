@@ -1701,24 +1701,26 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400/90">
                   Admin Force Pay
                 </p>
-                <form onSubmit={handleTopUp} className="flex gap-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    pattern="\d*"
-                    placeholder={t('amountInUsd')}
-                    value={topUpAmount}
-                    onChange={(e) => setTopUpAmount(sanitizeIntegerEgpDigits(e.target.value))}
-                    className={`flex-1 ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/60 tabular-nums`}
-                  />
-                  <button
-                    type="submit"
-                    disabled={topUpSubmitting}
-                    className="inline-flex items-center justify-center px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.18em] border border-cyan-500/40 text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
-                  >
-                    {topUpSubmitting ? t('adding') : t('topUp')}
-                  </button>
+                <form onSubmit={handleTopUp}>
+                  <div className="flex flex-row items-center gap-3 mt-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      pattern="\d*"
+                      placeholder={t('amountInUsd')}
+                      value={topUpAmount}
+                      onChange={(e) => setTopUpAmount(sanitizeIntegerEgpDigits(e.target.value))}
+                      className={`flex-1 min-w-0 ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/60 tabular-nums`}
+                    />
+                    <button
+                      type="submit"
+                      disabled={topUpSubmitting}
+                      className="shrink-0 inline-flex items-center justify-center px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.18em] border border-cyan-500/40 text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                    >
+                      {topUpSubmitting ? t('adding') : t('topUp')}
+                    </button>
+                  </div>
                 </form>
               </div>
             )}
