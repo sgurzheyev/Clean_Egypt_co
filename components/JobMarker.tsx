@@ -90,7 +90,7 @@ const JobMarker: React.FC<JobMarkerProps> = ({
         e.stopPropagation();
         if (!isDraft) onClick?.(e);
       }}
-      className={`relative flex flex-col items-center group select-none outline-none border-0 p-0 bg-transparent origin-bottom ${isDraft ? 'cursor-default' : 'cursor-pointer'}`}
+      className={`relative z-[9999] flex flex-col items-center group select-none outline-none border-0 p-0 bg-transparent origin-bottom ${isDraft ? 'cursor-default' : 'cursor-pointer'}`}
       style={{ transform: `scale(${scale})`, transformOrigin: 'bottom center' }}
       aria-label={`${orderType} mission ${formatEgp(amount)}`}
     >
@@ -118,9 +118,15 @@ const JobMarker: React.FC<JobMarkerProps> = ({
         </div>
       ) : (
         <>
+          {/* Ultra-neon ambient beacon pool (far-distance visibility) */}
+          <div
+            className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full blur-[40px] opacity-60 pointer-events-none -z-10 ${isHome ? 'bg-orange-500' : 'bg-green-500'}`}
+            aria-hidden
+          />
+
           {/* Radar pulse (ground point — stays on GPS coordinate) */}
           <div
-            className="pointer-events-none absolute -bottom-1.5 left-1/2 -translate-x-1/2 z-0"
+            className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 z-0"
             aria-hidden
           >
             <div
@@ -139,9 +145,38 @@ const JobMarker: React.FC<JobMarkerProps> = ({
             />
           </div>
 
+          {/* Elevation: badge + inline SVG pin (Constitution v6.0) */}
+          <div className="-translate-y-full pb-2 flex flex-col items-center gap-2 z-[50] pointer-events-none">
+            <div className="bg-black/90 text-white font-bold px-2 py-0.5 rounded-full border border-gray-700 tabular-nums">
+              <span>{isDraft ? (label || 'NEW') : formatEgp(amount)}</span>
+              {!isDraft && !isActive && bidCount > 0 && (
+                <span className="ml-1 text-[10px] font-black opacity-95">{`+${bidCount}`}</span>
+              )}
+            </div>
+
+            <svg
+              width="24"
+              height="32"
+              viewBox="0 0 24 32"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ filter: `drop-shadow(0 0 15px rgba(${neonRgb},0.8))` }}
+              aria-hidden
+            >
+              {/* Downward locator cone / inverted pyramid */}
+              <polygon
+                points="12,32 2,6 22,6"
+                fill={isHome ? '#F97316' : '#00FF00'}
+                stroke="rgba(255,255,255,0.25)"
+                strokeWidth="1"
+              />
+              <polygon points="12,30 7,14 17,14" fill="rgba(255,255,255,0.10)" />
+            </svg>
+          </div>
+
           {/* Floating pill label — task-colored animated border */}
           <div
             className={[
+              'hidden',
               'absolute -top-0.5 left-1/2 -translate-x-1/2 -translate-y-full z-20',
               'rounded-full',
               pillBorderClass,
@@ -164,7 +199,7 @@ const JobMarker: React.FC<JobMarkerProps> = ({
           </div>
 
           {/* Pyramid container — anchor at tip (bottom) */}
-          <div className="-translate-y-6">
+          <div className="hidden -translate-y-6">
             <div
               className={[
                 'relative flex flex-col items-center',

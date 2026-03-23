@@ -306,9 +306,16 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         job.cleaner_id == null
     );
     if (!selectedMarketCity) return [] as Job[];
-    return base.filter((job) =>
-      missionWithinCity(job.location_lat, job.location_lng, selectedMarketCity)
-    );
+    return base
+      .filter((job) =>
+        missionWithinCity(job.location_lat, job.location_lng, selectedMarketCity)
+      )
+      .sort((a, b) => {
+        const aAvailable = a.status === 'available' ? 1 : 0;
+        const bAvailable = b.status === 'available' ? 1 : 0;
+        if (aAvailable !== bAvailable) return bAvailable - aAvailable;
+        return Number(b.amount_target ?? 0) - Number(a.amount_target ?? 0);
+      });
   }, [marketplaceJobs, selectedMarketCity]);
 
   // Real-time wallet balance subscription
@@ -2752,16 +2759,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
 
                   return (
-                  <button
+                  <div
                     key={job.id}
-                    type="button"
-                    onClick={() => {
-                      if (onNavigateToJob && typeof job.location_lat === 'number' && typeof job.location_lng === 'number') {
-                        onNavigateToJob(job.location_lat, job.location_lng);
-                      }
-                      onClose();
-                    }}
-                    className="group w-full text-left cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all relative z-10"
+                    className="group w-full text-left transition-all relative z-10"
                   >
                     <div className={`relative z-10 ${PROFILE_GLASS_PANEL} p-4 overflow-hidden transition-all duration-200 ${isHome ? 'group-hover:border-amber-500/50' : 'group-hover:border-emerald-500/50'}`}>
                       <div className="flex justify-between items-center mb-3">
@@ -2772,7 +2772,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         <div className={`absolute -inset-32 ${isHome ? 'bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.12),_transparent_60%)]' : 'bg-[radial-gradient(circle_at_top,_rgba(52,211,153,0.12),_transparent_60%)]'}`} />
                       </div>
 
-                      <div className="relative z-10 flex justify-between items-center">
+                      <div className="relative z-10 flex justify-between items-center gap-3">
                         <div className="flex items-center gap-3">
                           <div className={`flex h-10 w-10 items-center justify-center ${PROFILE_GLASS_PANEL} text-xl transition-transform duration-200 group-hover:scale-105`}>
                             <span>{icon}</span>
@@ -2797,13 +2797,21 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             )}
                           </div>
                         </div>
-                        <div className="relative z-10 text-right">
-                          <p className="text-[9px] text-slate-500 mb-1 uppercase tracking-widest">{t('viewOnMap')}</p>
-                          <p className={`text-xs font-bold ${isHome ? 'text-amber-400 group-hover:text-amber-300' : 'text-emerald-400 group-hover:text-emerald-300'}`}>→</p>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onNavigateToJob && typeof job.location_lat === 'number' && typeof job.location_lng === 'number') {
+                              onNavigateToJob(job.location_lat, job.location_lng);
+                            }
+                            onClose();
+                          }}
+                          className="relative z-10 inline-flex items-center justify-center rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300 border border-cyan-500/50 bg-cyan-500/10 hover:bg-cyan-500/20 hover:text-cyan-200 hover:shadow-[0_0_14px_rgba(34,211,238,0.35)] transition-all active:scale-95"
+                        >
+                          {t('locateOnMap')}
+                        </button>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
