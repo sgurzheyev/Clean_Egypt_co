@@ -4,6 +4,8 @@ import MapPicker from './components/MapPicker';
 import Profile from './components/Profile';
 import AuthOverlay from './components/AuthOverlay';
 import VerificationPage from './components/VerificationPage';
+import Terms from './components/Terms';
+import Privacy from './components/Privacy';
 import { supabase } from './services/supabase';
 import i18n from './src/i18n';
 
@@ -63,6 +65,8 @@ const App: React.FC = () => {
   return (
     <Routes>
       <Route path="/verify" element={<VerificationPage />} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/privacy" element={<Privacy />} />
       <Route
         path="/*"
         element={
