@@ -6,8 +6,9 @@ import imageCompression from 'browser-image-compression';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabaseClient';
-import { Recycle, Navigation, Camera, X } from 'lucide-react';
+import { Recycle, Navigation, Camera, X, Clock } from 'lucide-react';
 import TrustDepositInfoModal from './TrustDepositInfoModal';
+import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import {
   workerCanSecureMissionDeposit,
   isSecurityDepositFailure,
@@ -180,185 +181,6 @@ function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
   );
 }
 
-function LiveMarketFeed({
-  open,
-  onClose,
-  mapCenter,
-  onOpenMission,
-}: {
-  open: boolean;
-  onClose: () => void;
-  mapCenter: { lat: number; lng: number };
-  onOpenMission: (mission: JobOnMap) => void;
-}) {
-  const [missions, setMissions] = useState<JobOnMap[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    setLoading(true);
-    setLoadError(null);
-    (async () => {
-      const { data, error } = await supabase
-        .from('missions')
-        .select(`
-          id,
-          category,
-          amount_target,
-          current_funding,
-          location_lat,
-          location_lng,
-          status,
-          cleaner_id,
-          creator_id,
-          description,
-          photo_urls,
-          created_at,
-          creator:profiles!creator_id (
-            avatar_url,
-            phone_number,
-            is_verified
-          )
-        `)
-        .eq('status', 'available')
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (cancelled) return;
-      if (error) {
-        setLoadError(error.message || 'Failed to load missions');
-        setMissions([]);
-      } else {
-        const list = ((data || []) as JobOnMap[]).filter(
-          (m) =>
-            Number.isFinite(m.location_lat) &&
-            Number.isFinite(m.location_lng) &&
-            m.status === 'available'
-        );
-        setMissions(list);
-      }
-      setLoading(false);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
-
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[140] bg-black/55 backdrop-blur-sm pointer-events-auto"
-          onClick={onClose}
-        >
-          <motion.div
-            initial={{ y: 40, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 30, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 280, damping: 24 }}
-            onClick={(e) => e.stopPropagation()}
-            className={`absolute inset-x-4 bottom-4 mx-auto max-w-xl rounded-3xl p-4 ${PROFILE_GLASS_PANEL}`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_rgba(52,211,153,0.85)]" />
-                <p className="text-sm font-black uppercase tracking-[0.18em] text-cyan-300">
-                  LIVE MARKET
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="h-7 w-7 rounded-full border border-cyan-500/50 text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 text-xs font-black"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="mt-3 max-h-[52vh] overflow-y-auto pr-1 space-y-2">
-              {loading && (
-                <p className="text-xs text-slate-400 px-1 py-3">Loading live opportunities...</p>
-              )}
-              {!loading && loadError && (
-                <p className="text-xs text-red-300 px-1 py-3">{loadError}</p>
-              )}
-              {!loading && !loadError && missions.length === 0 && (
-                <p className="text-xs text-slate-400 px-1 py-3">No available missions right now.</p>
-              )}
-              {!loading &&
-                !loadError &&
-                missions.map((mission) => {
-                  const cover = mission.photo_urls?.[0] || null;
-                  const isCity = mission.category === 'public';
-                  const meters = haversineMeters(mapCenter, {
-                    lat: mission.location_lat,
-                    lng: mission.location_lng,
-                  });
-                  const distanceLabel =
-                    meters < 1000 ? `${Math.round(meters)} m away` : `${(meters / 1000).toFixed(1)} km away`;
-                  const distanceTierClass =
-                    meters <= 3000
-                      ? 'text-emerald-300'
-                      : meters <= 10000
-                        ? 'text-amber-300'
-                        : 'text-red-300';
-                  const createdTs = mission.created_at ? new Date(mission.created_at).getTime() : NaN;
-                  const isNewMission =
-                    Number.isFinite(createdTs) && Date.now() - createdTs <= 60 * 60 * 1000;
-                  return (
-                    <button
-                      key={mission.id}
-                      type="button"
-                      onClick={() => onOpenMission(mission)}
-                      className="group relative w-full overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70 text-left transition-all hover:border-cyan-400/55 hover:shadow-[0_0_18px_rgba(34,211,238,0.28)]"
-                    >
-                      {cover ? (
-                        <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
-                      ) : (
-                        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950" />
-                      )}
-                      <div className="absolute inset-0 bg-black/70" />
-                      <div className="relative z-10 p-3 min-h-[112px] flex flex-col justify-between">
-                        <div className="flex items-start justify-between">
-                          {isNewMission ? (
-                            <span className="inline-flex rounded-full border border-cyan-400/60 bg-cyan-500/20 px-2 py-0.5 text-[10px] font-black tracking-[0.14em] text-cyan-200 shadow-[0_0_10px_rgba(34,211,238,0.35)]">
-                              NEW
-                            </span>
-                          ) : (
-                            <span />
-                          )}
-                          <p className={`text-xl font-black tabular-nums ${isCity ? 'text-emerald-300' : 'text-amber-300'} drop-shadow-[0_0_12px_rgba(255,255,255,0.25)]`}>
-                            {formatEgp(Number(mission.amount_target ?? 0))}
-                          </p>
-                        </div>
-                        <div className="flex items-end justify-between gap-3">
-                          <div>
-                            <p className={`text-[10px] font-black uppercase tracking-[0.17em] ${isCity ? 'text-emerald-300' : 'text-amber-300'}`}>
-                              {isCity ? 'City Mission' : 'Home Mission'}
-                            </p>
-                            <p className={`text-xs ${distanceTierClass}`}>{distanceLabel}</p>
-                          </div>
-                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-cyan-400/55 bg-cyan-500/10 text-cyan-200 text-sm">
-                            ›
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
 function ActiveMissionWidget({
   mission,
   onNavigate,
@@ -412,6 +234,67 @@ function ActiveMissionWidget({
       >
         UPLOAD WORK PROOF
       </button>
+    </motion.div>
+  );
+}
+
+function CreatorMissionWidget({
+  mission,
+  onClose,
+}: {
+  mission: JobOnMap;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const started = mission.started_at ? new Date(mission.started_at).getTime() : NaN;
+  const created = mission.created_at ? new Date(mission.created_at).getTime() : NaN;
+  const anchor = Number.isFinite(started) ? started : created;
+  const endAt = Number.isFinite(anchor) ? anchor + 2 * 60 * 60 * 1000 : NaN;
+  const msLeft = Number.isFinite(endAt) ? Math.max(0, endAt - now) : 0;
+  const mins = Math.floor(msLeft / 60000);
+  const secs = Math.floor((msLeft % 60000) / 1000);
+
+  return (
+    <motion.div
+      initial={{ y: 28, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: 20, opacity: 0 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+      className={`pointer-events-auto relative w-full max-w-xl rounded-3xl p-4 ${PROFILE_GLASS_PANEL} border border-orange-500/35 shadow-[0_0_28px_rgba(249,115,22,0.2)]`}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute -right-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-black/50 text-[10px] font-bold leading-none text-slate-400 shadow-sm hover:border-cyan-500/45 hover:text-cyan-200 hover:shadow-[0_0_10px_rgba(34,211,238,0.35)] transition-all"
+        aria-label="Dismiss"
+      >
+        ✕
+      </button>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-lg font-black text-orange-300 tabular-nums">
+          {formatEgp(Number(mission.amount_target ?? 0))}
+        </p>
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-300 tabular-nums">
+          {`${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`}
+        </p>
+        <div
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-cyan-500/55 bg-cyan-500/10 text-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.4)]"
+          role="img"
+          aria-label={t('waiting')}
+        >
+          <Clock className="h-4 w-4" strokeWidth={2.25} />
+        </div>
+      </div>
+      <div className="mt-3 w-full rounded-full px-6 py-3 text-center text-sm font-black uppercase tracking-[0.2em] text-orange-200 border border-orange-500/60 bg-orange-500/15 hover:bg-orange-500/25 hover:shadow-[0_0_20px_rgba(249,115,22,0.35)] transition-all">
+        {t('orderNumber')} {mission.id.slice(0, 8)} - {t('status')}: {t('waiting')} / {t('accepted')}
+      </div>
     </motion.div>
   );
 }
@@ -796,6 +679,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [taskTypeSelected, setTaskTypeSelected] = useState<TaskType | null>(null);
   const [dashboardExpanded, setDashboardExpanded] = useState(false);
   const [showLiveMarketFeed, setShowLiveMarketFeed] = useState(false);
+  const [showCreatorStatusPanel, setShowCreatorStatusPanel] = useState(false);
   const [proofUploadMission, setProofUploadMission] = useState<JobOnMap | null>(null);
   const [taskType, setTaskType] = useState<TaskType>('city');
   const [orderAmount, setOrderAmount] = useState('');
@@ -839,6 +723,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const selectTaskType = useCallback((type: TaskType) => {
     setDashboardExpanded(false);
     setShowLiveMarketFeed(false);
+    setShowCreatorStatusPanel(false);
     setProofUploadMission(null);
     setTaskType(type);
     setTaskTypeSelected(type);
@@ -2220,8 +2105,26 @@ const MapPicker: React.FC<MapPickerProps> = ({
     [jobs, currentUserId]
   );
 
+  const activeCreatorMission = useMemo(
+    () =>
+      (jobs || []).find(
+        (j) =>
+          !!currentUserId &&
+          j.creator_id === currentUserId &&
+          (j.status === 'pending' ||
+            j.status === 'available' ||
+            j.status === 'funding' ||
+            j.status === 'in_progress') &&
+          Number.isFinite(j.location_lat) &&
+          Number.isFinite(j.location_lng)
+      ) ?? null,
+    [jobs, currentUserId]
+  );
+
   const showWorkerDashboard = !taskTypeSelected && !!activeWorkerMission;
-  const showDefaultDashboard = !taskTypeSelected && !activeWorkerMission;
+  const showCreatorDashboard =
+    !taskTypeSelected && !activeWorkerMission && !!activeCreatorMission && showCreatorStatusPanel;
+  const showDefaultDashboard = !taskTypeSelected && !activeWorkerMission && !showCreatorDashboard;
 
   /** Native Mapbox draft location (replaces HTML MissionMarker). */
   const draftPinGeoJSON = useMemo(() => {
@@ -2297,9 +2200,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
   }, [activeWorkerMission]);
 
-  const openLiveMarketMission = useCallback((mission: JobOnMap) => {
+  const openLiveMarketMission = useCallback((mission: LiveMarketMission) => {
     setShowLiveMarketFeed(false);
-    setSelectedMission(mission);
+    setSelectedMission(mission as JobOnMap);
     mapRef.current?.flyTo({
       center: [mission.location_lng, mission.location_lat],
       zoom: 16,
@@ -2307,6 +2210,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
       duration: 1300,
     });
   }, []);
+
+  const handleDollarAction = useCallback(() => {
+    setDashboardExpanded(false);
+    if (activeWorkerMission) {
+      navigateToActiveMission();
+      return;
+    }
+    if (activeCreatorMission) {
+      setShowCreatorStatusPanel(true);
+      return;
+    }
+    setShowCreatorStatusPanel(false);
+    setShowLiveMarketFeed(true);
+  }, [activeWorkerMission, activeCreatorMission, navigateToActiveMission]);
 
   return (
     <div className="w-full h-screen relative bg-black overflow-hidden">
@@ -2647,6 +2564,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 onNavigate={navigateToActiveMission}
                 onUploadProof={openActiveMissionProof}
               />
+            ) : showCreatorDashboard && activeCreatorMission ? (
+              <CreatorMissionWidget
+                key="creator-dashboard"
+                mission={activeCreatorMission}
+                onClose={() => setShowCreatorStatusPanel(false)}
+              />
             ) : showDefaultDashboard ? (
               <motion.div
                 key="default-dashboard"
@@ -2696,10 +2619,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         exit={{ scale: 0.4, opacity: 0, x: 0, y: 0 }}
                         transition={{ type: 'spring', stiffness: 360, damping: 22, delay: 0.06 }}
                         type="button"
-                        onClick={() => {
-                          setDashboardExpanded(false);
-                          setShowLiveMarketFeed(true);
-                        }}
+                        onClick={handleDollarAction}
                         className="absolute left-1/2 top-1/2 -ml-7 -mt-7 h-14 w-14 rounded-full border border-cyan-400/80 bg-cyan-500/20 text-lg font-black text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.45)]"
                         aria-label="Just Now Earn"
                       >
@@ -3826,8 +3746,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       <LiveMarketFeed
         open={showLiveMarketFeed}
         onClose={() => setShowLiveMarketFeed(false)}
-        mapCenter={{ lat: viewState.latitude, lng: viewState.longitude }}
-        onOpenMission={openLiveMarketMission}
+        onSelectMission={openLiveMarketMission}
       />
       <ProofUploadModal
         open={!!proofUploadMission}
