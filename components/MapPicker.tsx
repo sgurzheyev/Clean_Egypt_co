@@ -2581,14 +2581,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <AnimatePresence>
                   {dashboardExpanded && (
                     <>
-                      <motion.p
-                        initial={{ opacity: 0, y: 4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 4 }}
-                        className="absolute left-1/2 top-2 -translate-x-1/2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-300"
-                      >
-                        Just Now / Earn
-                      </motion.p>
                       <motion.button
                         initial={{ scale: 0.4, opacity: 0, x: 0, y: 0 }}
                         animate={{ scale: 1, opacity: 1, x: -72, y: -34 }}
@@ -2620,7 +2612,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         transition={{ type: 'spring', stiffness: 360, damping: 22, delay: 0.06 }}
                         type="button"
                         onClick={handleDollarAction}
-                        className="absolute left-1/2 top-1/2 -ml-7 -mt-7 h-14 w-14 rounded-full border border-cyan-400/80 bg-cyan-500/20 text-lg font-black text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.45)]"
+                        className="absolute left-1/2 top-1/2 -ml-7 -mt-7 h-14 w-14 rounded-full border border-cyan-400/80 bg-cyan-500/20 text-2xl font-black text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.45)]"
                         aria-label="Just Now Earn"
                       >
                         $
