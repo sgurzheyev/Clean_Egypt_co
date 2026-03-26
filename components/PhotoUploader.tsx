@@ -90,6 +90,7 @@ const PhotoUploader: React.FC<PhotoUploaderProps> = ({ files, setFiles, language
           type="file"
           multiple
           accept="image/*"
+          capture="environment" /* <-- ANTI-FRAUD: Блокирует галерею, заставляет использовать камеру */
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           onChange={(e) => {
             handleFileChange(e.target.files);
