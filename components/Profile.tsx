@@ -2120,7 +2120,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 ))}
               </div>
             ) : (myHomeJobs || []).filter((job) => job.status !== 'finished').length === 0 ? (
-              <p className="text-slate-500 text-sm italic">You haven&apos;t created any home requests yet.</p>
+              <p className="text-slate-500 text-sm italic">You haven't created any home requests yet.</p>
             ) : (
               (myHomeJobs || [])
                 .filter((job) => job.status !== 'finished')
@@ -2200,12 +2200,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     <div className="flex justify-between items-start mb-3">
                       <span className={`text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider ${
                         job.status === 'in_progress' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' :
-                        job.status === 'completed' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' :
-                        job.status === 'finished' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' :
+                        (job.status === 'completed' || job.status === 'finished') ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' :
                         job.status === 'disputed' ? 'bg-red-500/20 text-red-400 border border-red-500/40' :
                         'bg-white/10 text-slate-400 border border-white/10'
                       }`}>
-                        {job.status}
+                        {job.status === 'completed' || job.status === 'finished' ? 'COMPLETED' : job.status}
                       </span>
                       <div className="flex items-center gap-2">
                         {job.status === 'pending' && (
@@ -2287,6 +2286,38 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       <p className="text-slate-500 text-xs italic mt-2">No bids yet. Workers can bid from the map.</p>
                     )}
 
+                    {job.status !== 'completed' && job.status !== 'finished' && (
+                      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => openNavigate(job)}
+                          className={`w-full ${PROFILE_GLASS_PANEL} !rounded-full border border-emerald-500/50 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-300 transition-all hover:border-emerald-400/70 hover:text-emerald-200 active:scale-95`}
+                        >
+                          Navigate
+                        </button>
+                        {!(job.status === 'review' && job.started_at) && (
+                          <button
+                            type="button"
+                            onClick={() => openProofModal(job, job.started_at ? 'after' : 'before')}
+                            disabled={job.status !== 'in_progress'}
+                            className={`w-full py-3 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 ${
+                              job.status === 'in_progress'
+                                ? 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.6)] hover:brightness-110'
+                                : 'bg-white/5 text-slate-500 cursor-not-allowed'
+                            }`}
+                          >
+                            {job.started_at ? "Upload 'After' photos & Finish" : "Upload 'Before' photos & Start"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {job.status === 'review' && (
+                      <p className="mt-3 text-[10px] text-amber-300 uppercase tracking-wider text-center font-bold">
+                        WAITING FOR ADMIN VERIFICATION
+                      </p>
+                    )}
+
                     {/* Client actions */}
                     {(job.status === 'review' || job.status === 'pending_approval') && job.cleaner_id && (
                       <div className="mt-4">
@@ -2312,10 +2343,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </p>
                       </div>
                     )}
-                    {job.status === 'completed' && job.cleaner_id && (
+                    {(job.status === 'completed' || job.status === 'finished') && job.cleaner_id && (
                       <div className="mt-4">
-                        <p className="w-full py-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-black text-xs uppercase tracking-[0.2em] text-center">
-                          Completed & Paid
+                        <p className="w-full py-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-black text-xs uppercase tracking-[0.2em] text-center">
+                          MISSION ACCOMPLISHED & PAID
                         </p>
                       </div>
                     )}
@@ -2332,7 +2363,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           icon={<Target className="w-5 h-5 shrink-0 text-amber-400/90" aria-hidden />}
         >
           {(myActiveJobs || []).filter((job) => job.status !== 'finished').length === 0 ? (
-            <p className="text-slate-500 text-sm italic">You haven&apos;t taken any missions yet. Pick one from the marketplace and pay the deposit.</p>
+            <p className="text-slate-500 text-sm italic">You haven't taken any missions yet. Pick one from the marketplace and pay the deposit.</p>
           ) : (
             <div className="space-y-4">
               {(myActiveJobs || [])
@@ -2346,8 +2377,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                     : job.status === 'review'
                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                    : job.status === 'completed'
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : (job.status === 'completed' || job.status === 'finished')
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                       : 'bg-white/10 text-slate-400 border border-white/10';
                 return (
                   <div
@@ -2363,8 +2394,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         ? '🟢 In Progress'
                         : job.status === 'review'
                           ? 'UNDER REVIEW'
-                          : job.status === 'completed'
-                            ? '🟠 Completed'
+                          : (job.status === 'completed' || job.status === 'finished')
+                            ? '🟢 Completed'
                             : job.status.toUpperCase()}
                     </div>
                     <div className="flex justify-between items-center">
@@ -2388,44 +2419,43 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       <p className="text-xs text-slate-400 mt-2">{job.description}</p>
                     )}
 
-                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => openNavigate(job)}
-                        className={`w-full ${PROFILE_GLASS_PANEL} !rounded-full border border-emerald-500/50 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-300 transition-all hover:border-emerald-400/70 hover:text-emerald-200 active:scale-95`}
-                      >
-                        Navigate
-                      </button>
-                      {!(job.status === 'review' && job.started_at) && (
+                    {job.status !== 'completed' && job.status !== 'finished' && (
+                      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <button
                           type="button"
-                          onClick={() => openProofModal(job, job.started_at ? 'after' : 'before')}
-                          disabled={job.status !== 'in_progress'}
-                          className={`w-full py-3 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 ${
-                            job.status === 'in_progress'
-                              ? 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.6)] hover:brightness-110'
-                              : 'bg-white/5 text-slate-500 cursor-not-allowed'
-                          }`}
+                          onClick={() => openNavigate(job)}
+                          className={`w-full ${PROFILE_GLASS_PANEL} !rounded-full border border-emerald-500/50 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-300 transition-all hover:border-emerald-400/70 hover:text-emerald-200 active:scale-95`}
                         >
-                          {job.started_at ? "Upload 'After' photos & Finish" : "Upload 'Before' photos & Start"}
+                          Navigate
                         </button>
-                      )}
-                    </div>
+                        {!(job.status === 'review' && job.started_at) && (
+                          <button
+                            type="button"
+                            onClick={() => openProofModal(job, job.started_at ? 'after' : 'before')}
+                            disabled={job.status !== 'in_progress'}
+                            className={`w-full py-3 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 ${
+                              job.status === 'in_progress'
+                                ? 'bg-gradient-to-r from-amber-300 to-amber-500 text-black shadow-[0_0_24px_rgba(251,191,36,0.6)] hover:brightness-110'
+                                : 'bg-white/5 text-slate-500 cursor-not-allowed'
+                            }`}
+                          >
+                            {job.started_at ? "Upload 'After' photos & Finish" : "Upload 'Before' photos & Start"}
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                     {job.status === 'review' && (
-                      <p className="mt-3 text-[10px] text-amber-300 uppercase tracking-wider">
+                      <p className="mt-3 text-[10px] text-amber-300 uppercase tracking-wider text-center font-bold">
                         WAITING FOR ADMIN VERIFICATION
                       </p>
                     )}
-                    {job.status === 'completed' && (
-                      <p className="mt-3 text-[10px] text-amber-300 uppercase tracking-wider">
-                        Waiting for client to confirm & release payment
-                      </p>
-                    )}
-                    {job.status === 'finished' && (
-                      <p className="mt-3 text-[10px] text-emerald-300 uppercase tracking-wider">
-                        Payment released
-                      </p>
+                    {(job.status === 'completed' || job.status === 'finished') && (
+                      <div className="mt-4">
+                        <p className="w-full py-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-black text-xs uppercase tracking-[0.2em] text-center">
+                          MISSION ACCOMPLISHED & PAID
+                        </p>
+                      </div>
                     )}
                   </div>
                 );
@@ -2663,10 +2693,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           </p>
                         </div>
                       )}
-                      {job.status === 'completed' && job.cleaner_id && (
+                      {(job.status === 'completed' || job.status === 'finished') && job.cleaner_id && (
                         <div className="mt-4">
-                          <p className="w-full py-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-black text-xs uppercase tracking-[0.2em] text-center">
-                            Completed & Paid
+                          <p className="w-full py-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-black text-xs uppercase tracking-[0.2em] text-center">
+                            MISSION ACCOMPLISHED & PAID
                           </p>
                         </div>
                       )}
@@ -3360,7 +3390,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
             {/* Scrollable photo grid + disclaimer */}
             <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className={`${PROFILE_GLASS_PANEL} p-4`}>
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
                     Before photos
@@ -3422,10 +3452,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
             {/* Sticky action buttons — always visible at bottom */}
             <div className="flex-shrink-0 sticky bottom-0 bg-cyan-950/80 backdrop-blur-md pt-4 pb-6 px-6 z-[60] border-t border-cyan-500/30">
-              {reviewJob?.status === 'completed' ? (
+              {(reviewJob?.status === 'completed' || reviewJob?.status === 'finished') ? (
                 <div className="w-full">
-                  <p className="w-full py-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-black text-sm uppercase tracking-[0.2em] text-center">
-                    Completed & Paid
+                  <p className="w-full py-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-black text-sm uppercase tracking-[0.2em] text-center">
+                    MISSION ACCOMPLISHED & PAID
                   </p>
                 </div>
               ) : (
@@ -3514,9 +3544,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           </p>
                         )}
                         {reviewJob.ai_verdict && (
-                          <pre className="whitespace-pre-wrap break-words font-sans text-slate-300 leading-relaxed">
+                          <p className="whitespace-pre-wrap break-words font-sans text-slate-300 leading-relaxed">
                             {reviewJob.ai_verdict}
-                          </pre>
+                          </p>
                         )}
                       </div>
                     </details>
