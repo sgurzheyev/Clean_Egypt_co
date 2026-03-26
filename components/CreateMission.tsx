@@ -46,16 +46,18 @@ function mergeKeywordsFromResponse(data: {
     const t = s.trim();
     if (t && !out.includes(t)) out.push(t);
   };
+  
   if (Array.isArray(data.keywords)) {
     for (const k of data.keywords) {
       if (typeof k === 'string') push(k);
     }
   }
+  
+  // ИСПРАВЛЕНИЕ: Больше не режем предложение по запятым! Берем целиком.
   if (typeof data.suggestions === 'string' && data.suggestions.trim()) {
-    const parts = data.suggestions.split(/[,;|]/).map((p) => p.trim()).filter(Boolean);
-    for (const p of parts) push(p);
-    if (parts.length === 0) push(data.suggestions.trim());
+    push(data.suggestions.trim());
   }
+  
   return out.slice(0, 8);
 }
 

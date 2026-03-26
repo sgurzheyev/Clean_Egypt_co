@@ -1896,6 +1896,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         setPhotoVerification({ verifying: false, allApproved: true, hasRejected: false });
         setSelectedLocation(null);
         await fetchMissions();
+        setTaskType(null);
         return;
       }
 
