@@ -2,18 +2,38 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 type VisionResult = {
   status: 'approved' | 'rejected';
-  reason?: 'sexual_content' | 'unrelated' | string;
+  reason?: 'sexual_content' | 'unrelated' | 'low_quality' | 'not_trash' | string;
   keywords?: string[];
   suggestions?: string;
 };
 
-const PROMPT = `Analyze this image for a cleanup platform. Return ONLY valid JSON:
+// Функция для генерации промпта на нужном языке
+const getPrompt = (lang: string) => {
+  const langMap: Record<string, string> = {
+    ru: "Russian (Русский)",
+    ar: "Arabic (العربية)",
+    de: "German (Deutsch)",
+    es: "Spanish (Español)",
+    it: "Italian (Italiano)",
+    fr: "French (Français)"
+  };
+  
+  const targetLang = langMap[lang.toLowerCase()] || "English";
 
-{"status": "approved" | "rejected", "reason": null, "keywords": ["keyword1", "keyword2", "keyword3"], "suggestions": "one-line recommendation"}
+  return `Analyze this image for a cleanup mission. Return ONLY a valid JSON object:
+  {"status": "approved" | "rejected", "reason": "...", "keywords": ["..."], "suggestions": "..."}
 
-For ANY image, always provide up to 3 descriptive keywords (e.g. "Plastic", "Street debris", "Large waste", "Trash pile", "Home clutter"). Use simple English when possible.
+  Rules:
+  - APPROVE if it shows waste, trash, debris, or a messy environment that needs cleaning.
+  - REJECT if it's a selfie, a clean place, unrelated content, or sexual.
 
-Status: APPROVE if it shows waste, trash, debris, or messy environment. REJECT otherwise (selfie, meme, clean nature).`;
+  LANGUAGE MISSION:
+  1. Provide up to 3 'keywords' describing the waste (e.g., "plastic", "construction waste").
+  2. Provide 'suggestions' as a helpful, motivating one-line advice for the user.
+  3. CRITICAL: You MUST write BOTH 'keywords' and 'suggestions' in ${targetLang}.
+  
+  Example in ${targetLang}: {"status":"approved", "keywords":["пластик","бутылки"], "suggestions":"Отличная работа! Собери пластик в отдельный пакет для переработки."}`;
+};
 
 function extractJson(text: string): VisionResult | null {
   const start = text.indexOf('{');
@@ -37,9 +57,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const body = req.body as { imageBase64?: string; mimeType?: string };
+    // Получаем base64 и язык пользователя (по умолчанию английский)
+    const body = req.body as { imageBase64?: string; mimeType?: string; userLanguage?: string };
     const imageBase64 = body?.imageBase64;
     const mimeType = body?.mimeType || 'image/jpeg';
+    const userLanguage = body?.userLanguage || 'en'; 
 
     if (!imageBase64 || typeof imageBase64 !== 'string') {
       return res.status(400).json({ error: 'imageBase64 is required' });
@@ -61,13 +83,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        max_tokens: 256,
+        model: 'gpt-4o-mini', // Используем быструю и дешевую модель с поддержкой зрения
+        max_tokens: 300,
         messages: [
           {
             role: 'user',
             content: [
-              { type: 'text', text: PROMPT },
+              { type: 'text', text: getPrompt(userLanguage) },
               {
                 type: 'image_url',
                 image_url: { url: dataUrl, detail: 'low' },
@@ -75,6 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             ],
           },
         ],
+        response_format: { type: "json_object" } // Принудительно просим JSON
       }),
     });
 
@@ -84,18 +107,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({ error: 'Vision service unavailable' });
     }
 
-    const data = (await openaiRes.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
+    const data = (await openaiRes.json()) as any;
     const text = data?.choices?.[0]?.message?.content || '';
     const parsed = extractJson(text);
+
     if (!parsed) {
       return res.status(422).json({ error: 'Invalid vision response', raw: text.slice(0, 200) });
     }
 
     return res.status(200).json(parsed);
   } catch (e: unknown) {
-    console.error('verify-mission-image', e);
+    console.error('verify-mission-image error:', e);
     return res.status(500).json({ error: 'Server error' });
   }
 }

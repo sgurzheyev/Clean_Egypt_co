@@ -70,7 +70,7 @@ const CreateMission: React.FC<Props> = ({
   onTextWarning,
   hasTextWarning = false,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [checkingPhotos, setCheckingPhotos] = useState(false);
   const [photoStatuses, setPhotoStatuses] = useState<('pending' | 'done')[]>([]);
   const [aiKeywords, setAiKeywords] = useState<string[]>([]);
@@ -118,16 +118,24 @@ const CreateMission: React.FC<Props> = ({
         try {
           const compressed = await imageCompression(file, VERIFY_MISSION_IMAGE_COMPRESSION);
           const { base64, mimeType } = await fileToBase64Parts(compressed);
+          
+          // ОТПРАВЛЯЕМ ЗАПРОС С УЧЕТОМ ЯЗЫКА
           const res = await fetch('/api/verify-mission-image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageBase64: base64, mimeType }),
+            body: JSON.stringify({ 
+              imageBase64: base64, 
+              mimeType,
+              userLanguage: i18n.language || 'en' // <-- СЕРВЕР ТЕПЕРЬ ЗНАЕТ ЯЗЫК
+            }),
           });
+          
           const data = (await res.json().catch(() => ({}))) as {
             status?: string;
             keywords?: string[];
             suggestions?: string;
           };
+          
           const merged = mergeKeywordsFromResponse(data);
           for (const kw of merged) {
             if (!collectedKeywords.includes(kw)) collectedKeywords.push(kw);
@@ -149,7 +157,7 @@ const CreateMission: React.FC<Props> = ({
         aiTags: tags,
       });
     },
-    [onPhotoVerificationChange]
+    [onPhotoVerificationChange, i18n.language] // <-- ДОБАВИЛИ ЗАВИСИМОСТЬ
   );
 
   useEffect(() => {
