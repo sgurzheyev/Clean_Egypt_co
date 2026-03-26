@@ -1205,7 +1205,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
       try {
         const { data, error } = await supabase
           .from('transactions')
-          .select('id, user_id, mission_id, amount, type, gateway, created_at')
+          .select(`
+            id, 
+            user_id, 
+            mission_id, 
+            amount, 
+            type, 
+            gateway, 
+            created_at,
+            profile:profiles!user_id (
+              full_name,
+              avatar_url
+            )
+          `)
           .eq('mission_id', selectedMission.id)
           .order('created_at', { ascending: false })
           .limit(200);
@@ -3126,8 +3138,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 </div>
               )}
 
-              {/* Financial Trail */}
-              <div className={`border border-cyan-500/20 p-4 ${PROFILE_GLASS_PANEL}`}>
+             {/* Financial Trail */}
+             <div className={`border border-cyan-500/20 p-4 ${PROFILE_GLASS_PANEL}`}>
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
                     Financial Trail
@@ -3140,49 +3152,68 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   <p className="mt-2 text-xs text-red-400">{missionTxError}</p>
                 )}
                 <div className="mt-3 max-h-48 overflow-y-auto space-y-2 pr-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
-                  {missionTransactions.map((tx) => {
+                  {missionTransactions.map((tx: any) => {
                     const gw = (tx.gateway || '').toLowerCase();
                     const badge =
                       gw.includes('stripe') ? 'Stripe' : gw.includes('paymob') ? 'Paymob' : tx.gateway || null;
+                    
+                    // @ts-ignore
                     const isCarding = tx.user_id ? potentialCardingUserIds.has(tx.user_id) : false;
+
+                    // Достаем данные профиля из нашего нового запроса
+                    const profile = tx.profile;
+                    const displayName = profile?.full_name || 'Eco Hero';
+                    const avatarUrl = profile?.avatar_url;
+
                     return (
                       <div
                         key={tx.id}
-                        className={`flex items-center justify-between gap-3 border border-cyan-500/10 px-3 py-2 text-[11px] ${PROFILE_GLASS_PANEL} !rounded-xl`}
+                        className={`flex items-center justify-between gap-3 border border-cyan-500/10 px-3 py-2 text-[11px] ${PROFILE_GLASS_PANEL} !rounded-xl transition-all hover:bg-white/5`}
                       >
-                        <div className="min-w-0">
-                          <p className="font-mono text-slate-200 truncate">
-                            {tx.type}
-                            {badge ? (
-                              <span className={`ml-2 inline-flex items-center rounded-full border border-white/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-slate-200 ${PROFILE_GLASS_PANEL} !rounded-full`}>
-                                {badge}
-                              </span>
-                            ) : null}
+                        <div className="flex items-center gap-3 min-w-0">
+                          {/* АВАТАРКА ГЕРОЯ */}
+                          <div className="h-8 w-8 shrink-0 rounded-full border border-white/20 bg-gradient-to-br from-emerald-500/30 to-cyan-500/20 overflow-hidden flex items-center justify-center shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                            {avatarUrl ? (
+                              <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
+                            ) : (
+                              <span className="text-[10px] font-bold text-emerald-300">{(displayName || 'E')[0]}</span>
+                            )}
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="font-bold text-white truncate">
+                              {displayName}
+                            </p>
+                            <p className="text-[9px] text-slate-500 uppercase tracking-tight">
+                              {tx.type}
+                              {badge ? <span className="ml-1 opacity-70">• {badge}</span> : null}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <p
+                            className={[
+                              'font-mono font-black tabular-nums text-xs',
+                              isCarding
+                                ? 'text-red-300 drop-shadow-[0_0_10px_rgba(239,68,68,0.55)]'
+                                : 'text-emerald-300',
+                            ].join(' ')}
+                          >
+                            +{formatEgp(Number(tx.amount))}
                           </p>
-                          <p className="text-[10px] text-slate-500">
-                            {new Date(tx.created_at).toLocaleString()}
+                          <p className="text-[8px] text-slate-600">
+                             {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
-                        <p
-                          className={[
-                            'font-mono font-black tabular-nums',
-                            isCarding
-                              ? 'text-red-300 drop-shadow-[0_0_10px_rgba(239,68,68,0.55)]'
-                              : 'text-emerald-300',
-                          ].join(' ')}
-                          title={isCarding ? 'Potential carding: repeated micro-payments by same user' : undefined}
-                        >
-                          {formatEgp(Number(tx.amount))}
-                        </p>
                       </div>
                     );
                   })}
                   {!missionTxLoading && missionTransactions.length === 0 && (
-                    <p className="text-xs text-slate-500 italic py-2">No transactions linked to this mission.</p>
+                    <p className="text-xs text-slate-500 italic py-4 text-center">No transactions yet. Be the first hero!</p>
                   )}
                 </div>
               </div>
-
               {/* GPS Integrity */}
               <div className={`border border-cyan-500/20 p-4 ${PROFILE_GLASS_PANEL}`}>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
