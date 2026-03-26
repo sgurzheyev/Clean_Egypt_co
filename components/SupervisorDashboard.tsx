@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../services/supabase';
 import { formatEgp } from '../src/lib/formatMoney';
 import { SMALL_CARDING_EGP_MAX } from '../constants';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';

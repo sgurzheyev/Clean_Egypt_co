@@ -5,7 +5,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../services/supabase';
 import { Recycle, Navigation, Camera, X, Clock } from 'lucide-react';
 import TrustDepositInfoModal from './TrustDepositInfoModal';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';

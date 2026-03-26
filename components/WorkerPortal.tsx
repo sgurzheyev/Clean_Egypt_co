@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../services/supabase';
 import { formatEgp } from '../src/lib/formatMoney';
 
 const WorkerPortal = () => {

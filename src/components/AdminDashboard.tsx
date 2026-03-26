@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { supabase } from '../../services/supabase';
 import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { runMissionAiAnalysis } from '../lib/openai';

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../services/supabase';
 import { formatEgp } from '../src/lib/formatMoney';
 
 export interface LiveMarketMission {

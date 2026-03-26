@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../services/supabase';
 import { Pencil, Target, Globe, Building2, Clock, Info } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';

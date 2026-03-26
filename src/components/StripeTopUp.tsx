@@ -9,7 +9,7 @@ import {
   useElements,
 } from '@stripe/react-stripe-js';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../lib/supabaseClient';
+import { supabase } from '../../services/supabase';
 import { stripeEgpInputToWalletEgp, egpInputToChargeUsd } from '../lib/walletCredit';
 import { parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '../lib/integerEgpInput';
 import { USD_TO_EGP_RATE } from '../../constants';

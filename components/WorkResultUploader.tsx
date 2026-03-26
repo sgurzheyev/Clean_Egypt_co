@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import imageCompression from 'browser-image-compression';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../services/supabase';
 
 /** Constitution v6.0 — same as CreateMission / verify-mission pipeline: max 1200px, quality 0.7 */
 const GARBAGE_REPORT_IMAGE_COMPRESSION = {
