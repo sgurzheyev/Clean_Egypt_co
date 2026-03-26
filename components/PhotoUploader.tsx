@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import CameraIcon from './icons/CameraIcon';
 import TrashIcon from './icons/TrashIcon';
@@ -92,7 +91,10 @@ const PhotoUploader: React.FC<PhotoUploaderProps> = ({ files, setFiles, language
           multiple
           accept="image/*"
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          onChange={(e) => handleFileChange(e.target.files)}
+          onChange={(e) => {
+            handleFileChange(e.target.files);
+            e.target.value = ''; // FIX: Сброс инпута для возможности сделать следующее фото
+          }}
           disabled={files.length >= MAX_PHOTOS}
         />
         <div className="flex flex-col items-center text-gray-500">
