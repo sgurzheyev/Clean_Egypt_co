@@ -567,8 +567,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     if (!window.confirm('Are you sure you want to force-release funds to the cleaner?')) return;
     setForcePayLoadingId(mission.id);
     try {
-      const exchangeRate = 50;
-      const payoutEgp = Math.floor(Math.max(0, Number(mission.amount_target || 0)) * exchangeRate);
+      const payoutEgp = Math.floor(Math.max(0, Number(mission.amount_target || 0)));
 
       const { data: workerProfile, error: workerErr } = await supabase
         .from('profiles')
