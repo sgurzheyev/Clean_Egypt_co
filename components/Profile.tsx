@@ -528,7 +528,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         alert('You must be logged in to top up your wallet.');
         return;
       }
-      const { error } = await supabase.rpc('top_up_wallet', {
+      const { error } = await supabase.rpc('admin_credit_wallet_egp', {
         p_amount: amountNum,
       });
       if (error) {

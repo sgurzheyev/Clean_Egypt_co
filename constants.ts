@@ -41,8 +41,11 @@ export const PROFILE_GLASS_PANEL =
  */
 export const INTERNAL_CURRENCY = 'EGP' as const;
 
-/** 1 USD → EGP (Stripe / Paymob conversion for international card payments). */
-export const USD_TO_EGP_RATE = 48.5;
+/**
+ * Fallback when `platform_settings.usd_to_egp_rate` cannot be read.
+ * Live rate is stored in DB and editable in Admin → Financial Analytics.
+ */
+export const DEFAULT_USD_TO_EGP_RATE = 55;
 
 /** City pin / Scout Stake fee (EGP, integer) — must match `create_public_mission_with_fee` and wallet debits. */
 export const SCOUT_STAKE_FEE_EGP = 49;
@@ -52,14 +55,14 @@ export const SMALL_CARDING_EGP_MAX = 100;
 
 /**
  * Applied to USD card settlements when crediting EGP wallet (currency risk buffer).
- * Credit EGP = USD_charged × USD_TO_EGP_RATE × CURRENCY_RISK_BUFFER_FACTOR
+ * Credit EGP = USD_charged × usd_to_egp_rate × CURRENCY_RISK_BUFFER_FACTOR
  */
 export const CURRENCY_RISK_BUFFER_FACTOR = 0.97;
 
 /** Display suffix for amounts in UI (Egyptian Pound). */
 export const DISPLAY_CURRENCY_SUFFIX = 'EGP';
 
-/** Min/max mission prices in EGP (aligned with former USD limits × ~48.5). */
+/** Min/max mission prices in EGP. */
 export const HOME_MIN_PRICE = 250;
 export const HOME_MAX_PRICE = 25000;
 /** Minimum crowdfunding goal for city missions (EGP), separate from {@link SCOUT_STAKE_FEE_EGP}. */

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
@@ -11,8 +11,9 @@ import {
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../services/supabase';
 import { stripeEgpInputToWalletEgp, egpInputToChargeUsd } from '../lib/walletCredit';
-import { parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '../lib/integerEgpInput';
-import { USD_TO_EGP_RATE } from '../../constants';
+import { sanitizeIntegerEgpDigits } from '../lib/integerEgpInput';
+import { DEFAULT_USD_TO_EGP_RATE } from '../../constants';
+import { fetchUsdToEgpRate } from '../lib/platformSettings';
 import { formatEgp } from '../lib/formatMoney';
 
 /**
@@ -41,6 +42,7 @@ interface StripeTopUpFormProps {
   onAmountChange: (value: string) => void;
   onClose: () => void;
   userId: string | null;
+  usdToEgpRate: number;
 }
 
 function StripeTopUpForm({
@@ -48,6 +50,7 @@ function StripeTopUpForm({
   onAmountChange,
   onClose,
   userId,
+  usdToEgpRate,
 }: StripeTopUpFormProps) {
   const { t } = useTranslation();
   const stripe = useStripe();
@@ -58,10 +61,10 @@ function StripeTopUpForm({
   const inputValid = Number.isFinite(numericInput) && numericInput > 0;
 
   const chargeUsd =
-    inputValid ? egpInputToChargeUsd(numericInput, USD_TO_EGP_RATE) : 0;
+    inputValid ? egpInputToChargeUsd(numericInput, usdToEgpRate) : 0;
 
   const netEgp =
-    inputValid && chargeUsd > 0 ? stripeEgpInputToWalletEgp(numericInput) : null;
+    inputValid && chargeUsd > 0 ? stripeEgpInputToWalletEgp(numericInput, usdToEgpRate) : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,14 +82,14 @@ function StripeTopUpForm({
       return;
     }
 
-    const chargeUsdForStripe = egpInputToChargeUsd(numericInput, USD_TO_EGP_RATE);
+    const chargeUsdForStripe = egpInputToChargeUsd(numericInput, usdToEgpRate);
 
     if (!Number.isFinite(chargeUsdForStripe) || chargeUsdForStripe <= 0) {
       alert(t('invalidAmount'));
       return;
     }
 
-    const netCreditEgp = stripeEgpInputToWalletEgp(numericInput);
+    const netCreditEgp = stripeEgpInputToWalletEgp(numericInput, usdToEgpRate);
 
     if (netCreditEgp <= 0) {
       alert(t('invalidAmount'));
@@ -98,12 +101,17 @@ function StripeTopUpForm({
       return;
     }
 
+    const amountEgpInt = Math.floor(Math.max(0, numericInput));
+
     setSubmitting(true);
     try {
       const { data, error: functionError } = await supabase.functions.invoke('stripe-intent', {
-        body: { amount: chargeUsdForStripe, user_id: userId },
+        body: { amount_egp: amountEgpInt, user_id: userId },
       });
       if (functionError) throw functionError;
+      if (data && typeof data === 'object' && 'error' in data && (data as { error?: string }).error) {
+        throw new Error(String((data as { error: string }).error));
+      }
 
       const clientSecret = data?.clientSecret;
       if (!clientSecret) throw new Error('No client secret returned from server.');
@@ -119,10 +127,18 @@ function StripeTopUpForm({
         throw new Error(paymentIntent?.status ?? 'Payment did not succeed.');
       }
 
-      const { error: rpcError } = await supabase.rpc('top_up_wallet', {
-        p_amount: Math.floor(Math.max(0, Number(netCreditEgp))),
+      const { data: creditData, error: creditErr } = await supabase.functions.invoke('stripe-wallet-credit', {
+        body: { payment_intent_id: paymentIntent.id },
       });
-      if (rpcError) throw rpcError;
+      if (creditErr) throw creditErr;
+      if (
+        creditData &&
+        typeof creditData === 'object' &&
+        'error' in creditData &&
+        (creditData as { error?: string }).error
+      ) {
+        throw new Error(String((creditData as { error: string }).error));
+      }
 
       alert(t('stripeTopUpSuccess'));
       onAmountChange('');
@@ -226,6 +242,18 @@ interface StripeTopUpProps {
 const StripeTopUp: React.FC<StripeTopUpProps> = ({ onClose, userId }) => {
   const { t } = useTranslation();
   const [amount, setAmount] = useState('');
+  const [usdToEgpRate, setUsdToEgpRate] = useState(DEFAULT_USD_TO_EGP_RATE);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const r = await fetchUsdToEgpRate(supabase);
+      if (!cancelled) setUsdToEgpRate(r);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -252,6 +280,7 @@ const StripeTopUp: React.FC<StripeTopUpProps> = ({ onClose, userId }) => {
             onAmountChange={(v) => setAmount(sanitizeIntegerEgpDigits(v))}
             onClose={onClose}
             userId={userId}
+            usdToEgpRate={usdToEgpRate}
           />
         </Elements>
       </div>

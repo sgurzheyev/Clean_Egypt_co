@@ -5,6 +5,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { runMissionAiAnalysis } from '../lib/openai';
 import { ADMIN_FORCE_RELEASE_PAYMENT_BTN } from '../../constants';
 import { formatEgp } from '../lib/formatMoney';
+import { fetchUsdToEgpRate } from '../lib/platformSettings';
 import ModeratedMissionPhoto from '../../components/ModeratedMissionPhoto';
 
 interface ProfileRow {
@@ -140,6 +141,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     pending_withdrawals: number;
     supervisor_bounties_total: number;
   } | null>(null);
+
+  const [usdRateInput, setUsdRateInput] = useState('');
+  const [usdRateUpdatedAt, setUsdRateUpdatedAt] = useState<string | null>(null);
+  const [usdRateLoading, setUsdRateLoading] = useState(false);
+  const [usdRateSaveLoading, setUsdRateSaveLoading] = useState(false);
 
   const [disputes, setDisputes] = useState<MissionRow[]>([]);
   const [disputesLoading, setDisputesLoading] = useState(false);
@@ -484,6 +490,55 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     }
   };
 
+  const loadUsdRate = async () => {
+    setUsdRateLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('platform_settings')
+        .select('usd_to_egp_rate, updated_at')
+        .eq('id', 1)
+        .maybeSingle();
+      if (error) throw error;
+      const r = Number(data?.usd_to_egp_rate);
+      if (Number.isFinite(r) && r > 0) {
+        setUsdRateInput(String(r));
+      } else {
+        setUsdRateInput(String(await fetchUsdToEgpRate(supabase)));
+      }
+      setUsdRateUpdatedAt(data?.updated_at ?? null);
+    } catch (e: any) {
+      console.error('USD rate load error:', e);
+      setUsdRateInput(String(await fetchUsdToEgpRate(supabase)));
+      setUsdRateUpdatedAt(null);
+    } finally {
+      setUsdRateLoading(false);
+    }
+  };
+
+  const loadFinanceTab = async () => {
+    await Promise.all([loadMetrics(), loadUsdRate()]);
+  };
+
+  const handleSaveUsdRate = async () => {
+    const n = Number(usdRateInput);
+    if (!Number.isFinite(n) || n <= 0 || n > 1000) {
+      alert('Enter a valid rate between 0 and 1000.');
+      return;
+    }
+    setUsdRateSaveLoading(true);
+    try {
+      const { error } = await supabase.rpc('set_usd_to_egp_rate', { p_rate: n });
+      if (error) throw error;
+      await loadUsdRate();
+      alert('Rate saved.');
+    } catch (e: any) {
+      console.error('Save USD rate error:', e);
+      alert(e?.message || 'Failed to save rate.');
+    } finally {
+      setUsdRateSaveLoading(false);
+    }
+  };
+
   const loadDisputes = async () => {
     setDisputesLoading(true);
     setDisputesError(null);
@@ -694,7 +749,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                 setActiveTab(tab.id);
                 if (tab.id === 'god') await loadGodMode();
                 if (tab.id === 'missions') await loadMissionControl();
-                if (tab.id === 'finance') await loadMetrics();
+                if (tab.id === 'finance') await loadFinanceTab();
                 if (tab.id === 'disputes') await loadDisputes();
               }}
               className={[
@@ -1065,14 +1120,53 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                 </h3>
                 <button
                   type="button"
-                  onClick={loadMetrics}
-                  disabled={metricsLoading}
+                  onClick={loadFinanceTab}
+                  disabled={metricsLoading || usdRateLoading}
                   className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-orange-500/40 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 disabled:opacity-60 transition-all"
                 >
-                  {metricsLoading ? '...' : 'Refresh'}
+                  {metricsLoading || usdRateLoading ? '...' : 'Refresh'}
                 </button>
               </div>
               {metricsError && <p className="text-xs text-red-300 mb-2">{metricsError}</p>}
+
+              <div className="mb-4 rounded-2xl bg-cyan-950/15 border border-cyan-500/20 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300/90 mb-2">
+                  USD → EGP (Stripe wallet top-ups)
+                </p>
+                <p className="text-[11px] text-slate-400 mb-3">
+                  Live rate stored in <span className="font-mono text-slate-300">platform_settings</span>. Users who cannot read the table fall back to a safe default.
+                </p>
+                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3">
+                  <div className="flex-1 min-w-[140px]">
+                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+                      1 USD = … EGP
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      value={usdRateInput}
+                      onChange={(e) => setUsdRateInput(e.target.value.replace(/[^\d.]/g, ''))}
+                      disabled={usdRateLoading || usdRateSaveLoading}
+                      className="w-full rounded-xl bg-slate-900/80 border border-cyan-500/25 px-3 py-2 text-sm text-white tabular-nums focus:outline-none focus:border-cyan-400 disabled:opacity-60"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveUsdRate}
+                    disabled={usdRateLoading || usdRateSaveLoading}
+                    className="px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border border-orange-500/50 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 disabled:opacity-60 transition-all"
+                  >
+                    {usdRateSaveLoading ? '...' : 'Save rate'}
+                  </button>
+                </div>
+                {usdRateUpdatedAt && (
+                  <p className="mt-2 text-[10px] text-slate-500">
+                    Last updated: {new Date(usdRateUpdatedAt).toLocaleString()}
+                  </p>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
                   { label: 'Total Donated', value: metrics?.total_donated ?? 0, color: 'text-emerald-400' },

@@ -1,3 +1,4 @@
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import Stripe from 'npm:stripe@^14.0.0';
 
 const corsHeaders = {
@@ -5,6 +6,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+/**
+ * Creates a Stripe PaymentIntent for wallet top-up.
+ * Accepts integer EGP only; computes USD charge server-side using platform_settings.usd_to_egp_rate (fallback 55).
+ * Client must not send trusted USD or final EGP credit.
+ */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -16,26 +22,98 @@ Deno.serve(async (req) => {
       throw new Error('Missing STRIPE_SECRET_KEY in Supabase Secrets');
     }
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !anonKey || !serviceKey) {
+      throw new Error('Missing SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY');
+    }
+
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Missing Authorization' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const body = (await req.json()) as { amount_egp?: unknown; user_id?: unknown };
+    const userId = typeof body.user_id === 'string' ? body.user_id : '';
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'Missing user_id' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (body.amount_egp === undefined || body.amount_egp === null) {
+      return new Response(JSON.stringify({ error: 'Missing amount_egp' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const supabaseUser = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabaseUser.auth.getUser();
+    if (userErr || !user || user.id !== userId) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const rawEgp = Number(body.amount_egp);
+    const amountEgp = Math.floor(Math.max(0, rawEgp));
+    if (!Number.isFinite(amountEgp) || amountEgp <= 0) {
+      return new Response(JSON.stringify({ error: 'Invalid amount_egp' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (amountEgp > 2_500_000) {
+      return new Response(JSON.stringify({ error: 'Amount too large' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const supabaseService = createClient(supabaseUrl, serviceKey);
+    const { data: rateRow } = await supabaseService
+      .from('platform_settings')
+      .select('usd_to_egp_rate')
+      .eq('id', 1)
+      .maybeSingle();
+
+    let rate = Number(rateRow?.usd_to_egp_rate);
+    if (!Number.isFinite(rate) || rate <= 0 || rate > 1000) {
+      rate = 55;
+    }
+
+    const chargeUsd = Math.round((amountEgp / rate) * 10000) / 10000;
+    const cents = Math.round(chargeUsd * 100);
+    if (cents < 50) {
+      return new Response(JSON.stringify({ error: 'Minimum charge is $0.50' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const stripe = new Stripe(stripeKey, {
       apiVersion: '2022-11-15',
     });
 
-    const { amount, user_id } = await req.json();
-
-    const numericAmount = Number(amount);
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      throw new Error('Invalid amount');
-    }
-    if (!user_id || typeof user_id !== 'string') {
-      throw new Error('Missing or invalid user_id');
-    }
-
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(numericAmount * 100),
+      amount: cents,
       currency: 'usd',
       metadata: {
-        user_id,
+        user_id: userId,
         purpose: 'wallet_top_up',
+        amount_egp_intent: String(amountEgp),
       },
       automatic_payment_methods: { enabled: true },
     });
@@ -47,10 +125,11 @@ Deno.serve(async (req) => {
         status: 200,
       },
     );
-  } catch (error: any) {
-    console.error('stripe-intent error:', error?.message || error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('stripe-intent error:', message);
     return new Response(
-      JSON.stringify({ error: error?.message || 'Unknown error' }),
+      JSON.stringify({ error: message }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
@@ -58,4 +137,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
