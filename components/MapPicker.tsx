@@ -539,6 +539,99 @@ const customDarkStyle: any = {
         'background-color': '#000000',
       },
     },
+    // Landcover / landuse base palette (Egypt sand + mountains).
+    // These layers stay below roads and below our 3D mission cylinders.
+    {
+      id: 'landcover',
+      type: 'fill',
+      source: 'composite',
+      'source-layer': 'landcover',
+      paint: {
+        // Sand / scrub / rock tint that becomes slightly richer as you zoom in.
+        'fill-color': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          5,
+          [
+            'match',
+            ['get', 'class'],
+            // Desert / sand
+            'sand',
+            '#d2b48c',
+            'desert',
+            '#e3bc9a',
+            // Bare rock / mountains
+            'bare_rock',
+            '#4b3621',
+            'rock',
+            '#5d4037',
+            // Scrub / dry vegetation
+            'scrub',
+            '#8b8680',
+            'grass',
+            '#8b8680',
+            // Default: warm sand
+            '#d2b48c',
+          ],
+          12,
+          [
+            'match',
+            ['get', 'class'],
+            'sand',
+            '#e3bc9a',
+            'desert',
+            '#e3bc9a',
+            'bare_rock',
+            '#5d4037',
+            'rock',
+            '#5d4037',
+            'scrub',
+            '#8b8680',
+            'grass',
+            '#8b8680',
+            '#e3bc9a',
+          ],
+        ],
+        'fill-opacity': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          5,
+          0.55,
+          12,
+          0.78,
+        ],
+      },
+    },
+    {
+      id: 'landuse',
+      type: 'fill',
+      source: 'composite',
+      'source-layer': 'landuse',
+      paint: {
+        'fill-color': [
+          'match',
+          ['get', 'class'],
+          // Parks / greens should remain muted in desert palette
+          'park',
+          '#8b8680',
+          'national_park',
+          '#8b8680',
+          // Default: transparent-ish sand overlay
+          '#d2b48c',
+        ],
+        'fill-opacity': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          5,
+          0.12,
+          12,
+          0.22,
+        ],
+      },
+    },
     {
       id: 'water',
       type: 'fill',
@@ -2310,6 +2403,31 @@ const MapPicker: React.FC<MapPickerProps> = ({
               });
             }
             map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 });
+            // Add hillshade for extra mountain texture as you zoom in.
+            if (!map.getLayer('terrain-hillshade')) {
+              map.addLayer(
+                {
+                  id: 'terrain-hillshade',
+                  type: 'hillshade',
+                  source: 'mapbox-dem',
+                  paint: {
+                    'hillshade-shadow-color': '#120a06',
+                    'hillshade-highlight-color': '#e3bc9a',
+                    'hillshade-accent-color': '#5d4037',
+                    'hillshade-exaggeration': [
+                      'interpolate',
+                      ['linear'],
+                      ['zoom'],
+                      8,
+                      0.25,
+                      14,
+                      0.65,
+                    ],
+                  },
+                },
+                'road'
+              );
+            }
             if (!map.getLayer('sky')) {
               map.addLayer({
                 id: 'sky',
