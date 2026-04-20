@@ -663,8 +663,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     latitude: 27.2579,
     longitude: 33.8116,
     zoom: 12,
-    pitch: 45,
-    bearing: 0,
+    pitch: 60,
+    bearing: -20,
   });
 
   const [jobs, setJobs] = useState<JobOnMap[]>([]);
@@ -2071,6 +2071,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           },
           properties: {
             mission_id: j.id,
+            lng: j.location_lng,
+            lat: j.location_lat,
             /** Rounded integer EGP for label + extrusion height scale */
             funding_egp: fundingEgp,
             /** For Mapbox paint: cleaner assigned OR active workflow statuses */
@@ -2170,6 +2172,45 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
   }, [missionsHeatmapGeoJSON]);
 
+  /**
+   * Terrain-aware base for the 3D cylinder towers.
+   * When terrain is enabled, populate per-feature `terrain_elev` using `queryTerrainElevation`.
+   * Safe no-op if terrain isn't available.
+   */
+  useEffect(() => {
+    const map = mapRef.current?.getMap() as any;
+    if (!map?.isStyleLoaded?.()) return;
+    const src = map.getSource?.('mission-towers') as GeoJSONSource | undefined;
+    if (!src?.setData) return;
+
+    const hasTerrain = typeof map.getTerrain === 'function' ? !!map.getTerrain() : false;
+    const canQuery = typeof map.queryTerrainElevation === 'function';
+    if (!hasTerrain || !canQuery) return;
+
+    try {
+      const next = {
+        ...(missionTowersGeoJSON as any),
+        features: (missionTowersGeoJSON as any).features.map((f: any) => {
+          if (f?.geometry?.type !== 'Polygon') return f;
+          const lng = Number(f?.properties?.lng);
+          const lat = Number(f?.properties?.lat);
+          if (!Number.isFinite(lng) || !Number.isFinite(lat)) return f;
+          const elev = map.queryTerrainElevation([lng, lat], { exaggerated: false });
+          return {
+            ...f,
+            properties: {
+              ...(f.properties || {}),
+              terrain_elev: Number.isFinite(elev) ? elev : 0,
+            },
+          };
+        }),
+      };
+      src.setData(next);
+    } catch {
+      // ignore
+    }
+  }, [missionTowersGeoJSON]);
+
   /** Hover highlight + cursor for funding towers. */
   useEffect(() => {
     const map = mapRef.current?.getMap();
@@ -2256,6 +2297,33 @@ const MapPicker: React.FC<MapPickerProps> = ({
         onLoad={(e: any) => {
           const map = e?.target;
           if (!map) return;
+
+          // 3D Terrain + Mountains + realistic horizon.
+          // DEM source must exist before `setTerrain`.
+          try {
+            if (!map.getSource('mapbox-dem')) {
+              map.addSource('mapbox-dem', {
+                type: 'raster-dem',
+                url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+                tileSize: 512,
+                maxzoom: 14,
+              });
+            }
+            map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 });
+            if (!map.getLayer('sky')) {
+              map.addLayer({
+                id: 'sky',
+                type: 'sky',
+                paint: {
+                  'sky-type': 'atmosphere',
+                  'sky-atmosphere-sun': [0, 0],
+                  'sky-atmosphere-sun-intensity': 12,
+                },
+              });
+            }
+          } catch {
+            // Fail gracefully if the style/runtime doesn't support terrain/sky.
+          }
 
           map.setFog({
             range: [0.8, 8],
@@ -2462,7 +2530,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   200,
                 ],
               ] as any,
-              'fill-extrusion-base': 0,
+              // With terrain enabled, we can optionally populate `terrain_elev` per feature (meters)
+              // so cylinders sit on the ground instead of sea-level.
+              'fill-extrusion-base': ['coalesce', ['to-number', ['get', 'terrain_elev'], 0], 0] as any,
               // Constitution v6.0 tower colors (case order matters).
               'fill-extrusion-color': [
                 'case',
@@ -2525,7 +2595,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   200,
                 ],
               ] as any,
-              'fill-extrusion-base': 0,
+              'fill-extrusion-base': ['coalesce', ['to-number', ['get', 'terrain_elev'], 0], 0] as any,
               'fill-extrusion-color': '#00FFFF',
               'fill-extrusion-opacity': mapMarkerLayerSuppressed ? 0 : 0.8,
             }}
