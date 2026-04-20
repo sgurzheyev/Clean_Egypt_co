@@ -4,12 +4,23 @@ import { createClient } from '@supabase/supabase-js';
 // Server-side Supabase client (service role)
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error('Missing server env vars: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY');
+if (!supabaseUrl || !supabaseServiceRoleKey || !supabaseAnonKey) {
+  throw new Error(
+    'Missing server env vars: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY (do not rely on VITE_* on server)'
+  );
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey);
+
+function bearerToken(req: VercelRequest): string | null {
+  const h = req.headers.authorization || req.headers.Authorization;
+  if (!h || typeof h !== 'string') return null;
+  const m = h.match(/^Bearer\s+(.+)$/i);
+  return m?.[1]?.trim() || null;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -17,13 +28,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const token = bearerToken(req);
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { data: userRes, error: userErr } = await supabaseAuth.auth.getUser(token);
+    const authedUser = userRes?.user ?? null;
+    if (userErr || !authedUser?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const authedUserId = authedUser.id;
+
     const {
       type, // 'mission_creation' or 'worker_deposit'
       category, // 'public' | 'home' | 'office'
       amount_target,
       location_lat,
       location_lng,
-      userId,
       missionId, // needed for deposits
       description,
       creator_photos,
@@ -40,10 +63,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // --- 1. HANDLE MISSION CREATION ---
     if (type === 'mission_creation') {
-      if (!userId) {
-        return res.status(400).json({ error: 'Missing required field userId' });
-      }
-
       const resumeId =
         typeof existing_mission_id === 'string' && existing_mission_id.length > 0
           ? existing_mission_id
@@ -61,7 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (exErr || !existing) {
           return res.status(400).json({ error: 'Mission not found' });
         }
-        if (existing.creator_id !== userId) {
+        if (existing.creator_id !== authedUserId) {
           return res.status(403).json({ error: 'Forbidden' });
         }
         if (existing.status !== 'pending_payment') {
@@ -93,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const { data: newMission, error: missionError } = await supabase
           .from('missions')
           .insert({
-            creator_id: userId,
+            creator_id: authedUserId,
             category,
             amount_target: finalAmountTarget,
             location_lat: latNum,
@@ -118,24 +137,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     // --- 2. HANDLE WORKER DEPOSIT ---
     else if (type === 'worker_deposit') {
-      if (!userId || !finalAmountTarget) {
+      if (!finalAmountTarget) {
         return res.status(400).json({ error: 'Missing fields for deposit' });
       }
       // Webhook parses merchant_order_id as `worker_deposit:<userId>_...` and credits that profile.
-      missionIdForMetadata = userId;
+      missionIdForMetadata = authedUserId;
     } else {
        return res.status(400).json({ error: 'Invalid payment type' });
     }
 
     /** Wallet-only checkout: mission row exists (or resume); no Paymob session. */
     if (type === 'mission_creation' && defer_payment) {
-      if (!userId) {
-        return res.status(400).json({ error: 'Missing required field userId' });
-      }
       const { data: prof } = await supabase
         .from('profiles')
         .select('wallet_balance')
-        .eq('id', userId)
+        .eq('id', authedUserId)
         .maybeSingle();
       const wb = Math.floor(Number(prof?.wallet_balance ?? 0));
       if (wb < finalAmountTarget) {

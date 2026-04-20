@@ -873,16 +873,22 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         return;
       }
 
-      const creatorId = session.user.id;
+      const accessToken = session.access_token;
+      if (!accessToken) {
+        setOrderError('You must be signed in to create a task.');
+        return;
+      }
 
       const res = await fetch('/api/paymob-intent', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           type: 'mission_creation',
           category: taskType === 'city' ? 'public' : 'home',
           amount_target: floorEgp(amount),
-          userId: creatorId,
           // TODO: wire actual map location; using fallback center for now
           location_lat: 27.2579,
           location_lng: 33.8116,
@@ -918,17 +924,19 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const userId = session?.user?.id;
-      if (!userId) {
+      const accessToken = session?.access_token;
+      if (!session?.user?.id || !accessToken) {
         toast.error(t('signIn'));
         return;
       }
       const res = await fetch('/api/paymob-intent', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           type: 'mission_creation',
-          userId,
           existing_mission_id: job.id,
         }),
       });

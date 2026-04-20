@@ -952,16 +952,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
       creatorPhotos?: string[];
     }) => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) return;
+      if (!session?.user?.id || !session.access_token) return;
 
       const res = await fetch('/api/paymob-intent', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           type: 'mission_creation',
           category: payload.taskType === 'city' ? 'public' : 'home',
           amount_target: floorEgp(payload.amount),
-          userId: session.user.id,
           location_lat: payload.location.lat,
           location_lng: payload.location.lng,
           description: payload.description || undefined,
@@ -1908,12 +1910,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
         if (payFromWallet) {
           const res = await fetch('/api/paymob-intent', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
             body: JSON.stringify({
               type: 'mission_creation',
               category: 'home',
               amount_target: floorEgp(amount),
-              userId: session.user.id,
               location_lat: selectedLocation.lat,
               location_lng: selectedLocation.lng,
               description: descriptionToSave || undefined,

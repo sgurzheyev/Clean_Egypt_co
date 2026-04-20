@@ -45,6 +45,33 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
 
   const parseEgp = (): number => parseIntegerEgpFromInput(amountEgp);
 
+  const fetchPaymobIntent = async (accessToken: string, body: unknown) => {
+    let res = await fetch('/api/paymob-intent', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (res.status === 401) {
+      const { data } = await supabase.auth.refreshSession();
+      const nextToken = data.session?.access_token;
+      if (!nextToken) return res;
+      res = await fetch('/api/paymob-intent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${nextToken}`,
+        },
+        body: JSON.stringify(body),
+      });
+    }
+
+    return res;
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -73,7 +100,12 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
       data: { session },
     } = await supabase.auth.getSession();
     const userId = session?.user?.id;
+    const accessToken = session?.access_token;
     if (!userId) {
+      alert(t('signIn'));
+      return;
+    }
+    if (!accessToken) {
       alert(t('signIn'));
       return;
     }
@@ -84,19 +116,14 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
     if (onOrderStarted) onOrderStarted();
 
     try {
-      const res = await fetch('/api/paymob-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'mission_creation',
-          category,
-          amount_target: Math.floor(Math.max(0, egp)),
-          userId,
-          location_lat: selectedLocation.lat,
-          location_lng: selectedLocation.lng,
-          description: shortDescription.trim() || undefined,
-          defer_payment: true,
-        }),
+      const res = await fetchPaymobIntent(accessToken, {
+        type: 'mission_creation',
+        category,
+        amount_target: Math.floor(Math.max(0, egp)),
+        location_lat: selectedLocation.lat,
+        location_lng: selectedLocation.lng,
+        description: shortDescription.trim() || undefined,
+        defer_payment: true,
       });
 
       const data = (await res.json().catch(() => ({}))) as {
@@ -104,6 +131,7 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
         missionId?: string;
       };
       if (!res.ok) {
+        if (res.status === 401) throw new Error(t('signIn'));
         throw new Error(data.error || `Wallet payment failed (${res.status})`);
       }
       if (!data.missionId) {
@@ -131,7 +159,12 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
       data: { session },
     } = await supabase.auth.getSession();
     const userId = session?.user?.id;
+    const accessToken = session?.access_token;
     if (!userId) {
+      alert(t('signIn') || 'Sign in required');
+      return;
+    }
+    if (!accessToken) {
       alert(t('signIn') || 'Sign in required');
       return;
     }
@@ -141,22 +174,18 @@ const OrderForm: React.FC<Props> = ({ selectedLocation, onOrderStarted }) => {
     if (onOrderStarted) onOrderStarted();
 
     try {
-      const res = await fetch('/api/paymob-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'mission_creation',
-          category,
-          amount_target: Math.floor(Math.max(0, egp)),
-          userId,
-          location_lat: selectedLocation.lat,
-          location_lng: selectedLocation.lng,
-          description: shortDescription.trim() || undefined,
-        }),
+      const res = await fetchPaymobIntent(accessToken, {
+        type: 'mission_creation',
+        category,
+        amount_target: Math.floor(Math.max(0, egp)),
+        location_lat: selectedLocation.lat,
+        location_lng: selectedLocation.lng,
+        description: shortDescription.trim() || undefined,
       });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
+        if (res.status === 401) throw new Error(t('signIn') || 'Sign in required');
         throw new Error((errData as { error?: string }).error || `Payment init failed (${res.status})`);
       }
 

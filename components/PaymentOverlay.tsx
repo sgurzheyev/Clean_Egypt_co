@@ -43,25 +43,53 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
           data: { session },
         } = await supabase.auth.getSession();
         const currentUserId = session?.user?.id;
+        const accessToken = session?.access_token;
         if (!currentUserId) {
           setFetchError(true);
           return;
         }
+        if (!accessToken) {
+          setFetchError(true);
+          return;
+        }
 
-        const res = await fetch('/api/paymob-intent', {
+        let res = await fetch('/api/paymob-intent', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
           body: JSON.stringify({
             type: 'mission_creation',
             category: type === 'city' ? 'public' : 'home',
             amount_target: floorEgp(amount),
-            userId: currentUserId,
             location_lat: lat,
             location_lng: lng,
           }),
         });
 
-        if (!res.ok) throw new Error('API unreachable');
+        if (res.status === 401) {
+          const { data } = await supabase.auth.refreshSession();
+          const nextToken = data.session?.access_token;
+          if (nextToken) {
+            res = await fetch('/api/paymob-intent', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${nextToken}`,
+              },
+              body: JSON.stringify({
+                type: 'mission_creation',
+                category: type === 'city' ? 'public' : 'home',
+                amount_target: floorEgp(amount),
+                location_lat: lat,
+                location_lng: lng,
+              }),
+            });
+          }
+        }
+
+        if (!res.ok) throw new Error(res.status === 401 ? 'Unauthorized' : 'API unreachable');
         const data = await res.json();
 
         if (data.paymentToken) {
@@ -96,7 +124,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
 
   return (
     <div
-      className="fixed top-0 right-0 bottom-0 left-0 z-50 flex items-center justify-center p-4 overscroll-contain"
+      className="fixed top-0 right-0 bottom-0 left-0 z-[5000] flex items-center justify-center p-4 overscroll-contain"
       onTouchStart={stopProp}
       onTouchMove={stopProp}
       onTouchEnd={stopProp}
@@ -109,7 +137,7 @@ const PaymentOverlay: React.FC<PaymentOverlayProps> = ({ onClose, onSuccess, lat
       />
       <div
         className="relative w-full max-w-md bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden"
-        style={{ maxHeight: 700 }}
+        style={{ maxHeight: '90vh' }}
         onClick={(e) => e.stopPropagation()}
       >
           {/* ШАПКА: кнопка закрытия слева сверху */}

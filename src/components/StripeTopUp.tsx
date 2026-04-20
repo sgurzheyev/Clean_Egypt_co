@@ -141,6 +141,7 @@ function StripeTopUpForm({
       }
 
       alert(t('stripeTopUpSuccess'));
+      window.dispatchEvent(new CustomEvent('paymentSuccess'));
       onAmountChange('');
       onClose();
     } catch (err: any) {
