@@ -528,6 +528,12 @@ const customDarkStyle: any = {
       type: 'vector',
       url: 'mapbox://mapbox.mapbox-streets-v8',
     },
+    // Dark satellite base (aero-photo desert realism).
+    'satellite': {
+      type: 'raster',
+      url: 'mapbox://mapbox.satellite',
+      tileSize: 256,
+    },
   },
   sprite: 'mapbox://sprites/mapbox/dark-v10',
   glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
@@ -537,6 +543,18 @@ const customDarkStyle: any = {
       type: 'background',
       paint: {
         'background-color': '#000000',
+      },
+    },
+    {
+      id: 'satellite-base',
+      type: 'raster',
+      source: 'satellite',
+      paint: {
+        'raster-saturation': 0.1,
+        'raster-brightness-max': 0.45,
+        'raster-brightness-min': 0.05,
+        'raster-contrast': 0.2,
+        'raster-opacity': 0.8,
       },
     },
     // Landcover / landuse base palette (Egypt sand + mountains).
@@ -613,11 +631,15 @@ const customDarkStyle: any = {
         'fill-color': [
           'match',
           ['get', 'class'],
-          // Parks / greens should remain muted in desert palette
+          // Nile delta greenery (subtle emissive tint over satellite).
           'park',
-          '#8b8680',
+          '#047857',
           'national_park',
-          '#8b8680',
+          '#047857',
+          'agriculture',
+          '#047857',
+          'grass',
+          '#047857',
           // Default: transparent-ish sand overlay
           '#d2b48c',
         ],
@@ -626,9 +648,9 @@ const customDarkStyle: any = {
           ['linear'],
           ['zoom'],
           5,
-          0.12,
+          0.1,
           12,
-          0.22,
+          0.15,
         ],
       },
     },
@@ -638,7 +660,32 @@ const customDarkStyle: any = {
       source: 'composite',
       'source-layer': 'water',
       paint: {
-        'fill-color': '#808080',
+        'fill-color': '#082f49',
+        'fill-opacity': 0.85,
+      },
+    },
+    // Nile glow: subtle bioluminescent shoreline / waterways.
+    {
+      id: 'waterway-glow',
+      type: 'line',
+      source: 'composite',
+      'source-layer': 'waterway',
+      paint: {
+        'line-color': '#06b6d4',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.3, 12, 1.2, 16, 2.4],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.25, 12, 0.55, 16, 0.75],
+        'line-blur': 2,
+      },
+    },
+    {
+      id: 'waterway-core',
+      type: 'line',
+      source: 'composite',
+      'source-layer': 'waterway',
+      paint: {
+        'line-color': '#06b6d4',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.1, 12, 0.6, 16, 1.2],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.35, 12, 0.7, 16, 0.9],
       },
     },
     {
@@ -2402,7 +2449,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 maxzoom: 14,
               });
             }
-            map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 });
+            map.setTerrain({ source: 'mapbox-dem', exaggeration: 2.0 });
             // Add hillshade for extra mountain texture as you zoom in.
             if (!map.getLayer('terrain-hillshade')) {
               map.addLayer(
@@ -2411,9 +2458,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   type: 'hillshade',
                   source: 'mapbox-dem',
                   paint: {
-                    'hillshade-shadow-color': '#120a06',
-                    'hillshade-highlight-color': '#e3bc9a',
-                    'hillshade-accent-color': '#5d4037',
+                    'hillshade-shadow-color': '#0b0e14',
+                    'hillshade-highlight-color': '#ff9e64',
+                    'hillshade-accent-color': '#022c22',
                     'hillshade-exaggeration': [
                       'interpolate',
                       ['linear'],
@@ -2445,9 +2492,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
           map.setFog({
             range: [0.8, 8],
-            color: '#1a1f35',
-            'horizon-blend': 0.5,
-            'high-color': '#000000',
+            color: '#0b0e14',
+            'horizon-blend': 0.1,
+            'high-color': '#ff9e64',
             'space-color': '#000000',
             'star-intensity': 0.8,
           });
@@ -2455,9 +2502,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
           const hour = new Date().getHours();
           const isNight = hour >= 18 || hour < 6;
           try {
-            map.setConfigProperty?.('basemap', 'lightPreset', isNight ? 'night' : 'day');
+            // Cinematic cyberpunk realism: dawn preset on Standard basemap if supported.
+            map.setConfigProperty?.('basemap', 'lightPreset', 'dawn');
           } catch {
             /* Custom vector style may not expose Standard basemap config */
+          }
+
+          try {
+            map.setLight?.({
+              anchor: 'map',
+              color: '#ff9e64',
+              intensity: 0.5,
+              position: [1.5, 120, 60],
+            });
+          } catch {
+            // Some styles/runtimes may not support setLight.
           }
 
           const style = map.getStyle?.();
@@ -2537,6 +2596,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   'fill-extrusion-height': ['get', 'height'],
                   'fill-extrusion-base': ['get', 'min_height'],
                   'fill-extrusion-opacity': 0.8,
+                  'fill-extrusion-vertical-gradient': true,
+                  'fill-extrusion-ambient-occlusion-intensity': 0.8,
                 },
               },
               'place_label'
