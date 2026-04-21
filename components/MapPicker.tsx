@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import Map, { NavigationControl, GeolocateControl, MapRef, Source, Layer } from 'react-map-gl';
+import Map, { NavigationControl, GeolocateControl, MapRef, Source, Layer, Popup } from 'react-map-gl';
 import type { GeoJSONSource, MapMouseEvent, PointLike } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
@@ -808,6 +808,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   });
 
   const [jobs, setJobs] = useState<JobOnMap[]>([]);
+  const [selectedBuildingInfo, setSelectedBuildingInfo] = useState<any>(null);
   /** 3D tower hover (GeoJSON mission_id). */
   const [hoveredTowerMissionId, setHoveredTowerMissionId] = useState<string | null>(null);
 
@@ -1090,6 +1091,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       location: { lat: number; lng: number };
       description: string;
       creatorPhotos?: string[];
+      building?: any;
     }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user?.id || !session.access_token) return;
@@ -1107,6 +1109,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
           location_lat: payload.location.lat,
           location_lng: payload.location.lng,
           description: payload.description || undefined,
+          // Prep: indoor/home mission building targeting (backend may ignore until DB supports it)
+          building_id: payload.building?.id ?? null,
+          building_height_m: payload.building?.height ?? null,
           creator_photos:
             payload.creatorPhotos && payload.creatorPhotos.length > 0
               ? payload.creatorPhotos
@@ -1191,6 +1196,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           taskType: (saved.taskType as TaskType) || 'city',
           location: { lat: saved.location_lat, lng: saved.location_lng },
           description: saved.description || '',
+          building: null,
         });
       } catch (e) {
         console.error('Pending submit restore error:', e);
@@ -2099,6 +2105,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           location: selectedLocation,
           description: descriptionToSave || orderDescription || '',
           creatorPhotos: creatorPhotoUrls,
+          building: taskType === 'home' ? selectedBuildingInfo : null,
         });
       }
     } catch (err) {
@@ -2431,7 +2438,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         {...viewState}
         antialias
         onMove={(evt) => setViewState(evt.viewState)}
-        interactiveLayerIds={['mission-towers', 'mission-towers-hover']}
+        interactiveLayerIds={['mission-towers', 'mission-towers-hover', '3d-buildings']}
         onClick={handleMapClickWithTowers}
         maxBounds={EGYPT_MAX_BOUNDS}
         onLoad={(e: any) => {
@@ -2592,7 +2599,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 type: 'fill-extrusion',
                 minzoom: 13,
                 paint: {
-                  'fill-extrusion-color': '#222',
+                  'fill-extrusion-color': [
+                    'case',
+                    ['boolean', ['feature-state', 'selected'], false],
+                    '#22c55e',
+                    ['boolean', ['feature-state', 'hover'], false],
+                    'rgba(6, 182, 212, 0.65)',
+                    '#1f2937',
+                  ] as any,
                   'fill-extrusion-height': ['get', 'height'],
                   'fill-extrusion-base': ['get', 'min_height'],
                   'fill-extrusion-opacity': 0.8,
@@ -2602,6 +2616,80 @@ const MapPicker: React.FC<MapPickerProps> = ({
               },
               'place_label'
             );
+          }
+
+          // Building hover/select (feature-state driven)
+          try {
+            let hoveredId: any = null;
+            let selectedId: any = null;
+
+            const onMoveBuildings = (ev: any) => {
+              const f = ev?.features?.[0];
+              if (!f) return;
+              map.getCanvas().style.cursor = 'pointer';
+              const nextId = f.id;
+              if (nextId == null) return;
+              if (hoveredId != null && hoveredId !== nextId) {
+                map.setFeatureState({ source: 'composite', sourceLayer: 'building', id: hoveredId }, { hover: false });
+              }
+              hoveredId = nextId;
+              map.setFeatureState({ source: 'composite', sourceLayer: 'building', id: hoveredId }, { hover: true });
+            };
+
+            const onLeaveBuildings = () => {
+              map.getCanvas().style.cursor = '';
+              if (hoveredId != null) {
+                map.setFeatureState({ source: 'composite', sourceLayer: 'building', id: hoveredId }, { hover: false });
+              }
+              hoveredId = null;
+            };
+
+            const onClickBuildings = (ev: any) => {
+              const f = ev?.features?.[0];
+              if (!f) return;
+              const id = f.id;
+              if (id == null) return;
+              if (selectedId != null && selectedId !== id) {
+                map.setFeatureState({ source: 'composite', sourceLayer: 'building', id: selectedId }, { selected: false });
+              }
+              selectedId = id;
+              map.setFeatureState({ source: 'composite', sourceLayer: 'building', id: selectedId }, { selected: true });
+
+              const lng = Number(ev?.lngLat?.lng);
+              const lat = Number(ev?.lngLat?.lat);
+              if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                setSelectedLocation({ lat, lng });
+              }
+
+              // Store raw properties for later mission payload (building_id, height, etc.)
+              const props = f.properties || {};
+              const height = Number(props.height ?? props.render_height ?? props['height']);
+              const minHeight = Number(props.min_height ?? props['min_height']);
+
+              setSelectedBuildingInfo({
+                id,
+                lngLat: Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null,
+                properties: props,
+                height: Number.isFinite(height) ? height : null,
+                min_height: Number.isFinite(minHeight) ? minHeight : null,
+              });
+            };
+
+            map.on('mousemove', '3d-buildings', onMoveBuildings);
+            map.on('mouseleave', '3d-buildings', onLeaveBuildings);
+            map.on('click', '3d-buildings', onClickBuildings);
+
+            map.on('remove', () => {
+              try {
+                map.off('mousemove', '3d-buildings', onMoveBuildings);
+                map.off('mouseleave', '3d-buildings', onLeaveBuildings);
+                map.off('click', '3d-buildings', onClickBuildings);
+              } catch {
+                // ignore
+              }
+            });
+          } catch {
+            // ignore if feature-state isn't supported in this context
           }
         }}
         mapStyle={customDarkStyle}
@@ -2803,6 +2891,40 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }}
           />
         </Source>
+
+        {selectedBuildingInfo?.lngLat && (
+          <Popup
+            longitude={selectedBuildingInfo.lngLat.lng}
+            latitude={selectedBuildingInfo.lngLat.lat}
+            closeButton={false}
+            closeOnClick={false}
+            anchor="bottom"
+            offset={18}
+            onClose={() => setSelectedBuildingInfo(null)}
+            className="z-[9999]"
+          >
+            <div className="rounded-2xl bg-slate-950/90 border border-emerald-500/30 shadow-[0_0_24px_rgba(34,197,94,0.25)] px-4 py-3 text-white max-w-[240px]">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-300 font-black">
+                Building Selected
+              </p>
+              <div className="mt-2 space-y-1 text-[11px] text-slate-200">
+                <p className="font-mono text-slate-400">ID: {String(selectedBuildingInfo.id).slice(0, 10)}</p>
+                {typeof selectedBuildingInfo.height === 'number' && (
+                  <p>
+                    Height: <span className="font-black">{Math.round(selectedBuildingInfo.height)}m</span>
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBuildingInfo(null)}
+                className="mt-3 w-full px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border border-cyan-500/40 text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all"
+              >
+                Clear
+              </button>
+            </div>
+          </Popup>
+        )}
       </Map>
 
       {/* Minimalist overlays — wrapper is pointer-events-none so map stays interactive */}
