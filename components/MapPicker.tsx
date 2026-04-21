@@ -795,6 +795,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const isRu = (i18n.language || '').toLowerCase().startsWith('ru');
   const mapRef = React.useRef<MapRef>(null);
   const orderFormRef = React.useRef<HTMLFormElement>(null);
+  const hoveredBuildingIdRef = React.useRef<any>(null);
+  const selectedBuildingIdRef = React.useRef<any>(null);
   /** When true, next home submit uses wallet (defer Paymob) instead of card checkout. */
   const orderFormWalletPayRef = React.useRef(false);
   /** Creator wallet (EGP) for "pay from wallet" on home missions. */
@@ -1214,6 +1216,22 @@ const MapPicker: React.FC<MapPickerProps> = ({
         toast.error(t('geofenceEgyptShelf'));
         return;
       }
+
+      // Ground click clears any selected building (green highlight + popup)
+      // so the generic blue dot is the only selection.
+      const map = mapRef.current?.getMap() as any;
+      if (map && selectedBuildingIdRef.current != null) {
+        try {
+          map.setFeatureState(
+            { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
+            { selected: false }
+          );
+        } catch {
+          // ignore
+        }
+        selectedBuildingIdRef.current = null;
+      }
+      setSelectedBuildingInfo(null);
 
       setSelectedLocation({ lat, lng });
       onLocationSelect(lat, lng);
@@ -2620,28 +2638,34 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
           // Building hover/select (feature-state driven)
           try {
-            let hoveredId: any = null;
-            let selectedId: any = null;
-
             const onMoveBuildings = (ev: any) => {
               const f = ev?.features?.[0];
               if (!f) return;
               map.getCanvas().style.cursor = 'pointer';
               const nextId = f.id;
               if (nextId == null) return;
-              if (hoveredId != null && hoveredId !== nextId) {
-                map.setFeatureState({ source: 'composite', sourceLayer: 'building', id: hoveredId }, { hover: false });
+              if (hoveredBuildingIdRef.current != null && hoveredBuildingIdRef.current !== nextId) {
+                map.setFeatureState(
+                  { source: 'composite', sourceLayer: 'building', id: hoveredBuildingIdRef.current },
+                  { hover: false }
+                );
               }
-              hoveredId = nextId;
-              map.setFeatureState({ source: 'composite', sourceLayer: 'building', id: hoveredId }, { hover: true });
+              hoveredBuildingIdRef.current = nextId;
+              map.setFeatureState(
+                { source: 'composite', sourceLayer: 'building', id: hoveredBuildingIdRef.current },
+                { hover: true }
+              );
             };
 
             const onLeaveBuildings = () => {
               map.getCanvas().style.cursor = '';
-              if (hoveredId != null) {
-                map.setFeatureState({ source: 'composite', sourceLayer: 'building', id: hoveredId }, { hover: false });
+              if (hoveredBuildingIdRef.current != null) {
+                map.setFeatureState(
+                  { source: 'composite', sourceLayer: 'building', id: hoveredBuildingIdRef.current },
+                  { hover: false }
+                );
               }
-              hoveredId = null;
+              hoveredBuildingIdRef.current = null;
             };
 
             const onClickBuildings = (ev: any) => {
@@ -2649,17 +2673,22 @@ const MapPicker: React.FC<MapPickerProps> = ({
               if (!f) return;
               const id = f.id;
               if (id == null) return;
-              if (selectedId != null && selectedId !== id) {
-                map.setFeatureState({ source: 'composite', sourceLayer: 'building', id: selectedId }, { selected: false });
+              if (selectedBuildingIdRef.current != null && selectedBuildingIdRef.current !== id) {
+                map.setFeatureState(
+                  { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
+                  { selected: false }
+                );
               }
-              selectedId = id;
-              map.setFeatureState({ source: 'composite', sourceLayer: 'building', id: selectedId }, { selected: true });
+              selectedBuildingIdRef.current = id;
+              map.setFeatureState(
+                { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
+                { selected: true }
+              );
 
               const lng = Number(ev?.lngLat?.lng);
               const lat = Number(ev?.lngLat?.lat);
-              if (Number.isFinite(lat) && Number.isFinite(lng)) {
-                setSelectedLocation({ lat, lng });
-              }
+              // If a building is selected, hide the generic blue dot.
+              setSelectedLocation(null);
 
               // Store raw properties for later mission payload (building_id, height, etc.)
               const props = f.properties || {};
