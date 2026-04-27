@@ -857,10 +857,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
       ? moonSkyDiscIntensity * (0.55 + 0.45 * Math.min(1, moonElevDeg / 60))
       : Math.max(2, moonFrac * 4);
 
-    const skySunIntensity = isNight
-      ? nightSkyIntensity
-      : Math.max(0, Math.min(15, (sunAltDeg / 45) * 15));
-
     const skySunVec = isNight
       ? ([moonAziDeg, moonSkyPolarDeg] as [number, number])
       : ([sunAziDeg, sunSkyPolarDeg] as [number, number]);
@@ -876,28 +872,94 @@ const MapPicker: React.FC<MapPickerProps> = ({
       : 0;
     const nightFogHigh =
       moonGlowMix > 0.12
-        ? '#0e1624'
+        ? '#101c32'
         : moonGlowMix > 0.04
-          ? '#0c1219'
-          : '#0b0e14';
+          ? '#081018'
+          : '#020617';
     const nightHorizonBlend = Math.min(
       0.028,
       0.01 + moonGlowMix * 0.018
     );
 
-    /** Night: dark fog + strong procedural stars (`star-intensity` is fog-driven, not the sky layer). */
+    const camZoom =
+      typeof map.getZoom === 'function' ? map.getZoom() : 11;
+    const camPitch =
+      typeof map.getPitch === 'function' ? map.getPitch() : 60;
+
+    /** Bright moon high in sky washes stars; thin crescent / low moon → dense starfield (cinematic). */
+    const moonElevWash = moonAboveHorizon
+      ? Math.pow(Math.min(1, moonElevDeg / 56), 1.12)
+      : 0;
+    const moonWashStars = moonFrac * (0.12 + moonElevWash * 0.88);
+    const phaseStarBoost = (1 - moonFrac) * 0.18;
+    const pitchStarBoost = Math.min(
+      0.14,
+      Math.max(0, camPitch - 26) * 0.0022
+    );
+    let starNightScalar = Math.min(
+      1,
+      Math.max(
+        0.6,
+        0.98 - moonWashStars * 0.45 + phaseStarBoost + pitchStarBoost
+      )
+    );
+
+    const starIntensityExpr = [
+      'interpolate',
+      ['linear'],
+      ['zoom'],
+      2,
+      Math.min(1, starNightScalar * 1.14),
+      6,
+      Math.min(1, starNightScalar * 1.08),
+      10,
+      starNightScalar,
+      14,
+      Math.max(0.6, starNightScalar * 0.96),
+      18,
+      Math.max(0.6, starNightScalar * 0.88),
+    ];
+
+    /** Slightly dim moon disc when stars are maximal so halo does not bloom over the starfield. */
+    let nightSkyIntensityUse = nightSkyIntensity;
+    if (
+      isNight &&
+      moonAboveHorizon &&
+      starNightScalar >= 0.88 &&
+      moonWashStars < 0.35
+    ) {
+      nightSkyIntensityUse *= 0.9;
+    }
+
+    const skySunIntensity = isNight
+      ? nightSkyIntensityUse
+      : Math.max(0, Math.min(15, (sunAltDeg / 45) * 15));
+
+    /** Sample zoom curve when runtime rejects star-intensity expressions. */
+    const starIntensitySampleAtZoom = (z: number, s: number) => {
+      const tLo = Math.min(1, s * 1.14);
+      const tMid = s;
+      const tHi = Math.max(0.6, s * 0.87);
+      if (z <= 2) return tLo;
+      if (z >= 17.5) return tHi;
+      if (z <= 9.5) {
+        const u = (z - 2) / (9.5 - 2);
+        return tLo + u * (tMid - tLo);
+      }
+      const u = (z - 9.5) / (17.5 - 9.5);
+      return tMid + u * (tHi - tMid);
+    };
+
+    /** Night: procedural stars live in fog; base/space tint #020617 so pinpoints read sharp. */
     let fogPack: Record<string, unknown>;
     if (isNight) {
       fogPack = {
         range: [0.8, 8],
-        color: '#0b0e14',
+        color: '#020617',
         'high-color': nightFogHigh,
         'horizon-blend': nightHorizonBlend,
-        'space-color': '#000000',
-        'star-intensity': Math.min(
-          1,
-          0.58 + moonFrac * 0.35 + moonGlowMix * 0.12
-        ),
+        'space-color': '#020617',
+        'star-intensity': starIntensityExpr,
       };
     } else if (golden) {
       fogPack = {
@@ -932,8 +994,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         try {
           if (isNight) {
             const haloA = Math.max(
-              0.25,
-              Math.min(0.95, 0.35 + moonFrac * 0.55)
+              0.12,
+              Math.min(0.58, 0.16 + moonFrac * 0.44)
             );
             map.setPaintProperty(
               'sky',
@@ -958,7 +1020,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
     try {
       map.setFog?.(fogPack as Parameters<typeof map.setFog>[0]);
     } catch {
-      // ignore
+      if (isNight) {
+        try {
+          map.setFog?.({
+            range: [0.8, 8],
+            color: '#020617',
+            'high-color': nightFogHigh,
+            'horizon-blend': nightHorizonBlend,
+            'space-color': '#020617',
+            'star-intensity': starIntensitySampleAtZoom(camZoom, starNightScalar),
+          });
+        } catch {
+          /* ignore */
+        }
+      }
     }
 
     try {
@@ -2740,6 +2815,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
             // ignore
           }
           map.on?.('moveend', updateAtmosphere);
+          let atmosphereCamTimer: ReturnType<typeof setTimeout>;
+          const scheduleAtmosphereCamera = () => {
+            clearTimeout(atmosphereCamTimer);
+            atmosphereCamTimer = setTimeout(() => {
+              try {
+                updateAtmosphere();
+              } catch {
+                /* ignore */
+              }
+            }, 95);
+          };
+          map.on?.('zoom', scheduleAtmosphereCamera);
+          map.on?.('rotate', scheduleAtmosphereCamera);
 
           const style = map.getStyle?.();
           const waterLikeLayers = (style?.layers || []).filter(
