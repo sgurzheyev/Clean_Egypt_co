@@ -5,6 +5,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
 import { Recycle, Navigation, Camera, X, Clock } from 'lucide-react';
 import TrustDepositInfoModal from './TrustDepositInfoModal';
@@ -794,6 +795,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const { t, i18n } = useTranslation();
   const isRu = (i18n.language || '').toLowerCase().startsWith('ru');
   const mapRef = React.useRef<MapRef>(null);
+  const mapInstanceRef = React.useRef<any>(null);
   const orderFormRef = React.useRef<HTMLFormElement>(null);
   const hoveredBuildingIdRef = React.useRef<any>(null);
   const selectedBuildingIdRef = React.useRef<any>(null);
@@ -811,6 +813,70 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const [jobs, setJobs] = useState<JobOnMap[]>([]);
   const [selectedBuildingInfo, setSelectedBuildingInfo] = useState<any>(null);
+
+  const updateAtmosphere = useCallback(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    const center = map.getCenter?.();
+    const lat = Number(center?.lat);
+    const lng = Number(center?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    const now = new Date();
+    const sun = SunCalc.getPosition(now, lat, lng);
+    const moonPos = SunCalc.getMoonPosition(now, lat, lng);
+    const moonIll = SunCalc.getMoonIllumination(now);
+
+    const sunAltDeg = (sun.altitude * 180) / Math.PI;
+    const sunAziDeg = ((sun.azimuth * 180) / Math.PI + 180 + 360) % 360;
+    const moonAltDeg = (moonPos.altitude * 180) / Math.PI;
+    const moonAziDeg = ((moonPos.azimuth * 180) / Math.PI + 180 + 360) % 360;
+
+    const isNight = sunAltDeg < 0;
+    const mainAzi = isNight ? moonAziDeg : sunAziDeg;
+    const mainAlt = isNight ? moonAltDeg : sunAltDeg;
+
+    const dayIntensity = Math.max(0, Math.min(15, (sunAltDeg / 45) * 15));
+    const moonFrac = Math.max(0, Math.min(1, Number(moonIll?.fraction ?? 0)));
+    const nightIntensity = Math.max(0.5, Math.min(10, 2 + moonFrac * 8));
+    const intensity = isNight ? nightIntensity : dayIntensity;
+
+    const golden = sunAltDeg >= 0 && sunAltDeg <= 10;
+    const deepNight = sunAltDeg < -18;
+
+    const fogColor = deepNight ? '#0b0e14' : golden ? '#ff9e64' : '#0b0e14';
+    const fogHigh = golden ? '#ff9e64' : deepNight ? '#06b6d4' : '#ff9e64';
+    const horizonBlend = golden ? 0.18 : deepNight ? 0.08 : 0.12;
+
+    try {
+      if (map.getLayer?.('sky')) {
+        map.setPaintProperty('sky', 'sky-atmosphere-sun', [mainAzi, mainAlt]);
+        map.setPaintProperty('sky', 'sky-atmosphere-sun-intensity', intensity);
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      map.setFog?.({
+        range: [0.8, 8],
+        color: fogColor,
+        'horizon-blend': horizonBlend,
+        'high-color': fogHigh,
+        'space-color': '#000000',
+        'star-intensity': deepNight ? Math.min(1, 0.4 + moonFrac * 0.6) : 0.25,
+      });
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    updateAtmosphere();
+    const id = window.setInterval(updateAtmosphere, 5 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, [updateAtmosphere]);
   /** 3D tower hover (GeoJSON mission_id). */
   const [hoveredTowerMissionId, setHoveredTowerMissionId] = useState<string | null>(null);
 
@@ -2462,6 +2528,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         onLoad={(e: any) => {
           const map = e?.target;
           if (!map) return;
+          mapInstanceRef.current = map;
 
           // 3D Terrain + Mountains + realistic horizon.
           // DEM source must exist before `setTerrain`.
@@ -2523,6 +2590,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
             'space-color': '#000000',
             'star-intensity': 0.8,
           });
+
+          // Initial celestial sync as soon as map is ready.
+          // (Will also update on interval via updateAtmosphere().)
+          try {
+            updateAtmosphere();
+          } catch {
+            // ignore
+          }
 
           const hour = new Date().getHours();
           const isNight = hour >= 18 || hour < 6;
