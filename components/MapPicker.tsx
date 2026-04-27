@@ -830,30 +830,74 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
     const sunAltDeg = (sun.altitude * 180) / Math.PI;
     const sunAziDeg = ((sun.azimuth * 180) / Math.PI + 180 + 360) % 360;
-    const moonAltDeg = (moonPos.altitude * 180) / Math.PI;
+    /** Angular elevation above horizon (−90…90). SunCalc uses astronomical convention. */
+    const moonElevDeg = (moonPos.altitude * 180) / Math.PI;
     const moonAziDeg = ((moonPos.azimuth * 180) / Math.PI + 180 + 360) % 360;
+
+    /**
+     * Mapbox `sky-atmosphere-sun` polar angle: 0° = zenith, 90° = horizon (opposite of elevation).
+     * @see https://docs.mapbox.com/mapbox-gl-js/style-spec/layers/#sky
+     */
+    const toSkyPolarDeg = (elevationDeg: number) =>
+      Math.max(0, Math.min(180, 90 - elevationDeg));
+
+    const moonSkyPolarDeg = toSkyPolarDeg(moonElevDeg);
+    const sunSkyPolarDeg = toSkyPolarDeg(sunAltDeg);
 
     const isNight = sunAltDeg < 0;
     const moonFrac = Math.max(0, Math.min(1, Number(moonIll?.fraction ?? 0)));
 
-    /** Sun below horizon: kill daytime scattering so the sky stays deep black (no white fog wall). */
-    const skySunIntensity = isNight ? 0 : Math.max(0, Math.min(15, (sunAltDeg / 45) * 15));
+    /** Moon above horizon: visible disc + scattering; scales with illumination (≈5–10 at full). */
+    const moonAboveHorizon = moonElevDeg > 0.5;
+    const moonSkyDiscIntensity = Math.max(
+      4,
+      Math.min(10, 4.5 + moonFrac * 5.5)
+    );
+    const nightSkyIntensity = moonAboveHorizon
+      ? moonSkyDiscIntensity * (0.55 + 0.45 * Math.min(1, moonElevDeg / 60))
+      : Math.max(2, moonFrac * 4);
 
-    /** Moon-only hint: keep position for subtle tilt but never use sun-like intensity at night. */
-    const skySunVec = isNight ? [moonAziDeg, Math.max(-90, Math.min(90, moonAltDeg))] : [sunAziDeg, sunAltDeg];
+    const skySunIntensity = isNight
+      ? nightSkyIntensity
+      : Math.max(0, Math.min(15, (sunAltDeg / 45) * 15));
+
+    const skySunVec = isNight
+      ? ([moonAziDeg, moonSkyPolarDeg] as [number, number])
+      : ([sunAziDeg, sunSkyPolarDeg] as [number, number]);
 
     const golden = sunAltDeg >= 0 && sunAltDeg <= 10;
 
-    /** Night: midnight fog — same color top/bottom + minimal horizon-blend (fixes bright horizon band). */
+    /** Moonlit night: sharp, cool micro-glow toward zenith only (high-color), keep horizon band dark. */
+    const moonGlowMix = isNight
+      ? Math.max(
+          0,
+          Math.min(1, moonFrac * Math.max(0, Math.min(1, (moonElevDeg + 8) / 52)))
+        )
+      : 0;
+    const nightFogHigh =
+      moonGlowMix > 0.12
+        ? '#0e1624'
+        : moonGlowMix > 0.04
+          ? '#0c1219'
+          : '#0b0e14';
+    const nightHorizonBlend = Math.min(
+      0.028,
+      0.01 + moonGlowMix * 0.018
+    );
+
+    /** Night: dark fog + strong procedural stars (`star-intensity` is fog-driven, not the sky layer). */
     let fogPack: Record<string, unknown>;
     if (isNight) {
       fogPack = {
         range: [0.8, 8],
         color: '#0b0e14',
-        'high-color': '#0b0e14',
-        'horizon-blend': 0.01,
+        'high-color': nightFogHigh,
+        'horizon-blend': nightHorizonBlend,
         'space-color': '#000000',
-        'star-intensity': Math.min(0.85, 0.25 + moonFrac * 0.55),
+        'star-intensity': Math.min(
+          1,
+          0.58 + moonFrac * 0.35 + moonGlowMix * 0.12
+        ),
       };
     } else if (golden) {
       fogPack = {
@@ -877,13 +921,34 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
     try {
       if (map.getLayer?.('sky')) {
-        map.setPaintProperty('sky', 'sky-atmosphere-sun', skySunVec as [number, number]);
+        map.setPaintProperty('sky', 'sky-atmosphere-sun', skySunVec);
         map.setPaintProperty('sky', 'sky-atmosphere-sun-intensity', skySunIntensity);
-        // Darken atmosphere tint at night (when supported).
+        map.setPaintProperty('sky', 'sky-atmosphere-color', isNight ? '#020617' : '#0f172a');
         try {
-          map.setPaintProperty('sky', 'sky-atmosphere-color', isNight ? '#020617' : '#0f172a');
+          map.setPaintProperty('sky', 'sky-opacity', 1);
         } catch {
-          // older GL / style may omit this paint property
+          /* older runtimes */
+        }
+        try {
+          if (isNight) {
+            const haloA = Math.max(
+              0.25,
+              Math.min(0.95, 0.35 + moonFrac * 0.55)
+            );
+            map.setPaintProperty(
+              'sky',
+              'sky-atmosphere-halo-color',
+              `rgba(224,248,255,${haloA})`
+            );
+          } else {
+            map.setPaintProperty(
+              'sky',
+              'sky-atmosphere-halo-color',
+              'rgba(255,158,100,0.55)'
+            );
+          }
+        } catch {
+          /* halo optional */
         }
       }
     } catch {
@@ -904,11 +969,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
     try {
       if (map.getLayer?.('terrain-hillshade')) {
-        map.setPaintProperty(
-          'terrain-hillshade',
-          'hillshade-highlight-color',
-          isNight ? '#1e293b' : '#ff9e64'
-        );
+        const t = moonGlowMix;
+        const hillNight =
+          isNight && t > 0.03
+            ? `rgb(${Math.round(30 + (220 - 30) * t)}, ${Math.round(41 + (245 - 41) * t)}, ${Math.round(59 + (255 - 59) * t)})`
+            : isNight
+              ? '#1e293b'
+              : '#ff9e64';
+        map.setPaintProperty('terrain-hillshade', 'hillshade-highlight-color', hillNight);
+        if (isNight && t > 0.08) {
+          map.setPaintProperty(
+            'terrain-hillshade',
+            'hillshade-accent-color',
+            `rgb(${Math.round(8 + 18 * t)}, ${Math.round(47 + 60 * t)}, ${Math.round(73 + 100 * t)})`
+          );
+        } else {
+          map.setPaintProperty('terrain-hillshade', 'hillshade-accent-color', '#022c22');
+        }
       }
     } catch {
       // ignore
@@ -916,14 +993,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
     try {
       if (isNight) {
+        const moonLightIntensity = Math.min(
+          0.82,
+          0.22 + moonFrac * 0.52 + moonGlowMix * 0.18
+        );
         map.setLight?.({
           anchor: 'map',
-          color: '#22d3ee',
-          intensity: 0.08 + moonFrac * 0.12,
+          color: '#ecfeff',
+          intensity: moonLightIntensity,
           position: [
-            1.15,
+            1.2 + moonFrac * 0.15,
             ((moonAziDeg % 360) + 360) % 360,
-            Math.max(10, Math.min(85, 35 + moonAltDeg)),
+            Math.max(12, Math.min(88, moonSkyPolarDeg)),
           ],
         });
       } else {
@@ -2640,9 +2721,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 type: 'sky',
                 paint: {
                   'sky-type': 'atmosphere',
-                  'sky-atmosphere-sun': [0, 0],
-                  // Avoid "daylight" scatter until updateAtmosphere runs (sun altitude drives intensity).
+                  'sky-atmosphere-sun': [0, 90],
                   'sky-atmosphere-sun-intensity': 0,
+                  'sky-atmosphere-color': '#020617',
+                  'sky-opacity': 1,
                 },
               });
             }
@@ -2657,6 +2739,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           } catch {
             // ignore
           }
+          map.on?.('moveend', updateAtmosphere);
 
           const style = map.getStyle?.();
           const waterLikeLayers = (style?.layers || []).filter(
