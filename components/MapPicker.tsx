@@ -834,39 +834,106 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const moonAziDeg = ((moonPos.azimuth * 180) / Math.PI + 180 + 360) % 360;
 
     const isNight = sunAltDeg < 0;
-    const mainAzi = isNight ? moonAziDeg : sunAziDeg;
-    const mainAlt = isNight ? moonAltDeg : sunAltDeg;
-
-    const dayIntensity = Math.max(0, Math.min(15, (sunAltDeg / 45) * 15));
     const moonFrac = Math.max(0, Math.min(1, Number(moonIll?.fraction ?? 0)));
-    const nightIntensity = Math.max(0.5, Math.min(10, 2 + moonFrac * 8));
-    const intensity = isNight ? nightIntensity : dayIntensity;
+
+    /** Sun below horizon: kill daytime scattering so the sky stays deep black (no white fog wall). */
+    const skySunIntensity = isNight ? 0 : Math.max(0, Math.min(15, (sunAltDeg / 45) * 15));
+
+    /** Moon-only hint: keep position for subtle tilt but never use sun-like intensity at night. */
+    const skySunVec = isNight ? [moonAziDeg, Math.max(-90, Math.min(90, moonAltDeg))] : [sunAziDeg, sunAltDeg];
 
     const golden = sunAltDeg >= 0 && sunAltDeg <= 10;
-    const deepNight = sunAltDeg < -18;
 
-    const fogColor = deepNight ? '#0b0e14' : golden ? '#ff9e64' : '#0b0e14';
-    const fogHigh = golden ? '#ff9e64' : deepNight ? '#06b6d4' : '#ff9e64';
-    const horizonBlend = golden ? 0.18 : deepNight ? 0.08 : 0.12;
+    /** Night: midnight fog — same color top/bottom + minimal horizon-blend (fixes bright horizon band). */
+    let fogPack: Record<string, unknown>;
+    if (isNight) {
+      fogPack = {
+        range: [0.8, 8],
+        color: '#0b0e14',
+        'high-color': '#0b0e14',
+        'horizon-blend': 0.01,
+        'space-color': '#000000',
+        'star-intensity': Math.min(0.85, 0.25 + moonFrac * 0.55),
+      };
+    } else if (golden) {
+      fogPack = {
+        range: [0.8, 8],
+        color: '#ff9e64',
+        'high-color': '#ff9e64',
+        'horizon-blend': 0.18,
+        'space-color': '#000000',
+        'star-intensity': 0.2,
+      };
+    } else {
+      fogPack = {
+        range: [0.8, 8],
+        color: '#0b0e14',
+        'high-color': '#1e293b',
+        'horizon-blend': 0.12,
+        'space-color': '#000000',
+        'star-intensity': 0.15,
+      };
+    }
 
     try {
       if (map.getLayer?.('sky')) {
-        map.setPaintProperty('sky', 'sky-atmosphere-sun', [mainAzi, mainAlt]);
-        map.setPaintProperty('sky', 'sky-atmosphere-sun-intensity', intensity);
+        map.setPaintProperty('sky', 'sky-atmosphere-sun', skySunVec as [number, number]);
+        map.setPaintProperty('sky', 'sky-atmosphere-sun-intensity', skySunIntensity);
+        // Darken atmosphere tint at night (when supported).
+        try {
+          map.setPaintProperty('sky', 'sky-atmosphere-color', isNight ? '#020617' : '#0f172a');
+        } catch {
+          // older GL / style may omit this paint property
+        }
       }
     } catch {
       // ignore
     }
 
     try {
-      map.setFog?.({
-        range: [0.8, 8],
-        color: fogColor,
-        'horizon-blend': horizonBlend,
-        'high-color': fogHigh,
-        'space-color': '#000000',
-        'star-intensity': deepNight ? Math.min(1, 0.4 + moonFrac * 0.6) : 0.25,
-      });
+      map.setFog?.(fogPack as Parameters<typeof map.setFog>[0]);
+    } catch {
+      // ignore
+    }
+
+    try {
+      map.setConfigProperty?.('basemap', 'lightPreset', isNight ? 'night' : golden ? 'dawn' : 'day');
+    } catch {
+      /* Custom vector style may not expose Standard basemap config */
+    }
+
+    try {
+      if (map.getLayer?.('terrain-hillshade')) {
+        map.setPaintProperty(
+          'terrain-hillshade',
+          'hillshade-highlight-color',
+          isNight ? '#1e293b' : '#ff9e64'
+        );
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      if (isNight) {
+        map.setLight?.({
+          anchor: 'map',
+          color: '#22d3ee',
+          intensity: 0.08 + moonFrac * 0.12,
+          position: [
+            1.15,
+            ((moonAziDeg % 360) + 360) % 360,
+            Math.max(10, Math.min(85, 35 + moonAltDeg)),
+          ],
+        });
+      } else {
+        map.setLight?.({
+          anchor: 'map',
+          color: '#ff9e64',
+          intensity: 0.5,
+          position: [1.5, 120, 60],
+        });
+      }
     } catch {
       // ignore
     }
@@ -2574,7 +2641,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 paint: {
                   'sky-type': 'atmosphere',
                   'sky-atmosphere-sun': [0, 0],
-                  'sky-atmosphere-sun-intensity': 12,
+                  // Avoid "daylight" scatter until updateAtmosphere runs (sun altitude drives intensity).
+                  'sky-atmosphere-sun-intensity': 0,
                 },
               });
             }
@@ -2582,41 +2650,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
             // Fail gracefully if the style/runtime doesn't support terrain/sky.
           }
 
-          map.setFog({
-            range: [0.8, 8],
-            color: '#0b0e14',
-            'horizon-blend': 0.1,
-            'high-color': '#ff9e64',
-            'space-color': '#000000',
-            'star-intensity': 0.8,
-          });
-
           // Initial celestial sync as soon as map is ready.
           // (Will also update on interval via updateAtmosphere().)
           try {
             updateAtmosphere();
           } catch {
             // ignore
-          }
-
-          const hour = new Date().getHours();
-          const isNight = hour >= 18 || hour < 6;
-          try {
-            // Cinematic cyberpunk realism: dawn preset on Standard basemap if supported.
-            map.setConfigProperty?.('basemap', 'lightPreset', 'dawn');
-          } catch {
-            /* Custom vector style may not expose Standard basemap config */
-          }
-
-          try {
-            map.setLight?.({
-              anchor: 'map',
-              color: '#ff9e64',
-              intensity: 0.5,
-              position: [1.5, 120, 60],
-            });
-          } catch {
-            // Some styles/runtimes may not support setLight.
           }
 
           const style = map.getStyle?.();
