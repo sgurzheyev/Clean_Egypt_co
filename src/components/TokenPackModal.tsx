@@ -165,23 +165,25 @@ export default function TokenPackModal({
         className="w-full max-w-md rounded-3xl bg-slate-950/80 backdrop-blur-xl border border-lime-500/20 shadow-2xl p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between mb-4">
-          <h3 className="text-sm font-black uppercase tracking-[0.22em] text-white">
-            {t('topUpTokens')}
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-white text-lg font-bold"
-            aria-label={t('close')}
-          >
-            ✕
-          </button>
-        </div>
+        <div className="max-h-[80vh] overflow-y-auto pb-12 pb-[calc(3rem+env(safe-area-inset-bottom))]">
+          <div className="flex items-start justify-between mb-4">
+            <h3 className="text-sm font-black uppercase tracking-[0.22em] text-white">
+              Buy 50 Tokens
+            </h3>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-slate-400 hover:text-white text-lg font-bold"
+              aria-label={t('close')}
+            >
+              ✕
+            </button>
+          </div>
 
-        <Elements stripe={stripePromise}>
-          <TokenPackForm userId={userId} onClose={onClose} onSuccess={onSuccess} />
-        </Elements>
+          <Elements stripe={stripePromise}>
+            <TokenPackForm userId={userId} onClose={onClose} onSuccess={onSuccess} />
+          </Elements>
+        </div>
       </div>
     </div>
   );
