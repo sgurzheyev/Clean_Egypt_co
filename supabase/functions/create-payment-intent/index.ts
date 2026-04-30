@@ -1,4 +1,4 @@
-import Stripe from 'npm:stripe@^14.0.0';
+import Stripe from 'https://esm.sh/stripe@14.16.0?target=deno';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,7 +19,8 @@ Deno.serve(async (req) => {
     }
 
     const stripe = new Stripe(stripeKey, {
-      apiVersion: '2022-11-15',
+      apiVersion: '2023-10-16',
+      httpClient: Stripe.createFetchHttpClient(),
     });
 
     // 3. Читаем данные запроса

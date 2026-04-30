@@ -1,5 +1,5 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
-import Stripe from 'npm:stripe@^14.0.0';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
+import Stripe from 'https://esm.sh/stripe@14.16.0?target=deno';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -58,7 +58,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const stripe = new Stripe(stripeKey, { apiVersion: '2022-11-15' });
+    const stripe = new Stripe(stripeKey, {
+      apiVersion: '2023-10-16',
+      httpClient: Stripe.createFetchHttpClient(),
+    });
     const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (pi.status !== 'succeeded') {
@@ -111,10 +114,9 @@ Deno.serve(async (req) => {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('stripe-wallet-credit error:', message);
-    return new Response(JSON.stringify({ error: message }), {
+  } catch (error: any) {
+    console.error('stripe-wallet-credit error:', error?.message || error);
+    return new Response(JSON.stringify({ error: String(error?.message || 'Unknown error') }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
