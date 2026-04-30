@@ -116,7 +116,7 @@ interface JobOnMap {
 
 /** Same filter as mission markers — heatmap aligns with visible pins. */
 function missionEligibleForMapPin(job: JobOnMap): boolean {
-  // Phantom pins (unpaid Paymob drafts) must never appear on the map.
+  // Phantom pins (unpaid drafts) must never appear on the map.
   if (job.status === 'pending_payment') return false;
   if (job.status === 'pending') return true;
   if (job.status === 'available') return true;
@@ -837,7 +837,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const orderFormRef = React.useRef<HTMLFormElement>(null);
   const hoveredBuildingIdRef = React.useRef<any>(null);
   const selectedBuildingIdRef = React.useRef<any>(null);
-  /** When true, next home submit uses wallet (defer Paymob) instead of card checkout. */
+  /** When true, next home submit uses wallet instead of card checkout. */
   const orderFormWalletPayRef = React.useRef(false);
   /** Creator wallet (EGP) for "pay from wallet" on home missions. */
   const [creatorWalletEgp, setCreatorWalletEgp] = useState<number | null>(null);
@@ -1484,51 +1484,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return () => window.removeEventListener('paymentSuccess', onPaymentSuccess);
   }, [fetchMissions]);
 
-  /** When Paymob completes, webhook flips pending_payment → available; refresh as soon as Supabase emits the row change. */
-  useEffect(() => {
-    const mid = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('paymobPendingMissionId') : null;
-    if (!mid) return;
-
-    const channel = supabase
-      .channel(`mission-paymob-${mid}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'missions',
-          filter: `id=eq.${mid}`,
-        },
-        (payload) => {
-          const st = (payload.new as { status?: string })?.status;
-          if (st && st !== 'pending_payment') {
-            sessionStorage.removeItem('paymobPendingMissionId');
-            void fetchMissions();
-            window.dispatchEvent(new CustomEvent('paymentSuccess'));
-          }
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [fetchMissions]);
-
-  useEffect(() => {
-    const bump = () => {
-      if (sessionStorage.getItem('paymobPendingMissionId')) {
-        void fetchMissions();
-      }
-    };
-    window.addEventListener('pageshow', bump);
-    document.addEventListener('visibilitychange', bump);
-    return () => {
-      window.removeEventListener('pageshow', bump);
-      document.removeEventListener('visibilitychange', bump);
-    };
-  }, [fetchMissions]);
-
   // Fly to job location when requested from Profile "View on Map"
   useEffect(() => {
     if (!flyToTarget || !mapRef.current) return;
@@ -1545,123 +1500,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const PENDING_SUBMIT_KEY = 'cleaneypt_pending_submit';
 
-  const executePaymentFlow = useCallback(
-    async (payload: {
-      amountEgp: number;
-      serviceType: ServiceType;
-      location: { lat: number; lng: number };
-      description: string;
-      creatorPhotos?: string[];
-      building?: any;
-    }) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id || !session.access_token) return;
-
-      const res = await fetch('/api/paymob-intent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          type: 'mission_creation',
-          amount_egp: floorEgp(payload.amountEgp),
-          service_type: payload.serviceType,
-          location_lat: payload.location.lat,
-          location_lng: payload.location.lng,
-          description: payload.description || undefined,
-          // Prep: indoor/home mission building targeting (backend may ignore until DB supports it)
-          building_id: payload.building?.id ?? null,
-          building_height_m: payload.building?.height ?? null,
-          creator_photos:
-            payload.creatorPhotos && payload.creatorPhotos.length > 0
-              ? payload.creatorPhotos
-              : undefined,
-        }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `Payment init failed (${res.status})`);
-      }
-
-      const data = (await res.json()) as {
-        paymentUrl?: string;
-        paymentToken?: string;
-        missionId?: string;
-      };
-
-      if (data.missionId) {
-        sessionStorage.setItem('paymobPendingMissionId', data.missionId);
-      }
-
-      if (data.paymentUrl) {
-        sessionStorage.setItem('paymentReturnType', 'mission_creation');
-        window.location.assign(data.paymentUrl);
-        return;
-      }
-      if (data.paymentToken) {
-        sessionStorage.setItem('paymentReturnType', 'mission_creation');
-        const iframeId =
-          (import.meta.env.VITE_PAYMOB_IFRAME_ID as string | undefined) || '1007120';
-        const url = `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${data.paymentToken}`;
-        window.location.assign(url);
-      } else {
-        throw new Error('No payment URL or token received.');
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    const run = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) return;
-
-      const raw = localStorage.getItem(PENDING_SUBMIT_KEY);
-      if (!raw) return;
-
-      try {
-        const saved = JSON.parse(raw) as {
-          taskType?: TaskType;
-          serviceType?: ServiceType;
-          location_lat?: number;
-          location_lng?: number;
-          description?: string;
-          building_id?: string | number | null;
-          building_height_m?: number | null;
-        };
-        if (typeof saved.location_lat !== 'number' || typeof saved.location_lng !== 'number') {
-          localStorage.removeItem(PENDING_SUBMIT_KEY);
-          return;
-        }
-
-        localStorage.removeItem(PENDING_SUBMIT_KEY);
-
-        setTaskType(saved.taskType || 'city');
-        setTaskTypeSelected(saved.taskType || 'city');
-        setServiceType(saved.serviceType || 'home_office');
-        setSelectedLocation({ lat: saved.location_lat, lng: saved.location_lng });
-        setOrderDescription(saved.description || '');
-        setOrderError(null);
-        setOrderSuccess(null);
-
-        await executePaymentFlow({
-          amountEgp: pinPlacementFeeEgp,
-          serviceType: saved.serviceType || 'home_office',
-          location: { lat: saved.location_lat, lng: saved.location_lng },
-          description: saved.description || '',
-          building: saved.building_id != null
-            ? { id: saved.building_id, height: saved.building_height_m ?? null }
-            : null,
-        });
-      } catch (e) {
-        console.error('Pending submit restore error:', e);
-        localStorage.removeItem(PENDING_SUBMIT_KEY);
-      }
-    };
-    run();
-  }, [executePaymentFlow, pinPlacementFeeEgp]);
+  // Stripe is the only payment gateway now. Mission creation is token-backed (no redirect flow).
 
   const handleMapClick = useCallback(
     (event: any) => {
@@ -2428,7 +2267,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         creatorPhotoUrls = uploaded;
       }
 
-      // Create lead mission immediately (no Paymob) — token-backed.
+      // Create lead mission immediately — token-backed.
       const { data: mid, error: leadErr } = await supabase.rpc('create_lead_mission_with_token', {
         p_service_type: serviceType,
         p_location_lat: Number(location.lat),
@@ -3559,7 +3398,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   {missionTransactions.map((tx: any) => {
                     const gw = (tx.gateway || '').toLowerCase();
                     const badge =
-                      gw.includes('stripe') ? 'Stripe' : gw.includes('paymob') ? 'Paymob' : tx.gateway || null;
+                      gw.includes('stripe') ? 'Stripe' : tx.gateway || null;
                     
                     // @ts-ignore
                     const isCarding = tx.user_id ? potentialCardingUserIds.has(tx.user_id) : false;

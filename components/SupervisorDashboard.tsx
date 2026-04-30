@@ -359,7 +359,7 @@ const SupervisorDashboard: React.FC = () => {
                       {tx.map((row) => {
                         const gw = (row.gateway || '').toLowerCase();
                         const badge =
-                          gw.includes('stripe') ? 'Stripe' : gw.includes('paymob') ? 'Paymob' : row.gateway || null;
+                          gw.includes('stripe') ? 'Stripe' : row.gateway || null;
                         const isCarding = row.user_id ? potentialCardingUserIds.has(row.user_id) : false;
                         return (
                           <div

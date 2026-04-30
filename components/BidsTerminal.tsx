@@ -85,7 +85,7 @@ const BidsTerminal: React.FC<BidsTerminalProps> = ({ onclose, onShowTryFree }) =
 
       if (error) throw error;
 
-      // 2. ИМИТАЦИЯ ПОДКЛЮЧЕНИЯ К PAYMOB
+      // 2. ИМИТАЦИЯ ПОДКЛЮЧЕНИЯ К ПЛАТЕЖНОМУ ШЛЮЗУ
       setTimeout(() => {
         // Здесь мы имитируем "Decline" от сервера платежей для теста воронки
         const paymentFailed = true;

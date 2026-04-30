@@ -215,14 +215,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [releasePaySubmitting, setReleasePaySubmitting] = useState(false);
   const [disputeSubmitting, setDisputeSubmitting] = useState(false);
   const [toastState, setToastState] = useState<ToastState>(null);
-  const [taskType, setTaskType] = useState<'city' | 'home'>('city');
-  const [orderAmount, setOrderAmount] = useState('');
-  const [orderLocation, setOrderLocation] = useState('');
-  const [orderDescription, setOrderDescription] = useState('');
-  const [orderPhoto, setOrderPhoto] = useState<File | null>(null);
-  const [orderSubmitting, setOrderSubmitting] = useState(false);
-  const [orderError, setOrderError] = useState<string | null>(null);
-  const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
+  // Mission creation is handled from the map (token-backed). Profile no longer starts checkout flows.
   /** Loading id for Retry/Cancel on `pending_payment` (Phantom Pin) cards. */
   const [phantomPaymentActionId, setPhantomPaymentActionId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
@@ -824,146 +817,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     }
   };
 
-  const redirectToPaymobMissionCheckout = (data: {
-    paymentUrl?: string;
-    paymentToken?: string;
-    missionId?: string;
-  }) => {
-    if (data.missionId) {
-      sessionStorage.setItem('paymobPendingMissionId', data.missionId);
-    }
-    if (data.paymentUrl) {
-      sessionStorage.setItem('paymentReturnType', 'mission_creation');
-      window.location.assign(data.paymentUrl);
-      return;
-    }
-    if (data.paymentToken) {
-      sessionStorage.setItem('paymentReturnType', 'mission_creation');
-      const iframeId =
-        (import.meta.env.VITE_PAYMOB_IFRAME_ID as string | undefined) || '1007120';
-      const url = `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${data.paymentToken}`;
-      window.location.assign(url);
-      return;
-    }
-    throw new Error('No payment URL or token received.');
-  };
-
-  const handleCreateTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setOrderError(null);
-    setOrderSuccess(null);
-
-    const amount = floorEgp(parseIntegerEgpFromInput(orderAmount));
-    if (amount <= 0) {
-      setOrderError(t('enterPositiveEgpAmount'));
-      return;
-    }
-    if (taskType === 'home') {
-      if (amount < HOME_MIN_PRICE || amount > HOME_MAX_PRICE) {
-        setOrderError(t('homePriceRangeEgp', { min: HOME_MIN_PRICE, max: HOME_MAX_PRICE }));
-        return;
-      }
-    } else {
-      if (amount < CITY_MIN_PRICE || amount > CITY_MAX_PRICE) {
-        setOrderError(t('cityPriceRangeEgp', { min: CITY_MIN_PRICE, max: CITY_MAX_PRICE }));
-        return;
-      }
-    }
-
-    try {
-      setOrderSubmitting(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) {
-        setOrderError('You must be signed in to create a task.');
-        return;
-      }
-
-      const accessToken = session.access_token;
-      if (!accessToken) {
-        setOrderError('You must be signed in to create a task.');
-        return;
-      }
-
-      const res = await fetch('/api/paymob-intent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          type: 'mission_creation',
-          category: taskType === 'city' ? 'public' : 'home',
-          amount_target: floorEgp(amount),
-          // TODO: wire actual map location; using fallback center for now
-          location_lat: 27.2579,
-          location_lng: 33.8116,
-          description: orderDescription || undefined,
-        }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `Payment init failed (${res.status})`);
-      }
-
-      const data = (await res.json()) as {
-        paymentUrl?: string;
-        paymentToken?: string;
-        missionId?: string;
-      };
-
-      redirectToPaymobMissionCheckout(data);
-    } catch (err) {
-      console.error('Create task exception:', err);
-      setOrderError(
-        err instanceof Error ? err.message : 'Something went wrong. Please try again.'
-      );
-    } finally {
-      setOrderSubmitting(false);
-    }
-  };
-
-  const retryPendingPaymentMission = async (job: Job) => {
-    try {
-      setPhantomPaymentActionId(job.id);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-      if (!session?.user?.id || !accessToken) {
-        toast.error(t('signIn'));
-        return;
-      }
-      const res = await fetch('/api/paymob-intent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          type: 'mission_creation',
-          existing_mission_id: job.id,
-        }),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(
-          (errData as { error?: string }).error || `Payment init failed (${res.status})`
-        );
-      }
-      const data = (await res.json()) as {
-        paymentUrl?: string;
-        paymentToken?: string;
-        missionId?: string;
-      };
-      redirectToPaymobMissionCheckout(data);
-    } catch (e) {
-      console.error('retryPendingPaymentMission:', e);
-      toast.error(t('retryPaymentFailed'));
-    } finally {
-      setPhantomPaymentActionId(null);
-    }
-  };
+  // Stripe-only gateway: removed legacy redirect + intent initialization.
 
   const cancelPendingPaymentMission = async (job: Job, list: 'home' | 'city') => {
     try {
@@ -2010,143 +1864,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
           </form>
 
-          <div className="mt-6 mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className={`inline-flex min-w-0 flex-wrap gap-2 p-1 ${PROFILE_GLASS_PANEL} !rounded-full`}>
-              <button
-                type="button"
-                onClick={() => setTaskType('city')}
-                className={`h-12 px-4 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all active:scale-95 ${
-                  taskType === 'city'
-                    ? 'bg-[#22c55e] text-black'
-                    : 'bg-transparent text-slate-400 hover:text-[#22c55e]'
-                }`}
-              >
-                City Cleaning
-              </button>
-              <button
-                type="button"
-                onClick={() => setTaskType('home')}
-                className={`h-12 px-4 rounded-full text-xs font-bold tracking-[0.18em] uppercase transition-all active:scale-95 ${
-                  taskType === 'home'
-                    ? 'bg-[#f59e0b] text-black'
-                    : 'bg-transparent text-slate-400 hover:text-[#f59e0b]'
-                }`}
-              >
-                Home Cleaning
-              </button>
-            </div>
+          <div className={`mt-6 p-4 ${PROFILE_GLASS_PANEL}`}>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+              SaaS Marketplace
+            </p>
+            <p className="mt-2 text-sm text-slate-300 leading-relaxed">
+              Create service requests directly from the map (pin placement is token-backed). Top up with Stripe in the Wallet section below.
+            </p>
           </div>
-
-          <form
-            onSubmit={handleCreateTask}
-            className={`mb-10 p-5 space-y-4 shadow-[0_4px_30px_rgba(6,182,212,0.08)] ${PROFILE_GLASS_PANEL}`}
-          >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                  Task type
-                </label>
-                <p className="text-sm text-slate-200 font-medium">
-                  {taskType === 'city' ? 'City Cleaning Request' : 'Home Cleaning Service'}
-                </p>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                  {taskType === 'city'
-                    ? isRu
-                      ? 'Цель сбора (Предполагаемая стоимость)'
-                      : 'Collection Target (Goal)'
-                    : t('amountEgp')}
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  pattern="\d*"
-                  value={orderAmount}
-                  onChange={(e) => setOrderAmount(sanitizeIntegerEgpDigits(e.target.value))}
-                  placeholder={taskType === 'city' ? (isRu ? 'Цель сбора (Предполагаемая стоимость)' : 'Collection Target (Goal)') : t('anyAmount')}
-                  className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 tabular-nums`}
-                />
-                {taskType === 'city' && (
-                  <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
-                    {isRu
-                      ? `Создание городской метки стоит ${formatEgp(SCOUT_STAKE_FEE_EGP)} (Scout Stake).`
-                      : `Creating a public pin costs ${formatEgp(SCOUT_STAKE_FEE_EGP)} (Scout Stake).`}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                  Location
-                </label>
-                <div className={`flex items-center gap-2 ${PROFILE_GLASS_PANEL} px-3 py-2.5`}>
-                  <span className="text-slate-400 text-sm">📍</span>
-                  <input
-                    type="text"
-                    value={orderLocation}
-                    onChange={(e) => setOrderLocation(e.target.value)}
-                    placeholder="City / Area (map pin coming next)"
-                    className="flex-1 bg-transparent outline-none text-sm text-white placeholder:text-slate-500"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                  Upload photo
-                </label>
-                <label className="flex h-[52px] items-center justify-center rounded-2xl border border-dashed border-slate-600 bg-black/30 text-[11px] text-slate-400 cursor-pointer hover:border-teal-400 hover:text-teal-300 transition-all">
-                  {orderPhoto ? 'Photo selected' : 'Tap to add reference photo'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      setOrderPhoto(file);
-                    }}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                Short description & area
-              </label>
-              <textarea
-                value={orderDescription}
-                onChange={(e) => setOrderDescription(e.target.value)}
-                rows={3}
-                placeholder={
-                  taskType === 'city'
-                    ? 'Describe the city spot you want to clean up...'
-                    : 'Describe your home cleaning task and area size...'
-                }
-                className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none`}
-              />
-            </div>
-
-            {orderError && (
-              <p className="text-xs text-red-400 font-medium">{orderError}</p>
-            )}
-            {orderSuccess && (
-              <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
-            )}
-
-            <div className={`w-full mt-1 rounded-full ${taskType === 'city' ? 'animated-border-city' : 'animated-border-home'} ${orderSubmitting ? 'opacity-60' : ''}`}>
-              <button
-                type="submit"
-                disabled={orderSubmitting}
-                className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] transition-all text-white bg-[#020617] hover:brightness-110 disabled:cursor-wait active:scale-[0.98]"
-              >
-                {orderSubmitting ? 'Processing...' : 'Submit Task & Pay'}
-              </button>
-            </div>
-          </form>
         </header>
 
         {/* MY HOME REQUESTS (from jobs table, excluding finished) */}
@@ -2215,14 +1940,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         )}
                         <div className="flex flex-wrap gap-2">
                           <div className="flex flex-col gap-1 min-w-0">
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => retryPendingPaymentMission(job)}
-                              className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-emerald-600/90 hover:bg-emerald-500 border border-emerald-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {t('retryPayment')}
-                            </button>
+                            {/* Stripe-only gateway: legacy retry removed */}
                             {!canPayFromWallet && (
                               <p className="text-[9px] text-amber-300/90 leading-snug max-w-[14rem]">
                                 {t('insufficientWalletBalance')}
@@ -2578,14 +2296,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           )}
                           <div className="flex flex-wrap gap-2">
                             <div className="flex flex-col gap-1 min-w-0">
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => retryPendingPaymentMission(job)}
-                                className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-emerald-600/90 hover:bg-emerald-500 border border-emerald-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {t('retryPayment')}
-                              </button>
+                              {/* Stripe-only gateway: legacy retry removed */}
                               {!canPayFromWallet && (
                                 <p className="text-[9px] text-amber-300/90 leading-snug max-w-[14rem]">
                                   {t('insufficientWalletBalance')}

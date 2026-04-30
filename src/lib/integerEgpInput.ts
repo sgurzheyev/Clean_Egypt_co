@@ -16,7 +16,7 @@ export function parseIntegerEgpFromInput(value: string): number {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
-/** Floor any numeric amount before Supabase RPC / Paymob payloads (integer EGP). */
+/** Floor any numeric amount before RPC/API payloads (integer EGP). */
 export function floorEgp(n: unknown): number {
   const x = Number(n);
   if (!Number.isFinite(x)) return 0;
