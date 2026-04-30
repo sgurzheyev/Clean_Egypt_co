@@ -1,31 +1,32 @@
-/** Whole EGP amounts only — no fractional piastres in UI. */
+/** Token amounts only — whole integers in UI. */
 function roundWhole(amount: number): number {
   const n = Number(amount);
   if (!Number.isFinite(n)) return 0;
   return Math.round(n);
 }
 
-function formatNumberEg(amount: number): string {
+function formatNumber(amount: number): string {
   const n = roundWhole(amount);
-  return new Intl.NumberFormat('en-EG', {
+  return new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(n);
 }
 
-/** Numeric part only (no “EGP”) — use in i18n strings that add “EGP” once. */
+/** Numeric part only (no “Tokens”). */
 export function formatEgpDigits(amount: number): string {
-  return formatNumberEg(amount);
+  return formatNumber(amount);
 }
 
 /**
- * Internal wallet / missions use EGP. Always whole numbers (absolute rounding).
+ * Token-only UI: the app displays all internal balances as tokens.
+ * We keep the legacy function names to avoid a huge refactor.
  */
 export function formatEgp(amount: number): string {
-  return `${formatNumberEg(amount)} EGP`;
+  return `${formatNumber(amount)} Tokens`;
 }
 
-/** Same as formatEgp but uses L.E. suffix (common in Egypt). */
+/** Same as formatEgp (legacy alias). */
 export function formatLe(amount: number): string {
-  return `${formatNumberEg(amount)} L.E.`;
+  return `${formatNumber(amount)} Tokens`;
 }

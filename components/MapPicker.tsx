@@ -441,7 +441,7 @@ function ProofUploadModal({
         .eq('status', 'in_progress');
       if (updateError) throw updateError;
 
-      toast.success('Proof uploaded! EGP will be credited after quick review.');
+      toast.success('Proof uploaded! Tokens will be credited after quick review.');
       await onSuccess();
       onClose();
       setFiles([]);
@@ -839,7 +839,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const selectedBuildingIdRef = React.useRef<any>(null);
   /** When true, next home submit uses wallet instead of card checkout. */
   const orderFormWalletPayRef = React.useRef(false);
-  /** Creator wallet (EGP) for "pay from wallet" on home missions. */
+  /** Creator wallet (tokens) for legacy flows. */
   const [creatorWalletEgp, setCreatorWalletEgp] = useState<number | null>(null);
   const [viewState, setViewState] = useState({
     latitude: 27.2579,
@@ -1191,13 +1191,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
     []
   );
 
-  // SaaS lead-gen: fixed pin placement fee ($1) converted to integer EGP using live platform rate.
+  // SaaS lead-gen: fixed pin placement fee ($1) converted to tokens using platform rate.
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
       const rate = await fetchUsdToEgpRate(supabase);
-      const egp = floorEgp(rate * 1);
-      if (!cancelled) setPinPlacementFeeEgp(egp > 0 ? egp : floorEgp(55));
+      const tokens = floorEgp(rate * 1);
+      if (!cancelled) setPinPlacementFeeEgp(tokens > 0 ? tokens : floorEgp(55));
     };
     void run();
     return () => {
@@ -1542,7 +1542,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [hallOfFameCleanerName, setHallOfFameCleanerName] = useState<string | null>(null);
   const [hallOfFameHeroes, setHallOfFameHeroes] = useState<string[]>([]);
   const [isAccepting, setIsAccepting] = useState(false);
-  /** Worker wallet + frozen (EGP) for security deposit checks on the selected mission. */
+  /** Worker wallet + frozen (tokens) for security deposit checks on the selected mission. */
   const [workerTrustSnapshot, setWorkerTrustSnapshot] = useState<{
     wallet: number;
     frozen: number;
@@ -1552,7 +1552,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [missionBidAmount, setMissionBidAmount] = useState<string>('');
   const [showCrowdfundConfirm, setShowCrowdfundConfirm] = useState(false);
   const [crowdfundBidAmount, setCrowdfundBidAmount] = useState<number | null>(null);
-  /** User-entered EGP for "close deal" co-fund (any positive amount, not tied to gap) */
+  /** User-entered tokens for "close deal" co-fund (any positive amount, not tied to gap) */
   const [crowdfundCoFundInput, setCrowdfundCoFundInput] = useState('');
   const [showDonate, setShowDonate] = useState(false);
   const [donateAmount, setDonateAmount] = useState<string>('');
@@ -3235,9 +3235,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   {bidSubmitting
                     ? 'Placing bid...'
                     : (() => {
-                        const egp = parseIntegerEgpFromInput(bidAmount);
-                        return egp > 0
-                          ? `Place bid ${formatEgp(egp)}`
+                        const tokens = parseIntegerEgpFromInput(bidAmount);
+                        return tokens > 0
+                          ? `Place bid ${formatEgp(tokens)}`
                           : 'Place bid';
                       })()}
                 </button>

@@ -85,7 +85,7 @@ const WorkerPortal = () => {
         })
         .eq('id', worker.id);
 
-      alert(`🚀 WORK STARTED! ${deposit} EGP locked.`);
+      alert(`🚀 WORK STARTED! ${deposit} Tokens locked.`);
       fetchData();
     } catch (err: any) {
       alert("Error: " + err.message);
@@ -127,7 +127,7 @@ const WorkerPortal = () => {
     <div className="min-h-screen bg-slate-900 text-white p-4 font-sans ltr">
       <div className="max-w-md mx-auto">
         
-        {/* Legacy worker portal — balances in EGP */}
+        {/* Legacy worker portal — token-only UI */}
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-700 mb-6">
           <p className="text-teal-400 font-bold uppercase text-[10px] tracking-[2px]">Your Wallet</p>
           <p className="text-4xl font-black">

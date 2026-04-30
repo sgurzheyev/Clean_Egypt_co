@@ -1,34 +1,21 @@
- Gurgini Lead-Gen Constitution: CleanEgypt.co (v7.0 - SaaS & 3D Realism)
-1. THE SaaS PIVOT: MISSION & LEAD LOGIC
-•	ZERO DONATION RULE: No "Funding", "Target Amounts", or "Waste Weights". The project is now a pure Service Marketplace.
-•	ENTERING FEE: Users pay a fixed fee ($1 / 1 Token) to place a Pin on the map.
-•	LEAD LOCK: Service Providers (Executors) see Pins but cannot see Customer contacts unless they have an active Monthly Subscription or pay to unlock the lead.
-•	DIRECT PAYMENT: All work payments happen offline between User and Executor. Gurgini LLC only charges for Platform Access (Pins & Subs).
-2. THE "CLEAN WHEEL" (CORE SERVICES)
-•	STRICT ORDER (15 Tasks):
-	1.	Home / Office (DEFAULT) | 2. AC Cleaning | 3. Pool Maintenance | 4. Pest Control | 5. Windows / Facades | 6. Terrace / Garden | 7. Car Detailing | 8. Yacht / Boat Cleaning | 9. Solar Panels | 10. Ultrasound Cleaning | 11. Carpets / Mattresses | 12. Kitchen Hoods / Grease | 13. Laundry / Ironing | 14. Water Tank Cleaning | 15. Junk Removal (LAST).
-•	UI REQUIREMENT: The selection must be a high-tech, touch-optimized wheel or grid. Junk Removal must always be at the bottom/end.
-3. 3D REALISM & CELESTIAL SYNC (MAPBOX v3)
-•	ATMOSPHERE: Use SunCalc to sync Sun/Moon positions.
-•	SKY/FOG: At night (Sun < 0°), set sky-atmosphere-sun-intensity: 0, fog: #020617, and star-intensity (0.6 - 1.0).
-•	3D BUILDINGS: When a building is clicked, it glows Neon Cyan (#06b6d4). Generic blue dots disappear (setSelectedLocation(null)).
-•	MATH: Use 90 - elevation for Mapbox polar angles.
-4. STRICT EGP MATH & DATA INTEGRITY
-•	CURRENCY: Use integer for EGP (no decimals).
-•	DB SYNC: Every mission must store service_type (text), building_id (text), and building_height_m (numeric).
-•	ZERO TRUST: Never allow frontend to calculate subscription expiration. All logic stays in Supabase RPCs.
-5. UI/UX: MERCEDES DASH & NEON CYBERPUNK
-•	PALETTE: - Background: bg-slate-950 (Deep Space Black).
-•	Static Elements: text-cyan-400 (Road Blue).
-•	Action/Money: bg-lime-500 (Gurgini Green - for "Pay", "Create", "Subscribe").
-•	GLASSMORPHISM: Modals must use backdrop-blur-md and bg-slate-900/60.
-•	MOBILE: Safe-area padding for Telegram Mini App is mandatory.
-6. IMAGE COMPRESSION & PAYLOADS
-•	CLIENT-SIDE: Use browser-image-compression (max 0.5MB).
-•	BEFORE/AFTER: AI Auditor (GPT-4o/Gemini) compares photos to verify service completion and update Executor rating.
-7. LOCALIZATION (5 LANGUAGES)
-•	i18next: Support EN, AR, RU, PL, UA.
-•	DYNAMIC: All "Clean Wheel" service names must be translated in the UI.
-8. SECURITY & ADMIN
-•	ADMIN: Identify via profile?.telegram_username?.toLowerCase() === 'sergiogurgini'.
-•	ISOLATION: Keep CleanEgypt and CleanMontenegro codebases strictly separate. Never mention one in the context of the other.
+# CleanEgypt / Project Rules & Guidelines
+
+## 1. Core Business Logic & Economy (STRICT)
+- **TOKEN-ONLY SYSTEM:** The internal wallet and database `balance` represent TOKENS ONLY. 
+- **NO FIAT IN WALLET:** Never use "EGP", "USD", or any other fiat currency symbols when displaying the user's internal balance.
+- **STRIPE CHARGES:** Stripe strictly charges in USD (e.g., "$5 for 50 Tokens"). Do not calculate or display exchange rates.
+- **USER ROLES:** - Clients: Buy Tokens to boost or post tasks.
+  - Workers (Executors): Buy Subscriptions to unlock and view client phone numbers.
+
+## 2. Backend (Supabase Edge Functions & Deno)
+- **DENO ENVIRONMENT:** All Supabase Edge Functions must use Deno standards.
+- **ESM IMPORTS ONLY:** Strictly use `https://esm.sh/` for external packages. DO NOT use `npm:` or Node.js style imports.
+- **STRIPE HTTP CLIENT:** When initializing Stripe in Edge Functions, you MUST include: `httpClient: Stripe.createFetchHttpClient()`.
+- **CORS IS MANDATORY:** Every function must handle `OPTIONS` requests and return headers: `Access-Control-Allow-Origin: *` and `Access-Control-Allow-Methods: POST, OPTIONS`. (Crucial for mobile browsers).
+- **ZERO-TRUST SECURITY:** Always verify the `Authorization` header. Fetch the user via Supabase Auth and verify their `user.id` matches the request before creating any Stripe Intents.
+- **ERROR HANDLING:** Use `catch (error: any)` in Edge Functions to prevent TypeScript build errors.
+
+## 3. Frontend (React / Vite / Tailwind)
+- **MOBILE-FIRST UI:** Never hide critical action buttons (e.g., "Top Up", "Add Money", "Subscribe") on mobile devices using classes like `hidden sm:flex` or `hidden md:block`. Critical UI must be visible on all screen sizes.
+- **STRIPE GUARDS:** Always verify that `VITE_STRIPE_PUBLISHABLE_KEY` exists before attempting to render Stripe `<Elements />`. Log an error to the console if it is missing.
+- **CLEAN CODE:** Avoid nested ternary operators in JSX. Keep components modular.

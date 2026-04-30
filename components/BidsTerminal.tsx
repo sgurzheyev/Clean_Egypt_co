@@ -176,7 +176,7 @@ const BidsTerminal: React.FC<BidsTerminalProps> = ({ onclose, onShowTryFree }) =
               <label className="text-[10px] font-mono text-zinc-500 ml-2 uppercase">Bid</label>
               <input
                 type="number"
-                placeholder="EGP"
+                placeholder="Tokens"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 className="w-full bg-zinc-900/50 border border-zinc-800 p-4 rounded-2xl outline-none focus:border-[#00f2ff] font-bold text-[#00f2ff]"

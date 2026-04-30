@@ -5,7 +5,7 @@ import { Pencil, Target, Globe, Building2, Clock, Info } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import AdminDashboard from '../src/components/AdminDashboard';
-import StripeTopUp from '../src/components/StripeTopUp';
+import TokenPackModal from '../src/components/TokenPackModal';
 import LivenessCheck from '../src/components/LivenessCheck';
 import PhantomCapture from '../src/components/PhantomCapture';
 import {
@@ -112,7 +112,7 @@ interface ProfileRow {
 
 const SUPPORT_TELEGRAM = 'https://t.me/CleanEgypt_Admin_Bot';
 
-/** Max EGP user may request to withdraw: wallet minus frozen security (cannot cash out frozen funds). */
+/** Legacy helper (token-only UI). */
 function maxWithdrawableEgp(profile: ProfileRow | null): number {
   if (!profile) return 0;
   const w = Number(profile.wallet_balance ?? 0);
@@ -129,7 +129,7 @@ const shortId = (id: unknown): string => {
   }
 };
 
-/** Whole EGP worker share (90%) — matches DB floor() in resolve_mission_dispute. */
+/** Legacy helper (token-only UI). */
 function workerPayoutFromFundingEgp(f: number | null | undefined): number {
   return Math.floor(Math.max(0, Number(f ?? 0)) * 0.9);
 }
@@ -231,16 +231,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [contactEditMode, setContactEditMode] = useState(true);
   const [passwordEditMode, setPasswordEditMode] = useState(true);
-  const [showPayoutModal, setShowPayoutModal] = useState(false);
-  const [showStripeTopUp, setShowStripeTopUp] = useState(false);
-  const [payoutAmount, setPayoutAmount] = useState('');
-  const [payoutMethod, setPayoutMethod] = useState<'InstaPay' | 'Vodafone Cash' | 'Card'>('InstaPay');
-  const [payoutDetails, setPayoutDetails] = useState('');
-  const [payoutSubmitting, setPayoutSubmitting] = useState(false);
-  const [payoutStep, setPayoutStep] = useState<'form' | 'confirm'>('form');
+  const [showTokenPackModal, setShowTokenPackModal] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
-  const [topUpAmount, setTopUpAmount] = useState('');
-  const [topUpSubmitting, setTopUpSubmitting] = useState(false);
   const navigate = useNavigate();
   const lastMissionStatusActionAtRef = useRef<number>(0);
   const toastTimerRef = useRef<number | null>(null);
@@ -450,96 +442,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     }
   };
 
-  const handlePayoutFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userProfile) return;
-    const amountNum = floorEgp(parseIntegerEgpFromInput(payoutAmount));
-    if (amountNum <= 0) {
-      alert('Please enter a positive payout amount.');
-      return;
-    }
-    const maxWd = maxWithdrawableEgp(userProfile);
-    if (amountNum > maxWd + 0.0001) {
-      alert(t('withdrawalExceedsAvailable'));
-      return;
-    }
-    if (!payoutDetails.trim()) {
-      alert('Please provide payment details (wallet, card, etc.).');
-      return;
-    }
-    setPayoutStep('confirm');
-  };
-
-  const handleConfirmWithdrawal = async () => {
-    if (!userProfile) return;
-    const amountNum = floorEgp(parseIntegerEgpFromInput(payoutAmount));
-    if (amountNum <= 0) return;
-    const maxWd = maxWithdrawableEgp(userProfile);
-    if (amountNum > maxWd + 0.0001) {
-      alert(t('withdrawalExceedsAvailable'));
-      return;
-    }
-    try {
-      setPayoutSubmitting(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) {
-        alert('You must be logged in to request a payout.');
-        return;
-      }
-
-      const { error } = await supabase.rpc('process_withdrawal_request', {
-        p_requested_amount: amountNum,
-        p_payout_method: payoutMethod,
-        p_payout_details: payoutDetails.trim(),
-      });
-      if (error) {
-        alert(error.message || 'Failed to request payout. Please try again.');
-        return;
-      }
-
-      toast.success(t('withdrawalRequestQueued'));
-      setShowPayoutModal(false);
-      setPayoutStep('form');
-      setPayoutAmount('');
-      setPayoutDetails('');
-      await fetchProfileData();
-    } catch (err: any) {
-      alert(err?.message || 'Failed to request payout. Please try again.');
-    } finally {
-      setPayoutSubmitting(false);
-    }
-  };
-
-  const handleTopUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const amountNum = floorEgp(parseIntegerEgpFromInput(topUpAmount));
-    if (amountNum <= 0) {
-      alert('Please enter a positive amount to top up.');
-      return;
-    }
-    try {
-      setTopUpSubmitting(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) {
-        alert('You must be logged in to top up your wallet.');
-        return;
-      }
-      const { error } = await supabase.rpc('admin_credit_wallet_egp', {
-        p_amount: amountNum,
-      });
-      if (error) {
-        alert(error.message || 'Failed to top up wallet. Please try again.');
-        return;
-      }
-      alert('Funds added successfully!');
-      setTopUpAmount('');
-      await fetchProfileData();
-    } catch (err: any) {
-      alert(err?.message || 'Failed to top up wallet. Please try again.');
-    } finally {
-      setTopUpSubmitting(false);
-    }
-  };
+  // Token-only system: fiat withdrawals and wallet top-ups removed from UI.
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -882,19 +785,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     const amtTarget = Number(job.amount_target ?? bid.bid_amount ?? 0);
     const sec = workerCanSecureMissionDeposit(walletEgp, frozenEgp, job.category, amtTarget);
     if (isSecurityDepositFailure(sec)) {
-      if (sec.reason === 'insufficient_funds' && sec.shortfallEgp != null && sec.shortfallEgp > 0) {
-        alert(t('needDepositEgp', { amount: formatEgp(sec.shortfallEgp) }));
-      } else {
-        toast.error(
-          sec.reason === 'frozen_exceeds_wallet'
-            ? t('walletFrozenInvariantError')
-            : t('insufficientSecurityDepositFunds')
-        );
-      }
+      toast.error(
+        sec.reason === 'frozen_exceeds_wallet'
+          ? t('walletFrozenInvariantError')
+          : t('insufficientSecurityDepositFunds')
+      );
       return;
     }
 
-    if (!window.confirm(t('acceptBidConfirm', { amount: formatEgp(Number(bid.bid_amount)) }))) return;
+    if (!window.confirm(t('acceptBidConfirm', { amount: String(Math.floor(Number(bid.bid_amount) || 0)) }))) return;
     try {
       const { error: jobErr } = await supabase
         .from('missions')
@@ -1545,97 +1444,28 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
           </div>
 
-          {/* Wallet — glass panel */}
+          {/* Token actions (token-only system) */}
           <div className={`mt-6 p-5 shadow-[0_4px_30px_rgba(6,182,212,0.08)] ${PROFILE_GLASS_PANEL}`}>
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                {t('walletBalance')}
-              </p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                  {t('tokens')}
+                </p>
+                <p className="mt-1 text-2xl font-black text-lime-300 tabular-nums">
+                  {Math.max(0, Number(userProfile?.token_balance ?? 0))} Tokens
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => {
-                  setPayoutStep('form');
-                  setShowPayoutModal(true);
-                }}
-                className="text-[10px] font-bold uppercase tracking-[0.18em] px-3 py-1 rounded-full border border-white/20 text-slate-200 hover:bg-white/10 transition-all"
+                onClick={() => setShowTokenPackModal(true)}
+                className="shrink-0 rounded-full bg-lime-500 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-black hover:bg-lime-400 transition-all"
               >
-                {t('withdraw')}
+                {t('buyTokensPack', { tokens: 50, usd: 5 })}
               </button>
             </div>
-            <p className="text-3xl font-black text-orange-400">
-              Balance: {formatEgp(Number(balance ?? 0))}
+            <p className="mt-2 text-[11px] text-slate-500 leading-relaxed">
+              {t('tokenOnlyNote')}
             </p>
-            <p className="text-sm text-slate-300 mt-2">
-              {t('availableToWithdraw', {
-                amount: formatEgpDigits(maxWithdrawableEgp(userProfile)),
-              })}
-            </p>
-            {userProfile?.frozen_balance != null && Number(userProfile.frozen_balance) > 0 && (
-              <div className="mt-1.5 space-y-1 max-w-md">
-                <p className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-200/90">
-                  <span>
-                    {t('frozenDepositTag', {
-                      amount: formatEgpDigits(Number(userProfile.frozen_balance)),
-                    })}
-                  </span>
-                  <span
-                    className="inline-flex shrink-0"
-                    title={t('frozenDepositInfoTitle')}
-                    aria-label={t('frozenDepositInfoTitle')}
-                  >
-                    <Info className="w-3.5 h-3.5 text-amber-300/90" aria-hidden />
-                  </span>
-                </p>
-                <p className="text-[10px] text-amber-200/75 leading-snug pl-0.5">{t('frozenDepositInfoBody')}</p>
-              </div>
-            )}
-            <p className="mt-2 text-[11px] text-slate-500 italic">
-              {t('payoutFeeNote')}
-            </p>
-
-          {/* Top Up — primary: Stripe card (everyone) */}
-            <div className="mt-5 flex flex-col items-center">
-              <button
-                type="button"
-                onClick={() => setShowStripeTopUp(true)}
-              className="w-full max-w-sm px-6 py-2 rounded-full border border-orange-500/50 text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] text-sm font-black uppercase tracking-[0.2em] transition-all"
-              >
-              {t('payWithCardStripe')}
-              </button>
-              <p className="mt-2 text-xs text-center text-gray-400 max-w-sm">
-                {t('stripeCommissionNote')}
-              </p>
-            </div>
-
-            {/* Admin Force Pay — amount input + legacy Top Up (admin only) */}
-            {isAdmin && (
-              <div className="mt-4 rounded-2xl border-2 border-orange-500/50 bg-orange-500/5 p-4 space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400/90">
-                  Admin Force Pay
-                </p>
-                <form onSubmit={handleTopUp}>
-                  <div className="flex flex-row items-center gap-3 mt-2">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      pattern="\d*"
-                      placeholder={t('amountInUsd')}
-                      value={topUpAmount}
-                      onChange={(e) => setTopUpAmount(sanitizeIntegerEgpDigits(e.target.value))}
-                      className={`flex-1 min-w-0 ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/60 tabular-nums`}
-                    />
-                    <button
-                      type="submit"
-                      disabled={topUpSubmitting}
-                      className="shrink-0 inline-flex items-center justify-center px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.18em] border border-cyan-500/40 text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
-                    >
-                      {topUpSubmitting ? t('adding') : t('topUp')}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
           </div>
 
           {/* LOGOUT — highly visible */}
@@ -1869,13 +1699,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               SaaS Marketplace
             </p>
             <p className="mt-2 text-sm text-slate-300 leading-relaxed">
-              Create service requests directly from the map (pin placement is token-backed). Top up with Stripe in the Wallet section below.
+              {t('tokenOnlyMarketplaceHint')}
             </p>
           </div>
         </header>
 
         {/* MY HOME REQUESTS (from jobs table, excluding finished) */}
-        <section className="mb-10 text-white">
+        {false && <section className="mb-10 text-white">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-[0.2em] text-slate-300">
             🏠 My Home Requests
           </h2>
@@ -2126,10 +1956,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               })
             )}
           </div>
-        </section>
+        </section>}
 
-        {/* MY ACTIVE MISSIONS (from missions where cleaner_id = me, excluding finished) */}
-        <ProfileAccordion
+        {/* Token-only system: legacy fiat mission workflow hidden */}
+        {false && <ProfileAccordion
           title={t('myActiveMissions')}
           icon={<Target className="w-5 h-5 shrink-0 text-amber-400/90" aria-hidden />}
         >
@@ -2233,7 +2063,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               })}
             </div>
           )}
-        </ProfileAccordion>
+        </ProfileAccordion>}
 
         {/* MY ORDERS / MY LEADS (role-based, from missions table, excluding finished) */}
         <ProfileAccordion
@@ -2856,7 +2686,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       {showTerms && (
         <LegalModal
           title="Terms of Service"
-          body="CleanEgypt.co operates strictly as a software-as-a-service (SaaS) digital marketplace. We provide a platform connecting end-users who request services with independent local contractors (Cleaners). We are not a charity. Users top-up their digital wallets to create service requests. We charge a platform fee for facilitating these digital connections, providing GPS tracking, and verifying photo evidence. All Cleaners act as independent entities."
+          body="CleanEgypt.co operates strictly as a software-as-a-service (SaaS) digital marketplace. We provide a platform connecting end-users who request services with independent local contractors (Cleaners). We are not a charity. Access to marketplace actions is token-based. All Cleaners act as independent entities."
           onClose={() => setShowTerms(false)}
         />
       )}
@@ -2864,7 +2694,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       {showRefunds && (
         <LegalModal
           title="Refund Policy"
-          body="User funds topped up via Stripe are credited to a digital wallet. Funds placed on active missions are held securely in escrow (frozen balance). If a user cancels a mission BEFORE a Cleaner accepts it, 100% of the bounty is returned to the user's wallet. Users can request a payout of their unused wallet balance at any time by contacting support. Once a Cleaner successfully completes a mission and provides verified photo evidence, the transaction is final and non-refundable. In case of disputes, our administration reviews GPS and photo data to arbitrate fairly."
+          body="Token purchases and subscriptions are digital services. Once a token pack or subscription is activated, it is generally non-refundable unless required by applicable law. If a payment succeeds but tokens/subscription are not credited due to a technical error, support will resolve it after verification."
           onClose={() => setShowRefunds(false)}
         />
       )}
@@ -2918,199 +2748,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         </div>
       )}
 
-      {/* Payout request modal */}
-      {showPayoutModal && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
-          onClick={() => {
-            setPayoutStep('form');
-            setShowPayoutModal(false);
-          }}
-        >
-          <div
-            className="w-full max-w-md rounded-3xl bg-[#020617]/95 border border-white/10 shadow-2xl p-6 space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-start mb-1">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                  {payoutStep === 'confirm' ? t('withdrawalConfirmTitle') : t('requestPayoutTitle')}
-                </p>
-                <p className="text-xs text-slate-400 mt-1">
-                  {payoutStep === 'confirm'
-                    ? t('withdrawalConfirmSubtitle')
-                    : t('requestPayoutSubtitle')}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPayoutStep('form');
-                  setShowPayoutModal(false);
-                }}
-                className="text-slate-400 hover:text-white text-lg font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            {payoutStep === 'form' ? (
-              <form onSubmit={handlePayoutFormSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                    {t('amountInUsd')}
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    pattern="\d*"
-                    value={payoutAmount}
-                    onChange={(e) => setPayoutAmount(sanitizeIntegerEgpDigits(e.target.value))}
-                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500 tabular-nums`}
-                    placeholder="Enter amount to withdraw"
-                  />
-                  {userProfile && (
-                    <div className="mt-1 space-y-1.5 text-[11px] text-slate-400">
-                      <p>
-                        {t('availableToWithdraw', {
-                          amount: formatEgpDigits(maxWithdrawableEgp(userProfile)),
-                        })}
-                      </p>
-                      {Number(userProfile.frozen_balance ?? 0) > 0 && (
-                        <div className="space-y-1 text-amber-200/80">
-                          <p className="inline-flex items-center gap-1.5 flex-wrap">
-                            <span>
-                              {t('frozenDepositTag', {
-                                amount: formatEgpDigits(Number(userProfile.frozen_balance)),
-                              })}
-                            </span>
-                            <span
-                              className="inline-flex shrink-0"
-                              title={t('frozenDepositInfoTitle')}
-                              aria-label={t('frozenDepositInfoTitle')}
-                            >
-                              <Info className="w-3.5 h-3.5 text-amber-300/90" aria-hidden />
-                            </span>
-                          </p>
-                          <p className="text-[10px] text-amber-200/70 leading-snug">{t('frozenDepositInfoBody')}</p>
-                        </div>
-                      )}
-                      <p className="text-slate-500 italic">{t('payoutFeeNote')}</p>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                    Method
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['InstaPay', 'Vodafone Cash', 'Card'] as const).map((method) => (
-                      <button
-                        key={method}
-                        type="button"
-                        onClick={() => setPayoutMethod(method)}
-                        className={`px-2 py-2 text-[11px] font-bold uppercase tracking-[0.16em] ${
-                          payoutMethod === method
-                            ? 'rounded-2xl bg-emerald-500 text-black'
-                            : `${PROFILE_GLASS_PANEL} !rounded-2xl text-slate-300 hover:bg-white/10`
-                        }`}
-                      >
-                        {method}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                    Payment Details
-                  </label>
-                  <input
-                    type="text"
-                    value={payoutDetails}
-                    onChange={(e) => setPayoutDetails(e.target.value)}
-                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
-                    placeholder={
-                      payoutMethod === 'InstaPay'
-                        ? 'InstaPay ID or link'
-                        : payoutMethod === 'Vodafone Cash'
-                          ? 'Vodafone Cash number'
-                          : 'Card / bank details'
-                    }
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={payoutSubmitting}
-                  className="w-full mt-2 rounded-full bg-emerald-500 text-black text-[11px] font-black uppercase tracking-[0.2em] py-3 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait transition-all"
-                >
-                  {t('continueToConfirmWithdrawal')}
-                </button>
-              </form>
-            ) : (
-              <div className="space-y-4">
-                {(() => {
-                  const b = computeWithdrawalExitBreakdown(floorEgp(parseIntegerEgpFromInput(payoutAmount)));
-                  return (
-                    <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-4 space-y-2">
-                      <div className="text-sm text-slate-200 leading-relaxed space-y-1.5">
-                        <p className="font-semibold">
-                          {t('withdrawalLineGross', { amount: formatEgpDigits(b.gross) })}
-                        </p>
-                        <p className="text-amber-200/90">
-                          {t('withdrawalLineFee', { fee: formatEgpDigits(b.fee) })}
-                        </p>
-                        <p className="text-emerald-300 font-bold">
-                          {t('withdrawalLineNet', { net: formatEgpDigits(b.net) })}
-                        </p>
-                      </div>
-                      <p className="text-[11px] text-slate-500">
-                        {payoutMethod} • {payoutDetails.trim()}
-                      </p>
-                    </div>
-                  );
-                })()}
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPayoutStep('form')}
-                    disabled={payoutSubmitting}
-                    className="flex-1 rounded-full border border-white/20 text-slate-300 py-3 text-[11px] font-black uppercase tracking-[0.2em] hover:bg-white/5 disabled:opacity-60"
-                  >
-                    {t('withdrawalBackToEdit')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleConfirmWithdrawal()}
-                    disabled={payoutSubmitting}
-                    className="flex-1 rounded-full bg-emerald-500 text-black py-3 text-[11px] font-black uppercase tracking-[0.2em] hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait"
-                  >
-                    {payoutSubmitting ? t('processing') : t('confirmWithdrawal')}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Stripe Top Up modal */}
-      {showStripeTopUp && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-          onClick={() => setShowStripeTopUp(false)}
-        >
-          <div onClick={(e) => e.stopPropagation()}>
-            <StripeTopUp
-              onClose={() => setShowStripeTopUp(false)}
-              userId={_session?.user?.id ?? null}
-            />
-          </div>
-        </div>
-      )}
+      <TokenPackModal
+        open={showTokenPackModal}
+        userId={_session?.user?.id ?? null}
+        onClose={() => setShowTokenPackModal(false)}
+        onSuccess={() => void fetchProfileData()}
+      />
 
       {toastState && (
         <div className="fixed top-5 right-5 z-[10001]">
@@ -3127,7 +2770,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       )}
 
       {/* Client review modal: compare before/after & confirm or dispute */}
-      {reviewJob && (
+      {false && reviewJob && (
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
           onClick={() => setReviewJob(null)}
@@ -3326,7 +2969,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       )}
 
       {/* Worker PoW modal: before/after photos */}
-      {proofJob && (
+      {false && proofJob && (
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
           onClick={closeProofModal}

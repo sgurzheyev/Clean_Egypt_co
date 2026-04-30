@@ -255,7 +255,7 @@ const SupervisorDashboard: React.FC = () => {
                         {isCity ? 'City Cleaning' : 'Home Cleaning'}
                       </p>
                       <p className="text-sm text-slate-300">
-                        #{mission.id.slice(0, 8)} · EGP {mission.amount_target}
+                        #{mission.id.slice(0, 8)} · {mission.amount_target} Tokens
                       </p>
                       {mission.location_lat != null && mission.location_lng != null && (
                         <p className="text-[11px] text-slate-500 font-mono mt-1">

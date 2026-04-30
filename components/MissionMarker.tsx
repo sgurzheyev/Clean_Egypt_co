@@ -98,7 +98,7 @@ const MissionMarker: React.FC<MissionMarkerProps> = ({
         className="text-[7px] font-bold uppercase tracking-[0.15em] font-mono opacity-95"
         style={{ textShadow: `0 0 8px rgba(${theme.rgb},0.7)`, color: 'rgba(255,248,232,0.92)' }}
       >
-        EGP
+        Tokens
       </span>
     </span>
   );
@@ -117,7 +117,7 @@ const MissionMarker: React.FC<MissionMarkerProps> = ({
         ['--crystal-neon' as string]: theme.neon,
         ['--crystal-rgb' as string]: theme.rgb,
       }}
-      aria-label={isDraft ? 'Create mission' : `Mission funding ${formatEgpDigits(currentFundingEgp)} EGP`}
+      aria-label={isDraft ? 'Create mission' : `Mission funding ${formatEgpDigits(currentFundingEgp)} Tokens`}
     >
       {/* Ultra-neon ambient beacon pool (far-distance visibility) */}
       <div
