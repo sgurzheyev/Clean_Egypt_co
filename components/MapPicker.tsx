@@ -32,7 +32,10 @@ import {
 import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
 import { profileWalletBalanceEgp } from '../src/lib/walletCredit';
 import { floorEgp, parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '../src/lib/integerEgpInput';
+import { fetchUsdToEgpRate } from '../src/lib/platformSettings';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
+import TokenPackModal from '../src/components/TokenPackModal';
+import SubscriptionModal from '../src/components/SubscriptionModal';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const EGYPT_MAX_BOUNDS: [[number, number], [number, number]] = [[24.0, 21.0], [38.0, 32.5]];
@@ -50,6 +53,41 @@ const isInsideEgyptBounds = (lng: number, lat: number) =>
   lat <= EGYPT_MAX_BOUNDS[1][1];
 
 type TaskType = 'city' | 'home';
+
+type ServiceType =
+  | 'home_office'
+  | 'ac_cleaning'
+  | 'pool_maintenance'
+  | 'pest_control'
+  | 'windows_facades'
+  | 'terrace_garden'
+  | 'car_detailing'
+  | 'yacht_boat_cleaning'
+  | 'solar_panels'
+  | 'ultrasound_cleaning'
+  | 'carpets_mattresses'
+  | 'kitchen_hoods_grease'
+  | 'laundry_ironing'
+  | 'water_tank_cleaning'
+  | 'junk_removal';
+
+const CLEAN_WHEEL_SERVICES: { id: ServiceType; labelKey: string }[] = [
+  { id: 'home_office', labelKey: 'serviceHomeOffice' },
+  { id: 'ac_cleaning', labelKey: 'serviceAcCleaning' },
+  { id: 'pool_maintenance', labelKey: 'servicePoolMaintenance' },
+  { id: 'pest_control', labelKey: 'servicePestControl' },
+  { id: 'windows_facades', labelKey: 'serviceWindowsFacades' },
+  { id: 'terrace_garden', labelKey: 'serviceTerraceGarden' },
+  { id: 'car_detailing', labelKey: 'serviceCarDetailing' },
+  { id: 'yacht_boat_cleaning', labelKey: 'serviceYachtBoatCleaning' },
+  { id: 'solar_panels', labelKey: 'serviceSolarPanels' },
+  { id: 'ultrasound_cleaning', labelKey: 'serviceUltrasoundCleaning' },
+  { id: 'carpets_mattresses', labelKey: 'serviceCarpetsMattresses' },
+  { id: 'kitchen_hoods_grease', labelKey: 'serviceKitchenHoodsGrease' },
+  { id: 'laundry_ironing', labelKey: 'serviceLaundryIroning' },
+  { id: 'water_tank_cleaning', labelKey: 'serviceWaterTankCleaning' },
+  { id: 'junk_removal', labelKey: 'serviceJunkRemoval' },
+];
 
 interface JobOnMap {
   id: string;
@@ -1100,8 +1138,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const id = window.setInterval(updateAtmosphere, 5 * 60 * 1000);
     return () => window.clearInterval(id);
   }, [updateAtmosphere]);
-  /** 3D tower hover (GeoJSON mission_id). */
-  const [hoveredTowerMissionId, setHoveredTowerMissionId] = useState<string | null>(null);
+  // SaaS lead-gen: no 3D funding towers.
 
   const [selectedLocation, setSelectedLocation] = useState<
     { lat: number; lng: number } | null
@@ -1115,6 +1152,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [proofUploadMission, setProofUploadMission] = useState<JobOnMap | null>(null);
   const [taskType, setTaskType] = useState<TaskType>('city');
   const [orderAmount, setOrderAmount] = useState('');
+  const [serviceType, setServiceType] = useState<ServiceType>('home_office');
+  const [pinPlacementFeeEgp, setPinPlacementFeeEgp] = useState<number>(floorEgp(55));
   const [orderDescription, setOrderDescription] = useState('');
   const [orderPhotos, setOrderPhotos] = useState<File[]>([]);
   const [descriptionPolicyError, setDescriptionPolicyError] = useState<string | null>(null);
@@ -1151,6 +1190,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }),
     []
   );
+
+  // SaaS lead-gen: fixed pin placement fee ($1) converted to integer EGP using live platform rate.
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      const rate = await fetchUsdToEgpRate(supabase);
+      const egp = floorEgp(rate * 1);
+      if (!cancelled) setPinPlacementFeeEgp(egp > 0 ? egp : floorEgp(55));
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const selectTaskType = useCallback((type: TaskType) => {
     setDashboardExpanded(false);
@@ -1203,9 +1256,84 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [bidError, setBidError] = useState<string | null>(null);
   const [bidSuccess, setBidSuccess] = useState<string | null>(null);
 
+  // SaaS lead-gen: bid/close-deal previews are deprecated; keep null to avoid TS errors in disabled legacy blocks.
+  const bidModalFundingGapPreview: any = null;
+  const missionBidFundingGapPreview: any = null;
+
   const [activeBidCounts, setActiveBidCounts] = useState<Record<string, number>>({});
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [viewerProfile, setViewerProfile] = useState<{
+    full_name?: string | null;
+    telegram_username?: string | null;
+    role?: string | null;
+    token_balance?: number | null;
+    subscription_expires_at?: string | null;
+  } | null>(null);
+  const [executorSubscribed, setExecutorSubscribed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('leadgen_subscribed') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [leadPhoneVisible, setLeadPhoneVisible] = useState(false);
+  const [showTokenPackModal, setShowTokenPackModal] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+
+  const availableLeadsCount = useMemo(() => {
+    return (jobs || []).filter((j) => j.status === 'available').length;
+  }, [jobs]);
+
+  const [onlineExecutors, setOnlineExecutors] = useState<number>(() => {
+    return Math.floor(12 + Math.random() * (48 - 12 + 1));
+  });
+
+  useEffect(() => {
+    const tick = () => setOnlineExecutors(Math.floor(12 + Math.random() * (48 - 12 + 1)));
+    const id = window.setInterval(tick, 5 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const isExecutorViewer = useMemo(() => {
+    const role = String(viewerProfile?.role ?? '').toLowerCase();
+    if (role === 'cleaner') return true;
+    if (role === 'customer') return false;
+    // Backward-compatible fallback (older profiles without role populated).
+    const n = String(viewerProfile?.full_name ?? '').toLowerCase();
+    const u = String(viewerProfile?.telegram_username ?? '').toLowerCase();
+    return n.includes('ahmed') || u === 'ahmed';
+  }, [viewerProfile?.role, viewerProfile?.full_name, viewerProfile?.telegram_username]);
+
+  const serviceLabelFromId = useCallback(
+    (id: string | null | undefined) => {
+      const found = CLEAN_WHEEL_SERVICES.find((s) => s.id === id);
+      if (found) return t(found.labelKey);
+      return id ? String(id) : t('serviceHomeOffice');
+    },
+    [t]
+  );
+
+  const serviceTypeForMission = useCallback((m: any): string => {
+    const raw = m?.service_type ?? m?.serviceType ?? null;
+    return typeof raw === 'string' && raw.length > 0 ? raw : 'home_office';
+  }, []);
+
+  const handleUnlockLead = useCallback(() => {
+    if (!currentUserId) {
+      onRequestAuth?.();
+      return;
+    }
+    const expRaw = viewerProfile?.subscription_expires_at;
+    const exp = expRaw ? new Date(expRaw).getTime() : NaN;
+    const active = Number.isFinite(exp) && Date.now() < exp;
+    if (!active) {
+      setShowSubscriptionModal(true);
+      return;
+    }
+    setLeadPhoneVisible(true);
+  }, [currentUserId, onRequestAuth, viewerProfile?.subscription_expires_at]);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) =>
       setCurrentUserId(session?.user?.id ?? null)
@@ -1214,6 +1342,48 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setCurrentUserId(session?.user?.id ?? null);
     });
     return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!currentUserId) {
+        if (!cancelled) setViewerProfile(null);
+        return;
+      }
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name, telegram_username, role, token_balance, subscription_expires_at')
+        .eq('id', currentUserId)
+        .maybeSingle();
+      if (!cancelled) {
+        setViewerProfile({
+          full_name: (data as any)?.full_name ?? null,
+          telegram_username: (data as any)?.telegram_username ?? null,
+          role: (data as any)?.role ?? null,
+          token_balance: Number.isFinite(Number((data as any)?.token_balance))
+            ? Number((data as any)?.token_balance)
+            : null,
+          subscription_expires_at: (data as any)?.subscription_expires_at ?? null,
+        });
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
+
+  useEffect(() => {
+    const onStorage = () => {
+      try {
+        setExecutorSubscribed(localStorage.getItem('leadgen_subscribed') === '1');
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   // Fetch pending and in_progress missions from Supabase
@@ -1377,8 +1547,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const executePaymentFlow = useCallback(
     async (payload: {
-      amount: number;
-      taskType: TaskType;
+      amountEgp: number;
+      serviceType: ServiceType;
       location: { lat: number; lng: number };
       description: string;
       creatorPhotos?: string[];
@@ -1395,8 +1565,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         },
         body: JSON.stringify({
           type: 'mission_creation',
-          category: payload.taskType === 'city' ? 'public' : 'home',
-          amount_target: floorEgp(payload.amount),
+          amount_egp: floorEgp(payload.amountEgp),
+          service_type: payload.serviceType,
           location_lat: payload.location.lat,
           location_lng: payload.location.lng,
           description: payload.description || undefined,
@@ -1454,19 +1624,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
       try {
         const saved = JSON.parse(raw) as {
           taskType?: TaskType;
-          amount?: string | number;
+          serviceType?: ServiceType;
           location_lat?: number;
           location_lng?: number;
           description?: string;
+          building_id?: string | number | null;
+          building_height_m?: number | null;
         };
-        const amount =
-          typeof saved.amount === 'number'
-            ? floorEgp(saved.amount)
-            : parseIntegerEgpFromInput(String(saved.amount ?? ''));
-        if (amount <= 0) {
-          localStorage.removeItem(PENDING_SUBMIT_KEY);
-          return;
-        }
         if (typeof saved.location_lat !== 'number' || typeof saved.location_lng !== 'number') {
           localStorage.removeItem(PENDING_SUBMIT_KEY);
           return;
@@ -1476,18 +1640,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
         setTaskType(saved.taskType || 'city');
         setTaskTypeSelected(saved.taskType || 'city');
-        setOrderAmount(String(amount));
+        setServiceType(saved.serviceType || 'home_office');
         setSelectedLocation({ lat: saved.location_lat, lng: saved.location_lng });
         setOrderDescription(saved.description || '');
         setOrderError(null);
         setOrderSuccess(null);
 
         await executePaymentFlow({
-          amount,
-          taskType: (saved.taskType as TaskType) || 'city',
+          amountEgp: pinPlacementFeeEgp,
+          serviceType: saved.serviceType || 'home_office',
           location: { lat: saved.location_lat, lng: saved.location_lng },
           description: saved.description || '',
-          building: null,
+          building: saved.building_id != null
+            ? { id: saved.building_id, height: saved.building_height_m ?? null }
+            : null,
         });
       } catch (e) {
         console.error('Pending submit restore error:', e);
@@ -1495,7 +1661,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
     };
     run();
-  }, [executePaymentFlow]);
+  }, [executePaymentFlow, pinPlacementFeeEgp]);
 
   const handleMapClick = useCallback(
     (event: any) => {
@@ -1734,24 +1900,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setMissionBidAmount(String(Math.floor(Number(job.amount_target ?? 0))));
   }, []);
 
-  const handleMapClickWithTowers = useCallback(
-    (event: any) => {
-      const f = event?.features?.find(
-        (x: { layer?: { id?: string } }) =>
-          x.layer?.id === 'mission-towers' || x.layer?.id === 'mission-towers-hover'
-      );
-      const mid = f?.properties?.mission_id;
-      if (mid != null) {
-        const job = jobs.find((j) => j.id === String(mid));
-        if (job) {
-          handleMarkerClick(job);
-          return;
-        }
-      }
-      handleMapClick(event);
-    },
-    [jobs, handleMarkerClick, handleMapClick]
-  );
+  // Click-to-open leads is handled via marker layers (no funding towers).
 
   const handleCloseMissionBriefing = useCallback(() => {
     setSelectedMission(null);
@@ -1763,6 +1912,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setMissionBidAmount('');
     setShowDonate(false);
     setDonateAmount('');
+    setLeadPhoneVisible(false);
     setSelectedRating(0);
   }, []);
 
@@ -2168,37 +2318,35 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setOrderError(null);
     setOrderSuccess(null);
 
-    const amount = parseIntegerEgpFromInput(orderAmount);
-    if (amount <= 0) {
-      setOrderError(t('enterPositiveEgpAmount'));
-      return;
-    }
-    if (taskType === 'home') {
-      if (amount < HOME_MIN_PRICE || amount > HOME_MAX_PRICE) {
-        setOrderError(t('homePriceRangeEgp', { min: HOME_MIN_PRICE, max: HOME_MAX_PRICE }));
-        return;
-      }
-    } else {
-      if (amount < CITY_MIN_PRICE || amount > CITY_MAX_PRICE) {
-        setOrderError(t('cityPriceRangeEgp', { min: CITY_MIN_PRICE, max: CITY_MAX_PRICE }));
+    // Tokens: placing 1 pin costs 1 token (customers only).
+    if (viewerProfile?.role === 'customer') {
+      const tb = Math.floor(Number(viewerProfile?.token_balance ?? 0));
+      if (tb < 1) {
+        setShowTokenPackModal(true);
         return;
       }
     }
-    if (!selectedLocation) {
-      setOrderError('Tap on the map to choose a location.');
+
+    const location =
+      selectedBuildingInfo?.lngLat && selectedBuildingInfo?.lngLat?.lat && selectedBuildingInfo?.lngLat?.lng
+        ? { lat: Number(selectedBuildingInfo.lngLat.lat), lng: Number(selectedBuildingInfo.lngLat.lng) }
+        : selectedLocation;
+    if (!location) {
+      setOrderError(t('tapMapToSetLocation'));
       return;
     }
-    if ((orderDescription || '').trim().length < 20) {
-      setOrderError('Please provide a detailed description so the worker and AI know exactly what to do.');
-      return;
+
+    const rawDesc = (orderDescription || '').trim();
+    if (rawDesc.length > 0) {
+      const policy = validateMissionDescription(rawDesc);
+      if (!policy.ok) {
+        setOrderError('error' in policy ? policy.error : t('invalidDescription'));
+        return;
+      }
     }
-    const policy = validateMissionDescription(orderDescription);
-    if (!policy.ok) {
-      setOrderError('error' in policy ? policy.error : 'Invalid description.');
-      return;
-    }
-    const { filteredText } = filterMissionDescription(orderDescription);
-    let descriptionToSave = filteredText.trim() || orderDescription.trim();
+
+    const { filteredText } = filterMissionDescription(rawDesc);
+    let descriptionToSave = filteredText.trim() || rawDesc;
     const tags = photoVerification.aiTags;
     if (Array.isArray(tags) && tags.length > 0) {
       const tagStr = tags.filter(Boolean).join(', ');
@@ -2207,6 +2355,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
     if (orderPhotos.length > 0 && photoVerification.verifying) {
       setOrderError(t('waitForAiVerification'));
       return;
+    }
+    if (!descriptionToSave) {
+      descriptionToSave = t('leadPinDefaultDescription');
     }
 
     try {
@@ -2220,10 +2371,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
           PENDING_SUBMIT_KEY,
           JSON.stringify({
             taskType,
-            amount,
-            location_lat: selectedLocation.lat,
-            location_lng: selectedLocation.lng,
+            serviceType,
+            location_lat: location.lat,
+            location_lng: location.lng,
             description: descriptionToSave || orderDescription || '',
+            building_id: selectedBuildingInfo?.id ?? null,
+            building_height_m: selectedBuildingInfo?.height ?? null,
           })
         );
         setOrderSubmitting(false);
@@ -2231,16 +2384,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      // For City (public) missions, confirm Scout Stake before proceeding
-      if (taskType === 'city') {
-        const confirmed = window.confirm(
-          t('cityPinScoutStakeConfirm', { amount: formatEgp(SCOUT_STAKE_FEE_EGP) })
-        );
-        if (!confirmed) {
-          setOrderSubmitting(false);
-          return;
-        }
-      }
+      // Secure backend deduct: token is deducted atomically inside `create_lead_mission_with_token`.
 
       // 1) Compress and upload creator proof photos (if any)
       let creatorPhotoUrls: string[] | undefined;
@@ -2284,155 +2428,50 @@ const MapPicker: React.FC<MapPickerProps> = ({
         creatorPhotoUrls = uploaded;
       }
 
-      // 2) For City (public) missions, create mission via RPC (Scout Stake fee in EGP in DB)
-      if (taskType === 'city') {
-        const { error } = await supabase.rpc('create_public_mission_with_fee', {
-          p_title: descriptionToSave || 'City Mission',
-          p_description: descriptionToSave || null,
-          p_amount_target: floorEgp(amount),
-          p_location_lat: Number(selectedLocation.lat),
-          p_location_lng: Number(selectedLocation.lng),
-          p_photo_urls: creatorPhotoUrls || [],
-        });
+      // Create lead mission immediately (no Paymob) — token-backed.
+      const { data: mid, error: leadErr } = await supabase.rpc('create_lead_mission_with_token', {
+        p_service_type: serviceType,
+        p_location_lat: Number(location.lat),
+        p_location_lng: Number(location.lng),
+        p_description: descriptionToSave || null,
+        p_photo_urls: creatorPhotoUrls || [],
+        p_building_id: selectedBuildingInfo?.id ?? null,
+        p_building_height_m: selectedBuildingInfo?.height ?? null,
+      });
+      if (leadErr) throw leadErr;
 
-        if (error) {
-          console.error('Create public mission error:', error);
-          setOrderError(
-            error.message ||
-              t('cityMissionWalletHint', { amount: formatEgp(SCOUT_STAKE_FEE_EGP) })
-          );
-          return;
-        }
-
-        // Telegram notification (non-blocking)
-        try {
-          const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN as string | undefined;
-          const chatId = import.meta.env.VITE_TELEGRAM_ADMIN_CHAT_ID as string | undefined;
-          const photoUrls = creatorPhotoUrls || [];
-          const firstHttpPhoto = photoUrls.find(
-            (u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://'))
-          );
-          const hasPhoto = Boolean(firstHttpPhoto);
-          const caption = `🚨 *NEW MISSION* 🚨\n💰 Reward: ${formatEgp(Number(amount))}\n📝 Task: ${descriptionToSave || t('cityCleaning')}`;
-
-          if (botToken && chatId) {
-            if (hasPhoto && firstHttpPhoto) {
-              fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  chat_id: chatId,
-                  photo: firstHttpPhoto,
-                  caption,
-                  parse_mode: 'Markdown',
-                }),
-              }).catch((err) => console.error('Telegram sendPhoto failed:', err));
-            } else {
-              fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  chat_id: chatId,
-                  text: caption,
-                  parse_mode: 'Markdown',
-                }),
-              }).catch((err) => console.error('Telegram sendMessage failed:', err));
+      // Update local token balance snapshot.
+      setViewerProfile((p) =>
+        !p
+          ? p
+          : {
+              ...p,
+              token_balance:
+                Number.isFinite(Number(p.token_balance)) ? Math.max(0, Number(p.token_balance) - 1) : p.token_balance,
             }
-          }
-        } catch (err) {
-          console.error('Telegram notification error:', err);
-        }
+      );
 
-        setOrderSuccess(t('cityMissionCreatedScout', { amount: formatEgp(SCOUT_STAKE_FEE_EGP) }));
-        setOrderAmount('');
-        setOrderDescription('');
-        setOrderPhotos([]);
-        setDescriptionPolicyError(null);
-        setPhotoVerification({ verifying: false, allApproved: true, hasRejected: false });
-        setSelectedLocation(null);
-        await fetchMissions();
-        setTaskType(null);
-        return;
-      }
-
-      // 3) For Home missions: wallet instant pay OR Paymob
-      if (taskType === 'home') {
-        const payFromWallet = orderFormWalletPayRef.current;
-        orderFormWalletPayRef.current = false;
-
-        if (payFromWallet) {
-          const res = await fetch('/api/paymob-intent', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({
-              type: 'mission_creation',
-              category: 'home',
-              amount_target: floorEgp(amount),
-              location_lat: selectedLocation.lat,
-              location_lng: selectedLocation.lng,
-              description: descriptionToSave || undefined,
-              creator_photos: creatorPhotoUrls && creatorPhotoUrls.length > 0 ? creatorPhotoUrls : undefined,
-              defer_payment: true,
-            }),
-          });
-          const data = (await res.json().catch(() => ({}))) as { error?: string; missionId?: string };
-          if (!res.ok) {
-            throw new Error(data.error || `Wallet checkout failed (${res.status})`);
-          }
-          if (!data.missionId) {
-            throw new Error('No mission id returned');
-          }
-          const { error: rpcErr } = await supabase.rpc('pay_mission_from_wallet', {
-            p_mission_id: data.missionId,
-          });
-          if (rpcErr) throw rpcErr;
-
-          toast.success(t('paymentWalletSuccess'));
-          window.dispatchEvent(new CustomEvent('paymentSuccess'));
-          setOrderSuccess(t('paymentWalletSuccess'));
-          setOrderAmount('');
-          setOrderDescription('');
-          setOrderPhotos([]);
-          setDescriptionPolicyError(null);
-          setPhotoVerification({ verifying: false, allApproved: true, hasRejected: false });
-          setSelectedLocation(null);
-          setCreatorWalletEgp((w) =>
-            w == null ? w : Math.max(0, w - floorEgp(amount))
-          );
-          await fetchMissions();
-          return;
-        }
-
-        await executePaymentFlow({
-          amount,
-          taskType,
-          location: selectedLocation,
-          description: descriptionToSave || orderDescription || '',
-          creatorPhotos: creatorPhotoUrls,
-          building: taskType === 'home' ? selectedBuildingInfo : null,
-        });
-      }
+      setOrderSuccess(t('pinPlaced'));
+      setOrderDescription('');
+      setOrderPhotos([]);
+      setDescriptionPolicyError(null);
+      setPhotoVerification({ verifying: false, allApproved: true, hasRejected: false });
+      setSelectedLocation(null);
+      setSelectedBuildingInfo(null);
+      await fetchMissions();
+      setTaskType(null);
+      setTaskTypeSelected(null);
+      return;
     } catch (err) {
       console.error('Job submit exception:', err);
       setOrderError(
-        err instanceof Error ? err.message : 'Unexpected error. Please try again.'
+        err instanceof Error ? err.message : t('unexpectedErrorTryAgain')
       );
     } finally {
       setUploadingProof(false);
       setOrderSubmitting(false);
     }
   };
-
-  const showHomeWalletPay = useMemo(() => {
-    if (taskType !== 'home') return false;
-    const amt = floorEgp(parseIntegerEgpFromInput(orderAmount));
-    if (amt < HOME_MIN_PRICE || amt > HOME_MAX_PRICE) return false;
-    if (creatorWalletEgp === null) return false;
-    return creatorWalletEgp >= amt;
-  }, [taskType, orderAmount, creatorWalletEgp]);
 
   const { missionTrustBlocked, missionTrustShortfallEgp } = useMemo(() => {
     if (!showBidInput || !selectedMission || workerTrustSnapshot === null) {
@@ -2457,90 +2496,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     };
   }, [showBidInput, selectedMission, workerTrustSnapshot]);
 
-  /** Target − (current funding + bid input); button enable is NOT tied to this — preview only. */
-  const missionBidFundingGapPreview = useMemo(() => {
-    if (!selectedMission || !showBidInput) return null;
-    const inputEgp = parseIntegerEgpFromInput(String(missionBidAmount || ''));
-    if (inputEgp <= 0) return null;
-    const target = Number(selectedMission.amount_target ?? 0);
-    const current = Number(selectedMission.current_funding ?? 0);
-    const remainder = target - (current + inputEgp);
-    return { remainder, target, current, inputEgp };
-  }, [selectedMission, showBidInput, missionBidAmount]);
-
-  const bidModalFundingGapPreview = useMemo(() => {
-    if (!bidJob) return null;
-    const inputEgp = parseIntegerEgpFromInput(String(bidAmount || ''));
-    if (inputEgp <= 0) return null;
-    const target = Number(bidJob.amount_target ?? 0);
-    const current = Number(bidJob.current_funding ?? 0);
-    const remainder = target - (current + inputEgp);
-    return { remainder, target, current, inputEgp };
-  }, [bidJob, bidAmount]);
-
-  const missionsHeatmapGeoJSON = useMemo(() => {
-    const features = (jobs || [])
-      .filter(missionEligibleForMapPin)
-      .filter(
-        (j) =>
-          Number.isFinite(j.location_lat) &&
-          Number.isFinite(j.location_lng)
-      )
-      .map((j) => ({
-        type: 'Feature' as const,
-        geometry: {
-          type: 'Point' as const,
-          coordinates: [j.location_lng, j.location_lat],
-        },
-        properties: {
-          funding: Math.max(
-            0,
-            Number(j.current_funding ?? j.amount_target ?? 0)
-          ),
-        },
-      }));
-    return { type: 'FeatureCollection' as const, features };
-  }, [jobs]);
-
-  /** Polygon footprints + funding/status for 3D funding towers (same missions as heatmap). */
-  const missionTowersGeoJSON = useMemo(() => {
-    const features = (jobs || [])
-      .filter(missionEligibleForMapPin)
-      .filter((j) => Number.isFinite(j.location_lat) && Number.isFinite(j.location_lng))
-      .map((j) => {
-        const fundingEgp = Math.floor(Math.max(0, Number(j.current_funding ?? 0)));
-        const isUserActive =
-          !!currentUserId &&
-          j.cleaner_id === currentUserId &&
-          j.status === 'in_progress';
-        /** Open on map for workers (Constitution v6.0 “available” for green/gold). */
-        const isAvailable =
-          j.status === 'pending' || j.status === 'available' || j.status === 'funding' ? 1 : 0;
-        const hasCleaner = j.cleaner_id != null && String(j.cleaner_id).length > 0 ? 1 : 0;
-        return {
-          type: 'Feature' as const,
-          geometry: {
-            type: 'Polygon' as const,
-            coordinates: [footprintCylinderRing(j.location_lng, j.location_lat, 2.5)],
-          },
-          properties: {
-            mission_id: j.id,
-            lng: j.location_lng,
-            lat: j.location_lat,
-            /** Rounded integer EGP for label + extrusion height scale */
-            funding_egp: fundingEgp,
-            /** For Mapbox paint: cleaner assigned OR active workflow statuses */
-            has_cleaner: hasCleaner,
-            mission_status: j.status,
-            category: j.category,
-            is_available: isAvailable,
-            is_selected: selectedMission?.id === j.id ? 1 : 0,
-            is_user_active: isUserActive ? 1 : 0,
-          },
-        };
-      });
-    return { type: 'FeatureCollection' as const, features };
-  }, [jobs, selectedMission?.id, currentUserId]);
+  // SaaS lead-gen: no crowdfunding heatmap/towers — leads are displayed as pins only.
 
   /** Purple pulse anchor for missions where the current user is the active cleaner. */
   const activeWorkerPulseGeoJSON = useMemo(() => {
@@ -2617,84 +2573,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     };
   }, [selectedLocation]);
 
-  useEffect(() => {
-    const map = mapRef.current?.getMap();
-    if (!map?.isStyleLoaded()) return;
-    const src = map.getSource('missions-heatmap') as GeoJSONSource | undefined;
-    if (src?.setData) {
-      src.setData(missionsHeatmapGeoJSON as Parameters<GeoJSONSource['setData']>[0]);
-    }
-  }, [missionsHeatmapGeoJSON]);
-
-  /**
-   * Terrain-aware base for the 3D cylinder towers.
-   * When terrain is enabled, populate per-feature `terrain_elev` using `queryTerrainElevation`.
-   * Safe no-op if terrain isn't available.
-   */
-  useEffect(() => {
-    const map = mapRef.current?.getMap() as any;
-    if (!map?.isStyleLoaded?.()) return;
-    const src = map.getSource?.('mission-towers') as GeoJSONSource | undefined;
-    if (!src?.setData) return;
-
-    const hasTerrain = typeof map.getTerrain === 'function' ? !!map.getTerrain() : false;
-    const canQuery = typeof map.queryTerrainElevation === 'function';
-    if (!hasTerrain || !canQuery) return;
-
-    try {
-      const next = {
-        ...(missionTowersGeoJSON as any),
-        features: (missionTowersGeoJSON as any).features.map((f: any) => {
-          if (f?.geometry?.type !== 'Polygon') return f;
-          const lng = Number(f?.properties?.lng);
-          const lat = Number(f?.properties?.lat);
-          if (!Number.isFinite(lng) || !Number.isFinite(lat)) return f;
-          const elev = map.queryTerrainElevation([lng, lat], { exaggerated: false });
-          return {
-            ...f,
-            properties: {
-              ...(f.properties || {}),
-              terrain_elev: Number.isFinite(elev) ? elev : 0,
-            },
-          };
-        }),
-      };
-      src.setData(next);
-    } catch {
-      // ignore
-    }
-  }, [missionTowersGeoJSON]);
-
-  /** Hover highlight + cursor for funding towers. */
-  useEffect(() => {
-    const map = mapRef.current?.getMap();
-    if (!map) return;
-
-    const onMove = (e: MapMouseEvent) => {
-      if (mapMarkerLayerSuppressed) {
-        map.getCanvas().style.cursor = '';
-        setHoveredTowerMissionId(null);
-        return;
-      }
-      const feats = map.queryRenderedFeatures(e.point as PointLike, {
-        layers: ['mission-towers'],
-      });
-      if (feats.length > 0) {
-        map.getCanvas().style.cursor = 'pointer';
-        const id = feats[0].properties?.mission_id;
-        if (id != null) setHoveredTowerMissionId(String(id));
-      } else {
-        map.getCanvas().style.cursor = '';
-        setHoveredTowerMissionId(null);
-      }
-    };
-
-    map.on('mousemove', onMove);
-    return () => {
-      map.off('mousemove', onMove);
-      map.getCanvas().style.cursor = '';
-    };
-  }, [mapMarkerLayerSuppressed, missionTowersGeoJSON]);
+  // SaaS lead-gen: removed funding tower hover interactions.
 
   const navigateToActiveMission = useCallback(() => {
     if (!activeWorkerMission) return;
@@ -2745,8 +2624,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         {...viewState}
         antialias
         onMove={(evt) => setViewState(evt.viewState)}
-        interactiveLayerIds={['mission-towers', 'mission-towers-hover', '3d-buildings']}
-        onClick={handleMapClickWithTowers}
+        interactiveLayerIds={['3d-buildings']}
+        onClick={handleMapClick}
         maxBounds={EGYPT_MAX_BOUNDS}
         onLoad={(e: any) => {
           const map = e?.target;
@@ -3086,125 +2965,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           />
         </Source>
 
-        {/* 3D funding pillars (thin cylinders) — zoom > 12 (minzoom 13). */}
-        <Source id="mission-towers" type="geojson" data={missionTowersGeoJSON}>
-          <Layer
-            id="mission-towers"
-            type="fill-extrusion"
-            minzoom={13}
-            paint={{
-              'fill-extrusion-height': [
-                'case',
-                ['==', ['get', 'is_user_active'], 1],
-                0,
-                [
-                  'interpolate',
-                  ['linear'],
-                  ['coalesce', ['to-number', ['get', 'funding_egp'], 0], 0],
-                  0,
-                  0,
-                  100,
-                  10,
-                  1000,
-                  50,
-                  10000,
-                  200,
-                ],
-              ] as any,
-              // With terrain enabled, we can optionally populate `terrain_elev` per feature (meters)
-              // so cylinders sit on the ground instead of sea-level.
-              'fill-extrusion-base': ['coalesce', ['to-number', ['get', 'terrain_elev'], 0], 0] as any,
-              // Constitution v6.0 tower colors (case order matters).
-              'fill-extrusion-color': [
-                'case',
-                ['==', ['get', 'is_selected'], 1],
-                '#00FFFF',
-                [
-                  'any',
-                  ['==', ['get', 'has_cleaner'], 1],
-                  ['==', ['get', 'mission_status'], 'in_progress'],
-                  ['==', ['get', 'mission_status'], 'review'],
-                  ['==', ['get', 'mission_status'], 'pending_approval'],
-                ],
-                '#0000FF',
-                [
-                  'all',
-                  ['==', ['get', 'category'], 'public'],
-                  ['==', ['get', 'is_available'], 1],
-                ],
-                '#00FF00',
-                [
-                  'all',
-                  [
-                    'any',
-                    ['==', ['get', 'category'], 'private'],
-                    ['==', ['get', 'category'], 'home'],
-                  ],
-                  ['==', ['get', 'is_available'], 1],
-                ],
-                '#FFD700',
-                '#64748b',
-              ] as any,
-              'fill-extrusion-opacity': mapMarkerLayerSuppressed ? 0.06 : 0.8,
-            }}
-          />
-          <Layer
-            id="mission-towers-hover"
-            type="fill-extrusion"
-            minzoom={13}
-            filter={
-              hoveredTowerMissionId
-                ? (['==', ['get', 'mission_id'], hoveredTowerMissionId] as any)
-                : (['==', ['literal', 1], ['literal', 0]] as any)
-            }
-            paint={{
-              'fill-extrusion-height': [
-                'case',
-                ['==', ['get', 'is_user_active'], 1],
-                0,
-                [
-                  'interpolate',
-                  ['linear'],
-                  ['coalesce', ['to-number', ['get', 'funding_egp'], 0], 0],
-                  0,
-                  0,
-                  100,
-                  10,
-                  1000,
-                  50,
-                  10000,
-                  200,
-                ],
-              ] as any,
-              'fill-extrusion-base': ['coalesce', ['to-number', ['get', 'terrain_elev'], 0], 0] as any,
-              'fill-extrusion-color': '#00FFFF',
-              'fill-extrusion-opacity': mapMarkerLayerSuppressed ? 0 : 0.8,
-            }}
-          />
-          <Layer
-            id="mission-towers-labels"
-            type="symbol"
-            minzoom={13}
-            layout={{
-              'text-field': [
-                'to-string',
-                ['round', ['coalesce', ['to-number', ['get', 'funding_egp'], 0], 0]],
-              ] as any,
-              'text-size': 13,
-              'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-              'text-anchor': 'bottom',
-              'text-offset': [0, -0.6],
-              'text-allow-overlap': true,
-            }}
-            paint={{
-              'text-color': '#ffffff',
-              'text-halo-color': '#0a0a0a',
-              'text-halo-width': 2.2,
-              'text-halo-blur': 0.3,
-              'text-opacity': mapMarkerLayerSuppressed ? 0.06 : 1,
-            }}
-          />
-        </Source>
+        {/* SaaS lead-gen: removed crowdfunding/funding 3D pillars. */}
 
         {selectedBuildingInfo?.lngLat && (
           <Popup
@@ -3241,20 +3002,110 @@ const MapPicker: React.FC<MapPickerProps> = ({
         )}
       </Map>
 
+      <TokenPackModal
+        open={showTokenPackModal}
+        userId={currentUserId}
+        onClose={() => setShowTokenPackModal(false)}
+        onSuccess={async () => {
+          if (!currentUserId) return;
+          const { data } = await supabase
+            .from('profiles')
+            .select('token_balance')
+            .eq('id', currentUserId)
+            .maybeSingle();
+          setViewerProfile((p) =>
+            !p
+              ? p
+              : {
+                  ...p,
+                  token_balance: Number.isFinite(Number((data as any)?.token_balance))
+                    ? Number((data as any)?.token_balance)
+                    : p.token_balance,
+                }
+          );
+        }}
+      />
+
+      <SubscriptionModal
+        open={showSubscriptionModal}
+        userId={currentUserId}
+        onClose={() => setShowSubscriptionModal(false)}
+        onSuccess={async () => {
+          if (!currentUserId) return;
+          const { data } = await supabase
+            .from('profiles')
+            .select('subscription_expires_at')
+            .eq('id', currentUserId)
+            .maybeSingle();
+          setViewerProfile((p) =>
+            !p
+              ? p
+              : {
+                  ...p,
+                  subscription_expires_at: (data as any)?.subscription_expires_at ?? p.subscription_expires_at,
+                }
+          );
+        }}
+      />
+
       {/* Minimalist overlays — wrapper is pointer-events-none so map stays interactive */}
       <div className="absolute inset-0 pointer-events-none z-[80] flex flex-col">
         {/* Header: CleanEgypt.co (non-interactive) + profile avatar (clickable) */}
         <header className="flex items-center justify-between px-5 pt-5">
-          <h1 className="text-sm font-medium tracking-wide text-white pointer-events-none">
-            CleanEgypt.co
-          </h1>
-          <button
-            type="button"
-            onClick={onAvatarClick}
-            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] transition-all"
-          >
-            👤
-          </button>
+          <div className="pointer-events-none">
+            <h1 className="text-sm font-medium tracking-wide text-white">
+              CleanEgypt.co
+            </h1>
+            <div className="mt-2 flex items-center gap-4">
+              <div className="flex items-center gap-2 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-3 py-2">
+                <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.85)]" />
+                <div className="leading-tight">
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                    {t('availableLeads')}
+                  </p>
+                  <p className="text-sm font-black text-white tabular-nums">
+                    {availableLeadsCount}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-3 py-2">
+                <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.85)]" />
+                <div className="leading-tight">
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                    {t('onlineExecutors')}
+                  </p>
+                  <p className="text-[11px] font-black text-white tabular-nums">
+                    {t('onlineLabel')} {onlineExecutors}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="pointer-events-auto flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-2 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-3 py-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-500">
+                {t('tokens')}:
+              </p>
+              <p className="text-sm font-black text-white tabular-nums">
+                {Math.max(0, Math.floor(Number(viewerProfile?.token_balance ?? 0)))}
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowTokenPackModal(true)}
+                className="ml-2 rounded-full bg-lime-500 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-black hover:bg-lime-400 transition-all"
+              >
+                {t('topUp')}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={onAvatarClick}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] transition-all"
+            >
+              👤
+            </button>
+          </div>
         </header>
 
         <div className="mt-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))] flex justify-center">
@@ -3315,7 +3166,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         type="button"
                         onClick={handleDollarAction}
                         className="absolute left-1/2 top-1/2 -ml-7 -mt-7 h-14 w-14 rounded-full border border-cyan-400/80 bg-cyan-500/20 text-2xl font-black text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.45)]"
-                        aria-label="Just Now Earn"
+                        aria-label={t('serviceMarketplace')}
                       >
                         $
                       </motion.button>
@@ -3327,9 +3178,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   type="button"
                   onClick={() => setDashboardExpanded((s) => !s)}
                   className="absolute left-1/2 top-1/2 -ml-9 -mt-9 h-[4.5rem] w-[4.5rem] rounded-full border-2 border-cyan-400/70 bg-black/65 backdrop-blur-lg text-cyan-200 shadow-[0_0_34px_rgba(34,211,238,0.35)] flex items-center justify-center"
-                  aria-label="Open action menu"
+                  aria-label={isExecutorViewer ? t('myLeads') : t('myOrders')}
                 >
-                  <Recycle className="h-7 w-7" />
+                  <div className="flex flex-col items-center justify-center leading-none">
+                    <Recycle className="h-7 w-7" />
+                    <span className="mt-1 text-[9px] font-black uppercase tracking-[0.22em] text-cyan-200/90">
+                      {isExecutorViewer ? t('myLeads') : t('myOrders')}
+                    </span>
+                  </div>
                 </motion.button>
               </motion.div>
             ) : null}
@@ -3364,146 +3220,25 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                    {taskType === 'city'
-                      ? isRu
-                        ? 'Цель сбора (Предполагаемая стоимость)'
-                        : 'Collection Target (Goal)'
-                      : t('amountEgp')}
+                    {t('serviceTypeLabel')}
                   </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    pattern="\d*"
-                    value={orderAmount}
-                    onChange={(e) => setOrderAmount(sanitizeIntegerEgpDigits(e.target.value))}
-                    placeholder={
-                      taskType === 'city'
-                        ? isRu
-                          ? 'Цель сбора (Предполагаемая стоимость)'
-                          : 'Collection Target (Goal)'
-                        : t('anyAmount')
-                    }
-                    className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 tabular-nums`}
-                  />
-                  {taskType === 'city' && (
-                    <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
-                      {t('cityPinScoutStakeFormHint', { amount: formatEgp(SCOUT_STAKE_FEE_EGP) })}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                    {t('location')}
-                  </label>
-                  <div className={`relative flex items-center gap-2 ${PROFILE_GLASS_PANEL} px-3 py-2.5`}>
-                    <input
-                      type="text"
-                      value={
-                        selectedLocation
-                          ? `${selectedLocation.lat.toFixed(6)}, ${selectedLocation.lng.toFixed(6)}`
-                          : ''
-                      }
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        // allow manual editing; if looks like "lat, lng" try to parse
-                        if (value.includes(',')) {
-                          const [latStr, lngStr] = value.split(',').map((s) => s.trim());
-                          const latNum = parseFloat(latStr);
-                          const lngNum = parseFloat(lngStr);
-                          if (
-                            Number.isFinite(latNum) &&
-                            Number.isFinite(lngNum) &&
-                            latNum >= -90 &&
-                            latNum <= 90 &&
-                            lngNum >= -180 &&
-                            lngNum <= 180
-                          ) {
-                            if (!isInsideEgyptBounds(lngNum, latNum)) {
-                              toast.error(t('geofenceEgyptShelf'));
-                              return;
-                            }
-                            setSelectedLocation({ lat: latNum, lng: lngNum });
-                            mapRef.current?.flyTo({
-                              center: [lngNum, latNum],
-                              zoom: 16,
-                              essential: true,
-                              duration: 1500,
-                            });
-                            return;
-                          }
-                        }
-                      }}
-                      onPaste={(e: React.ClipboardEvent<HTMLInputElement>) => {
-                        const text = e.clipboardData.getData('text');
-                        if (text && text.includes(',')) {
-                          e.preventDefault();
-                          const [latStr, lngStr] = text.split(',').map((s) => s.trim());
-                          const latNum = parseFloat(latStr);
-                          const lngNum = parseFloat(lngStr);
-                          if (
-                            Number.isFinite(latNum) &&
-                            Number.isFinite(lngNum) &&
-                            latNum >= -90 &&
-                            latNum <= 90 &&
-                            lngNum >= -180 &&
-                            lngNum <= 180
-                          ) {
-                            if (!isInsideEgyptBounds(lngNum, latNum)) {
-                              toast.error(t('geofenceEgyptShelf'));
-                              return;
-                            }
-                            setSelectedLocation({ lat: latNum, lng: lngNum });
-                            mapRef.current?.flyTo({
-                              center: [lngNum, latNum],
-                              zoom: 16,
-                              essential: true,
-                              duration: 1500,
-                            });
-                          }
-                        }
-                      }}
-                      placeholder="Tap map or paste '27.320282, 33.708599'"
-                      className="flex-1 bg-transparent border-0 outline-none text-xs text-slate-300 placeholder:text-slate-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!navigator.geolocation) return;
-                        navigator.geolocation.getCurrentPosition(
-                          (pos) => {
-                            const { latitude, longitude } = pos.coords;
-                            if (!isInsideEgyptBounds(longitude, latitude)) {
-                              toast.error(t('geofenceEgyptShelf'));
-                              return;
-                            }
-                            setSelectedLocation({ lat: latitude, lng: longitude });
-                            mapRef.current?.flyTo({
-                              center: [longitude, latitude],
-                              zoom: 16,
-                              essential: true,
-                              duration: 1500,
-                            });
-                          },
-                          () => {
-                            // silently ignore errors; user can still tap map manually
-                          }
-                        );
-                      }}
-                      className="absolute right-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-orange-500/60 text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_8px_rgba(249,115,22,0.4)] text-[11px] transition-all"
-                      aria-label="Use current location"
-                    >
-                      ◎
-                    </button>
-                  </div>
-                  {!selectedLocation && (
-                    <p className="mt-1 text-[10px] text-amber-300 uppercase tracking-[0.18em]">
-                      {t('tapMapToSetLocation')}
-                    </p>
-                  )}
+                  <select
+                    value={serviceType}
+                    onChange={(e) => setServiceType(e.target.value as ServiceType)}
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-2.5 text-sm text-white bg-black/20 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500`}
+                  >
+                    {CLEAN_WHEEL_SERVICES.map((s) => (
+                      <option key={s.id} value={s.id} className="bg-slate-950">
+                        {t(s.labelKey)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
+                    {t('pinPlacementPriceHint', { amount: formatEgp(pinPlacementFeeEgp) })}
+                  </p>
                 </div>
               </div>
 
@@ -3520,6 +3255,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   if (w) toast.notice(w);
                 }}
                 hasTextWarning={!!textWarning}
+                showDescription={false}
               />
 
               {(orderError || descriptionPolicyError) && (
@@ -3534,33 +3270,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
               </div>
 
               <div className="mt-auto pb-[env(safe-area-inset-bottom)]">
-              {showHomeWalletPay && (
-                <div className="w-full mt-2 rounded-full animated-border-home">
-                  <button
-                    type="button"
-                    disabled={
-                      orderSubmitting ||
-                      uploadingProof ||
-                      !selectedLocation ||
-                      !!descriptionPolicyError ||
-                      (orderPhotos.length > 0 && photoVerification.verifying)
-                    }
-                    onClick={() => {
-                      orderFormWalletPayRef.current = true;
-                      orderFormRef.current?.requestSubmit();
-                    }}
-                    className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.2em] transition-all text-black bg-gradient-to-r from-cyan-300 to-emerald-400 border border-cyan-400/60 hover:brightness-110 shadow-[0_0_22px_rgba(34,211,238,0.35)] disabled:cursor-not-allowed disabled:opacity-50 active:scale-95"
-                  >
-                    {t('payInstantWithWallet')}
-                  </button>
-                </div>
-              )}
-
               <div
-                className={`w-full mt-1 rounded-full ${taskType === 'city' ? 'animated-border-city' : 'animated-border-home'} ${
+                className={`w-full mt-1 rounded-full animated-border-home ${
                   orderSubmitting ||
                   uploadingProof ||
-                  !selectedLocation ||
+                  !(selectedBuildingInfo?.lngLat || selectedLocation) ||
                   !!descriptionPolicyError ||
                   (orderPhotos.length > 0 &&
                     photoVerification.verifying)
@@ -3573,7 +3287,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   disabled={
                     orderSubmitting ||
                     uploadingProof ||
-                    !selectedLocation ||
+                    !(selectedBuildingInfo?.lngLat || selectedLocation) ||
                     !!descriptionPolicyError ||
                     (orderPhotos.length > 0 &&
                       photoVerification.verifying)
@@ -3582,7 +3296,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 >
                   {uploadingProof || orderSubmitting
                     ? t('processing')
-                    : t('submitTaskAndPay')}
+                    : t('payAndPlacePin')}
                 </button>
               </div>
               </div>
@@ -3592,7 +3306,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       )}
 
       {/* Bidding modal — dark glassmorphism */}
-      {bidJob && (
+      {false && bidJob && (
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] isolate bg-black/80 backdrop-blur-md"
           onClick={handleCloseBidModal}
@@ -4013,161 +3727,46 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="space-y-4">
-                {showBidInput && (
-                  <div className={`px-4 py-3 ${PROFILE_GLASS_PANEL}`}>
-                    <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
-                      {t('bidAmountLabelEgp')}
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      pattern="\d*"
-                      value={missionBidAmount}
-                      onChange={(e) => setMissionBidAmount(sanitizeIntegerEgpDigits(e.target.value))}
-                      className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none tabular-nums ${
-                        selectedMission.category === 'public'
-                          ? 'focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
-                          : 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500'
-                      }`}
-                      placeholder={`Default: ${formatEgp(Number(selectedMission.amount_target))}`}
-                    />
-                    {missionBidFundingGapPreview && (
-                      <p className="mt-2 text-[11px] text-cyan-200/95 font-semibold tabular-nums">
-                        {t('goalMinusFundedMinusBid')}: {formatEgp(missionBidFundingGapPreview.remainder)}
-                        {missionBidFundingGapPreview.remainder <= 0
-                          ? ` — ${t('goalMetOrExceededShort')}`
-                          : ''}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                <div
-                  className={`w-full rounded-full ${
-                    selectedMission.category === 'public' ? 'animated-border-city' : 'animated-border-home'
-                  } ${isAccepting ? 'opacity-60' : ''}`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!showBidInput) {
-                        setShowBidInput(true);
-                        if (!missionBidAmount)
-                          setMissionBidAmount(
-                            String(Math.floor(Number(selectedMission.amount_target ?? 0)))
-                          );
-                        return;
-                      }
-                      handleSubmitMissionBid();
-                    }}
-                    disabled={
-                      isAccepting ||
-                      (showBidInput &&
-                        parseIntegerEgpFromInput(String(missionBidAmount || '0')) <= 0)
-                    }
-                    className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isAccepting
-                      ? t('placing')
-                      : (() => {
-                          const egp = parseIntegerEgpFromInput(String(missionBidAmount || '0'));
-                          return showBidInput && egp > 0
-                            ? `${t('placeBid')} ${formatEgp(egp)}`
-                            : showBidInput
-                              ? t('placeBid')
-                              : t('makeABid');
-                        })()}
-                  </button>
-                  {missionTrustBlocked && showBidInput && (
-                    <div className="mt-2 flex flex-col items-center gap-2">
-                      <p className="text-center text-[10px] text-amber-300">{t('insufficientTrustDeposit')}</p>
-                      {missionTrustShortfallEgp > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => onAvatarClick?.()}
-                          className="w-full rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] border border-emerald-500/50 text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all"
-                        >
-                          {t('addFunds') || 'Add Funds'} {formatEgp(missionTrustShortfallEgp)}
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setTrustDepositInfoOpen(true)}
-                        className="text-[10px] font-bold uppercase tracking-wider text-amber-200/95 underline underline-offset-2 hover:text-amber-50"
-                      >
-                        {t('trustDepositLearnMore')}
-                      </button>
-                    </div>
-                  )}
+              <div className="space-y-3">
+                <div className={`${PROFILE_GLASS_PANEL} px-4 py-3`}>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                    {t('serviceRequested')}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-white">
+                    {serviceLabelFromId(serviceTypeForMission(selectedMission))}
+                  </p>
+                  <p className="mt-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                    {t('status')}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-cyan-200">
+                    {String(selectedMission.status || '').replace(/_/g, ' ')}
+                  </p>
                 </div>
 
-                {selectedMission.category === 'public' &&
-                  (selectedMission.status === 'pending' ||
-                    selectedMission.status === 'available' ||
-                    selectedMission.status === 'funding') && (
-                    <div className="space-y-2">
+                {isExecutorViewer ? (
+                  <div className="space-y-2">
+                    <div className="w-full rounded-full animated-border-home">
                       <button
                         type="button"
-                        onClick={() => {
-                          setShowDonate((prev) => !prev);
-                        }}
-                        className="w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] border border-orange-500/50 text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all"
+                        onClick={handleUnlockLead}
+                        className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.22em] text-orange-200 border border-orange-500/60 bg-orange-500/15 hover:bg-orange-500/25 hover:shadow-[0_0_20px_rgba(249,115,22,0.35)] transition-all active:scale-95"
                       >
-                        {t('donateToCause')}
+                        {t('unlockLead')}
                       </button>
-                      {showDonate && (
-                        <div className={`space-y-2 border border-emerald-500/30 px-4 py-3 ${PROFILE_GLASS_PANEL}`}>
-                          <p className="text-[11px] text-slate-300">
-                            {t('boostMissionFunding')}
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {[50, 100, 500].map((preset) => (
-                              <button
-                                key={preset}
-                                type="button"
-                                disabled={donating}
-                                onClick={() => handleDonate(preset)}
-                                className="px-3 py-1.5 rounded-full bg-emerald-500/20 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30 disabled:opacity-60 disabled:cursor-wait"
-                              >
-                                {formatEgp(preset)}
-                              </button>
-                            ))}
-                            <div className="flex-1 min-w-[120px] space-y-2">
-                              <div className="flex items-center gap-2 rounded-xl border border-slate-600/80 bg-slate-950/50 px-2 py-1 focus-within:border-emerald-400/60">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/90 shrink-0">
-                                  EGP
-                                </span>
-                                <input
-                                  type="text"
-                                  inputMode="numeric"
-                                  autoComplete="off"
-                                  pattern="\d*"
-                                  value={donateAmount}
-                                  onChange={(e) => setDonateAmount(sanitizeIntegerEgpDigits(e.target.value))}
-                                  className={`min-w-0 flex-1 bg-transparent border-0 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 tabular-nums`}
-                                  placeholder={t('customAmountEgpPlaceholder')}
-                                />
-                              </div>
-                              <button
-                                type="button"
-                                disabled={donating || parseIntegerEgpFromInput(donateAmount) <= 0}
-                                onClick={() => handleDonate(parseIntegerEgpFromInput(donateAmount))}
-                                className="w-full px-3 py-1.5 rounded-full bg-emerald-500 text-[11px] font-black uppercase tracking-[0.16em] text-black hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed mt-1.5"
-                              >
-                                {donating
-                                  ? t('sendingDonation')
-                                  : parseIntegerEgpFromInput(donateAmount) > 0
-                                    ? `${t('addFunds') || 'Add'} ${formatEgp(parseIntegerEgpFromInput(donateAmount))}`
-                                    : t('donate')}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </div>
-                  )}
+
+                    {leadPhoneVisible && (
+                      <div className={`${PROFILE_GLASS_PANEL} px-4 py-3`}>
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                          {t('contactCustomer')}
+                        </p>
+                        <p className="mt-1 text-sm font-black text-emerald-300 break-all">
+                          {selectedMission.creator?.phone_number || t('contactUnavailable')}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -4175,7 +3774,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       )}
 
       {/* Crowdfunding confirm modal (public missions) */}
-      {showCrowdfundConfirm && selectedMission && (
+      {false && showCrowdfundConfirm && selectedMission && (
         <div className="absolute inset-0 z-[9999] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] isolate">
           <div
             className="absolute inset-0 bg-black/85 backdrop-blur-md"

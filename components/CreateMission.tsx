@@ -35,6 +35,8 @@ type Props = {
   onPhotoVerificationChange: (s: PhotoVerificationState) => void;
   onTextWarning?: (msg: string | null) => void;
   hasTextWarning?: boolean;
+  /** SaaS lead-gen: hide the long description field (keep only photo upload). */
+  showDescription?: boolean;
 };
 
 function mergeKeywordsFromResponse(data: {
@@ -71,6 +73,7 @@ const CreateMission: React.FC<Props> = ({
   onPhotoVerificationChange,
   onTextWarning,
   hasTextWarning = false,
+  showDescription = true,
 }) => {
   const { t, i18n } = useTranslation();
   const [checkingPhotos, setCheckingPhotos] = useState(false);
@@ -244,7 +247,8 @@ const CreateMission: React.FC<Props> = ({
         </div>
       </div>
 
-      <div>
+      {showDescription && (
+        <div>
         <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
           {t('shortDescriptionAndArea')}
         </label>
@@ -286,7 +290,8 @@ const CreateMission: React.FC<Props> = ({
             ))}
           </div>
         )}
-      </div>
+        </div>
+      )}
     </>
   );
 };

@@ -97,6 +97,9 @@ interface ProfileRow {
   id: string;
   wallet_balance: number | null;
   frozen_balance: number | null;
+  token_balance?: number | null;
+  subscription_expires_at?: string | null;
+  role?: 'cleaner' | 'customer' | string | null;
   contact_email?: string | null;
   is_verified?: boolean;
   verification_status?: string | null;
@@ -668,7 +671,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, wallet_balance, frozen_balance, contact_email, is_verified, verification_status, full_name, phone_number, telegram_username, rating, avatar_url')
+        .select(
+          'id, role, wallet_balance, frozen_balance, token_balance, subscription_expires_at, contact_email, is_verified, verification_status, full_name, phone_number, telegram_username, rating, avatar_url'
+        )
         .eq('id', userId)
         .maybeSingle();
 
@@ -1066,7 +1071,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       await fetchProfileData();
     } catch (err) {
       console.error(err);
-      alert('Failed to accept bid. Please try again.');
+      alert('Failed to accept offer. Please try again.');
     }
   };
 
@@ -1648,6 +1653,44 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
           </div>
 
+          {/* SaaS Status — tokens + subscription */}
+          <div className={`mt-5 p-4 ${PROFILE_GLASS_PANEL}`}>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                  {t('tokens')}
+                </p>
+                <p className="mt-1 text-lg font-black text-lime-300 tabular-nums">
+                  {Math.max(0, Number(userProfile?.token_balance ?? 0))}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                  {t('subscriptionStatus')}
+                </p>
+                {(() => {
+                  const exp = userProfile?.subscription_expires_at
+                    ? Date.parse(userProfile.subscription_expires_at)
+                    : 0;
+                  const active = exp > Date.now();
+                  return (
+                    <div className="mt-1 flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] border ${
+                          active
+                            ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
+                            : 'border-amber-400/35 bg-amber-500/10 text-amber-200'
+                        }`}
+                      >
+                        {active ? t('subscriptionActive') : t('subscriptionExpired')}
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+
           {/* Wallet — glass panel */}
           <div className={`mt-6 p-5 shadow-[0_4px_30px_rgba(6,182,212,0.08)] ${PROFILE_GLASS_PANEL}`}>
             <div className="flex items-center justify-between mb-1">
@@ -2004,7 +2047,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   Task type
                 </label>
                 <p className="text-sm text-slate-200 font-medium">
-                  {taskType === 'city' ? 'City Cleaning Donation' : 'Home Cleaning Service'}
+                  {taskType === 'city' ? 'City Cleaning Request' : 'Home Cleaning Service'}
                 </p>
               </div>
               <div>
@@ -2028,8 +2071,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 {taskType === 'city' && (
                   <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
                     {isRu
-                      ? `Создание городской метки стоит ${formatEgp(SCOUT_STAKE_FEE_EGP)} (Scout Stake). Цель — ваш краудфандинговый сбор.`
-                      : `Creating a public pin costs ${formatEgp(SCOUT_STAKE_FEE_EGP)} (Scout Stake). The target is just your crowdfunding goal.`}
+                      ? `Создание городской метки стоит ${formatEgp(SCOUT_STAKE_FEE_EGP)} (Scout Stake).`
+                      : `Creating a public pin costs ${formatEgp(SCOUT_STAKE_FEE_EGP)} (Scout Stake).`}
                   </p>
                 )}
               </div>
@@ -2267,7 +2310,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                   })()}
                                   className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                  Accept bid
+                                  Accept offer
                                 </button>
                                 {(() => {
                                   const target = Number(job.amount_target ?? bid.bid_amount ?? 0);
@@ -2291,7 +2334,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     )}
 
                     {job.status === 'pending' && bids.length === 0 && (
-                      <p className="text-slate-500 text-xs italic mt-2">No bids yet. Workers can bid from the map.</p>
+                      <p className="text-slate-500 text-xs italic mt-2">
+                        No offers yet. Providers can respond from the map.
+                      </p>
                     )}
 
                     {job.status !== 'completed' && job.status !== 'finished' && (
@@ -2472,23 +2517,26 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           )}
         </ProfileAccordion>
 
-        {/* MY CITY DONATIONS (from missions table, excluding finished) */}
+        {/* MY ORDERS / MY LEADS (role-based, from missions table, excluding finished) */}
         <ProfileAccordion
-          title={t('cityDonations')}
+          title={userProfile?.role === 'cleaner' ? t('myLeads') : t('myOrders')}
           icon={<Building2 className="w-5 h-5 shrink-0 text-amber-400/90" aria-hidden />}
         >
           <div className="space-y-4">
             {loading ? (
-              <p className="text-slate-500 text-sm italic">Loading city donations...</p>
+              <p className="text-slate-500 text-sm italic">Loading…</p>
             ) : (myCityJobs || []).filter((job) => job.status !== 'finished').length === 0 ? (
-              <p className="text-slate-500 text-sm italic">You have no city donations yet.</p>
+              <p className="text-slate-500 text-sm italic">
+                {userProfile?.role === 'cleaner'
+                  ? t('executorNoLeadsEmpty')
+                  : t('customerNoOrdersEmpty')}
+              </p>
             ) : (
               (myCityJobs || [])
                 .filter((job) => job.status !== 'finished')
                 .map((job) => {
-                  const displayTitle = (job.title && job.title.trim().length > 0)
-                    ? job.title
-                    : 'City Donation';
+                  const displayTitle =
+                    job.title && job.title.trim().length > 0 ? job.title : 'Service Request';
                   const isPhantomPayment = job.status === 'pending_payment';
                   if (isPhantomPayment) {
                     const busy = phantomPaymentActionId === job.id;
@@ -2592,7 +2640,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       </div>
 
                       <p className="text-xs text-slate-400">
-                        Your donation on the map. Workers can pick it up in the marketplace.
+                        Your service request on the map. Providers can pick it up in the marketplace.
                       </p>
 
                   {(() => {
@@ -2601,7 +2649,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     return (
                       <div className="mt-3">
                         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
-                          Active bids: <span className="text-emerald-400">{bids.length}</span>
+                          Active offers: <span className="text-emerald-400">{bids.length}</span>
                         </p>
                         {bids.length > 0 ? (
                           <div className="space-y-2">
@@ -2623,7 +2671,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                     })()}
                                     className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
-                                    Accept bid
+                                    Accept offer
                                   </button>
                                   {(() => {
                                     const target = Number(job.amount_target ?? bid.bid_amount ?? 0);
@@ -2644,7 +2692,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             ))}
                           </div>
                         ) : (
-                          <p className="text-slate-500 text-xs italic">No bids yet.</p>
+                          <p className="text-slate-500 text-xs italic">No offers yet.</p>
                         )}
                       </div>
                     );
@@ -3097,7 +3145,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       {showTerms && (
         <LegalModal
           title="Terms of Service"
-          body="CleanEgypt.co operates strictly as a software-as-a-service (SaaS) digital marketplace. We provide a platform connecting end-users who wish to fund location cleanups with independent local contractors (Cleaners). We are not a charity or a donation fund. Users top-up their digital wallets to create task bounties. We charge a platform fee for facilitating these digital connections, providing GPS tracking, and verifying photo evidence. All Cleaners act as independent entities."
+          body="CleanEgypt.co operates strictly as a software-as-a-service (SaaS) digital marketplace. We provide a platform connecting end-users who request services with independent local contractors (Cleaners). We are not a charity. Users top-up their digital wallets to create service requests. We charge a platform fee for facilitating these digital connections, providing GPS tracking, and verifying photo evidence. All Cleaners act as independent entities."
           onClose={() => setShowTerms(false)}
         />
       )}

@@ -6,6 +6,7 @@ import AuthOverlay from './components/AuthOverlay';
 import VerificationPage from './components/VerificationPage';
 import Terms from './components/Terms';
 import Privacy from './components/Privacy';
+import TryFree from './components/TryFree';
 import { supabase } from './services/supabase';
 import i18n from './src/i18n';
 
@@ -67,6 +68,7 @@ const App: React.FC = () => {
       <Route path="/verify" element={<VerificationPage />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
+      <Route path="/try-free" element={<TryFree />} />
       <Route
         path="/*"
         element={

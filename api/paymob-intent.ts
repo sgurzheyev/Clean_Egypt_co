@@ -43,20 +43,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const {
       type, // 'mission_creation' or 'worker_deposit'
-      category, // 'public' | 'home' | 'office'
-      amount_target,
+      /** SaaS lead-gen: fixed pin placement fee (EGP integer). */
+      amount_egp,
+      /** SaaS lead-gen: selected Clean Wheel service type. */
+      service_type,
       location_lat,
       location_lng,
       missionId, // needed for deposits
       description,
       creator_photos,
+      building_id,
+      building_height_m,
       /** Resume Paymob checkout for an existing unpaid mission (no duplicate row). */
       existing_mission_id,
       /** Skip Paymob: create/resume mission row only; client calls `pay_mission_from_wallet`. */
       defer_payment,
     } = req.body;
 
-    let finalAmountTarget = Math.floor(Math.max(0, Number(amount_target)));
+    let finalAmountEgp = Math.floor(Math.max(0, Number(amount_egp)));
     let latNum = typeof location_lat === 'number' ? location_lat : Number(location_lat);
     let lngNum = typeof location_lng === 'number' ? location_lng : Number(location_lng);
     let missionIdForMetadata: string;
@@ -72,7 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const { data: existing, error: exErr } = await supabase
           .from('missions')
           .select(
-            'id, creator_id, category, amount_target, location_lat, location_lng, status, description, photo_urls'
+            'id, creator_id, status, location_lat, location_lng, description, photo_urls, pin_fee_egp, service_type, building_id, building_height_m'
           )
           .eq('id', resumeId)
           .maybeSingle();
@@ -88,21 +92,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         missionIdForMetadata = existing.id;
-        finalAmountTarget = Math.floor(Math.max(0, Number(existing.amount_target)));
+        finalAmountEgp = Math.floor(Math.max(0, Number((existing as any).pin_fee_egp)));
         latNum = Number(existing.location_lat);
         lngNum = Number(existing.location_lng);
-        if (!Number.isFinite(finalAmountTarget) || finalAmountTarget <= 0) {
-          return res.status(400).json({ error: 'Invalid amount_target on mission' });
+        if (!Number.isFinite(finalAmountEgp) || finalAmountEgp <= 0) {
+          return res.status(400).json({ error: 'Invalid amount_egp on mission' });
         }
         if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
           return res.status(400).json({ error: 'Invalid coordinates on mission' });
         }
       } else {
-        if (!category) {
-          return res.status(400).json({ error: 'Missing required fields for mission creation (category)' });
+        if (!service_type || typeof service_type !== 'string') {
+          return res.status(400).json({ error: 'Missing required fields for mission creation (service_type)' });
         }
-        if (!Number.isFinite(finalAmountTarget) || finalAmountTarget <= 0) {
-          return res.status(400).json({ error: 'Invalid or missing amount_target for mission creation' });
+        if (!Number.isFinite(finalAmountEgp) || finalAmountEgp <= 0) {
+          return res.status(400).json({ error: 'Invalid or missing amount_egp for mission creation' });
         }
         if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
           return res.status(400).json({ error: 'Invalid or missing location_lat/location_lng for mission creation' });
@@ -113,8 +117,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .from('missions')
           .insert({
             creator_id: authedUserId,
-            category,
-            amount_target: finalAmountTarget,
+            service_type,
+            pin_fee_egp: finalAmountEgp,
+            building_id: building_id ?? null,
+            building_height_m: building_height_m ?? null,
             location_lat: latNum,
             location_lng: lngNum,
             status: 'pending_payment',
@@ -137,7 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     // --- 2. HANDLE WORKER DEPOSIT ---
     else if (type === 'worker_deposit') {
-      if (!finalAmountTarget) {
+      if (!finalAmountEgp) {
         return res.status(400).json({ error: 'Missing fields for deposit' });
       }
       // Webhook parses merchant_order_id as `worker_deposit:<userId>_...` and credits that profile.
@@ -154,18 +160,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .eq('id', authedUserId)
         .maybeSingle();
       const wb = Math.floor(Number(prof?.wallet_balance ?? 0));
-      if (wb < finalAmountTarget) {
+      if (wb < finalAmountEgp) {
         return res.status(400).json({ error: 'Insufficient wallet balance' });
       }
       return res.status(200).json({
         missionId: missionIdForMetadata,
         deferred: true,
-        amountEgp: finalAmountTarget,
+        amountEgp: finalAmountEgp,
       });
     }
 
     // Integer EGP → piastres (1 EGP = 100); avoid float rounding (e.g. 250.999 → wrong cents).
-    const amountCents = String(Math.floor(finalAmountTarget * 100));
+    const amountCents = String(Math.floor(finalAmountEgp * 100));
 
     // --- 3. PAYMOB AUTH ---
     const authRes = await fetch('https://accept.paymob.com/api/auth/tokens', {
@@ -237,7 +243,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       mode: type,
       missionId: missionIdForMetadata,
       /** Integer EGP charged (matches Paymob amount_cents / 100). */
-      amountEgp: finalAmountTarget,
+      amountEgp: finalAmountEgp,
     });
 
   } catch (error: any) {
