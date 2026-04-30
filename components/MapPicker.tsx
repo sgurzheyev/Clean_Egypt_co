@@ -2922,17 +2922,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
             </div>
           </div>
           <div className="pointer-events-auto flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-2 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-3 py-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-lime-500">
+            <div className="flex items-center gap-2 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-2.5 py-2 sm:px-3">
+              <p className="hidden sm:block text-[10px] font-black uppercase tracking-[0.22em] text-lime-500">
                 {t('tokens')}:
               </p>
-              <p className="text-sm font-black text-white tabular-nums">
+              <p className="text-[11px] sm:text-sm font-black text-white tabular-nums">
                 {Math.max(0, Math.floor(Number(viewerProfile?.token_balance ?? 0)))}
               </p>
               <button
                 type="button"
                 onClick={() => setShowTokenPackModal(true)}
-                className="ml-2 rounded-full bg-lime-500 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-black hover:bg-lime-400 transition-all"
+                className="ml-1.5 rounded-full bg-lime-500 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-black hover:bg-lime-400 transition-all"
               >
                 {t('topUp')}
               </button>

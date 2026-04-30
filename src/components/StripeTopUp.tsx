@@ -19,7 +19,11 @@ import { formatEgp } from '../lib/formatMoney';
 /**
  * User enters EGP; Stripe charges the USD equivalent (card network); wallet credits net EGP.
  */
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string);
+const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
+if (!STRIPE_PUBLISHABLE_KEY) {
+  console.error('Missing VITE_STRIPE_PUBLISHABLE_KEY');
+}
+const stripePromise = STRIPE_PUBLISHABLE_KEY ? loadStripe(STRIPE_PUBLISHABLE_KEY) : Promise.resolve(null);
 
 const CARD_ELEMENT_OPTIONS = {
   style: {

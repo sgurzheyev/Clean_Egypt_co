@@ -1,8 +1,10 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
 import Stripe from 'https://esm.sh/stripe@14.16.0?target=deno';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 Deno.serve(async (req) => {
@@ -12,6 +14,14 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Missing Authorization' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
@@ -26,8 +36,37 @@ Deno.serve(async (req) => {
       plan_months?: unknown;
     };
     const user_id = String(body.user_id ?? '');
-    const plan_usd = Number(body.plan_usd ?? 0);
+    const plan_usd = Math.floor(Number(body.plan_usd ?? 0));
     const plan_months = Math.floor(Number(body.plan_months ?? 0));
+
+    if (!user_id) {
+      return new Response(JSON.stringify({ error: 'Missing user_id' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const planOk =
+      (plan_usd === 1 && plan_months === 1) ||
+      (plan_usd === 10 && plan_months === 12);
+    if (!planOk) {
+      return new Response(JSON.stringify({ error: 'Invalid plan' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Verify caller matches the provided user_id (zero-trust).
+    const supabaseUser = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
+    if (userErr || !user || user.id !== user_id) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const stripe = new Stripe(stripeKey, {
       apiVersion: '2023-10-16',
@@ -36,12 +75,12 @@ Deno.serve(async (req) => {
 
     // 2. Создание платежа в Stripe
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.floor(plan_usd * 100), // Конвертируем доллары в центы
+      amount: plan_usd * 100, // доллары → центы
       currency: 'usd',
       metadata: {
         user_id,
         months: String(plan_months),
-        type: 'subscription',
+        purpose: 'executor_subscription',
       },
       automatic_payment_methods: { enabled: true },
     });

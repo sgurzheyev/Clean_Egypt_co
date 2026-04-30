@@ -11,7 +11,11 @@ import {
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../services/supabase';
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string);
+const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
+if (!STRIPE_PUBLISHABLE_KEY) {
+  console.error('Missing VITE_STRIPE_PUBLISHABLE_KEY');
+}
+const stripePromise = STRIPE_PUBLISHABLE_KEY ? loadStripe(STRIPE_PUBLISHABLE_KEY) : Promise.resolve(null);
 
 const CARD_ELEMENT_OPTIONS = {
   style: {
