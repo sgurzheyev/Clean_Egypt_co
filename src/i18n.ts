@@ -269,7 +269,7 @@ const resources = {
       serviceLaundryIroning: 'Laundry / Ironing',
       serviceWaterTankCleaning: 'Water Tank Cleaning',
       serviceJunkRemoval: 'Junk Removal',
-      geofenceEgyptShelf: 'Pins can only be placed within Egypt and its shelf!',
+      geofenceEgyptShelf: 'You can place a bid only in Egypt',
       uploadPhoto: 'Upload photo',
       photosSelected: 'photo(s) selected',
       tapToAddReferencePhotos: 'Tap to add reference photos (up to 10)',
@@ -581,7 +581,7 @@ const resources = {
       serviceLaundryIroning: 'غسيل / كي',
       serviceWaterTankCleaning: 'تنظيف خزان المياه',
       serviceJunkRemoval: 'إزالة المخلفات',
-      geofenceEgyptShelf: 'لا يمكن وضع الدبابيس إلا داخل مصر وجرفها القاري!',
+      geofenceEgyptShelf: 'يمكنك وضع عرض فقط داخل مصر',
       descriptionContactWarning:
         'ممنوع إدخال جهات اتصال خارجية أو صفقات خارج المنصة في الوصف.',
       mapToastDonationThanks: 'شكراً لتبرعك!',
@@ -907,7 +907,7 @@ const resources = {
       serviceLaundryIroning: 'Стирка / глажка',
       serviceWaterTankCleaning: 'Чистка водяного бака',
       serviceJunkRemoval: 'Вывоз хлама',
-      geofenceEgyptShelf: 'Пины можно ставить только на территории Египта и его шельфа!',
+      geofenceEgyptShelf: 'Ставку можно сделать только в Египте',
       descriptionContactWarning:
         'В описании нельзя указывать контакты и сделки в обход платформы.',
       mapToastDonationThanks: 'Спасибо за пожертвование!',
@@ -1185,7 +1185,7 @@ const resources = {
       cleanYourHomeOffice: 'Zuhause/Büro reinigen',
       location: 'Standort',
       tapMapToSetLocation: 'Tippe auf die Karte, um den Standort zu setzen.',
-      geofenceEgyptShelf: 'Pins koennen nur innerhalb Aegyptens und seines Schelfs gesetzt werden!',
+      geofenceEgyptShelf: 'Du kannst nur in Ägypten bieten',
       descriptionContactWarning:
         'Externe Kontakte und Deals ausserhalb der Plattform sind in der Beschreibung nicht erlaubt.',
       mapToastDonationThanks: 'Danke für deine Spende!',
@@ -1454,7 +1454,7 @@ const resources = {
       cleanYourHomeOffice: 'Pulisci casa/ufficio',
       location: 'Posizione',
       tapMapToSetLocation: 'Tocca la mappa per impostare la posizione.',
-      geofenceEgyptShelf: "I pin possono essere posizionati solo in Egitto e nella sua piattaforma continentale!",
+      geofenceEgyptShelf: 'Puoi fare un’offerta solo in Egitto',
       descriptionContactWarning:
         'Nella descrizione non sono ammessi contatti esterni o accordi fuori piattaforma.',
       mapToastDonationThanks: 'Grazie per la donazione!',
@@ -1723,7 +1723,7 @@ const resources = {
       cleanYourHomeOffice: 'Limpiar casa/oficina',
       location: 'Ubicación',
       tapMapToSetLocation: 'Toca el mapa para fijar la ubicación.',
-      geofenceEgyptShelf: 'Los pines solo se pueden colocar dentro de Egipto y su plataforma continental.',
+      geofenceEgyptShelf: 'Solo puedes pujar en Egipto',
       descriptionContactWarning:
         'No se permiten contactos externos ni acuerdos fuera de la plataforma en la descripción.',
       mapToastDonationThanks: '¡Gracias por tu donación!',

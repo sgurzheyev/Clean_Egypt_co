@@ -38,7 +38,8 @@ import TokenPackModal from '../src/components/TokenPackModal';
 import SubscriptionModal from '../src/components/SubscriptionModal';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
-const EGYPT_MAX_BOUNDS: [[number, number], [number, number]] = [[24.0, 21.0], [38.0, 32.5]];
+// Egypt approximate bounding box (used only to validate pin placement — map view is global).
+const EGYPT_MAX_BOUNDS: [[number, number], [number, number]] = [[24.7, 22.0], [36.9, 31.6]];
 const PROOF_IMAGE_COMPRESSION = {
   maxWidthOrHeight: 1200,
   initialQuality: 0.7,
@@ -2465,7 +2466,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         onMove={(evt) => setViewState(evt.viewState)}
         interactiveLayerIds={['3d-buildings']}
         onClick={handleMapClick}
-        maxBounds={EGYPT_MAX_BOUNDS}
         onLoad={(e: any) => {
           const map = e?.target;
           if (!map) return;
