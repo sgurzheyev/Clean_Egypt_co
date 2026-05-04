@@ -10,6 +10,7 @@ import {
 } from '@stripe/react-stripe-js';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../services/supabase';
+import { throwIfInvokeFailed } from '../lib/supabaseFunctionError';
 
 const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
 if (!STRIPE_PUBLISHABLE_KEY) {
@@ -46,18 +47,23 @@ function TokenPackForm({
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
-  const pack = useMemo(() => ({ tokens: 50, usd: 5 }), []);
+  /** Single catalog pack — keep in sync with `stripe-token-intent` (integers). */
+  const pack = useMemo(() => ({ tokens: 50 as const, usd: 5 as const }), []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!stripe || !elements || !userId) return;
     setSubmitting(true);
     try {
-      const { data, error: fnErr } = await supabase.functions.invoke('stripe-token-intent', {
-        body: { user_id: userId, pack_tokens: pack.tokens, pack_usd: pack.usd },
+      const intentRes = await supabase.functions.invoke('stripe-token-intent', {
+        body: {
+          user_id: userId,
+          pack_tokens: Number.parseInt(String(pack.tokens), 10),
+          pack_usd: Number.parseInt(String(pack.usd), 10),
+        },
       });
-      if (fnErr) throw fnErr;
-      if (data?.error) throw new Error(String(data.error));
+      throwIfInvokeFailed('stripe-token-intent', intentRes);
+      const data = intentRes.data as { clientSecret?: string; error?: string } | null;
 
       const clientSecret = data?.clientSecret;
       if (!clientSecret) throw new Error('Missing client secret');
@@ -71,16 +77,15 @@ function TokenPackForm({
       if (stripeErr) throw stripeErr;
       if (paymentIntent?.status !== 'succeeded') throw new Error('Payment did not succeed');
 
-      const { data: creditData, error: creditErr } = await supabase.functions.invoke('stripe-token-credit', {
+      const creditRes = await supabase.functions.invoke('stripe-token-credit', {
         body: { payment_intent_id: paymentIntent.id },
       });
-      if (creditErr) throw creditErr;
-      if (creditData?.error) throw new Error(String(creditData.error));
+      throwIfInvokeFailed('stripe-token-credit', creditRes);
 
       onSuccess();
       onClose();
     } catch (err: any) {
-      // Keep it simple: surface message via alert; MapPicker also shows toast notices.
+      console.error('[TokenPackModal] payment flow error', err);
       alert(err?.message || t('unexpectedErrorTryAgain'));
     } finally {
       setSubmitting(false);
@@ -172,7 +177,7 @@ export default function TokenPackModal({
         <div className="max-h-[80vh] overflow-y-auto pb-12 pb-[calc(3rem+env(safe-area-inset-bottom))]">
           <div className="flex items-start justify-between mb-4">
             <h3 className="text-sm font-black uppercase tracking-[0.22em] text-white">
-              Buy 50 Tokens
+              {t('buy50TokensTitle')}
             </h3>
             <button
               type="button"

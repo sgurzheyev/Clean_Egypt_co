@@ -2462,6 +2462,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
       <Map
         ref={mapRef}
         {...viewState}
+        projection="globe"
+        renderWorldCopies={false}
         antialias
         onMove={(evt) => setViewState(evt.viewState)}
         interactiveLayerIds={['3d-buildings']}

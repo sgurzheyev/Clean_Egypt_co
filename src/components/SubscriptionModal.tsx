@@ -10,6 +10,7 @@ import {
 } from '@stripe/react-stripe-js';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../services/supabase';
+import { throwIfInvokeFailed } from '../lib/supabaseFunctionError';
 
 const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
 if (!STRIPE_PUBLISHABLE_KEY) {
@@ -49,8 +50,8 @@ function SubscriptionForm({
   const [plan, setPlan] = useState<'month' | 'year'>('month');
 
   const planMeta = useMemo(() => {
-    if (plan === 'year') return { usd: 10, months: 12 };
-    return { usd: 1, months: 1 };
+    if (plan === 'year') return { usd: 10 as const, months: 12 as const };
+    return { usd: 1 as const, months: 1 as const };
   }, [plan]);
 
   const submit = async (e: React.FormEvent) => {
@@ -58,11 +59,15 @@ function SubscriptionForm({
     if (!stripe || !elements || !userId) return;
     setSubmitting(true);
     try {
-      const { data, error: fnErr } = await supabase.functions.invoke('stripe-subscription-intent', {
-        body: { user_id: userId, plan_usd: planMeta.usd, plan_months: planMeta.months },
+      const intentRes = await supabase.functions.invoke('stripe-subscription-intent', {
+        body: {
+          user_id: userId,
+          plan_usd: Math.floor(Number(planMeta.usd)),
+          plan_months: Math.floor(Number(planMeta.months)),
+        },
       });
-      if (fnErr) throw fnErr;
-      if (data?.error) throw new Error(String(data.error));
+      throwIfInvokeFailed('stripe-subscription-intent', intentRes);
+      const data = intentRes.data as { clientSecret?: string } | null;
 
       const clientSecret = data?.clientSecret;
       if (!clientSecret) throw new Error('Missing client secret');
@@ -76,15 +81,15 @@ function SubscriptionForm({
       if (stripeErr) throw stripeErr;
       if (paymentIntent?.status !== 'succeeded') throw new Error('Payment did not succeed');
 
-      const { data: actData, error: actErr } = await supabase.functions.invoke('stripe-subscription-activate', {
+      const actRes = await supabase.functions.invoke('stripe-subscription-activate', {
         body: { payment_intent_id: paymentIntent.id },
       });
-      if (actErr) throw actErr;
-      if (actData?.error) throw new Error(String(actData.error));
+      throwIfInvokeFailed('stripe-subscription-activate', actRes);
 
       onSuccess();
       onClose();
     } catch (err: any) {
+      console.error('[SubscriptionModal] payment flow error', err);
       alert(err?.message || t('unexpectedErrorTryAgain'));
     } finally {
       setSubmitting(false);
@@ -104,8 +109,9 @@ function SubscriptionForm({
           }`}
         >
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
-            {t('oneMonth')}
+            {t('beginnerTestPlan')}
           </p>
+          <p className="mt-1 text-xs font-semibold text-slate-300">{t('subscriptionTierMonthHint')}</p>
           <p className="mt-1 text-sm font-black text-white">$1</p>
         </button>
         <button
@@ -118,8 +124,9 @@ function SubscriptionForm({
           }`}
         >
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
-            {t('oneYear')}
+            {t('fullAccessPlan')}
           </p>
+          <p className="mt-1 text-xs font-semibold text-slate-300">{t('subscriptionTierYearHint')}</p>
           <p className="mt-1 text-sm font-black text-white">$10</p>
         </button>
       </div>

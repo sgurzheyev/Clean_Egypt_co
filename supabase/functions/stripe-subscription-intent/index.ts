@@ -74,13 +74,16 @@ Deno.serve(async (req) => {
     });
 
     // 2. Создание платежа в Stripe
+    const plan_tier = plan_usd === 1 && plan_months === 1 ? 'beginner_test' : 'full_access';
+
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: plan_usd * 100, // доллары → центы
+      amount: plan_usd * 100, // USD → cents
       currency: 'usd',
       metadata: {
         user_id,
         months: String(plan_months),
         purpose: 'executor_subscription',
+        plan_tier,
       },
       automatic_payment_methods: { enabled: true },
     });
