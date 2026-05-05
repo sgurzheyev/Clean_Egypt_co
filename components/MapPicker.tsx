@@ -851,6 +851,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const jobsRef = React.useRef<JobOnMap[]>([]);
   const [highlightedMissionIds, setHighlightedMissionIds] = useState<Set<string>>(new Set());
   const highlightedMissionIdsRef = React.useRef<Set<string>>(new Set());
+  const [highlightedBuildingBBoxes, setHighlightedBuildingBBoxes] = useState<
+    Array<{ minLng: number; minLat: number; maxLng: number; maxLat: number }>
+  >([]);
   const missionOverlayCacheRef = React.useRef<
     Record<
       string,
@@ -878,12 +881,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
         src.setData({ type: 'FeatureCollection', features: [] });
         highlightedMissionIdsRef.current = new Set();
         setHighlightedMissionIds(new Set());
+        setHighlightedBuildingBBoxes([]);
         return;
       }
 
       const featuresOut: any[] = [];
       const seenByKey = new Map<string, { rank: number; idx: number }>();
       const nextHighlightedMissionIds = new Set<string>();
+      const nextBBoxes: Array<{ minLng: number; minLat: number; maxLng: number; maxLat: number }> = [];
 
       const active = (jobsList || []).filter((j) =>
         ['pending', 'available', 'funding', 'in_progress'].includes(String(j.status || ''))
@@ -918,6 +923,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }
           }
           nextHighlightedMissionIds.add(missionId);
+
+          // Capture bbox for pin suppression (key is minLng,minLat,maxLng,maxLat).
+          const parts = String(cached.key).split(',').map((x) => Number(x));
+          if (parts.length === 4 && parts.every((n) => Number.isFinite(n))) {
+            nextBBoxes.push({ minLng: parts[0], minLat: parts[1], maxLng: parts[2], maxLat: parts[3] });
+          }
           continue;
         }
 
@@ -925,7 +936,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         if (!p) continue;
 
         // Aggressive hit-test: small bbox around the point yields more stable results on extrusions.
-        const pad = 6;
+        const pad = isTouchDevice ? 14 : 8;
         const bbox: [PointLike, PointLike] = [
           [p.x - pad, p.y - pad],
           [p.x + pad, p.y + pad],
@@ -994,7 +1005,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
 
         nextHighlightedMissionIds.add(missionId);
+        // Add bbox to suppression list.
+        const parts = String(key).split(',').map((x) => Number(x));
+        if (parts.length === 4 && parts.every((n) => Number.isFinite(n))) {
+          nextBBoxes.push({ minLng: parts[0], minLat: parts[1], maxLng: parts[2], maxLat: parts[3] });
+        }
         if (featuresOut.length >= 140) break;
+      }
+
+      // Ensure stable feature IDs for hover styling via feature-state.
+      for (const ft of featuresOut) {
+        if (ft && typeof ft === 'object' && (ft as any).properties?.mission_id) {
+          (ft as any).id = String((ft as any).properties.mission_id);
+        }
       }
 
       src.setData({ type: 'FeatureCollection', features: featuresOut });
@@ -1002,6 +1025,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // Update the marker suppression set (either glowing building OR pin, not both).
       highlightedMissionIdsRef.current = nextHighlightedMissionIds;
       setHighlightedMissionIds(nextHighlightedMissionIds);
+      setHighlightedBuildingBBoxes(nextBBoxes);
     },
     []
   );
@@ -2623,9 +2647,33 @@ const MapPicker: React.FC<MapPickerProps> = ({
   /** Main mission pins (shown only when not highlighted as a glowing building). */
   const missionPinsGeoJSON = useMemo(() => {
     const suppressed = highlightedMissionIds;
+    const bboxes = highlightedBuildingBBoxes;
+    const insideAnyHighlightedBbox = (lng: number, lat: number) => {
+      if (!bboxes || bboxes.length === 0) return false;
+      // Tiny padding so pins on edges still get suppressed.
+      const pad = 0.00002;
+      for (const b of bboxes) {
+        if (
+          lng >= b.minLng - pad &&
+          lng <= b.maxLng + pad &&
+          lat >= b.minLat - pad &&
+          lat <= b.maxLat + pad
+        ) {
+          return true;
+        }
+      }
+      return false;
+    };
     const features = (jobs || [])
       .filter(missionEligibleForMapPin)
-      .filter((j) => !suppressed.has(String(j.id)))
+      .filter((j) => {
+        const id = String(j.id);
+        if (suppressed.has(id)) return false;
+        const lng = Number(j.location_lng);
+        const lat = Number(j.location_lat);
+        if (Number.isFinite(lng) && Number.isFinite(lat) && insideAnyHighlightedBbox(lng, lat)) return false;
+        return true;
+      })
       .filter((j) => Number.isFinite(j.location_lat) && Number.isFinite(j.location_lng))
       .map((j) => ({
         type: 'Feature' as const,
@@ -2639,7 +2687,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         },
       }));
     return { type: 'FeatureCollection' as const, features };
-  }, [jobs, highlightedMissionIds]);
+  }, [jobs, highlightedMissionIds, highlightedBuildingBBoxes]);
 
   const activeWorkerMission = useMemo(
     () =>
@@ -2772,7 +2820,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
         .ce-map .mapboxgl-ctrl-bottom-right {
           margin-right: 12px;
-          margin-bottom: 110px;
+          margin-bottom: calc(20px + env(safe-area-inset-bottom));
         }
         @media (min-width: 641px) {
           .ce-map .mapboxgl-ctrl-bottom-right {
@@ -2953,6 +3001,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   minzoom: 13,
                   paint: {
                     'fill-extrusion-color': [
+                      'case',
+                      ['boolean', ['feature-state', 'hover'], false],
+                      '#ffffff',
                       'match',
                       ['get', 'mission_status'],
                       'in_progress',
@@ -2967,13 +3018,54 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     ],
                     'fill-extrusion-height': ['coalesce', ['get', 'height'], 0],
                     'fill-extrusion-base': ['coalesce', ['get', 'base'], 0],
-                    'fill-extrusion-opacity': 0.95,
+                    'fill-extrusion-opacity': [
+                      'case',
+                      ['boolean', ['feature-state', 'hover'], false],
+                      1,
+                      0.88,
+                    ],
                     'fill-extrusion-vertical-gradient': true,
                   },
                 },
                 // Above base extrusions for a crisp neon overlay.
                 '3d-buildings'
               );
+            }
+
+            // Neon outline/glow on hover (2D line overlay for stronger interaction cue).
+            if (!map.getLayer('highlighted-buildings-outline')) {
+              map.addLayer({
+                id: 'highlighted-buildings-outline',
+                type: 'line',
+                source: 'highlighted-buildings-source',
+                minzoom: 13,
+                paint: {
+                  'line-color': [
+                    'case',
+                    ['boolean', ['feature-state', 'hover'], false],
+                    '#39ff14',
+                    '#00e5ff',
+                  ],
+                  'line-width': [
+                    'case',
+                    ['boolean', ['feature-state', 'hover'], false],
+                    4,
+                    1.5,
+                  ],
+                  'line-opacity': [
+                    'case',
+                    ['boolean', ['feature-state', 'hover'], false],
+                    0.95,
+                    0.55,
+                  ],
+                  'line-blur': [
+                    'case',
+                    ['boolean', ['feature-state', 'hover'], false],
+                    2.2,
+                    0.6,
+                  ],
+                },
+              });
             }
 
             const scheduleResync = () => {
@@ -3008,6 +3100,45 @@ const MapPicker: React.FC<MapPickerProps> = ({
               }
             };
             map.on?.('mousemove', onMouseMoveCursor);
+
+            // Desktop hover effect for glowing buildings (feature-state on GeoJSON source is stable).
+            let hoveredGlowMissionId: string | null = null;
+            map.on?.('mousemove', 'highlighted-buildings-layer', (ev: any) => {
+              const f = ev?.features?.[0];
+              const mid = f?.properties?.mission_id;
+              const missionId = typeof mid === 'string' ? mid : String(mid || '');
+              if (!missionId) return;
+              if (hoveredGlowMissionId === missionId) return;
+              try {
+                if (hoveredGlowMissionId) {
+                  map.setFeatureState(
+                    { source: 'highlighted-buildings-source', id: hoveredGlowMissionId },
+                    { hover: false }
+                  );
+                }
+                hoveredGlowMissionId = missionId;
+                map.setFeatureState(
+                  { source: 'highlighted-buildings-source', id: hoveredGlowMissionId },
+                  { hover: true }
+                );
+              } catch {
+                // ignore
+              }
+            });
+            map.on?.('mouseleave', 'highlighted-buildings-layer', () => {
+              try {
+                if (hoveredGlowMissionId) {
+                  map.setFeatureState(
+                    { source: 'highlighted-buildings-source', id: hoveredGlowMissionId },
+                    { hover: false }
+                  );
+                }
+              } catch {
+                // ignore
+              } finally {
+                hoveredGlowMissionId = null;
+              }
+            });
 
             // Click interaction on glowing buildings: open mission details.
             map.on?.('click', 'highlighted-buildings-layer', (ev: any) => {
@@ -3426,26 +3557,26 @@ const MapPicker: React.FC<MapPickerProps> = ({
             <h1 className="text-sm font-medium tracking-wide text-white">
               CleanEgypt.co
             </h1>
-            <div className="mt-2 flex items-center gap-4">
-              <div className="flex items-center gap-2 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-3 py-2">
+            <div className="mt-2 flex items-center gap-3 md:gap-4">
+              <div className="flex items-center gap-2 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-2.5 py-1.5 md:px-3 md:py-2">
                 <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.85)]" />
                 <div className="leading-tight">
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                  <p className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
                     {t('availableLeads')}
                   </p>
-                  <p className="text-sm font-black text-white tabular-nums">
+                  <p className="text-[12px] md:text-sm font-black text-white tabular-nums">
                     {availableLeadsCount}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-3 py-2">
+              <div className="flex items-center gap-2 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-2.5 py-1.5 md:px-3 md:py-2">
                 <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.85)]" />
                 <div className="leading-tight">
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                  <p className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
                     {t('onlineExecutors')}
                   </p>
-                  <p className="text-[11px] font-black text-white tabular-nums">
+                  <p className="text-[11px] md:text-[11px] font-black text-white tabular-nums">
                     {t('onlineLabel')} {onlineExecutors}
                   </p>
                 </div>
