@@ -3334,32 +3334,49 @@ const MapPicker: React.FC<MapPickerProps> = ({
               hoveredBuildingIdRef.current = null;
             };
 
-            const onClickBuildings = (ev: any) => {
+            const onClickBuildings = (e: any) => {
+              // Global Guard (must be first line).
+              if (!e || !e.features) return;
               try {
-                if (!ev?.features || ev.features.length === 0) return;
-                const f = ev.features[0];
-                if (!f) return;
-                const id = f.id;
+                // Null Checks (must be before doing anything else).
+                if (!e.features || e.features.length === 0) return;
+
+                // No Property Access: safe extraction of clicked feature.
+                const feature = e.features?.[0];
+                if (!feature) return;
+
+                if ((jobsRef.current || []).length === 0) {
+                  console.log('No jobs in DB, opening creation flow only.');
+                }
+
+                const id = feature.id;
                 if (id == null) return;
-                if (selectedBuildingIdRef.current != null && selectedBuildingIdRef.current !== id) {
+
+                // NOTE: feature-state can fail silently in some styles; never let this crash.
+                try {
+                  if (selectedBuildingIdRef.current != null && selectedBuildingIdRef.current !== id) {
+                    map.setFeatureState(
+                      { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
+                      { selected: false }
+                    );
+                  }
+                  selectedBuildingIdRef.current = id;
                   map.setFeatureState(
                     { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
-                    { selected: false }
+                    { selected: true }
                   );
+                } catch (fsErr) {
+                  console.warn('[3d-buildings click] feature-state failed (non-fatal)', fsErr);
+                  selectedBuildingIdRef.current = id;
                 }
-                selectedBuildingIdRef.current = id;
-                map.setFeatureState(
-                  { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
-                  { selected: true }
-                );
 
-                const lng = Number(ev?.lngLat?.lng);
-                const lat = Number(ev?.lngLat?.lat);
+                const lng = Number(e?.lngLat?.lng);
+                const lat = Number(e?.lngLat?.lat);
+
                 // If a building is selected, hide the generic blue dot.
                 setSelectedLocation(null);
 
-                // Store raw properties for later mission payload (building_id, height, etc.)
-                const props = f.properties || {};
+                const props = (feature as any)?.properties || {};
                 const height = Number(props.height ?? props.render_height ?? props['height']);
                 const minHeight = Number(props.min_height ?? props['min_height']);
 
@@ -3371,7 +3388,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   min_height: Number.isFinite(minHeight) ? minHeight : null,
                 });
               } catch (err) {
-                console.error('[3d-buildings click] handler error', err);
+                console.error('Click error caught:', err);
+                return;
               }
             };
 
@@ -3669,7 +3687,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             <button
               type="button"
               onClick={onAvatarClick}
-              className="relative z-[9999] flex h-11 w-11 items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] transition-all"
+              className="relative z-[10000] flex h-11 w-11 items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] transition-all"
             >
               👤
             </button>
@@ -3741,11 +3759,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     </>
                   )}
                 </AnimatePresence>
-                <motion.button
+              <motion.button
                   whileTap={{ scale: 0.94 }}
                   type="button"
                   onClick={() => setDashboardExpanded((s) => !s)}
-                  className="absolute left-1/2 top-1/2 -ml-9 -mt-9 h-[4.5rem] w-[4.5rem] rounded-full border-2 border-cyan-400/70 bg-black/65 backdrop-blur-lg text-cyan-200 shadow-[0_0_34px_rgba(34,211,238,0.35)] flex items-center justify-center"
+                className="absolute z-[10000] left-1/2 top-1/2 -ml-9 -mt-9 h-[4.5rem] w-[4.5rem] rounded-full border-2 border-cyan-400/70 bg-black/65 backdrop-blur-lg text-cyan-200 shadow-[0_0_34px_rgba(34,211,238,0.35)] flex items-center justify-center"
                   aria-label={isExecutorViewer ? t('myLeads') : t('myOrders')}
                 >
                   <div className="flex flex-col items-center justify-center leading-none">
