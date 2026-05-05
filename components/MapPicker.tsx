@@ -1796,7 +1796,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setSelectedLocation({ lat, lng });
       onLocationSelect(lat, lng);
 
-      // 2) Best-effort building detection (larger hit radius)
+      // 2) Single path: building hit-test + feature-state (no duplicate native layer click listener)
       try {
         const map = mapRef.current?.getMap() as any;
         const point = event?.point;
@@ -1810,21 +1810,52 @@ const MapPicker: React.FC<MapPickerProps> = ({
           [point.x - pad, point.y - pad],
           [point.x + pad, point.y + pad],
         ];
-        const hits = (map.queryRenderedFeatures?.(bbox, { layers: ['3d-buildings'] }) ||
-          map.queryRenderedFeatures?.(point, { layers: ['3d-buildings'] }) ||
+
+        // Prioritize exact point over bbox
+        const hits = (map.queryRenderedFeatures?.(point, { layers: ['3d-buildings'] }) ||
+          map.queryRenderedFeatures?.(bbox, { layers: ['3d-buildings'] }) ||
           []) as any[];
         const f = hits?.[0];
+
+        // CLEAR previous selection if user clicks empty space (no building under cursor)
         if (!f) {
+          if (selectedBuildingIdRef.current != null) {
+            try {
+              map.setFeatureState(
+                { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
+                { selected: false }
+              );
+            } catch {
+              /* ignore */
+            }
+            selectedBuildingIdRef.current = null;
+          }
           setSelectedBuildingInfo(null);
           return;
         }
 
         const id = f?.id ?? null;
         const props = f?.properties || {};
+
+        try {
+          if (selectedBuildingIdRef.current != null && selectedBuildingIdRef.current !== id) {
+            map.setFeatureState(
+              { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
+              { selected: false }
+            );
+          }
+          if (id != null) {
+            selectedBuildingIdRef.current = id;
+            map.setFeatureState({ source: 'composite', sourceLayer: 'building', id }, { selected: true });
+          }
+        } catch (fsErr) {
+          console.warn('[handleMapClick] feature-state failed (non-fatal)', fsErr);
+          if (id != null) selectedBuildingIdRef.current = id;
+        }
+
         const height = Number(props.height ?? props.render_height ?? props['height']);
         const minHeight = Number(props.min_height ?? props['min_height']);
 
-        selectedBuildingIdRef.current = id;
         setSelectedBuildingInfo({
           id,
           lngLat: { lat: Number(lat), lng: Number(lng) },
@@ -3367,74 +3398,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
               hoveredBuildingIdRef.current = null;
             };
 
-            const onClickBuildings = (e: any) => {
-              // Global Guard (must be first line).
-              if (!e || !e.features) return;
-              try {
-                // Null Checks (must be before doing anything else).
-                if (!e.features || e.features.length === 0) return;
-
-                // No Property Access: safe extraction of clicked feature.
-                const feature = e.features?.[0];
-                if (!feature) return;
-
-                if ((jobsRef.current || []).length === 0) {
-                  console.log('No jobs in DB, opening creation flow only.');
-                }
-
-                const id = feature.id;
-                if (id == null) return;
-
-                // NOTE: feature-state can fail silently in some styles; never let this crash.
-                try {
-                  if (selectedBuildingIdRef.current != null && selectedBuildingIdRef.current !== id) {
-                    map.setFeatureState(
-                      { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
-                      { selected: false }
-                    );
-                  }
-                  selectedBuildingIdRef.current = id;
-                  map.setFeatureState(
-                    { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
-                    { selected: true }
-                  );
-                } catch (fsErr) {
-                  console.warn('[3d-buildings click] feature-state failed (non-fatal)', fsErr);
-                  selectedBuildingIdRef.current = id;
-                }
-
-                const lng = Number(e?.lngLat?.lng);
-                const lat = Number(e?.lngLat?.lat);
-
-                // If a building is selected, hide the generic blue dot.
-                setSelectedLocation(null);
-
-                const props = (feature as any)?.properties || {};
-                const height = Number(props.height ?? props.render_height ?? props['height']);
-                const minHeight = Number(props.min_height ?? props['min_height']);
-
-                setSelectedBuildingInfo({
-                  id,
-                  lngLat: Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null,
-                  properties: props,
-                  height: Number.isFinite(height) ? height : null,
-                  min_height: Number.isFinite(minHeight) ? minHeight : null,
-                });
-              } catch (err) {
-                console.error('Click error caught:', err);
-                return;
-              }
-            };
-
             map.on('mousemove', '3d-buildings', onMoveBuildings);
             map.on('mouseleave', '3d-buildings', onLeaveBuildings);
-            map.on('click', '3d-buildings', onClickBuildings);
 
             map.on('remove', () => {
               try {
                 map.off('mousemove', '3d-buildings', onMoveBuildings);
                 map.off('mouseleave', '3d-buildings', onLeaveBuildings);
-                map.off('click', '3d-buildings', onClickBuildings);
               } catch {
                 // ignore
               }
