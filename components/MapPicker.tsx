@@ -834,6 +834,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const isRu = (i18n.language || '').toLowerCase().startsWith('ru');
+  const isTouchDevice =
+    typeof window !== 'undefined' &&
+    (('ontouchstart' in window) || (navigator && (navigator as any).maxTouchPoints > 0));
+  const isMobile =
+    typeof window !== 'undefined' &&
+    window.matchMedia &&
+    window.matchMedia('(max-width: 640px)').matches;
   const mapRef = React.useRef<MapRef>(null);
   const mapInstanceRef = React.useRef<any>(null);
   const orderFormRef = React.useRef<HTMLFormElement>(null);
@@ -842,6 +849,22 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const missionBuildingIdsRef = React.useRef<Set<string>>(new Set());
   const missionToResolvedBuildingIdRef = React.useRef<Record<string, string>>({});
   const jobsRef = React.useRef<JobOnMap[]>([]);
+  const [highlightedMissionIds, setHighlightedMissionIds] = useState<Set<string>>(new Set());
+  const highlightedMissionIdsRef = React.useRef<Set<string>>(new Set());
+  const missionOverlayCacheRef = React.useRef<
+    Record<
+      string,
+      {
+        // Cached overlay feature (building footprint) for a mission.
+        feature: any;
+        // String bbox key used for dedupe.
+        key: string;
+        // Mission status at time of cache.
+        status: string;
+      }
+    >
+  >({});
+  const overlayResyncTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const updateHighlightedBuildingsOverlay = useCallback(
     (jobsList: JobOnMap[]) => {
@@ -853,26 +876,65 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // Buildings only exist as 3D extrusions at higher zooms.
       if (Number(map.getZoom?.() ?? 0) < 13) {
         src.setData({ type: 'FeatureCollection', features: [] });
+        highlightedMissionIdsRef.current = new Set();
+        setHighlightedMissionIds(new Set());
         return;
       }
 
       const featuresOut: any[] = [];
-      const seen = new Set<string>();
+      const seenByKey = new Map<string, { rank: number; idx: number }>();
+      const nextHighlightedMissionIds = new Set<string>();
 
       const active = (jobsList || []).filter((j) =>
         ['pending', 'available', 'funding', 'in_progress'].includes(String(j.status || ''))
       );
 
+      const rankStatus = (s: string) => {
+        if (s === 'in_progress') return 4;
+        if (s === 'available') return 3;
+        if (s === 'pending') return 2;
+        if (s === 'funding') return 1;
+        return 0;
+      };
+
       for (const j of active) {
+        const missionId = String(j.id || '');
+        if (!missionId) continue;
         const lng = Number(j.location_lng);
         const lat = Number(j.location_lat);
         if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
 
+        // Use cached overlay if it exists for this mission and status.
+        const status = String(j.status || 'unknown');
+        const cached = missionOverlayCacheRef.current[missionId];
+        if (cached?.feature && cached?.key && cached?.status === status) {
+          const r = rankStatus(status);
+          const prev = seenByKey.get(cached.key);
+          if (!prev || prev.rank < r) {
+            if (prev) featuresOut[prev.idx] = cached.feature;
+            else {
+              featuresOut.push(cached.feature);
+              seenByKey.set(cached.key, { rank: r, idx: featuresOut.length - 1 });
+            }
+          }
+          nextHighlightedMissionIds.add(missionId);
+          continue;
+        }
+
         const p = map.project?.([lng, lat]);
         if (!p) continue;
 
-        // Pull the exact building footprint geometry under this mission point.
-        const hits = map.queryRenderedFeatures?.(p, { layers: ['3d-buildings'] }) || [];
+        // Aggressive hit-test: small bbox around the point yields more stable results on extrusions.
+        const pad = 6;
+        const bbox: [PointLike, PointLike] = [
+          [p.x - pad, p.y - pad],
+          [p.x + pad, p.y + pad],
+        ];
+
+        const hits =
+          (map.queryRenderedFeatures?.(bbox as any, { layers: ['3d-buildings'] }) ||
+            map.queryRenderedFeatures?.(p, { layers: ['3d-buildings'] }) ||
+            []) as any[];
         const f = hits?.[0];
         const geom = f?.geometry;
         if (!geom || !geom.type || !geom.coordinates) continue;
@@ -905,23 +967,41 @@ const MapPicker: React.FC<MapPickerProps> = ({
           Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY)
             ? `${minX.toFixed(6)},${minY.toFixed(6)},${maxX.toFixed(6)},${maxY.toFixed(6)}`
             : null;
-        if (!key || seen.has(key)) continue;
-        seen.add(key);
+        if (!key) continue;
 
-        featuresOut.push({
+        const feature = {
           type: 'Feature',
           geometry: geom,
           properties: {
-            mission_status: String(j.status || 'unknown'),
+            mission_id: missionId,
+            mission_status: status,
             height: Number.isFinite(height) ? height : undefined,
             base: Number.isFinite(base) ? base : 0,
           },
-        });
+        };
 
-        if (featuresOut.length >= 160) break;
+        // Cache per-mission footprint so we don't have to keep querying.
+        missionOverlayCacheRef.current[missionId] = { feature, key, status };
+
+        const r = rankStatus(status);
+        const prev = seenByKey.get(key);
+        if (!prev || prev.rank < r) {
+          if (prev) featuresOut[prev.idx] = feature;
+          else {
+            featuresOut.push(feature);
+            seenByKey.set(key, { rank: r, idx: featuresOut.length - 1 });
+          }
+        }
+
+        nextHighlightedMissionIds.add(missionId);
+        if (featuresOut.length >= 140) break;
       }
 
       src.setData({ type: 'FeatureCollection', features: featuresOut });
+
+      // Update the marker suppression set (either glowing building OR pin, not both).
+      highlightedMissionIdsRef.current = nextHighlightedMissionIds;
+      setHighlightedMissionIds(nextHighlightedMissionIds);
     },
     []
   );
@@ -1710,6 +1790,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
   );
 
   const [selectedMission, setSelectedMission] = useState<JobOnMap | null>(null);
+  const [mobileTapPulse, setMobileTapPulse] = useState<{ lng: number; lat: number } | null>(null);
+  const [sheetDragY, setSheetDragY] = useState(0);
+  const sheetTouchStartYRef = React.useRef<number | null>(null);
+  const sheetTouchStartTimeRef = React.useRef<number | null>(null);
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslationLoading, setIsTranslationLoading] = useState(false);
   const [translationError, setTranslationError] = useState<string | null>(null);
@@ -2536,6 +2620,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return { type: 'FeatureCollection' as const, features };
   }, [jobs, currentUserId]);
 
+  /** Main mission pins (shown only when not highlighted as a glowing building). */
+  const missionPinsGeoJSON = useMemo(() => {
+    const suppressed = highlightedMissionIds;
+    const features = (jobs || [])
+      .filter(missionEligibleForMapPin)
+      .filter((j) => !suppressed.has(String(j.id)))
+      .filter((j) => Number.isFinite(j.location_lat) && Number.isFinite(j.location_lng))
+      .map((j) => ({
+        type: 'Feature' as const,
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [j.location_lng, j.location_lat],
+        },
+        properties: {
+          mission_id: j.id,
+          status: j.status,
+        },
+      }));
+    return { type: 'FeatureCollection' as const, features };
+  }, [jobs, highlightedMissionIds]);
+
   const activeWorkerMission = useMemo(
     () =>
       (jobs || []).find(
@@ -2588,6 +2693,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
     };
   }, [selectedLocation]);
 
+  /** Mobile tap feedback pulse (first tap on building/pin). */
+  const mobileTapPulseGeoJSON = useMemo(() => {
+    if (!mobileTapPulse) return { type: 'FeatureCollection' as const, features: [] };
+    return {
+      type: 'FeatureCollection' as const,
+      features: [
+        {
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: [mobileTapPulse.lng, mobileTapPulse.lat] },
+          properties: { kind: 'tap' },
+        },
+      ],
+    };
+  }, [mobileTapPulse]);
+
   // SaaS lead-gen: removed funding tower hover interactions.
 
   const navigateToActiveMission = useCallback(() => {
@@ -2633,12 +2753,41 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   return (
     <div className="w-full h-screen relative bg-black overflow-hidden">
+      {/* Mobile-first Mapbox control styling (44x44 hit targets + neon glass). */}
+      <style>{`
+        .ce-map .mapboxgl-ctrl-group {
+          border: 1px solid rgba(34, 211, 238, 0.35);
+          background: rgba(2, 6, 23, 0.55);
+          backdrop-filter: blur(10px);
+          box-shadow: 0 0 18px rgba(0, 229, 255, 0.18);
+          border-radius: 14px;
+          overflow: hidden;
+        }
+        .ce-map .mapboxgl-ctrl-group button {
+          width: 44px;
+          height: 44px;
+        }
+        .ce-map .mapboxgl-ctrl button.mapboxgl-ctrl-icon {
+          filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.25));
+        }
+        .ce-map .mapboxgl-ctrl-bottom-right {
+          margin-right: 12px;
+          margin-bottom: 110px;
+        }
+        @media (min-width: 641px) {
+          .ce-map .mapboxgl-ctrl-bottom-right {
+            margin-bottom: 24px;
+          }
+        }
+      `}</style>
+
       {/* Full-screen 3D map — no blocking overlays */}
       <Map
         ref={mapRef}
         {...viewState}
         projection="globe"
         renderWorldCopies={false}
+        className="ce-map"
         antialias
         onMove={(evt) => setViewState(evt.viewState)}
         interactiveLayerIds={['3d-buildings']}
@@ -2827,20 +2976,95 @@ const MapPicker: React.FC<MapPickerProps> = ({
               );
             }
 
-            const resync = () => {
+            const scheduleResync = () => {
+              if (overlayResyncTimerRef.current) clearTimeout(overlayResyncTimerRef.current);
+              overlayResyncTimerRef.current = setTimeout(() => {
+                try {
+                  updateHighlightedBuildingsOverlay(jobsRef.current || []);
+                } catch {
+                  /* ignore */
+                }
+              }, 90);
+            };
+
+            // Aggressive/persistent resync: 3D building geometry becomes available on idle/moveend/angle changes.
+            map.on?.('idle', scheduleResync);
+            map.on?.('moveend', scheduleResync);
+            map.on?.('zoomend', scheduleResync);
+            map.on?.('pitchend', scheduleResync);
+            map.on?.('rotateend', scheduleResync);
+
+            // Hover/cursor feedback (both neon overlay + base 3D buildings).
+            const onMouseMoveCursor = (ev: any) => {
               try {
-                updateHighlightedBuildingsOverlay(jobsRef.current || []);
+                const pt = ev?.point;
+                if (!pt) return;
+                const hit =
+                  (map.queryRenderedFeatures?.(pt, { layers: ['highlighted-buildings-layer'] }) || []).length > 0 ||
+                  (map.queryRenderedFeatures?.(pt, { layers: ['3d-buildings'] }) || []).length > 0;
+                map.getCanvas().style.cursor = hit ? 'pointer' : '';
+              } catch {
+                // ignore
+              }
+            };
+            map.on?.('mousemove', onMouseMoveCursor);
+
+            // Click interaction on glowing buildings: open mission details.
+            map.on?.('click', 'highlighted-buildings-layer', (ev: any) => {
+              const f = ev?.features?.[0];
+              const mid = f?.properties?.mission_id;
+              const missionId = typeof mid === 'string' ? mid : String(mid || '');
+              if (!missionId) return;
+              const job = (jobsRef.current || []).find((j) => String(j.id) === missionId) || null;
+              if (!job) return;
+              if (isTouchDevice && ev?.lngLat) {
+                setMobileTapPulse({ lng: Number(ev.lngLat.lng), lat: Number(ev.lngLat.lat) });
+                setTimeout(() => setMobileTapPulse(null), 260);
+                setTimeout(() => handleMarkerClick(job), 140);
+                return;
+              }
+              handleMarkerClick(job);
+            });
+
+            // Initial paint once sources are ready.
+            scheduleResync();
+          } catch {
+            // ignore if style/runtime doesn't support this overlay
+          }
+
+          // Mission pin interactions (cursor + click-to-open) are handled at the layer level.
+          try {
+            map.on?.('mouseenter', 'mission-pins-core', () => {
+              try {
+                map.getCanvas().style.cursor = 'pointer';
               } catch {
                 /* ignore */
               }
-            };
-            map.on?.('idle', resync);
-            map.on?.('zoomend', resync);
-
-            // Initial paint once sources are ready.
-            resync();
+            });
+            map.on?.('mouseleave', 'mission-pins-core', () => {
+              try {
+                map.getCanvas().style.cursor = '';
+              } catch {
+                /* ignore */
+              }
+            });
+            map.on?.('click', 'mission-pins-core', (ev: any) => {
+              const f = ev?.features?.[0];
+              const mid = f?.properties?.mission_id;
+              const missionId = typeof mid === 'string' ? mid : String(mid || '');
+              if (!missionId) return;
+              const job = (jobsRef.current || []).find((j) => String(j.id) === missionId) || null;
+              if (!job) return;
+              if (isTouchDevice && ev?.lngLat) {
+                setMobileTapPulse({ lng: Number(ev.lngLat.lng), lat: Number(ev.lngLat.lat) });
+                setTimeout(() => setMobileTapPulse(null), 260);
+                setTimeout(() => handleMarkerClick(job), 140);
+                return;
+              }
+              handleMarkerClick(job);
+            });
           } catch {
-            // ignore if style/runtime doesn't support this overlay
+            // ignore
           }
 
           if (!map.getLayer('3d-buildings')) {
@@ -3015,6 +3239,57 @@ const MapPicker: React.FC<MapPickerProps> = ({
           trackUserLocation
         />
         <NavigationControl position="bottom-right" showCompass={false} />
+
+        {/* Mobile tap pulse feedback */}
+        <Source id="tap-pulse" type="geojson" data={mobileTapPulseGeoJSON}>
+          <Layer
+            id="tap-pulse-outer"
+            type="circle"
+            paint={{
+              'circle-radius': 20,
+              'circle-color': 'rgba(0,229,255,0.18)',
+              'circle-blur': 0.9,
+              'circle-opacity': 0.95,
+            }}
+          />
+          <Layer
+            id="tap-pulse-inner"
+            type="circle"
+            paint={{
+              'circle-radius': 7,
+              'circle-color': '#00e5ff',
+              'circle-stroke-width': 2,
+              'circle-stroke-color': '#39ff14',
+              'circle-opacity': 0.95,
+            }}
+          />
+        </Source>
+
+        {/* Main mission pins (suppressed when mission is highlighted as a building glow). */}
+        <Source id="mission-pins" type="geojson" data={missionPinsGeoJSON}>
+          <Layer
+            id="mission-pins-glow"
+            type="circle"
+            paint={{
+              'circle-radius': 14,
+              'circle-color': 'rgba(0,229,255,0.25)',
+              'circle-blur': 0.8,
+              'circle-opacity': mapMarkerLayerSuppressed ? 0 : 0.9,
+            }}
+          />
+          <Layer
+            id="mission-pins-core"
+            type="circle"
+            paint={{
+              'circle-radius': 6,
+              'circle-color': '#ff2d55',
+              'circle-stroke-width': 2,
+              'circle-stroke-color': '#ffffff',
+              'circle-opacity': mapMarkerLayerSuppressed ? 0.08 : 0.92,
+              'circle-stroke-opacity': mapMarkerLayerSuppressed ? 0.08 : 0.95,
+            }}
+          />
+        </Source>
 
         {/* Draft tap location — native circle only (no HTML markers). */}
         <Source id="draft-pin" type="geojson" data={draftPinGeoJSON}>
@@ -3295,10 +3570,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
           aria-hidden="false"
         >
           <div
-            className="absolute inset-0 bg-black/55 backdrop-blur-md pointer-events-none"
+            className="absolute inset-x-0 bottom-0 top-[45%] bg-gradient-to-t from-black/70 via-black/30 to-transparent backdrop-blur-[2px] pointer-events-none"
             aria-hidden
           />
-          <div className={`pointer-events-auto relative z-[1] w-full max-w-xl flex flex-col h-full max-h-[85vh] animate-slide-up p-5 shadow-2xl ${PROFILE_GLASS_PANEL}`}>
+          <div
+            className={`pointer-events-auto relative z-[1] w-full max-w-xl flex flex-col max-h-[78dvh] animate-slide-up p-4 shadow-2xl ${PROFILE_GLASS_PANEL}`}
+            style={{
+              marginBottom: isMobile ? 'calc(env(safe-area-inset-bottom) + 0.75rem)' : undefined,
+            }}
+          >
             <form ref={orderFormRef} onSubmit={handleSubmit} className="flex flex-col h-full">
               <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-2 pb-8 space-y-4">
               <div className="flex items-center justify-between mb-2">
@@ -3306,7 +3586,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   type="button"
                   onClick={closeFormOverlay}
                   disabled={orderSubmitting}
-                  className="text-slate-500 hover:text-white text-lg font-bold disabled:opacity-40 mr-2"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-200 bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 transition-all disabled:opacity-40 mr-2"
                 >
                   ✕
                 </button>
@@ -3507,23 +3787,50 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Mission Briefing — bottom sheet when active pyramid marker clicked */}
       {selectedMission && (
         <div
-          className="absolute inset-0 z-[9999] flex items-end justify-center pt-[env(safe-area-inset-top)] isolate"
+          className="absolute inset-0 z-[9999] flex items-end justify-center pt-[env(safe-area-inset-top)] isolate pointer-events-none"
           aria-hidden="false"
         >
           <div
-            className="absolute inset-0 bg-black/85 backdrop-blur-md"
+            className="absolute inset-x-0 bottom-0 top-[35%] bg-gradient-to-t from-black/80 via-black/35 to-transparent backdrop-blur-[2px] pointer-events-auto"
             onClick={handleCloseMissionBriefing}
             aria-hidden="true"
           />
           <div
-            className="relative w-full max-w-xl max-h-[100dvh] overflow-y-auto rounded-t-3xl bg-cyan-950/30 backdrop-blur-md border-t border-x border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] px-6 pb-16 pt-10 animate-slide-up"
+            className="relative w-full max-w-xl max-h-[78dvh] overflow-y-auto rounded-t-3xl bg-slate-950/70 backdrop-blur-xl border-t border-x border-cyan-500/25 shadow-[0_-10px_40px_rgba(0,229,255,0.12)] px-5 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-3 animate-slide-up pointer-events-auto"
             onClick={(e) => e.stopPropagation()}
+            style={{ transform: sheetDragY > 0 ? `translateY(${sheetDragY}px)` : undefined }}
           >
-            <div className="flex items-start justify-between mb-4 mt-2">
+            {/* Drag handle + swipe-to-close (mobile) */}
+            <div
+              className="mx-auto mb-2 h-1.5 w-14 rounded-full bg-white/15 border border-white/10"
+              onTouchStart={(e) => {
+                sheetTouchStartYRef.current = e.touches?.[0]?.clientY ?? null;
+                sheetTouchStartTimeRef.current = Date.now();
+              }}
+              onTouchMove={(e) => {
+                const start = sheetTouchStartYRef.current;
+                const y = e.touches?.[0]?.clientY;
+                if (start == null || y == null) return;
+                const dy = y - start;
+                setSheetDragY(dy > 0 ? Math.min(220, dy) : 0);
+              }}
+              onTouchEnd={() => {
+                const dy = sheetDragY;
+                const dt = (sheetTouchStartTimeRef.current ? Date.now() - sheetTouchStartTimeRef.current : 0) || 0;
+                const shouldClose = dy > 110 || (dy > 70 && dt < 220);
+                setSheetDragY(0);
+                sheetTouchStartYRef.current = null;
+                sheetTouchStartTimeRef.current = null;
+                if (shouldClose) handleCloseMissionBriefing();
+              }}
+              aria-hidden
+            />
+
+            <div className="flex items-start justify-between mb-3">
               <button
                 type="button"
                 onClick={handleCloseMissionBriefing}
-                className="p-2 mr-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                className="mr-2 inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-200 bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 transition-all"
                 aria-label="Close"
               >
                 ✕
