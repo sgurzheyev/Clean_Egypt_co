@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const stripe = new Stripe(stripeKey, {
+    const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string, {
       apiVersion: '2023-10-16',
       httpClient: Stripe.createFetchHttpClient(), // Критично для Deno!
     });

@@ -164,7 +164,9 @@ const WorkerPortal = () => {
               </div>
             ) : (
               <div className="text-center p-8">
-                <p className="text-teal-400 font-bold">STATUS: {pyramid?.status.toUpperCase()}</p>
+                <p className="text-teal-400 font-bold">
+                  STATUS: {(pyramid?.status || 'UNKNOWN').toUpperCase()}
+                </p>
                 <p className="text-xs text-slate-500 mt-2">Waiting for Owner or Support confirmation.</p>
               </div>
             )}

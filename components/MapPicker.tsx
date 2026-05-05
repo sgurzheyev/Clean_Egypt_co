@@ -98,6 +98,7 @@ interface JobOnMap {
   location_lat: number;
   location_lng: number;
   status: string;
+  building_id?: number | string | null;
   cleaner_id?: string | null;
   creator_id?: string | null;
   description?: string | null;
@@ -838,6 +839,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const orderFormRef = React.useRef<HTMLFormElement>(null);
   const hoveredBuildingIdRef = React.useRef<any>(null);
   const selectedBuildingIdRef = React.useRef<any>(null);
+  const missionBuildingIdsRef = React.useRef<Set<string>>(new Set());
+  const missionToResolvedBuildingIdRef = React.useRef<Record<string, string>>({});
   /** When true, next home submit uses wallet instead of card checkout. */
   const orderFormWalletPayRef = React.useRef(false);
   /** Creator wallet (tokens) for legacy flows. */
@@ -1399,6 +1402,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         location_lat,
         location_lng,
         status,
+        building_id,
         cleaner_id,
         creator_id,
         description,
@@ -1462,6 +1466,91 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // best-effort
     }
   }, []);
+
+  const syncMissionBuildingHighlight = useCallback(
+    (jobsList: JobOnMap[]) => {
+      const map = mapInstanceRef.current;
+      if (!map) return;
+      if (!map.getLayer?.('3d-buildings')) return;
+
+      const statusRank = (s: string) => {
+        if (s === 'in_progress') return 4;
+        if (s === 'available') return 3;
+        if (s === 'pending') return 2;
+        if (s === 'funding') return 1;
+        return 0;
+      };
+
+      const desired: Record<string, { status: string; rank: number }> = {};
+
+      for (const job of jobsList || []) {
+        const status = String(job.status || '');
+        // Keep "active" feel: show currently relevant missions; completed pins are already short-lived on the map.
+        if (!['pending', 'available', 'funding', 'in_progress', 'completed'].includes(status)) continue;
+
+        const raw = job.building_id ?? missionToResolvedBuildingIdRef.current[job.id] ?? null;
+        const bid = raw == null ? '' : String(raw);
+        if (!bid) continue;
+
+        const r = statusRank(status);
+        if (!desired[bid] || desired[bid].rank < r) desired[bid] = { status, rank: r };
+      }
+
+      const prev = missionBuildingIdsRef.current;
+      const next = new Set(Object.keys(desired));
+
+      // Clear buildings that no longer have missions.
+      for (const id of prev) {
+        if (next.has(id)) continue;
+        try {
+          map.setFeatureState({ source: 'composite', sourceLayer: 'building', id }, { hasMission: false });
+        } catch {
+          // ignore (feature id may not be present at current zoom / tile)
+        }
+      }
+
+      // Apply mission highlight states.
+      for (const id of next) {
+        try {
+          map.setFeatureState(
+            { source: 'composite', sourceLayer: 'building', id },
+            { hasMission: true, missionStatus: desired[id]?.status || 'unknown' }
+          );
+        } catch {
+          // ignore (feature id may not be present at current zoom / tile)
+        }
+      }
+
+      missionBuildingIdsRef.current = next;
+
+      // Best-effort fallback: if a mission lacks `building_id`, try to resolve it from its coordinates.
+      // This only works once 3D buildings are visible.
+      try {
+        if (map.getZoom?.() < 13) return;
+        const unresolved = (jobsList || []).filter(
+          (j) => !j.building_id && !missionToResolvedBuildingIdRef.current[j.id]
+        );
+        if (unresolved.length === 0) return;
+
+        for (const j of unresolved) {
+          const p = map.project?.([Number(j.location_lng), Number(j.location_lat)]);
+          if (!p) continue;
+          const features = map.queryRenderedFeatures?.(p, { layers: ['3d-buildings'] }) || [];
+          const f = features?.[0];
+          const fid = f?.id;
+          if (fid == null) continue;
+          missionToResolvedBuildingIdRef.current[j.id] = String(fid);
+        }
+      } catch {
+        // ignore
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    syncMissionBuildingHighlight(jobs);
+  }, [jobs, syncMissionBuildingHighlight]);
 
   useEffect(() => {
     fetchMissions();
@@ -2624,6 +2713,22 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 paint: {
                   'fill-extrusion-color': [
                     'case',
+                    // Active missions (cyberpunk neon highlight)
+                    ['boolean', ['feature-state', 'hasMission'], false],
+                    [
+                      'case',
+                      ['==', ['feature-state', 'missionStatus'], 'in_progress'],
+                      '#39ff14', // UV neon green
+                      ['==', ['feature-state', 'missionStatus'], 'available'],
+                      '#00e5ff', // electric blue/cyan
+                      ['==', ['feature-state', 'missionStatus'], 'pending'],
+                      'rgba(0, 229, 255, 0.70)',
+                      ['==', ['feature-state', 'missionStatus'], 'funding'],
+                      'rgba(57, 255, 20, 0.55)',
+                      ['==', ['feature-state', 'missionStatus'], 'completed'],
+                      'rgba(148, 163, 184, 0.20)',
+                      '#00e5ff',
+                    ],
                     ['boolean', ['feature-state', 'selected'], false],
                     '#22c55e',
                     ['boolean', ['feature-state', 'hover'], false],
@@ -2639,6 +2744,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
               },
               'place_label'
             );
+          }
+
+          // Apply mission highlight states as soon as the 3D layer exists.
+          try {
+            syncMissionBuildingHighlight(jobs);
+          } catch {
+            // ignore
           }
 
           // Building hover/select (feature-state driven)

@@ -1997,14 +1997,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           ? 'UNDER REVIEW'
                           : (job.status === 'completed' || job.status === 'finished')
                             ? '🟢 Completed'
-                            : job.status.toUpperCase()}
+                            : (job.status || 'UNKNOWN').toUpperCase()}
                     </div>
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{icon}</span>
                         <div>
                           <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
-                            {job.category.toUpperCase()} Mission
+                            {(job.category || 'UNKNOWN').toUpperCase()} Mission
                           </p>
                           <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>{formatEgp(Number(job.amount_target))}</p>
                         </div>
@@ -2406,7 +2406,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           </div>
                           <div>
                             <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
-                              {job.category.toUpperCase()} Mission
+                              {(job.category || 'UNKNOWN').toUpperCase()} Mission
                             </p>
                             <p
                               className={`text-2xl font-black tracking-tight mt-1 ${
@@ -2504,7 +2504,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <span className="text-2xl opacity-90">{icon}</span>
                           <div>
                             <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${isHome ? 'border-amber-500/30 text-amber-300' : 'border-emerald-500/30 text-emerald-400'}`}>
-                              {job.category.toUpperCase()} Mission
+                              {(job.category || 'UNKNOWN').toUpperCase()} Mission
                             </p>
                             <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>
                               {formatEgp(Number(job.amount_target))}
@@ -2786,7 +2786,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   Review proof of work
                 </p>
                 <h3 className="text-xl font-black text-white">
-                  {reviewJob.category.toUpperCase()} • {formatEgp(Number(reviewJob.amount_target))}
+                  {(reviewJob.category || 'UNKNOWN').toUpperCase()} • {formatEgp(Number(reviewJob.amount_target))}
                 </h3>
               </div>
               <button
@@ -2998,7 +2998,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 Mission
               </p>
               <p className="text-white font-bold">
-                {proofJob.category.toUpperCase()} • {formatEgp(Number(proofJob.amount_target))}
+                {(proofJob.category || 'UNKNOWN').toUpperCase()} • {formatEgp(Number(proofJob.amount_target))}
               </p>
               {proofJob.description && (
                 <p className="text-xs text-slate-400 mt-1">{proofJob.description}</p>
