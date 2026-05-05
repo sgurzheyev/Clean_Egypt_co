@@ -1791,81 +1791,70 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      // Hybrid click (easy pinning):
-      // 1) Always capture lng/lat (must always work for mission creation)
-      setSelectedLocation({ lat, lng });
-      onLocationSelect(lat, lng);
+      const map = mapRef.current?.getMap() as mapboxgl.Map | undefined;
+      if (!map) return;
 
-      // 2) Single path: building hit-test + feature-state (no duplicate native layer click listener)
-      try {
-        const map = mapRef.current?.getMap() as any;
-        const point = event?.point;
-        if (!map || !point) {
-          setSelectedBuildingInfo(null);
-          return;
-        }
+      // 1) Check if we clicked a 3D building (react-map-gl provides this automatically!)
+      const clickedFeature = event.features && event.features.length > 0 ? event.features[0] : null;
 
-        const pad = 10;
-        const bbox: any = [
-          [point.x - pad, point.y - pad],
-          [point.x + pad, point.y + pad],
-        ];
+      if (clickedFeature && clickedFeature.layer?.id === '3d-buildings') {
+        // --- WE CLICKED A 3D BUILDING ---
+        const id = clickedFeature.id;
 
-        // Prioritize exact point over bbox
-        const hits = (map.queryRenderedFeatures?.(point, { layers: ['3d-buildings'] }) ||
-          map.queryRenderedFeatures?.(bbox, { layers: ['3d-buildings'] }) ||
-          []) as any[];
-        const f = hits?.[0];
-
-        // CLEAR previous selection if user clicks empty space (no building under cursor)
-        if (!f) {
-          if (selectedBuildingIdRef.current != null) {
-            try {
-              map.setFeatureState(
-                { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
-                { selected: false }
-              );
-            } catch {
-              /* ignore */
-            }
-            selectedBuildingIdRef.current = null;
-          }
-          setSelectedBuildingInfo(null);
-          return;
-        }
-
-        const id = f?.id ?? null;
-        const props = f?.properties || {};
-
-        try {
-          if (selectedBuildingIdRef.current != null && selectedBuildingIdRef.current !== id) {
+        // Clear old building highlight
+        if (selectedBuildingIdRef.current != null && selectedBuildingIdRef.current !== id) {
+          try {
             map.setFeatureState(
               { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
               { selected: false }
             );
+          } catch {
+            /* ignore */
           }
-          if (id != null) {
-            selectedBuildingIdRef.current = id;
-            map.setFeatureState({ source: 'composite', sourceLayer: 'building', id }, { selected: true });
-          }
-        } catch (fsErr) {
-          console.warn('[handleMapClick] feature-state failed (non-fatal)', fsErr);
-          if (id != null) selectedBuildingIdRef.current = id;
         }
 
+        // Highlight new building
+        if (id != null) {
+          selectedBuildingIdRef.current = id;
+          try {
+            map.setFeatureState({ source: 'composite', sourceLayer: 'building', id }, { selected: true });
+          } catch {
+            /* ignore */
+          }
+        }
+
+        const props = clickedFeature.properties || {};
         const height = Number(props.height ?? props.render_height ?? props['height']);
         const minHeight = Number(props.min_height ?? props['min_height']);
 
+        setSelectedLocation(null); // Hide standard pin
         setSelectedBuildingInfo({
           id,
-          lngLat: { lat: Number(lat), lng: Number(lng) },
+          lngLat: { lat, lng },
           properties: props,
           height: Number.isFinite(height) ? height : null,
           min_height: Number.isFinite(minHeight) ? minHeight : null,
         });
-      } catch (err) {
-        console.warn('[handleMapClick] building detect failed (non-fatal)', err);
+        onLocationSelect(lat, lng);
+      } else {
+        // --- WE CLICKED EMPTY SPACE ---
+        // Clear any existing building highlight
+        if (selectedBuildingIdRef.current != null) {
+          try {
+            map.setFeatureState(
+              { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
+              { selected: false }
+            );
+          } catch {
+            /* ignore */
+          }
+          selectedBuildingIdRef.current = null;
+        }
         setSelectedBuildingInfo(null);
+
+        // Set standard location pin
+        setSelectedLocation({ lat, lng });
+        onLocationSelect(lat, lng);
       }
     },
     [onLocationSelect, t]
