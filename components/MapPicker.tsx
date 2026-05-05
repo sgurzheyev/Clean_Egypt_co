@@ -1791,24 +1791,51 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      // Ground click clears any selected building (green highlight + popup)
-      // so the generic blue dot is the only selection.
-      const map = mapRef.current?.getMap() as any;
-      if (map && selectedBuildingIdRef.current != null) {
-        try {
-          map.setFeatureState(
-            { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
-            { selected: false }
-          );
-        } catch {
-          // ignore
-        }
-        selectedBuildingIdRef.current = null;
-      }
-      setSelectedBuildingInfo(null);
-
+      // Hybrid click (easy pinning):
+      // 1) Always capture lng/lat (must always work for mission creation)
       setSelectedLocation({ lat, lng });
       onLocationSelect(lat, lng);
+
+      // 2) Best-effort building detection (larger hit radius)
+      try {
+        const map = mapRef.current?.getMap() as any;
+        const point = event?.point;
+        if (!map || !point) {
+          setSelectedBuildingInfo(null);
+          return;
+        }
+
+        const pad = 10;
+        const bbox: any = [
+          [point.x - pad, point.y - pad],
+          [point.x + pad, point.y + pad],
+        ];
+        const hits = (map.queryRenderedFeatures?.(bbox, { layers: ['3d-buildings'] }) ||
+          map.queryRenderedFeatures?.(point, { layers: ['3d-buildings'] }) ||
+          []) as any[];
+        const f = hits?.[0];
+        if (!f) {
+          setSelectedBuildingInfo(null);
+          return;
+        }
+
+        const id = f?.id ?? null;
+        const props = f?.properties || {};
+        const height = Number(props.height ?? props.render_height ?? props['height']);
+        const minHeight = Number(props.min_height ?? props['min_height']);
+
+        selectedBuildingIdRef.current = id;
+        setSelectedBuildingInfo({
+          id,
+          lngLat: { lat: Number(lat), lng: Number(lng) },
+          properties: props,
+          height: Number.isFinite(height) ? height : null,
+          min_height: Number.isFinite(minHeight) ? minHeight : null,
+        });
+      } catch (err) {
+        console.warn('[handleMapClick] building detect failed (non-fatal)', err);
+        setSelectedBuildingInfo(null);
+      }
     },
     [onLocationSelect, t]
   );
@@ -2016,6 +2043,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
     return new Set(Object.entries(counts).filter(([, c]) => c >= MIN_COUNT).map(([uid]) => uid));
   })();
+
+  const missionBriefingBooting =
+    !!selectedMission &&
+    missionTxLoading &&
+    missionTransactions.length === 0 &&
+    !missionTxError;
 
   const handleMarkerClick = useCallback((job: JobOnMap) => {
     setSelectedMission(job);
@@ -3791,7 +3824,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             aria-hidden
           />
           <div
-            className={`pointer-events-auto relative z-[1] w-full max-w-xl flex flex-col max-h-[78dvh] animate-slide-up p-4 shadow-2xl ${PROFILE_GLASS_PANEL}`}
+            className={`pointer-events-auto relative z-[1] w-full max-w-xl flex flex-col h-[50dvh] sm:h-auto sm:max-h-[78dvh] animate-slide-up p-4 shadow-2xl ${PROFILE_GLASS_PANEL}`}
             style={{
               marginBottom: isMobile ? 'calc(env(safe-area-inset-bottom) + 0.75rem)' : undefined,
             }}
@@ -4062,7 +4095,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
               </div>
             </div>
 
-            <div className="space-y-4 mb-6">
+            {missionBriefingBooting ? (
+              <div className="py-10 flex flex-col items-center justify-center">
+                <div className="h-6 w-6 border-2 border-cyan-500/60 border-t-cyan-200 rounded-full animate-spin" />
+                <p className="mt-3 text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
+                  Loading…
+                </p>
+              </div>
+            ) : null}
+
+            {!missionBriefingBooting && (
+              <div className="space-y-4 mb-6">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">{selectedMission.category === 'home' ? '🏠' : '🌆'}</span>
                 <div>
@@ -4266,7 +4309,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     </div>
                   )}
               </div>
-            </div>
+              </div>
+            )}
 
             {selectedMission.status === 'completed' ? (
               <div className="space-y-5">
