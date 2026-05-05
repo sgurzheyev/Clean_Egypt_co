@@ -2563,6 +2563,39 @@ const MapPicker: React.FC<MapPickerProps> = ({
       });
       if (leadErr) throw leadErr;
 
+      // Optimistic mission insert so the glow/pin appears immediately (no refresh needed).
+      // DB function guarantees `category='public'` and `amount_target=1` for lead-gen pins.
+      if (mid) {
+        const optimistic: JobOnMap = {
+          id: String(mid),
+          category: 'public',
+          amount_target: 1,
+          current_funding: 0,
+          location_lat: Number(location.lat),
+          location_lng: Number(location.lng),
+          status: 'available',
+          building_id: selectedBuildingInfo?.id ?? null,
+          cleaner_id: null,
+          creator_id: session.user.id,
+          description: descriptionToSave || null,
+          photo_urls: creatorPhotoUrls || [],
+          after_photo_urls: null,
+          created_at: new Date().toISOString(),
+          started_at: null,
+          completion_lat: null,
+          completion_lng: null,
+          completion_distance_meters: null,
+          creator: viewerProfile
+            ? {
+                avatar_url: (viewerProfile as any)?.avatar_url ?? null,
+                phone_number: (viewerProfile as any)?.phone_number ?? null,
+                is_verified: (viewerProfile as any)?.is_verified ?? null,
+              }
+            : null,
+        };
+        setJobs((prev) => [optimistic, ...(prev || [])]);
+      }
+
       // Update local token balance snapshot.
       setViewerProfile((p) =>
         !p
@@ -2810,6 +2843,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
           box-shadow: 0 0 18px rgba(0, 229, 255, 0.18);
           border-radius: 14px;
           overflow: hidden;
+        }
+        .ce-map .mapboxgl-ctrl {
+          z-index: 9999;
         }
         .ce-map .mapboxgl-ctrl-group button {
           width: 44px;
@@ -3142,19 +3178,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
             // Click interaction on glowing buildings: open mission details.
             map.on?.('click', 'highlighted-buildings-layer', (ev: any) => {
-              const f = ev?.features?.[0];
-              const mid = f?.properties?.mission_id;
-              const missionId = typeof mid === 'string' ? mid : String(mid || '');
-              if (!missionId) return;
-              const job = (jobsRef.current || []).find((j) => String(j.id) === missionId) || null;
-              if (!job) return;
-              if (isTouchDevice && ev?.lngLat) {
-                setMobileTapPulse({ lng: Number(ev.lngLat.lng), lat: Number(ev.lngLat.lat) });
-                setTimeout(() => setMobileTapPulse(null), 260);
-                setTimeout(() => handleMarkerClick(job), 140);
-                return;
+              try {
+                if (!ev?.features || ev.features.length === 0) return;
+                const f = ev.features[0];
+                const mid = f?.properties?.mission_id;
+                const missionId = typeof mid === 'string' ? mid : String(mid || '');
+                if (!missionId) return;
+                const job = (jobsRef.current || []).find((j) => String(j.id) === missionId);
+                if (!job) {
+                  console.warn('[highlighted-buildings-layer click] mission not found', { missionId });
+                  return;
+                }
+                if (isTouchDevice && ev?.lngLat) {
+                  setMobileTapPulse({ lng: Number(ev.lngLat.lng), lat: Number(ev.lngLat.lat) });
+                  setTimeout(() => setMobileTapPulse(null), 260);
+                  setTimeout(() => handleMarkerClick(job), 140);
+                  return;
+                }
+                handleMarkerClick(job);
+              } catch (err) {
+                console.error('[highlighted-buildings-layer click] handler error', err);
               }
-              handleMarkerClick(job);
             });
 
             // Initial paint once sources are ready.
@@ -3180,19 +3224,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
               }
             });
             map.on?.('click', 'mission-pins-core', (ev: any) => {
-              const f = ev?.features?.[0];
-              const mid = f?.properties?.mission_id;
-              const missionId = typeof mid === 'string' ? mid : String(mid || '');
-              if (!missionId) return;
-              const job = (jobsRef.current || []).find((j) => String(j.id) === missionId) || null;
-              if (!job) return;
-              if (isTouchDevice && ev?.lngLat) {
-                setMobileTapPulse({ lng: Number(ev.lngLat.lng), lat: Number(ev.lngLat.lat) });
-                setTimeout(() => setMobileTapPulse(null), 260);
-                setTimeout(() => handleMarkerClick(job), 140);
-                return;
+              try {
+                if (!ev?.features || ev.features.length === 0) return;
+                const f = ev.features[0];
+                const mid = f?.properties?.mission_id;
+                const missionId = typeof mid === 'string' ? mid : String(mid || '');
+                if (!missionId) return;
+                const job = (jobsRef.current || []).find((j) => String(j.id) === missionId);
+                if (!job) {
+                  console.warn('[mission-pins-core click] mission not found', { missionId });
+                  return;
+                }
+                if (isTouchDevice && ev?.lngLat) {
+                  setMobileTapPulse({ lng: Number(ev.lngLat.lng), lat: Number(ev.lngLat.lat) });
+                  setTimeout(() => setMobileTapPulse(null), 260);
+                  setTimeout(() => handleMarkerClick(job), 140);
+                  return;
+                }
+                handleMarkerClick(job);
+              } catch (err) {
+                console.error('[mission-pins-core click] handler error', err);
               }
-              handleMarkerClick(job);
             });
           } catch {
             // ignore
@@ -3283,39 +3335,44 @@ const MapPicker: React.FC<MapPickerProps> = ({
             };
 
             const onClickBuildings = (ev: any) => {
-              const f = ev?.features?.[0];
-              if (!f) return;
-              const id = f.id;
-              if (id == null) return;
-              if (selectedBuildingIdRef.current != null && selectedBuildingIdRef.current !== id) {
+              try {
+                if (!ev?.features || ev.features.length === 0) return;
+                const f = ev.features[0];
+                if (!f) return;
+                const id = f.id;
+                if (id == null) return;
+                if (selectedBuildingIdRef.current != null && selectedBuildingIdRef.current !== id) {
+                  map.setFeatureState(
+                    { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
+                    { selected: false }
+                  );
+                }
+                selectedBuildingIdRef.current = id;
                 map.setFeatureState(
                   { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
-                  { selected: false }
+                  { selected: true }
                 );
+
+                const lng = Number(ev?.lngLat?.lng);
+                const lat = Number(ev?.lngLat?.lat);
+                // If a building is selected, hide the generic blue dot.
+                setSelectedLocation(null);
+
+                // Store raw properties for later mission payload (building_id, height, etc.)
+                const props = f.properties || {};
+                const height = Number(props.height ?? props.render_height ?? props['height']);
+                const minHeight = Number(props.min_height ?? props['min_height']);
+
+                setSelectedBuildingInfo({
+                  id,
+                  lngLat: Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null,
+                  properties: props,
+                  height: Number.isFinite(height) ? height : null,
+                  min_height: Number.isFinite(minHeight) ? minHeight : null,
+                });
+              } catch (err) {
+                console.error('[3d-buildings click] handler error', err);
               }
-              selectedBuildingIdRef.current = id;
-              map.setFeatureState(
-                { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
-                { selected: true }
-              );
-
-              const lng = Number(ev?.lngLat?.lng);
-              const lat = Number(ev?.lngLat?.lat);
-              // If a building is selected, hide the generic blue dot.
-              setSelectedLocation(null);
-
-              // Store raw properties for later mission payload (building_id, height, etc.)
-              const props = f.properties || {};
-              const height = Number(props.height ?? props.render_height ?? props['height']);
-              const minHeight = Number(props.min_height ?? props['min_height']);
-
-              setSelectedBuildingInfo({
-                id,
-                lngLat: Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null,
-                properties: props,
-                height: Number.isFinite(height) ? height : null,
-                min_height: Number.isFinite(minHeight) ? minHeight : null,
-              });
             };
 
             map.on('mousemove', '3d-buildings', onMoveBuildings);
@@ -3493,6 +3550,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
               </div>
               <button
                 type="button"
+                onClick={() => {
+                  setTaskType('city');
+                  setTaskTypeSelected('city');
+                }}
+                className="mt-3 w-full px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] bg-emerald-500 text-black hover:bg-emerald-400 transition-all active:scale-95"
+              >
+                Create Mission
+              </button>
+              <button
+                type="button"
                 onClick={() => setSelectedBuildingInfo(null)}
                 className="mt-3 w-full px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border border-cyan-500/40 text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all"
               >
@@ -3602,7 +3669,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             <button
               type="button"
               onClick={onAvatarClick}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] transition-all"
+              className="relative z-[9999] flex h-11 w-11 items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] transition-all"
             >
               👤
             </button>
@@ -3697,7 +3764,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Adaptive form — slides up from bottom only after City or Home selected */}
       {taskTypeSelected && (
         <div
-          className="absolute inset-0 z-[9999] flex items-end justify-center p-4 pt-[env(safe-area-inset-top)] pointer-events-none isolate"
+          className="absolute inset-0 z-[10050] flex items-end justify-center p-4 pt-[env(safe-area-inset-top)] pointer-events-none isolate"
           aria-hidden="false"
         >
           <div
