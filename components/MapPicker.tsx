@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import Map, { NavigationControl, GeolocateControl, MapRef, Source, Layer, Popup } from 'react-map-gl';
+import MapGL, { NavigationControl, GeolocateControl, MapRef, Source, Layer, Popup } from 'react-map-gl';
 import type { GeoJSONSource, MapMouseEvent, PointLike } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
@@ -2866,17 +2866,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
       `}</style>
 
       {/* Full-screen 3D map — no blocking overlays */}
-      <Map
-        ref={mapRef}
-        {...viewState}
-        projection="globe"
-        renderWorldCopies={false}
-        className="ce-map"
-        antialias
-        onMove={(evt) => setViewState(evt.viewState)}
-        interactiveLayerIds={['3d-buildings']}
-        onClick={handleMapClick}
-        onLoad={(e: any) => {
+      <div className="ce-map w-full h-full">
+        <MapGL
+          ref={mapRef}
+          {...viewState}
+          projection="globe"
+          renderWorldCopies={false}
+          antialias
+          onMove={(evt) => setViewState(evt.viewState)}
+          interactiveLayerIds={['3d-buildings']}
+          onClick={handleMapClick}
+          onLoad={(e: any) => {
           const map = e?.target;
           if (!map) return;
           mapInstanceRef.current = map;
@@ -3543,17 +3543,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
         {/* SaaS lead-gen: removed crowdfunding/funding 3D pillars. */}
 
-        {selectedBuildingInfo?.lngLat && (
-          <Popup
-            longitude={selectedBuildingInfo.lngLat.lng}
-            latitude={selectedBuildingInfo.lngLat.lat}
-            closeButton={false}
-            closeOnClick={false}
-            anchor="bottom"
-            offset={18}
-            onClose={() => setSelectedBuildingInfo(null)}
-            className="z-[9999]"
-          >
+          {selectedBuildingInfo?.lngLat && (
+            <Popup
+              longitude={selectedBuildingInfo.lngLat.lng}
+              latitude={selectedBuildingInfo.lngLat.lat}
+              closeButton={false}
+              closeOnClick={false}
+              anchor="bottom"
+              offset={18}
+              onClose={() => setSelectedBuildingInfo(null)}
+              className="z-[9999]"
+            >
             <div className="rounded-2xl bg-slate-950/90 border border-emerald-500/30 shadow-[0_0_24px_rgba(34,197,94,0.25)] px-4 py-3 text-white max-w-[240px]">
               <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-300 font-black">
                 Building Selected
@@ -3584,9 +3584,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 Clear
               </button>
             </div>
-          </Popup>
-        )}
-      </Map>
+            </Popup>
+          )}
+        </MapGL>
+      </div>
 
       <TokenPackModal
         open={showTokenPackModal}
