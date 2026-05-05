@@ -841,6 +841,90 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const selectedBuildingIdRef = React.useRef<any>(null);
   const missionBuildingIdsRef = React.useRef<Set<string>>(new Set());
   const missionToResolvedBuildingIdRef = React.useRef<Record<string, string>>({});
+  const jobsRef = React.useRef<JobOnMap[]>([]);
+
+  const updateHighlightedBuildingsOverlay = useCallback(
+    (jobsList: JobOnMap[]) => {
+      const map = mapInstanceRef.current;
+      if (!map) return;
+      const src = map.getSource?.('highlighted-buildings-source') as any;
+      if (!src || typeof src.setData !== 'function') return;
+
+      // Buildings only exist as 3D extrusions at higher zooms.
+      if (Number(map.getZoom?.() ?? 0) < 13) {
+        src.setData({ type: 'FeatureCollection', features: [] });
+        return;
+      }
+
+      const featuresOut: any[] = [];
+      const seen = new Set<string>();
+
+      const active = (jobsList || []).filter((j) =>
+        ['pending', 'available', 'funding', 'in_progress'].includes(String(j.status || ''))
+      );
+
+      for (const j of active) {
+        const lng = Number(j.location_lng);
+        const lat = Number(j.location_lat);
+        if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+
+        const p = map.project?.([lng, lat]);
+        if (!p) continue;
+
+        // Pull the exact building footprint geometry under this mission point.
+        const hits = map.queryRenderedFeatures?.(p, { layers: ['3d-buildings'] }) || [];
+        const f = hits?.[0];
+        const geom = f?.geometry;
+        if (!geom || !geom.type || !geom.coordinates) continue;
+
+        const props = f?.properties || {};
+        const heightRaw = props.height ?? props.render_height ?? props['height'];
+        const baseRaw = props.min_height ?? props['min_height'];
+        const height = Number(heightRaw);
+        const base = Number(baseRaw);
+
+        // Deduplicate by footprint bbox (stable enough for overlay purposes).
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        const scanCoords = (coords: any) => {
+          if (!Array.isArray(coords)) return;
+          if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+            const x = coords[0];
+            const y = coords[1];
+            if (Number.isFinite(x) && Number.isFinite(y)) {
+              minX = Math.min(minX, x);
+              minY = Math.min(minY, y);
+              maxX = Math.max(maxX, x);
+              maxY = Math.max(maxY, y);
+            }
+            return;
+          }
+          for (const c of coords) scanCoords(c);
+        };
+        scanCoords(geom.coordinates);
+        const key =
+          Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY)
+            ? `${minX.toFixed(6)},${minY.toFixed(6)},${maxX.toFixed(6)},${maxY.toFixed(6)}`
+            : null;
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+
+        featuresOut.push({
+          type: 'Feature',
+          geometry: geom,
+          properties: {
+            mission_status: String(j.status || 'unknown'),
+            height: Number.isFinite(height) ? height : undefined,
+            base: Number.isFinite(base) ? base : 0,
+          },
+        });
+
+        if (featuresOut.length >= 160) break;
+      }
+
+      src.setData({ type: 'FeatureCollection', features: featuresOut });
+    },
+    []
+  );
   /** When true, next home submit uses wallet instead of card checkout. */
   const orderFormWalletPayRef = React.useRef(false);
   /** Creator wallet (tokens) for legacy flows. */
@@ -1549,7 +1633,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   );
 
   useEffect(() => {
+    jobsRef.current = jobs;
     syncMissionBuildingHighlight(jobs);
+    updateHighlightedBuildingsOverlay(jobs);
   }, [jobs, syncMissionBuildingHighlight]);
 
   useEffect(() => {
@@ -2699,6 +2785,62 @@ const MapPicker: React.FC<MapPickerProps> = ({
               },
               'place_label'
             );
+          }
+
+          // Building mission highlight overlay (GeoJSON) — does NOT rely on feature-state IDs.
+          try {
+            if (!map.getSource('highlighted-buildings-source')) {
+              map.addSource('highlighted-buildings-source', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] },
+              });
+            }
+            if (!map.getLayer('highlighted-buildings-layer')) {
+              map.addLayer(
+                {
+                  id: 'highlighted-buildings-layer',
+                  type: 'fill-extrusion',
+                  source: 'highlighted-buildings-source',
+                  minzoom: 13,
+                  paint: {
+                    'fill-extrusion-color': [
+                      'match',
+                      ['get', 'mission_status'],
+                      'in_progress',
+                      '#39ff14',
+                      'available',
+                      '#00e5ff',
+                      'pending',
+                      'rgba(0, 229, 255, 0.75)',
+                      'funding',
+                      'rgba(57, 255, 20, 0.55)',
+                      '#00e5ff',
+                    ],
+                    'fill-extrusion-height': ['coalesce', ['get', 'height'], 0],
+                    'fill-extrusion-base': ['coalesce', ['get', 'base'], 0],
+                    'fill-extrusion-opacity': 0.95,
+                    'fill-extrusion-vertical-gradient': true,
+                  },
+                },
+                // Above base extrusions for a crisp neon overlay.
+                '3d-buildings'
+              );
+            }
+
+            const resync = () => {
+              try {
+                updateHighlightedBuildingsOverlay(jobsRef.current || []);
+              } catch {
+                /* ignore */
+              }
+            };
+            map.on?.('idle', resync);
+            map.on?.('zoomend', resync);
+
+            // Initial paint once sources are ready.
+            resync();
+          } catch {
+            // ignore if style/runtime doesn't support this overlay
           }
 
           if (!map.getLayer('3d-buildings')) {
