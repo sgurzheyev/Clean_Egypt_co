@@ -871,6 +871,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const updateHighlightedBuildingsOverlay = useCallback(
     (jobsList: JobOnMap[]) => {
+      return; // TEMPORARILY DISABLED FOR 2D MODE
       const map = mapInstanceRef.current;
       if (!map) return;
       const src = map.getSource?.('highlighted-buildings-source') as any;
@@ -1657,6 +1658,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const syncMissionBuildingHighlight = useCallback(
     (jobsList: JobOnMap[]) => {
+      return; // TEMPORARILY DISABLED FOR 2D MODE
       const map = mapInstanceRef.current;
       if (!map) return;
       if (!map.getLayer?.('3d-buildings')) return;
@@ -2698,34 +2700,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   /** Main mission pins (shown only when not highlighted as a glowing building). */
   const missionPinsGeoJSON = useMemo(() => {
-    const suppressed = highlightedMissionIds;
-    const bboxes = highlightedBuildingBBoxes;
-    const insideAnyHighlightedBbox = (lng: number, lat: number) => {
-      if (!bboxes || bboxes.length === 0) return false;
-      // Tiny padding so pins on edges still get suppressed.
-      const pad = 0.00002;
-      for (const b of bboxes) {
-        if (
-          lng >= b.minLng - pad &&
-          lng <= b.maxLng + pad &&
-          lat >= b.minLat - pad &&
-          lat <= b.maxLat + pad
-        ) {
-          return true;
-        }
-      }
-      return false;
-    };
     const features = (jobs || [])
       .filter(missionEligibleForMapPin)
-      .filter((j) => {
-        const id = String(j.id);
-        if (suppressed.has(id)) return false;
-        const lng = Number(j.location_lng);
-        const lat = Number(j.location_lat);
-        if (Number.isFinite(lng) && Number.isFinite(lat) && insideAnyHighlightedBbox(lng, lat)) return false;
-        return true;
-      })
       .filter((j) => Number.isFinite(j.location_lat) && Number.isFinite(j.location_lng))
       .map((j) => ({
         type: 'Feature' as const,
@@ -2739,7 +2715,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         },
       }));
     return { type: 'FeatureCollection' as const, features };
-  }, [jobs, highlightedMissionIds, highlightedBuildingBBoxes]);
+  }, [jobs]);
 
   const activeWorkerMission = useMemo(
     () =>
