@@ -1784,79 +1784,35 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleMapClick = useCallback(
     (event: any) => {
-      if (!event?.lngLat || !event?.point) return;
+      if (!event?.lngLat) return;
       const { lng, lat } = event.lngLat;
+      
       if (!isInsideEgyptBounds(lng, lat)) {
         toast.error(t('geofenceEgyptShelf'));
         return;
       }
 
-      const map = mapRef.current?.getMap() as mapboxgl.Map | undefined;
-      if (!map) return;
+      const map = mapRef.current?.getMap();
 
-      // FORCE NATIVE 3D HIT DETECTION (bypasses react-map-gl synthetic bugs)
-      const hits = map.queryRenderedFeatures(event.point, { layers: ['3d-buildings'] }) as any[];
-      const clickedFeature = hits && hits.length > 0 ? hits[0] : null;
-
-      if (clickedFeature) {
-        // --- WE CLICKED A 3D BUILDING ---
-        const id = clickedFeature.id;
-
-        // Clear old building highlight
-        if (selectedBuildingIdRef.current != null && selectedBuildingIdRef.current !== id) {
-          try {
-            map.setFeatureState(
-              { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
-              { selected: false }
-            );
-          } catch {
-            /* ignore */
-          }
+      // 1. Clear any stuck 3D building highlights just in case
+      if (map && selectedBuildingIdRef.current != null) {
+        try {
+          map.setFeatureState(
+            { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
+            { selected: false }
+          );
+        } catch {
+          /* ignore */
         }
-
-        // Highlight new building
-        if (id != null) {
-          selectedBuildingIdRef.current = id;
-          try {
-            map.setFeatureState({ source: 'composite', sourceLayer: 'building', id }, { selected: true });
-          } catch {
-            /* ignore */
-          }
-        }
-
-        const props = clickedFeature.properties || {};
-        const height = Number(props.height ?? props.render_height ?? props['height']);
-        const minHeight = Number(props.min_height ?? props['min_height']);
-
-        setSelectedLocation(null); // Hide standard pin
-        setSelectedBuildingInfo({
-          id,
-          lngLat: { lat, lng },
-          properties: props,
-          height: Number.isFinite(height) ? height : null,
-          min_height: Number.isFinite(minHeight) ? minHeight : null,
-        });
-        onLocationSelect(lat, lng);
-      } else {
-        // --- WE CLICKED EMPTY SPACE ---
-        // Clear any existing building highlight
-        if (selectedBuildingIdRef.current != null) {
-          try {
-            map.setFeatureState(
-              { source: 'composite', sourceLayer: 'building', id: selectedBuildingIdRef.current },
-              { selected: false }
-            );
-          } catch {
-            /* ignore */
-          }
-          selectedBuildingIdRef.current = null;
-        }
-        setSelectedBuildingInfo(null);
-
-        // Set standard location pin
-        setSelectedLocation({ lat, lng });
-        onLocationSelect(lat, lng);
+        selectedBuildingIdRef.current = null;
       }
+
+      // 2. Tell the UI we are NOT targeting a building
+      setSelectedBuildingInfo(null);
+
+      // 3. Always drop the standard location pin
+      setSelectedLocation({ lat, lng });
+      onLocationSelect(lat, lng);
     },
     [onLocationSelect, t]
   );
