@@ -1784,6 +1784,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleMapClick = useCallback(
     (event: any) => {
+      const map = mapRef.current?.getMap();
+      
+      // Prevent hijacking if the user clicked an existing mission dot
+      if (map && event.point) {
+        const hits = map.queryRenderedFeatures(event.point, { layers: ['mission-pins-core', 'mission-pins-glow'] });
+        if (hits.length > 0) return; // Let the marker's own onClick handle it!
+      }
+
       if (!event?.lngLat) return;
       const { lng, lat } = event.lngLat;
       
@@ -1791,8 +1799,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         toast.error(t('geofenceEgyptShelf'));
         return;
       }
-
-      const map = mapRef.current?.getMap();
 
       // 1. Clear any stuck 3D building highlights just in case
       if (map && selectedBuildingIdRef.current != null) {
@@ -1826,6 +1832,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [isTranslationLoading, setIsTranslationLoading] = useState(false);
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [showTranslateAction, setShowTranslateAction] = useState(false);
+  const [hoveredPinInfo, setHoveredPinInfo] = useState<{ lat: number; lng: number; title: string; status: string } | null>(
+    null
+  );
   const [hallOfFameMission, setHallOfFameMission] = useState<JobOnMap | null>(null);
   const [hallOfFameCleanerName, setHallOfFameCleanerName] = useState<string | null>(null);
   const [hallOfFameHeroes, setHallOfFameHeroes] = useState<string[]>([]);
@@ -3219,19 +3228,30 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
           // Mission pin interactions (cursor + click-to-open) are handled at the layer level.
           try {
-            map.on?.('mouseenter', 'mission-pins-core', () => {
+            map.on?.('mousemove', 'mission-pins-core', (ev: any) => {
               try {
                 map.getCanvas().style.cursor = 'pointer';
-              } catch {
-                /* ignore */
-              }
+                if (ev?.features && ev.features.length > 0) {
+                  const f = ev.features[0];
+                  const missionId = f.properties.mission_id;
+                  const job = (jobsRef.current || []).find((j) => String(j.id) === String(missionId));
+                  if (job && ev.lngLat) {
+                    setHoveredPinInfo({
+                      lat: ev.lngLat.lat,
+                      lng: ev.lngLat.lng,
+                      title: job.category === 'public' ? 'City Mission' : 'Home Mission',
+                      status: job.status,
+                    });
+                  }
+                }
+              } catch {}
             });
+
             map.on?.('mouseleave', 'mission-pins-core', () => {
               try {
                 map.getCanvas().style.cursor = '';
-              } catch {
-                /* ignore */
-              }
+                setHoveredPinInfo(null);
+              } catch {}
             });
             map.on?.('click', 'mission-pins-core', (ev: any) => {
               try {
@@ -3533,6 +3553,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 Clear
               </button>
             </div>
+            </Popup>
+          )}
+
+          {hoveredPinInfo && (
+            <Popup
+              longitude={hoveredPinInfo.lng}
+              latitude={hoveredPinInfo.lat}
+              closeButton={false}
+              closeOnClick={false}
+              anchor="bottom"
+              offset={15}
+              className="z-[9999] pointer-events-none"
+            >
+              <div className="rounded-xl bg-slate-950/90 border border-cyan-500/30 px-3 py-2 text-white shadow-lg">
+                <p className="text-[10px] font-black uppercase tracking-[0.15em] text-cyan-300">
+                  {hoveredPinInfo.title}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5 capitalize">
+                  Status: {hoveredPinInfo.status}
+                </p>
+              </div>
             </Popup>
           )}
         </MapGL>
