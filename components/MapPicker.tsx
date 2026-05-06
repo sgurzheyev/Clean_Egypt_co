@@ -2596,7 +2596,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           renderWorldCopies={false}
           antialias
           onMove={(evt) => setViewState(evt.viewState)}
-          interactiveLayerIds={['3d-buildings']}
+          // 2D mode: pins are interactive, buildings are background only.
+          interactiveLayerIds={['mission-pins-core', 'mission-pins-glow']}
           onClick={handleMapClick}
           onLoad={(e: any) => {
           const map = e?.target;
