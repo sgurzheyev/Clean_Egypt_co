@@ -1784,7 +1784,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleMapClick = useCallback(
     (event: any) => {
-      if (!event?.lngLat) return;
+      if (!event?.lngLat || !event?.point) return;
       const { lng, lat } = event.lngLat;
       if (!isInsideEgyptBounds(lng, lat)) {
         toast.error(t('geofenceEgyptShelf'));
@@ -1794,10 +1794,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const map = mapRef.current?.getMap() as mapboxgl.Map | undefined;
       if (!map) return;
 
-      // 1) Check if we clicked a 3D building (react-map-gl provides this automatically!)
-      const clickedFeature = event.features && event.features.length > 0 ? event.features[0] : null;
+      // FORCE NATIVE 3D HIT DETECTION (bypasses react-map-gl synthetic bugs)
+      const hits = map.queryRenderedFeatures(event.point, { layers: ['3d-buildings'] }) as any[];
+      const clickedFeature = hits && hits.length > 0 ? hits[0] : null;
 
-      if (clickedFeature && clickedFeature.layer?.id === '3d-buildings') {
+      if (clickedFeature) {
         // --- WE CLICKED A 3D BUILDING ---
         const id = clickedFeature.id;
 
