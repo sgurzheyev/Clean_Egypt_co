@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import MapGL, { NavigationControl, GeolocateControl, MapRef, Source, Layer, Popup } from 'react-map-gl';
-import type { GeoJSONSource, MapMouseEvent, PointLike } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -844,12 +843,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const mapRef = React.useRef<MapRef>(null);
   const mapInstanceRef = React.useRef<any>(null);
   const orderFormRef = React.useRef<HTMLFormElement>(null);
-  const hoveredBuildingIdRef = React.useRef<any>(null);
-  const selectedBuildingIdRef = React.useRef<any>(null);
-  const missionBuildingIdsRef = React.useRef<Set<string>>(new Set());
-  const missionToResolvedBuildingIdRef = React.useRef<Record<string, string>>({});
   const jobsRef = React.useRef<JobOnMap[]>([]);
-  // 2D mode: neon building overlays disabled (pins-only UX).
 
   /** When true, next home submit uses wallet instead of card checkout. */
   const orderFormWalletPayRef = React.useRef(false);
@@ -864,7 +858,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
   });
 
   const [jobs, setJobs] = useState<JobOnMap[]>([]);
-  const [selectedBuildingInfo, setSelectedBuildingInfo] = useState<any>(null);
 
   const updateAtmosphere = useCallback(() => {
     const map = mapInstanceRef.current;
@@ -1521,37 +1514,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   // Stripe is the only payment gateway now. Mission creation is token-backed (no redirect flow).
 
-  const handleMapClick = useCallback(
-    (event: any) => {
-      const map = mapRef.current?.getMap();
-      
-      // Prevent hijacking if the user clicked an existing mission dot
-      if (map && event.point) {
-        const hits = map.queryRenderedFeatures(event.point, { layers: ['mission-pins-core', 'mission-pins-glow'] });
-        if (hits.length > 0) return; // Let the marker's own onClick handle it!
-      }
-
-      if (!event?.lngLat) return;
-      const { lng, lat } = event.lngLat;
-      
-      if (!isInsideEgyptBounds(lng, lat)) {
-        toast.error(t('geofenceEgyptShelf'));
-        return;
-      }
-
-      // 1. Clear any stuck 3D building highlights just in case
-      if (selectedBuildingIdRef.current != null) selectedBuildingIdRef.current = null;
-
-      // 2. Tell the UI we are NOT targeting a building
-      setSelectedBuildingInfo(null);
-
-      // 3. Always drop the standard location pin
-      setSelectedLocation({ lat, lng });
-      onLocationSelect(lat, lng);
-    },
-    [onLocationSelect, t]
-  );
-
   const [selectedMission, setSelectedMission] = useState<JobOnMap | null>(null);
   const [mobileTapPulse, setMobileTapPulse] = useState<{ lng: number; lat: number } | null>(null);
   const [sheetDragY, setSheetDragY] = useState(0);
@@ -1770,6 +1732,72 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setShowBidInput(false);
     setMissionBidAmount(String(Math.floor(Number(job.amount_target ?? 0))));
   }, []);
+
+  const openMissionFromPinEvent = useCallback(
+    (event: any) => {
+      const layerIds = new Set(['mission-pins-core', 'mission-pins-glow']);
+      let missionId = '';
+
+      const fromFeatures = (event?.features || []) as any[];
+      for (const f of fromFeatures) {
+        const lid = f?.layer?.id;
+        if (!layerIds.has(lid)) continue;
+        const mid = f?.properties?.mission_id;
+        missionId = mid == null ? '' : String(mid);
+        if (missionId) break;
+      }
+
+      if (!missionId && event?.point) {
+        const map = mapRef.current?.getMap();
+        const hits =
+          map?.queryRenderedFeatures?.(event.point, {
+            layers: ['mission-pins-core', 'mission-pins-glow'],
+          }) || [];
+        const hit = hits[0];
+        if (hit && layerIds.has(hit.layer?.id)) {
+          const mid = hit.properties?.mission_id;
+          missionId = mid == null ? '' : String(mid);
+        }
+      }
+
+      if (!missionId) return false;
+
+      const job = (jobsRef.current || []).find((j) => String(j.id) === missionId);
+      if (!job) return false;
+
+      if (isTouchDevice && event?.lngLat) {
+        setMobileTapPulse({ lng: Number(event.lngLat.lng), lat: Number(event.lngLat.lat) });
+        setTimeout(() => setMobileTapPulse(null), 260);
+        setTimeout(() => handleMarkerClick(job), 140);
+      } else {
+        handleMarkerClick(job);
+      }
+      return true;
+    },
+    [handleMarkerClick, isTouchDevice]
+  );
+
+  const handleMapClick = useCallback(
+    (event: any) => {
+      // Mission pin click: interactiveLayerIds fills event.features — never place a draft pin.
+      if (openMissionFromPinEvent(event)) {
+        event?.originalEvent?.stopPropagation?.();
+        return;
+      }
+
+      if (!event?.lngLat) return;
+      const { lng, lat } = event.lngLat;
+
+      if (!isInsideEgyptBounds(lng, lat)) {
+        toast.error(t('geofenceEgyptShelf'));
+        return;
+      }
+
+      setSelectedLocation({ lat, lng });
+      onLocationSelect(lat, lng);
+    },
+    [onLocationSelect, openMissionFromPinEvent, t]
+  );
 
   // Click-to-open leads is handled via marker layers (no funding towers).
 
@@ -2198,10 +2226,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
     }
 
-    const location =
-      selectedBuildingInfo?.lngLat && selectedBuildingInfo?.lngLat?.lat && selectedBuildingInfo?.lngLat?.lng
-        ? { lat: Number(selectedBuildingInfo.lngLat.lat), lng: Number(selectedBuildingInfo.lngLat.lng) }
-        : selectedLocation;
+    const location = selectedLocation;
     if (!location) {
       setOrderError(t('tapMapToSetLocation'));
       return;
@@ -2246,8 +2271,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
             location_lat: location.lat,
             location_lng: location.lng,
             description: descriptionToSave || orderDescription || '',
-            building_id: selectedBuildingInfo?.id ?? null,
-            building_height_m: selectedBuildingInfo?.height ?? null,
+            building_id: null,
+            building_height_m: null,
           })
         );
         setOrderSubmitting(false);
@@ -2306,8 +2331,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         p_location_lng: Number(location.lng),
         p_description: descriptionToSave || null,
         p_photo_urls: creatorPhotoUrls || [],
-        p_building_id: selectedBuildingInfo?.id ?? null,
-        p_building_height_m: selectedBuildingInfo?.height ?? null,
+        p_building_id: null,
+        p_building_height_m: null,
       });
       if (leadErr) throw leadErr;
 
@@ -2322,7 +2347,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           location_lat: Number(location.lat),
           location_lng: Number(location.lng),
           status: 'available',
-          building_id: selectedBuildingInfo?.id ?? null,
+          building_id: null,
           cleaner_id: null,
           creator_id: session.user.id,
           description: descriptionToSave || null,
@@ -2361,7 +2386,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setDescriptionPolicyError(null);
       setPhotoVerification({ verifying: false, allApproved: true, hasRejected: false });
       setSelectedLocation(null);
-      setSelectedBuildingInfo(null);
       await fetchMissions();
       setTaskType(null);
       setTaskTypeSelected(null);
@@ -2425,7 +2449,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return { type: 'FeatureCollection' as const, features };
   }, [jobs, currentUserId]);
 
-  /** Main mission pins (shown only when not highlighted as a glowing building). */
+  /** Red mission dots on the map (always visible in 2D mode). */
   const missionPinsGeoJSON = useMemo(() => {
     const features = (jobs || [])
       .filter(missionEligibleForMapPin)
@@ -2496,7 +2520,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     };
   }, [selectedLocation]);
 
-  /** Mobile tap feedback pulse (first tap on building/pin). */
+  /** Mobile tap feedback pulse on mission pin tap. */
   const mobileTapPulseGeoJSON = useMemo(() => {
     if (!mobileTapPulse) return { type: 'FeatureCollection' as const, features: [] };
     return {
@@ -2743,9 +2767,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             );
           }
 
-          // 2D mode: neon mission-building overlays disabled.
-
-          // Mission pin interactions (cursor + click-to-open) are handled at the layer level.
+          // Mission pin hover (clicks handled by MapGL onClick + interactiveLayerIds).
           try {
             map.on?.('mousemove', 'mission-pins-core', (ev: any) => {
               try {
@@ -2771,29 +2793,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 map.getCanvas().style.cursor = '';
                 setHoveredPinInfo(null);
               } catch {}
-            });
-            map.on?.('click', 'mission-pins-core', (ev: any) => {
-              try {
-                if (!ev?.features || ev.features.length === 0) return;
-                const f = ev.features[0];
-                const mid = f?.properties?.mission_id;
-                const missionId = typeof mid === 'string' ? mid : String(mid || '');
-                if (!missionId) return;
-                const job = (jobsRef.current || []).find((j) => String(j.id) === missionId);
-                if (!job) {
-                  console.warn('[mission-pins-core click] mission not found', { missionId });
-                  return;
-                }
-                if (isTouchDevice && ev?.lngLat) {
-                  setMobileTapPulse({ lng: Number(ev.lngLat.lng), lat: Number(ev.lngLat.lat) });
-                  setTimeout(() => setMobileTapPulse(null), 260);
-                  setTimeout(() => handleMarkerClick(job), 140);
-                  return;
-                }
-                handleMarkerClick(job);
-              } catch (err) {
-                console.error('[mission-pins-core click] handler error', err);
-              }
             });
           } catch {
             // ignore
@@ -2883,7 +2882,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           />
         </Source>
 
-        {/* Main mission pins (suppressed when mission is highlighted as a building glow). */}
+        {/* Main mission pins */}
         <Source id="mission-pins" type="geojson" data={missionPinsGeoJSON}>
           <Layer
             id="mission-pins-glow"
@@ -2955,49 +2954,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
         {/* SaaS lead-gen: removed crowdfunding/funding 3D pillars. */}
 
-          {selectedBuildingInfo?.lngLat && (
-            <Popup
-              longitude={selectedBuildingInfo.lngLat.lng}
-              latitude={selectedBuildingInfo.lngLat.lat}
-              closeButton={false}
-              closeOnClick={false}
-              anchor="bottom"
-              offset={18}
-              onClose={() => setSelectedBuildingInfo(null)}
-              className="z-[9999]"
-            >
-            <div className="rounded-2xl bg-slate-950/90 border border-emerald-500/30 shadow-[0_0_24px_rgba(34,197,94,0.25)] px-4 py-3 text-white max-w-[240px]">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-300 font-black">
-                Building Selected
-              </p>
-              <div className="mt-2 space-y-1 text-[11px] text-slate-200">
-                <p className="font-mono text-slate-400">ID: {String(selectedBuildingInfo.id).slice(0, 10)}</p>
-                {typeof selectedBuildingInfo.height === 'number' && (
-                  <p>
-                    Height: <span className="font-black">{Math.round(selectedBuildingInfo.height)}m</span>
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setTaskType('city');
-                  setTaskTypeSelected('city');
-                }}
-                className="mt-3 w-full px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] bg-emerald-500 text-black hover:bg-emerald-400 transition-all active:scale-95"
-              >
-                Create Mission
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedBuildingInfo(null)}
-                className="mt-3 w-full px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border border-cyan-500/40 text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all"
-              >
-                Clear
-              </button>
-            </div>
-            </Popup>
-          )}
 
           {hoveredPinInfo && (
             <Popup
@@ -3299,7 +3255,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 className={`w-full mt-1 rounded-full animated-border-home ${
                   orderSubmitting ||
                   uploadingProof ||
-                  !(selectedBuildingInfo?.lngLat || selectedLocation) ||
+                  !selectedLocation ||
                   !!descriptionPolicyError ||
                   (orderPhotos.length > 0 &&
                     photoVerification.verifying)
@@ -3312,7 +3268,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   disabled={
                     orderSubmitting ||
                     uploadingProof ||
-                    !(selectedBuildingInfo?.lngLat || selectedLocation) ||
+                    !selectedLocation ||
                     !!descriptionPolicyError ||
                     (orderPhotos.length > 0 &&
                       photoVerification.verifying)
