@@ -1737,26 +1737,32 @@ const MapPicker: React.FC<MapPickerProps> = ({
     (event: any) => {
       const map = mapRef.current?.getMap();
 
-      // 1. BULLETPROOF PIN DETECTION
-      // Intercept the click using native Mapbox engine before doing anything else
+      // 1. FORGIVING HITBOX DETECTION
       if (map && event.point) {
-        const hits = map.queryRenderedFeatures(event.point, {
+        // Create a 15-pixel bounding box around the click point
+        const pad = 15;
+        const bbox: [[number, number], [number, number]] = [
+          [event.point.x - pad, event.point.y - pad],
+          [event.point.x + pad, event.point.y + pad],
+        ];
+
+        const hits = map.queryRenderedFeatures(bbox, {
           layers: ['mission-pins-core', 'mission-pins-glow'],
         });
 
         if (hits.length > 0) {
-          // WE HIT A RED DOT!
+          // WE HIT A RED DOT (OR NEAR IT)!
           const missionId = hits[0].properties?.mission_id;
           const job = (jobsRef.current || []).find((j) => String(j.id) === String(missionId));
 
           if (job) {
-            handleMarkerClick(job); // Open the bottom sheet with info
+            handleMarkerClick(job); // Open the bottom sheet
           }
           return; // STOP! Do not drop a blue draft pin.
         }
       }
 
-      // 2. WE CLICKED EMPTY SPACE (No pin found)
+      // 2. WE CLICKED EMPTY SPACE
       if (!event?.lngLat) return;
       const { lng, lat } = event.lngLat;
 

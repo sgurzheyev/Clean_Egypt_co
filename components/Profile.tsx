@@ -1516,18 +1516,18 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 setContactSubmitting(false);
               }
             }}
-            className={`mt-4 space-y-3 p-4 ${PROFILE_GLASS_PANEL} !rounded-3xl`}
+            className={`mt-4 space-y-4 p-4 ${PROFILE_GLASS_PANEL} !rounded-3xl w-full min-w-0`}
           >
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
               {t('contactInfo')}
             </p>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 leading-relaxed">
               {t('contactInfoHint')}
             </p>
             {contactEditMode ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+              <div className="flex flex-col gap-4 w-full min-w-0">
+                <div className="w-full min-w-0">
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1.5">
                     {t('email')}
                   </label>
                   <input
@@ -1537,12 +1537,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       setContactEmail(e.target.value);
                       setContactSaved(false);
                     }}
-                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
+                    className={`w-full min-w-0 ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
                     placeholder="you@example.com"
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                <div className="w-full min-w-0">
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1.5">
                     {t('phoneWhatsApp')}
                   </label>
                   <input
@@ -1552,12 +1552,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       setPhoneNumber(e.target.value);
                       setContactSaved(false);
                     }}
-                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
+                    className={`w-full min-w-0 ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
                     placeholder="+20 1X XXX XXXX"
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                <div className="w-full min-w-0">
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1.5">
                     {t('telegramUsername')}
                   </label>
                   <input
@@ -1567,22 +1567,31 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       setTelegramUsername(e.target.value);
                       setContactSaved(false);
                     }}
-                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
+                    className={`w-full min-w-0 ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
                     placeholder="@username"
                   />
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 flex items-start justify-between gap-3">
-                <div className="text-xs text-slate-300 space-y-1">
-                  <p>{contactEmail || '—'}</p>
-                  <p>{phoneNumber || '—'}</p>
-                  <p>{telegramUsername || '—'}</p>
+              <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 flex items-start justify-between gap-3 w-full min-w-0">
+                <div className="flex flex-col gap-3 text-xs text-slate-300 w-full min-w-0">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-0.5">{t('email')}</p>
+                    <p className="break-all">{contactEmail || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-0.5">{t('phoneWhatsApp')}</p>
+                    <p className="break-all">{phoneNumber || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-0.5">{t('telegramUsername')}</p>
+                    <p className="break-all">{telegramUsername || '—'}</p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setContactEditMode(true)}
-                  className="h-8 w-8 rounded-full border border-white/15 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 inline-flex items-center justify-center transition-all active:scale-95"
+                  className="h-8 w-8 shrink-0 rounded-full border border-white/15 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 inline-flex items-center justify-center transition-all active:scale-95"
                   aria-label="Edit contacts"
                 >
                   <Pencil className="w-4 h-4" />
