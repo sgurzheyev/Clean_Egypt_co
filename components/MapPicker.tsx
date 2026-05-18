@@ -1733,58 +1733,30 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setMissionBidAmount(String(Math.floor(Number(job.amount_target ?? 0))));
   }, []);
 
-  const openMissionFromPinEvent = useCallback(
+  const handleMapClick = useCallback(
     (event: any) => {
-      const layerIds = new Set(['mission-pins-core', 'mission-pins-glow']);
-      let missionId = '';
+      const map = mapRef.current?.getMap();
 
-      const fromFeatures = (event?.features || []) as any[];
-      for (const f of fromFeatures) {
-        const lid = f?.layer?.id;
-        if (!layerIds.has(lid)) continue;
-        const mid = f?.properties?.mission_id;
-        missionId = mid == null ? '' : String(mid);
-        if (missionId) break;
-      }
+      // 1. BULLETPROOF PIN DETECTION
+      // Intercept the click using native Mapbox engine before doing anything else
+      if (map && event.point) {
+        const hits = map.queryRenderedFeatures(event.point, {
+          layers: ['mission-pins-core', 'mission-pins-glow'],
+        });
 
-      if (!missionId && event?.point) {
-        const map = mapRef.current?.getMap();
-        const hits =
-          map?.queryRenderedFeatures?.(event.point, {
-            layers: ['mission-pins-core', 'mission-pins-glow'],
-          }) || [];
-        const hit = hits[0];
-        if (hit && layerIds.has(hit.layer?.id)) {
-          const mid = hit.properties?.mission_id;
-          missionId = mid == null ? '' : String(mid);
+        if (hits.length > 0) {
+          // WE HIT A RED DOT!
+          const missionId = hits[0].properties?.mission_id;
+          const job = (jobsRef.current || []).find((j) => String(j.id) === String(missionId));
+
+          if (job) {
+            handleMarkerClick(job); // Open the bottom sheet with info
+          }
+          return; // STOP! Do not drop a blue draft pin.
         }
       }
 
-      if (!missionId) return false;
-
-      const job = (jobsRef.current || []).find((j) => String(j.id) === missionId);
-      if (!job) return false;
-
-      if (isTouchDevice && event?.lngLat) {
-        setMobileTapPulse({ lng: Number(event.lngLat.lng), lat: Number(event.lngLat.lat) });
-        setTimeout(() => setMobileTapPulse(null), 260);
-        setTimeout(() => handleMarkerClick(job), 140);
-      } else {
-        handleMarkerClick(job);
-      }
-      return true;
-    },
-    [handleMarkerClick, isTouchDevice]
-  );
-
-  const handleMapClick = useCallback(
-    (event: any) => {
-      // Mission pin click: interactiveLayerIds fills event.features — never place a draft pin.
-      if (openMissionFromPinEvent(event)) {
-        event?.originalEvent?.stopPropagation?.();
-        return;
-      }
-
+      // 2. WE CLICKED EMPTY SPACE (No pin found)
       if (!event?.lngLat) return;
       const { lng, lat } = event.lngLat;
 
@@ -1793,10 +1765,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
+      // Drop the blue draft pin
       setSelectedLocation({ lat, lng });
       onLocationSelect(lat, lng);
     },
-    [onLocationSelect, openMissionFromPinEvent, t]
+    [handleMarkerClick, onLocationSelect, t]
   );
 
   // Click-to-open leads is handled via marker layers (no funding towers).
