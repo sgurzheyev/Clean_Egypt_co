@@ -1798,24 +1798,28 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setMissionBidAmount(String(Math.floor(Number(job.amount_target ?? 0))));
   }, []);
 
-  /** Bbox hit-test on mission pin layers (pad in screen px; hover uses a larger box at high zoom). */
+  /** Bbox hit-test on mission pin layers (pad in screen px). Skips glow-only hits without mission_id. */
   const findMissionPinAtPoint = useCallback(
     (point: { x: number; y: number } | undefined, pad = 15): JobOnMap | null => {
-    const map = mapRef.current?.getMap();
-    if (!map || !point) return null;
-    const bbox: [[number, number], [number, number]] = [
-      [point.x - pad, point.y - pad],
-      [point.x + pad, point.y + pad],
-    ];
+      const map = mapRef.current?.getMap();
+      if (!map || !point) return null;
 
-    const hits = map.queryRenderedFeatures(bbox, {
-      layers: ['mission-pins-core', 'mission-pins-glow'],
-    });
+      const bbox: [mapboxgl.PointLike, mapboxgl.PointLike] = [
+        [point.x - pad, point.y - pad],
+        [point.x + pad, point.y + pad],
+      ];
 
-    if (hits.length === 0) return null;
+      const hits = map.queryRenderedFeatures(bbox, {
+        layers: ['mission-pins-core', 'mission-pins-glow'],
+      });
 
-    const missionId = hits[0].properties?.mission_id;
-    return (jobsRef.current || []).find((j) => String(j.id) === String(missionId)) ?? null;
+      const validHit = hits.find(
+        (hit) => hit.properties?.mission_id != null && hit.properties.mission_id !== ''
+      );
+      if (!validHit?.properties?.mission_id) return null;
+
+      const missionId = String(validHit.properties.mission_id);
+      return (jobsRef.current || []).find((j) => String(j.id) === missionId) ?? null;
     },
     []
   );
@@ -1848,34 +1852,52 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const handleMapMouseMove = useCallback(
     (event: any) => {
       const map = mapRef.current?.getMap();
-      const job = findMissionPinAtPoint(event?.point, 50);
+      const canvas = map?.getCanvas();
 
-      if (job && event?.lngLat) {
-        try {
-          const canvas = map?.getCanvas();
-          if (canvas) canvas.style.cursor = 'pointer';
-        } catch {
-          /* ignore */
-        }
-        setHoveredPinInfo({
-          lat: event.lngLat.lat,
-          lng: event.lngLat.lng,
-          title: missionHoverTitle(job),
-          status: job.status,
-          priceLabel: formatEgp(Number(job.amount_target ?? 0)),
-        });
+      if (!map || !event?.point) {
+        if (canvas) canvas.style.cursor = '';
+        setHoveredPinInfo(null);
         return;
       }
 
-      try {
-        const canvas = map?.getCanvas();
-        if (canvas) canvas.style.cursor = '';
-      } catch {
-        /* ignore */
+      const bbox: [mapboxgl.PointLike, mapboxgl.PointLike] = [
+        [event.point.x - 25, event.point.y - 25],
+        [event.point.x + 25, event.point.y + 25],
+      ];
+
+      const hits = map.queryRenderedFeatures(bbox, {
+        layers: ['mission-pins-core', 'mission-pins-glow'],
+      });
+
+      const validHit = hits.find(
+        (hit) => hit.properties && hit.properties.mission_id
+      );
+
+      if (validHit?.properties?.mission_id) {
+        const missionId = String(validHit.properties.mission_id);
+        const job = (jobsRef.current || []).find((j) => String(j.id) === missionId);
+
+        if (
+          job &&
+          Number.isFinite(job.location_lat) &&
+          Number.isFinite(job.location_lng)
+        ) {
+          if (canvas) canvas.style.cursor = 'pointer';
+          setHoveredPinInfo({
+            lat: job.location_lat,
+            lng: job.location_lng,
+            title: missionHoverTitle(job),
+            status: job.status,
+            priceLabel: formatEgp(Number(job.amount_target ?? 0)),
+          });
+          return;
+        }
       }
+
+      if (canvas) canvas.style.cursor = '';
       setHoveredPinInfo(null);
     },
-    [findMissionPinAtPoint, missionHoverTitle]
+    [missionHoverTitle]
   );
 
   const handleMapMouseLeave = useCallback(() => {
@@ -3025,6 +3047,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               anchor="bottom"
               offset={15}
               className="pointer-events-none z-[10000]"
+              style={{ pointerEvents: 'none' }}
             >
               <div className="rounded-xl bg-slate-950/90 border border-cyan-500/30 px-3 py-2 text-white shadow-lg pointer-events-none">
                 <p className="text-[10px] font-bold tracking-wide text-cyan-300 leading-snug">
