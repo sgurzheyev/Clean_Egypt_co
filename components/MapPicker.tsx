@@ -1523,9 +1523,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [isTranslationLoading, setIsTranslationLoading] = useState(false);
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [showTranslateAction, setShowTranslateAction] = useState(false);
-  const [hoveredPinInfo, setHoveredPinInfo] = useState<{ lat: number; lng: number; title: string; status: string } | null>(
-    null
-  );
+  const [hoveredPinInfo, setHoveredPinInfo] = useState<{
+    lat: number;
+    lng: number;
+    title: string;
+    status: string;
+    priceLabel: string;
+  } | null>(null);
   const [hallOfFameMission, setHallOfFameMission] = useState<JobOnMap | null>(null);
   const [hallOfFameCleanerName, setHallOfFameCleanerName] = useState<string | null>(null);
   const [hallOfFameHeroes, setHallOfFameHeroes] = useState<string[]>([]);
@@ -1733,33 +1737,34 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setMissionBidAmount(String(Math.floor(Number(job.amount_target ?? 0))));
   }, []);
 
+  /** 15px bbox hit-test on mission pin layers (same logic for click + hover). */
+  const findMissionPinAtPoint = useCallback((point: { x: number; y: number } | undefined): JobOnMap | null => {
+    const map = mapRef.current?.getMap();
+    if (!map || !point) return null;
+
+    const pad = 15;
+    const bbox: [[number, number], [number, number]] = [
+      [point.x - pad, point.y - pad],
+      [point.x + pad, point.y + pad],
+    ];
+
+    const hits = map.queryRenderedFeatures(bbox, {
+      layers: ['mission-pins-core', 'mission-pins-glow'],
+    });
+
+    if (hits.length === 0) return null;
+
+    const missionId = hits[0].properties?.mission_id;
+    return (jobsRef.current || []).find((j) => String(j.id) === String(missionId)) ?? null;
+  }, []);
+
   const handleMapClick = useCallback(
     (event: any) => {
-      const map = mapRef.current?.getMap();
-
-      // 1. FORGIVING HITBOX DETECTION
-      if (map && event.point) {
-        // Create a 15-pixel bounding box around the click point
-        const pad = 15;
-        const bbox: [[number, number], [number, number]] = [
-          [event.point.x - pad, event.point.y - pad],
-          [event.point.x + pad, event.point.y + pad],
-        ];
-
-        const hits = map.queryRenderedFeatures(bbox, {
-          layers: ['mission-pins-core', 'mission-pins-glow'],
-        });
-
-        if (hits.length > 0) {
-          // WE HIT A RED DOT (OR NEAR IT)!
-          const missionId = hits[0].properties?.mission_id;
-          const job = (jobsRef.current || []).find((j) => String(j.id) === String(missionId));
-
-          if (job) {
-            handleMarkerClick(job); // Open the bottom sheet
-          }
-          return; // STOP! Do not drop a blue draft pin.
-        }
+      // 1. FORGIVING HITBOX DETECTION (15px bbox — shared with hover)
+      const job = findMissionPinAtPoint(event?.point);
+      if (job) {
+        handleMarkerClick(job);
+        return;
       }
 
       // 2. WE CLICKED EMPTY SPACE
@@ -1775,8 +1780,51 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setSelectedLocation({ lat, lng });
       onLocationSelect(lat, lng);
     },
-    [handleMarkerClick, onLocationSelect, t]
+    [findMissionPinAtPoint, handleMarkerClick, onLocationSelect, t]
   );
+
+  const handleMapMouseMove = useCallback(
+    (event: any) => {
+      const map = mapRef.current?.getMap();
+      const job = findMissionPinAtPoint(event?.point);
+
+      if (job && event?.lngLat) {
+        try {
+          const canvas = map?.getCanvas();
+          if (canvas) canvas.style.cursor = 'pointer';
+        } catch {
+          /* ignore */
+        }
+        setHoveredPinInfo({
+          lat: event.lngLat.lat,
+          lng: event.lngLat.lng,
+          title: job.category === 'public' ? 'City Mission' : 'Home Mission',
+          status: job.status,
+          priceLabel: formatEgp(Number(job.amount_target ?? 0)),
+        });
+        return;
+      }
+
+      try {
+        const canvas = map?.getCanvas();
+        if (canvas) canvas.style.cursor = '';
+      } catch {
+        /* ignore */
+      }
+      setHoveredPinInfo(null);
+    },
+    [findMissionPinAtPoint]
+  );
+
+  const handleMapMouseLeave = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    try {
+      if (map) map.getCanvas().style.cursor = '';
+    } catch {
+      /* ignore */
+    }
+    setHoveredPinInfo(null);
+  }, []);
 
   // Click-to-open leads is handled via marker layers (no funding towers).
 
@@ -2602,6 +2650,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           // 2D mode: pins are interactive, buildings are background only.
           interactiveLayerIds={['mission-pins-core', 'mission-pins-glow']}
           onClick={handleMapClick}
+          onMouseMove={handleMapMouseMove}
+          onMouseLeave={handleMapMouseLeave}
           onLoad={(e: any) => {
           const map = e?.target;
           if (!map) return;
@@ -2744,37 +2794,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
               },
               'place_label'
             );
-          }
-
-          // Mission pin hover (clicks handled by MapGL onClick + interactiveLayerIds).
-          try {
-            map.on?.('mousemove', 'mission-pins-core', (ev: any) => {
-              try {
-                map.getCanvas().style.cursor = 'pointer';
-                if (ev?.features && ev.features.length > 0) {
-                  const f = ev.features[0];
-                  const missionId = f.properties.mission_id;
-                  const job = (jobsRef.current || []).find((j) => String(j.id) === String(missionId));
-                  if (job && ev.lngLat) {
-                    setHoveredPinInfo({
-                      lat: ev.lngLat.lat,
-                      lng: ev.lngLat.lng,
-                      title: job.category === 'public' ? 'City Mission' : 'Home Mission',
-                      status: job.status,
-                    });
-                  }
-                }
-              } catch {}
-            });
-
-            map.on?.('mouseleave', 'mission-pins-core', () => {
-              try {
-                map.getCanvas().style.cursor = '';
-                setHoveredPinInfo(null);
-              } catch {}
-            });
-          } catch {
-            // ignore
           }
 
           if (!map.getLayer('3d-buildings')) {
@@ -2942,12 +2961,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
               closeOnClick={false}
               anchor="bottom"
               offset={15}
-              className="z-[9999] pointer-events-none"
+              className="pointer-events-none z-[10000]"
             >
-              <div className="rounded-xl bg-slate-950/90 border border-cyan-500/30 px-3 py-2 text-white shadow-lg">
+              <div className="rounded-xl bg-slate-950/90 border border-cyan-500/30 px-3 py-2 text-white shadow-lg pointer-events-none">
                 <p className="text-[10px] font-black uppercase tracking-[0.15em] text-cyan-300">
                   {hoveredPinInfo.title}
                 </p>
+                <p className="text-[10px] text-slate-300 mt-1 font-semibold">{hoveredPinInfo.priceLabel}</p>
                 <p className="text-[10px] text-slate-400 mt-0.5 capitalize">
                   Status: {hoveredPinInfo.status}
                 </p>
