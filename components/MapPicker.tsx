@@ -92,6 +92,7 @@ const CLEAN_WHEEL_SERVICES: { id: ServiceType; labelKey: string }[] = [
 interface JobOnMap {
   id: string;
   category: 'public' | 'home' | 'office' | string;
+  service_type?: string | null;
   amount_target: number;
   current_funding?: number | null;
   location_lat: number;
@@ -1326,6 +1327,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return typeof raw === 'string' && raw.length > 0 ? raw : 'home_office';
   }, []);
 
+  const missionHoverTitle = useCallback(
+    (job: JobOnMap) => {
+      const raw = job.service_type ?? null;
+      if (typeof raw === 'string' && raw.trim().length > 0) {
+        return serviceLabelFromId(raw.trim());
+      }
+      if (job.category === 'public') return t('cityCleaning');
+      return t('homeCleaning');
+    },
+    [serviceLabelFromId, t]
+  );
+
   const handleUnlockLead = useCallback(() => {
     if (!currentUserId) {
       onRequestAuth?.();
@@ -1400,6 +1413,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       .select(`
         id,
         category,
+        service_type,
         amount_target,
         current_funding,
         location_lat,
@@ -1737,12 +1751,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setMissionBidAmount(String(Math.floor(Number(job.amount_target ?? 0))));
   }, []);
 
-  /** 15px bbox hit-test on mission pin layers (same logic for click + hover). */
-  const findMissionPinAtPoint = useCallback((point: { x: number; y: number } | undefined): JobOnMap | null => {
+  /** Bbox hit-test on mission pin layers (pad in screen px; hover uses a larger box at high zoom). */
+  const findMissionPinAtPoint = useCallback(
+    (point: { x: number; y: number } | undefined, pad = 15): JobOnMap | null => {
     const map = mapRef.current?.getMap();
     if (!map || !point) return null;
-
-    const pad = 15;
     const bbox: [[number, number], [number, number]] = [
       [point.x - pad, point.y - pad],
       [point.x + pad, point.y + pad],
@@ -1756,12 +1769,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
     const missionId = hits[0].properties?.mission_id;
     return (jobsRef.current || []).find((j) => String(j.id) === String(missionId)) ?? null;
-  }, []);
+    },
+    []
+  );
 
   const handleMapClick = useCallback(
     (event: any) => {
-      // 1. FORGIVING HITBOX DETECTION (15px bbox — shared with hover)
-      const job = findMissionPinAtPoint(event?.point);
+      // 1. FORGIVING HITBOX DETECTION (15px bbox)
+      const job = findMissionPinAtPoint(event?.point, 15);
       if (job) {
         handleMarkerClick(job);
         return;
@@ -1786,7 +1801,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const handleMapMouseMove = useCallback(
     (event: any) => {
       const map = mapRef.current?.getMap();
-      const job = findMissionPinAtPoint(event?.point);
+      const job = findMissionPinAtPoint(event?.point, 25);
 
       if (job && event?.lngLat) {
         try {
@@ -1798,7 +1813,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         setHoveredPinInfo({
           lat: event.lngLat.lat,
           lng: event.lngLat.lng,
-          title: job.category === 'public' ? 'City Mission' : 'Home Mission',
+          title: missionHoverTitle(job),
           status: job.status,
           priceLabel: formatEgp(Number(job.amount_target ?? 0)),
         });
@@ -1813,7 +1828,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
       setHoveredPinInfo(null);
     },
-    [findMissionPinAtPoint]
+    [findMissionPinAtPoint, missionHoverTitle]
   );
 
   const handleMapMouseLeave = useCallback(() => {
@@ -2369,6 +2384,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const optimistic: JobOnMap = {
           id: String(mid),
           category: 'public',
+          service_type: serviceType,
           amount_target: 1,
           current_funding: 0,
           location_lat: Number(location.lat),
@@ -2964,7 +2980,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               className="pointer-events-none z-[10000]"
             >
               <div className="rounded-xl bg-slate-950/90 border border-cyan-500/30 px-3 py-2 text-white shadow-lg pointer-events-none">
-                <p className="text-[10px] font-black uppercase tracking-[0.15em] text-cyan-300">
+                <p className="text-[10px] font-bold tracking-wide text-cyan-300 leading-snug">
                   {hoveredPinInfo.title}
                 </p>
                 <p className="text-[10px] text-slate-300 mt-1 font-semibold">{hoveredPinInfo.priceLabel}</p>
