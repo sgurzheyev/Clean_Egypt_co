@@ -52,6 +52,53 @@ const isInsideEgyptBounds = (lng: number, lat: number) =>
   lat >= EGYPT_MAX_BOUNDS[0][1] &&
   lat <= EGYPT_MAX_BOUNDS[1][1];
 
+/** Mission pin radii (px) — scale up to z17, then plateau so pins do not balloon at z18+. */
+const MISSION_PIN_CORE_RADIUS: mapboxgl.Expression = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  8,
+  4,
+  12,
+  6,
+  15,
+  7,
+  18,
+  10,
+  22,
+  10,
+];
+const MISSION_PIN_GLOW_RADIUS: mapboxgl.Expression = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  8,
+  8,
+  12,
+  14,
+  15,
+  16,
+  18,
+  20,
+  22,
+  20,
+];
+const DRAFT_PIN_RADIUS: mapboxgl.Expression = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  8,
+  8,
+  12,
+  11,
+  15,
+  13,
+  18,
+  14,
+  22,
+  14,
+];
+
 type TaskType = 'city' | 'home';
 
 type ServiceType =
@@ -1801,7 +1848,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const handleMapMouseMove = useCallback(
     (event: any) => {
       const map = mapRef.current?.getMap();
-      const job = findMissionPinAtPoint(event?.point, 25);
+      const job = findMissionPinAtPoint(event?.point, 50);
 
       if (job && event?.lngLat) {
         try {
@@ -2902,7 +2949,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             id="mission-pins-glow"
             type="circle"
             paint={{
-              'circle-radius': 14,
+              'circle-radius': MISSION_PIN_GLOW_RADIUS,
               'circle-color': 'rgba(0,229,255,0.25)',
               'circle-blur': 0.8,
               'circle-opacity': mapMarkerLayerSuppressed ? 0 : 0.9,
@@ -2912,7 +2959,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             id="mission-pins-core"
             type="circle"
             paint={{
-              'circle-radius': 6,
+              'circle-radius': MISSION_PIN_CORE_RADIUS,
               'circle-color': '#ff2d55',
               'circle-stroke-width': 2,
               'circle-stroke-color': '#ffffff',
@@ -2929,7 +2976,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             type="circle"
             filter={['==', ['get', 'kind'], 'draft']}
             paint={{
-              'circle-radius': 11,
+              'circle-radius': DRAFT_PIN_RADIUS,
               'circle-color': '#00ffff',
               'circle-opacity': mapMarkerLayerSuppressed ? 0.08 : 0.92,
               'circle-stroke-width': 2,
