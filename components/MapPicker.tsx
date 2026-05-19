@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
-import { Recycle, Navigation, Camera, X, Clock } from 'lucide-react';
+import { Recycle, Navigation, Camera, X, Clock, User } from 'lucide-react';
 import TrustDepositInfoModal from './TrustDepositInfoModal';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import {
@@ -1318,8 +1318,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [activeBidCounts, setActiveBidCounts] = useState<Record<string, number>>({});
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [authEmail, setAuthEmail] = useState<string | null>(null);
   const [viewerProfile, setViewerProfile] = useState<{
     full_name?: string | null;
+    contact_email?: string | null;
+    avatar_url?: string | null;
     telegram_username?: string | null;
     role?: string | null;
     token_balance?: number | null;
@@ -1359,6 +1362,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const u = String(viewerProfile?.telegram_username ?? '').toLowerCase();
     return n.includes('ahmed') || u === 'ahmed';
   }, [viewerProfile?.role, viewerProfile?.full_name, viewerProfile?.telegram_username]);
+
+  const profileAvatarInitial = useMemo(() => {
+    const name = String(viewerProfile?.full_name ?? '').trim();
+    if (name) return name.charAt(0).toUpperCase();
+    const email = String(viewerProfile?.contact_email ?? authEmail ?? '').trim();
+    if (email) return email.charAt(0).toUpperCase();
+    return null;
+  }, [viewerProfile?.full_name, viewerProfile?.contact_email, authEmail]);
 
   const serviceLabelFromId = useCallback(
     (id: string | null | undefined) => {
@@ -1402,11 +1413,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [currentUserId, onRequestAuth, viewerProfile?.subscription_expires_at]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) =>
-      setCurrentUserId(session?.user?.id ?? null)
-    );
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setCurrentUserId(session?.user?.id ?? null);
+      setAuthEmail(session?.user?.email ?? null);
+    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setCurrentUserId(session?.user?.id ?? null);
+      setAuthEmail(session?.user?.email ?? null);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -1420,12 +1433,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, telegram_username, role, token_balance, subscription_expires_at')
+        .select('full_name, contact_email, avatar_url, telegram_username, role, token_balance, subscription_expires_at')
         .eq('id', currentUserId)
         .maybeSingle();
       if (!cancelled) {
         setViewerProfile({
           full_name: (data as any)?.full_name ?? null,
+          contact_email: (data as any)?.contact_email ?? null,
+          avatar_url: (data as any)?.avatar_url ?? null,
           telegram_username: (data as any)?.telegram_username ?? null,
           role: (data as any)?.role ?? null,
           token_balance: Number.isFinite(Number((data as any)?.token_balance))
@@ -2716,6 +2731,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
           margin-right: 12px;
           margin-bottom: calc(20px + env(safe-area-inset-bottom));
         }
+        @media (max-width: 640px) {
+          .ce-map .mapboxgl-ctrl-group {
+            border-radius: 10px;
+          }
+          .ce-map .mapboxgl-ctrl-group button {
+            width: 34px;
+            height: 34px;
+          }
+          .ce-map .mapboxgl-ctrl-bottom-right {
+            margin-right: 8px;
+            margin-bottom: calc(9.5rem + env(safe-area-inset-bottom));
+          }
+        }
         @media (min-width: 641px) {
           .ce-map .mapboxgl-ctrl-bottom-right {
             margin-bottom: 24px;
@@ -3111,65 +3139,78 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       {/* Minimalist overlays — wrapper is pointer-events-none so map stays interactive */}
       <div className="absolute inset-0 pointer-events-none z-[80] flex flex-col">
-        {/* Header: CleanEgypt.co (non-interactive) + profile avatar (clickable) */}
-        <header className="flex items-center justify-between px-5 pt-5">
-          <div className="pointer-events-none">
-            <h1 className="text-sm font-medium tracking-wide text-white">
+        {/* Header: title + badges + profile (mobile-safe flex-wrap) */}
+        <header className="w-full px-3 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-5 sm:pt-5">
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
+            <h1 className="pointer-events-none order-1 min-w-0 flex-1 text-xs font-medium tracking-wide text-white sm:text-sm">
               CleanEgypt.co
             </h1>
-            <div className="mt-2 flex items-center gap-3 md:gap-4">
-              <div className="flex items-center gap-2 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-2.5 py-1.5 md:px-3 md:py-2">
-                <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.85)]" />
+
+            <div className="pointer-events-auto order-2 flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-1.5 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2">
+                <p className="hidden sm:block text-[10px] md:text-xs font-black uppercase tracking-[0.22em] text-lime-500">
+                  {t('tokens')}:
+                </p>
+                <p className="text-[10px] md:text-xs font-black text-white tabular-nums">
+                  {Math.max(0, Math.floor(Number(viewerProfile?.token_balance ?? 0)))}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowTokenPackModal(true)}
+                  className="rounded-full bg-lime-500 px-2 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-black hover:bg-lime-400 transition-all sm:px-2.5 sm:py-1.5 sm:text-[10px]"
+                >
+                  {t('topUp')}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={onAvatarClick}
+                className="relative z-[10000] flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] transition-all sm:h-11 sm:w-11"
+                aria-label="Profile"
+              >
+                {viewerProfile?.avatar_url ? (
+                  <img
+                    src={viewerProfile.avatar_url}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : profileAvatarInitial ? (
+                  <span className="text-sm font-black text-emerald-300">{profileAvatarInitial}</span>
+                ) : (
+                  <User className="h-5 w-5 text-white/90" aria-hidden />
+                )}
+              </button>
+            </div>
+
+            <div className="pointer-events-none order-3 flex w-full flex-wrap items-center gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-1.5 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2">
+                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.85)] sm:h-2 sm:w-2" />
                 <div className="leading-tight">
-                  <p className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                  <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
                     {t('availableLeads')}
                   </p>
-                  <p className="text-[12px] md:text-sm font-black text-white tabular-nums">
+                  <p className="text-[10px] md:text-xs font-black text-white tabular-nums">
                     {availableLeadsCount}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-2.5 py-1.5 md:px-3 md:py-2">
-                <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.85)]" />
+              <div className="flex items-center gap-1.5 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2">
+                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.85)] sm:h-2 sm:w-2" />
                 <div className="leading-tight">
-                  <p className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                  <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
                     {t('onlineExecutors')}
                   </p>
-                  <p className="text-[11px] md:text-[11px] font-black text-white tabular-nums">
+                  <p className="text-[10px] md:text-xs font-black text-white tabular-nums">
                     {t('onlineLabel')} {onlineExecutors}
                   </p>
                 </div>
               </div>
             </div>
           </div>
-          <div className="pointer-events-auto flex items-center gap-2">
-            <div className="flex items-center gap-2 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-2.5 py-2 sm:px-3">
-              <p className="hidden sm:block text-[10px] font-black uppercase tracking-[0.22em] text-lime-500">
-                {t('tokens')}:
-              </p>
-              <p className="text-[11px] sm:text-sm font-black text-white tabular-nums">
-                {Math.max(0, Math.floor(Number(viewerProfile?.token_balance ?? 0)))}
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowTokenPackModal(true)}
-                className="ml-1.5 rounded-full bg-lime-500 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-black hover:bg-lime-400 transition-all"
-              >
-                {t('topUp')}
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={onAvatarClick}
-              className="relative z-[10000] flex h-11 w-11 items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] transition-all"
-            >
-              👤
-            </button>
-          </div>
         </header>
 
-        <div className="mt-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))] flex justify-center">
+        <div className="mt-auto px-4 pb-[max(2rem,calc(env(safe-area-inset-bottom)+1rem))] md:pb-4 flex justify-center">
           <AnimatePresence mode="wait">
             {showWorkerDashboard && activeWorkerMission ? (
               <ActiveMissionWidget
@@ -3267,7 +3308,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
           <div
             className={`pointer-events-auto relative z-[1] w-full max-w-xl flex flex-col h-[50dvh] sm:h-auto sm:max-h-[78dvh] animate-slide-up p-4 shadow-2xl ${PROFILE_GLASS_PANEL}`}
             style={{
-              marginBottom: isMobile ? 'calc(env(safe-area-inset-bottom) + 0.75rem)' : undefined,
+              marginBottom: isMobile
+                ? 'calc(env(safe-area-inset-bottom) + 4.5rem)'
+                : undefined,
             }}
           >
             <form ref={orderFormRef} onSubmit={handleSubmit} className="flex flex-col h-full">
@@ -3335,7 +3378,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
               </div>
 
-              <div className="mt-auto pb-[env(safe-area-inset-bottom)]">
+              <div className="mt-auto pb-[max(2rem,env(safe-area-inset-bottom))]">
               <div
                 className={`w-full mt-1 rounded-full animated-border-home ${
                   orderSubmitting ||
@@ -3487,7 +3530,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             aria-hidden="true"
           />
           <div
-            className="relative w-full max-w-xl max-h-[78dvh] overflow-y-auto rounded-t-3xl bg-slate-950/70 backdrop-blur-xl border-t border-x border-cyan-500/25 shadow-[0_-10px_40px_rgba(0,229,255,0.12)] px-5 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-3 animate-slide-up pointer-events-auto"
+            className="relative w-full max-w-xl max-h-[78dvh] overflow-y-auto rounded-t-3xl bg-slate-950/70 backdrop-blur-xl border-t border-x border-cyan-500/25 shadow-[0_-10px_40px_rgba(0,229,255,0.12)] px-5 pb-[calc(7rem+max(2rem,env(safe-area-inset-bottom)))] pt-3 animate-slide-up pointer-events-auto"
             onClick={(e) => e.stopPropagation()}
             style={{ transform: sheetDragY > 0 ? `translateY(${sheetDragY}px)` : undefined }}
           >
