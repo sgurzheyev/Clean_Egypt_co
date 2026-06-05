@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import MapGL, { NavigationControl, GeolocateControl, MapRef, Source, Layer, Popup } from 'react-map-gl';
+import MapGL, { NavigationControl, GeolocateControl, MapRef, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -97,6 +97,62 @@ const DRAFT_PIN_RADIUS: mapboxgl.Expression = [
   14,
   22,
   14,
+];
+
+/** Core pin colors by service_type (Mapbox `match` on GeoJSON properties). */
+const MISSION_PIN_CATEGORY_FALLBACK: mapboxgl.Expression = [
+  'match',
+  ['get', 'category'],
+  'public',
+  '#22c55e',
+  'home',
+  '#f59e0b',
+  'office',
+  '#f59e0b',
+  '#ff2d55',
+];
+
+const MISSION_PIN_CORE_COLOR: mapboxgl.Expression = [
+  'match',
+  ['coalesce', ['get', 'service_type'], ''],
+  'home_office',
+  '#10b981',
+  'ac_cleaning',
+  '#0ea5e9',
+  'pool_maintenance',
+  '#06b6d4',
+  'pest_control',
+  '#65a30d',
+  'windows_facades',
+  '#3b82f6',
+  'terrace_garden',
+  '#16a34a',
+  'car_detailing',
+  '#f59e0b',
+  'yacht_boat_cleaning',
+  '#6366f1',
+  'solar_panels',
+  '#eab308',
+  'ultrasound_cleaning',
+  '#8b5cf6',
+  'carpets_mattresses',
+  '#f43f5e',
+  'kitchen_hoods_grease',
+  '#f97316',
+  'laundry_ironing',
+  '#14b8a6',
+  'water_tank_cleaning',
+  '#0284c7',
+  'junk_removal',
+  '#94a3b8',
+  MISSION_PIN_CATEGORY_FALLBACK,
+];
+
+const MISSION_PIN_HOVER_STROKE_WIDTH: mapboxgl.Expression = [
+  'case',
+  ['boolean', ['feature-state', 'hover'], false],
+  3,
+  2,
 ];
 
 type TaskType = 'city' | 'home';
@@ -892,6 +948,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const mapInstanceRef = React.useRef<any>(null);
   const orderFormRef = React.useRef<HTMLFormElement>(null);
   const jobsRef = React.useRef<JobOnMap[]>([]);
+  const hoveredMissionIdRef = React.useRef<string | null>(null);
 
   /** When true, next home submit uses wallet instead of card checkout. */
   const orderFormWalletPayRef = React.useRef(false);
@@ -1606,6 +1663,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     status: string;
     priceLabel: string;
   } | null>(null);
+  const [hoveredPinScreen, setHoveredPinScreen] = useState<{ x: number; y: number } | null>(null);
   const [hallOfFameMission, setHallOfFameMission] = useState<JobOnMap | null>(null);
   const [hallOfFameCleanerName, setHallOfFameCleanerName] = useState<string | null>(null);
   const [hallOfFameHeroes, setHallOfFameHeroes] = useState<string[]>([]);
@@ -1807,13 +1865,68 @@ const MapPicker: React.FC<MapPickerProps> = ({
     missionTransactions.length === 0 &&
     !missionTxError;
 
+  const clearMissionPinHover = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    const prevId = hoveredMissionIdRef.current;
+    if (map && prevId) {
+      try {
+        map.setFeatureState({ source: 'mission-pins', id: prevId }, { hover: false });
+      } catch {
+        /* layer/source may not be ready */
+      }
+    }
+    hoveredMissionIdRef.current = null;
+    const canvas = map?.getCanvas();
+    if (canvas) canvas.style.cursor = '';
+    setHoveredPinInfo(null);
+    setHoveredPinScreen(null);
+  }, []);
+
+  const applyMissionPinHover = useCallback(
+    (job: JobOnMap) => {
+      const map = mapRef.current?.getMap();
+      if (!map) return;
+
+      const missionId = String(job.id);
+      const prevId = hoveredMissionIdRef.current;
+      if (prevId && prevId !== missionId) {
+        try {
+          map.setFeatureState({ source: 'mission-pins', id: prevId }, { hover: false });
+        } catch {
+          /* ignore */
+        }
+      }
+      try {
+        map.setFeatureState({ source: 'mission-pins', id: missionId }, { hover: true });
+      } catch {
+        /* ignore */
+      }
+      hoveredMissionIdRef.current = missionId;
+
+      const canvas = map.getCanvas();
+      if (canvas) canvas.style.cursor = 'pointer';
+
+      const projected = map.project([job.location_lng, job.location_lat]);
+      setHoveredPinScreen({ x: projected.x, y: projected.y });
+      setHoveredPinInfo({
+        lat: job.location_lat,
+        lng: job.location_lng,
+        title: missionHoverTitle(job),
+        status: job.status,
+        priceLabel: formatEgp(Number(job.amount_target ?? 0)),
+      });
+    },
+    [missionHoverTitle]
+  );
+
   const handleMarkerClick = useCallback((job: JobOnMap) => {
+    clearMissionPinHover();
     setSelectedMission(job);
     setShowBidInput(false);
     setMissionBidAmount(String(Math.floor(Number(job.amount_target ?? 0))));
-  }, []);
+  }, [clearMissionPinHover]);
 
-  /** Bbox hit-test on mission pin layers (pad in screen px). Skips glow-only hits without mission_id. */
+  /** Bbox hit-test on mission-pins-core (pad in screen px). */
   const findMissionPinAtPoint = useCallback(
     (point: { x: number; y: number } | undefined, pad = 15): JobOnMap | null => {
       const map = mapRef.current?.getMap();
@@ -1825,7 +1938,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       ];
 
       const hits = map.queryRenderedFeatures(bbox, {
-        layers: ['mission-pins-core', 'mission-pins-glow'],
+        layers: ['mission-pins-core'],
       });
 
       const validHit = hits.find(
@@ -1866,64 +1979,37 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleMapMouseMove = useCallback(
     (event: any) => {
-      const map = mapRef.current?.getMap();
-      const canvas = map?.getCanvas();
-
-      if (!map || !event?.point) {
-        if (canvas) canvas.style.cursor = '';
-        setHoveredPinInfo(null);
+      if (!event?.point) {
+        clearMissionPinHover();
         return;
       }
 
-      const bbox: [mapboxgl.PointLike, mapboxgl.PointLike] = [
-        [event.point.x - 25, event.point.y - 25],
-        [event.point.x + 25, event.point.y + 25],
-      ];
-
-      const hits = map.queryRenderedFeatures(bbox, {
-        layers: ['mission-pins-core', 'mission-pins-glow'],
-      });
-
-      const validHit = hits.find(
-        (hit) => hit.properties && hit.properties.mission_id
-      );
-
-      if (validHit?.properties?.mission_id) {
-        const missionId = String(validHit.properties.mission_id);
-        const job = (jobsRef.current || []).find((j) => String(j.id) === missionId);
-
-        if (
-          job &&
-          Number.isFinite(job.location_lat) &&
-          Number.isFinite(job.location_lng)
-        ) {
-          if (canvas) canvas.style.cursor = 'pointer';
-          setHoveredPinInfo({
-            lat: job.location_lat,
-            lng: job.location_lng,
-            title: missionHoverTitle(job),
-            status: job.status,
-            priceLabel: formatEgp(Number(job.amount_target ?? 0)),
-          });
-          return;
-        }
+      const job = findMissionPinAtPoint(event.point, 25);
+      if (
+        job &&
+        Number.isFinite(job.location_lat) &&
+        Number.isFinite(job.location_lng)
+      ) {
+        applyMissionPinHover(job);
+        return;
       }
 
-      if (canvas) canvas.style.cursor = '';
-      setHoveredPinInfo(null);
+      clearMissionPinHover();
     },
-    [missionHoverTitle]
+    [applyMissionPinHover, clearMissionPinHover, findMissionPinAtPoint]
   );
 
   const handleMapMouseLeave = useCallback(() => {
+    clearMissionPinHover();
+  }, [clearMissionPinHover]);
+
+  useEffect(() => {
+    if (!hoveredPinInfo) return;
     const map = mapRef.current?.getMap();
-    try {
-      if (map) map.getCanvas().style.cursor = '';
-    } catch {
-      /* ignore */
-    }
-    setHoveredPinInfo(null);
-  }, []);
+    if (!map) return;
+    const projected = map.project([hoveredPinInfo.lng, hoveredPinInfo.lat]);
+    setHoveredPinScreen({ x: projected.x, y: projected.y });
+  }, [viewState, hoveredPinInfo]);
 
   // Click-to-open leads is handled via marker layers (no funding towers).
 
@@ -2576,7 +2662,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return { type: 'FeatureCollection' as const, features };
   }, [jobs, currentUserId]);
 
-  /** Red mission dots on the map (always visible in 2D mode). */
+  /** Service-colored mission pins on the map (always visible in 2D mode). */
   const missionPinsGeoJSON = useMemo(() => {
     const features = (jobs || [])
       .filter(missionEligibleForMapPin)
@@ -2590,10 +2676,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
         properties: {
           mission_id: j.id,
           status: j.status,
+          service_type: serviceTypeForMission(j),
+          category: j.category,
         },
       }));
     return { type: 'FeatureCollection' as const, features };
-  }, [jobs]);
+  }, [jobs, serviceTypeForMission]);
 
   const activeWorkerMission = useMemo(
     () =>
@@ -2761,7 +2849,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           antialias
           onMove={(evt) => setViewState(evt.viewState)}
           // 2D mode: pins are interactive, buildings are background only.
-          interactiveLayerIds={['mission-pins-core', 'mission-pins-glow']}
+          interactiveLayerIds={['mission-pins-core']}
           onClick={handleMapClick}
           onMouseMove={handleMapMouseMove}
           onMouseLeave={handleMapMouseLeave}
@@ -2993,16 +3081,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
           />
         </Source>
 
-        {/* Main mission pins */}
-        <Source id="mission-pins" type="geojson" data={missionPinsGeoJSON}>
+        {/* Main mission pins — colors driven by service_type GeoJSON property */}
+        <Source id="mission-pins" type="geojson" data={missionPinsGeoJSON} promoteId="mission_id">
           <Layer
             id="mission-pins-glow"
             type="circle"
             paint={{
               'circle-radius': MISSION_PIN_GLOW_RADIUS,
-              'circle-color': 'rgba(0,229,255,0.25)',
-              'circle-blur': 0.8,
-              'circle-opacity': mapMarkerLayerSuppressed ? 0 : 0.9,
+              'circle-color': MISSION_PIN_CORE_COLOR,
+              'circle-blur': 0.85,
+              'circle-opacity': mapMarkerLayerSuppressed ? 0 : 0.35,
             }}
           />
           <Layer
@@ -3010,8 +3098,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
             type="circle"
             paint={{
               'circle-radius': MISSION_PIN_CORE_RADIUS,
-              'circle-color': '#ff2d55',
-              'circle-stroke-width': 2,
+              'circle-color': MISSION_PIN_CORE_COLOR,
+              'circle-stroke-width': MISSION_PIN_HOVER_STROKE_WIDTH,
               'circle-stroke-color': '#ffffff',
               'circle-opacity': mapMarkerLayerSuppressed ? 0.08 : 0.92,
               'circle-stroke-opacity': mapMarkerLayerSuppressed ? 0.08 : 0.95,
@@ -3064,30 +3152,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </Source>
 
         {/* SaaS lead-gen: removed crowdfunding/funding 3D pillars. */}
-
-
-          {hoveredPinInfo && (
-            <Popup
-              longitude={hoveredPinInfo.lng}
-              latitude={hoveredPinInfo.lat}
-              closeButton={false}
-              closeOnClick={false}
-              anchor="bottom"
-              offset={15}
-              className="pointer-events-none z-[10000]"
-              style={{ pointerEvents: 'none' }}
-            >
-              <div className="rounded-xl bg-slate-950/90 border border-cyan-500/30 px-3 py-2 text-white shadow-lg pointer-events-none">
-                <p className="text-[10px] font-bold tracking-wide text-cyan-300 leading-snug">
-                  {hoveredPinInfo.title}
-                </p>
-                <p className="text-[10px] text-slate-300 mt-1 font-semibold">{hoveredPinInfo.priceLabel}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5 capitalize">
-                  Status: {hoveredPinInfo.status}
-                </p>
-              </div>
-            </Popup>
-          )}
         </MapGL>
       </div>
 
@@ -3136,6 +3200,28 @@ const MapPicker: React.FC<MapPickerProps> = ({
           );
         }}
       />
+
+      {/* Pin hover tooltip — above UI overlay (MapGL Popup was hidden under z-[80]) */}
+      {hoveredPinInfo && hoveredPinScreen && !selectedMission && (
+        <div
+          className="pointer-events-none absolute z-[85]"
+          style={{
+            left: hoveredPinScreen.x,
+            top: hoveredPinScreen.y,
+            transform: 'translate(-50%, calc(-100% - 12px))',
+          }}
+        >
+          <div className="rounded-xl bg-slate-950/90 border border-cyan-500/30 px-3 py-2 text-white shadow-lg">
+            <p className="text-[10px] font-bold tracking-wide text-cyan-300 leading-snug">
+              {hoveredPinInfo.title}
+            </p>
+            <p className="text-[10px] text-slate-300 mt-1 font-semibold">{hoveredPinInfo.priceLabel}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5 capitalize">
+              Status: {hoveredPinInfo.status}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Minimalist overlays — wrapper is pointer-events-none so map stays interactive */}
       <div className="absolute inset-0 pointer-events-none z-[80] flex flex-col">
