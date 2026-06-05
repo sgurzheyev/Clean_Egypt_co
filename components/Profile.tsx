@@ -2410,8 +2410,18 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
                       <div className="relative z-10 flex justify-between items-center gap-3">
                         <div className="flex items-center gap-3">
-                          <div className={`flex h-10 w-10 items-center justify-center ${PROFILE_GLASS_PANEL} text-xl transition-transform duration-200 group-hover:scale-105`}>
-                            <span>{icon}</span>
+                          <div className={`flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl ${PROFILE_GLASS_PANEL} text-xl transition-transform duration-200 group-hover:scale-105`}>
+                            {Array.isArray(job.photo_urls) && job.photo_urls[0] ? (
+                              <ModeratedMissionPhoto
+                                url={job.photo_urls[0]}
+                                alt=""
+                                showSafeBadge={false}
+                                className="h-full w-full"
+                                imgClassName="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <span>{icon}</span>
+                            )}
                           </div>
                           <div>
                             <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>

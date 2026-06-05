@@ -949,6 +949,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const orderFormRef = React.useRef<HTMLFormElement>(null);
   const jobsRef = React.useRef<JobOnMap[]>([]);
   const hoveredMissionIdRef = React.useRef<string | null>(null);
+  // Latest map event closures. Native Mapbox listeners are bound ONCE (on map load) and delegate
+  // through these refs, so updating React state never detaches/re-attaches the canvas listeners.
+  const mapClickHandlerRef = React.useRef<(event: any) => void>(() => {});
+  const mapMoveHandlerRef = React.useRef<(event: any) => void>(() => {});
 
   /** When true, next home submit uses wallet instead of card checkout. */
   const orderFormWalletPayRef = React.useRef(false);
@@ -963,6 +967,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   });
 
   const [jobs, setJobs] = useState<JobOnMap[]>([]);
+  const [mapReady, setMapReady] = useState(false);
 
   const updateAtmosphere = useCallback(() => {
     const map = mapInstanceRef.current;
@@ -1566,7 +1571,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         error.message,
         (error as any)?.details || ''
       );
-      setJobs([]);
+      // Keep the current global feed instead of blanking the map. Wiping to [] on a transient
+      // refetch error (e.g. right after creating a task) is what made every other user's pin vanish.
       return;
     }
 
@@ -1866,6 +1872,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     !missionTxError;
 
   const clearMissionPinHover = useCallback(() => {
+    // Nothing is hovered — bail without touching state (prevents a setState storm on every empty mousemove).
+    if (!hoveredMissionIdRef.current) return;
     const map = mapRef.current?.getMap();
     const prevId = hoveredMissionIdRef.current;
     if (map && prevId) {
@@ -1889,6 +1897,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       const missionId = String(job.id);
       const prevId = hoveredMissionIdRef.current;
+      // Already hovering this exact pin — skip all state writes (the tooltip is anchored to the pin,
+      // not the cursor, so nothing changes while the mouse moves within the same pin).
+      if (prevId === missionId) return;
       if (prevId && prevId !== missionId) {
         try {
           map.setFeatureState({ source: 'mission-pins', id: prevId }, { hover: false });
@@ -1907,7 +1918,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
       if (canvas) canvas.style.cursor = 'pointer';
 
       const projected = map.project([job.location_lng, job.location_lat]);
-      setHoveredPinScreen({ x: projected.x, y: projected.y });
+      const rect = map.getContainer().getBoundingClientRect();
+      setHoveredPinScreen({ x: rect.left + projected.x, y: rect.top + projected.y });
       setHoveredPinInfo({
         lat: job.location_lat,
         lng: job.location_lng,
@@ -1999,17 +2011,62 @@ const MapPicker: React.FC<MapPickerProps> = ({
     [applyMissionPinHover, clearMissionPinHover, findMissionPinAtPoint]
   );
 
-  const handleMapMouseLeave = useCallback(() => {
-    clearMissionPinHover();
-  }, [clearMissionPinHover]);
+  // Keep the refs the native canvas listeners read pointed at the freshest closures every render.
+  mapClickHandlerRef.current = handleMapClick;
+  mapMoveHandlerRef.current = handleMapMouseMove;
 
   useEffect(() => {
     if (!hoveredPinInfo) return;
     const map = mapRef.current?.getMap();
     if (!map) return;
     const projected = map.project([hoveredPinInfo.lng, hoveredPinInfo.lat]);
-    setHoveredPinScreen({ x: projected.x, y: projected.y });
+    const rect = map.getContainer().getBoundingClientRect();
+    setHoveredPinScreen({ x: rect.left + projected.x, y: rect.top + projected.y });
   }, [viewState, hoveredPinInfo]);
+
+  /**
+   * Native canvas click + mousemove listeners.
+   * Bound ONCE when the map finishes loading and delegate to the handler refs, so React re-renders
+   * never detach them. This is the single source of truth for pin clicks/hover — react-map-gl's
+   * synthetic onClick/onMouseMove are intentionally NOT used (they listen to the same canvas events
+   * and only added a redundant second setState per pixel).
+   */
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !mapReady) return;
+
+    const onCanvasClick = (e: any) => mapClickHandlerRef.current?.(e);
+    const onCanvasMove = (e: any) => mapMoveHandlerRef.current?.(e);
+    const onLayerEnter = () => {
+      const canvas = map.getCanvas();
+      if (canvas) canvas.style.cursor = 'pointer';
+    };
+    const onLayerLeave = () => clearMissionPinHover();
+
+    let layerHandlersBound = false;
+    const bindLayerHandlers = () => {
+      if (layerHandlersBound || !map.getLayer('mission-pins-core')) return;
+      layerHandlersBound = true;
+      map.on('mouseenter', 'mission-pins-core', onLayerEnter);
+      map.on('mouseleave', 'mission-pins-core', onLayerLeave);
+    };
+
+    map.on('click', onCanvasClick);
+    map.on('mousemove', onCanvasMove);
+    bindLayerHandlers();
+    const onIdle = () => bindLayerHandlers();
+    map.on('idle', onIdle);
+
+    return () => {
+      map.off('click', onCanvasClick);
+      map.off('mousemove', onCanvasMove);
+      map.off('idle', onIdle);
+      if (layerHandlersBound && map.getLayer('mission-pins-core')) {
+        map.off('mouseenter', 'mission-pins-core', onLayerEnter);
+        map.off('mouseleave', 'mission-pins-core', onLayerLeave);
+      }
+    };
+  }, [mapReady, clearMissionPinHover]);
 
   // Click-to-open leads is handled via marker layers (no funding towers).
 
@@ -2669,6 +2726,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       .filter((j) => Number.isFinite(j.location_lat) && Number.isFinite(j.location_lng))
       .map((j) => ({
         type: 'Feature' as const,
+        id: j.id,
         geometry: {
           type: 'Point' as const,
           coordinates: [j.location_lng, j.location_lat],
@@ -2840,7 +2898,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       `}</style>
 
       {/* Full-screen 3D map — no blocking overlays */}
-      <div className="ce-map w-full h-full">
+      <div className="ce-map relative z-0 w-full h-full">
         <MapGL
           ref={mapRef}
           {...viewState}
@@ -2849,14 +2907,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
           antialias
           onMove={(evt) => setViewState(evt.viewState)}
           // 2D mode: pins are interactive, buildings are background only.
+          // Click + hover are wired via native map.on(...) listeners (see the mapReady effect),
+          // so no synthetic onClick/onMouseMove here.
           interactiveLayerIds={['mission-pins-core']}
-          onClick={handleMapClick}
-          onMouseMove={handleMapMouseMove}
-          onMouseLeave={handleMapMouseLeave}
           onLoad={(e: any) => {
           const map = e?.target;
           if (!map) return;
           mapInstanceRef.current = map;
+          setMapReady(true);
 
           // 3D Terrain + Mountains + realistic horizon.
           // DEM source must exist before `setTerrain`.
@@ -3201,10 +3259,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }}
       />
 
-      {/* Pin hover tooltip — above UI overlay (MapGL Popup was hidden under z-[80]) */}
+      {/* Pin hover tooltip — fixed to viewport so it is not clipped or misaligned vs map canvas */}
       {hoveredPinInfo && hoveredPinScreen && !selectedMission && (
         <div
-          className="pointer-events-none absolute z-[85]"
+          className="pointer-events-none fixed z-[150]"
           style={{
             left: hoveredPinScreen.x,
             top: hoveredPinScreen.y,
@@ -3226,7 +3284,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Minimalist overlays — wrapper is pointer-events-none so map stays interactive */}
       <div className="absolute inset-0 pointer-events-none z-[80] flex flex-col">
         {/* Header: title + badges + profile (mobile-safe flex-wrap) */}
-        <header className="w-full px-3 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-5 sm:pt-5">
+        <header className="pointer-events-none w-full px-3 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-5 sm:pt-5">
           <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
             <h1 className="pointer-events-none order-1 min-w-0 flex-1 text-xs font-medium tracking-wide text-white sm:text-sm">
               CleanEgypt.co
@@ -3296,7 +3354,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           </div>
         </header>
 
-        <div className="mt-auto px-4 pb-[max(2rem,calc(env(safe-area-inset-bottom)+1rem))] md:pb-4 flex justify-center">
+        <div className="pointer-events-none mt-auto px-4 pb-[max(2rem,calc(env(safe-area-inset-bottom)+1rem))] md:pb-4 flex justify-center">
           <AnimatePresence mode="wait">
             {showWorkerDashboard && activeWorkerMission ? (
               <ActiveMissionWidget
