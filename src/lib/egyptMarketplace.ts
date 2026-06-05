@@ -47,3 +47,52 @@ export function missionWithinCity(
   const d = haversineKm(missionLat, missionLng, city.lat, city.lng);
   return d <= city.radiusKm;
 }
+
+type MissionCoords = {
+  location_lat?: number | null;
+  location_lng?: number | null;
+};
+
+function formatAreaLabel(lat: number, lng: number): string {
+  const latHem = lat >= 0 ? 'N' : 'S';
+  const lngHem = lng >= 0 ? 'E' : 'W';
+  return `${Math.abs(lat).toFixed(2)}°${latHem}, ${Math.abs(lng).toFixed(2)}°${lngHem}`;
+}
+
+/**
+ * Build the city filter list from missions currently on the marketplace.
+ * Known Egypt hubs appear when a mission falls inside their radius; missions
+ * elsewhere (e.g. Abu Simbel) get a dynamic cluster entry so they remain filterable.
+ */
+export function deriveMarketplaceCitiesFromJobs(jobs: MissionCoords[]): MarketplaceCity[] {
+  const usedKnownIds = new Set<string>();
+  const dynamic: MarketplaceCity[] = [];
+
+  for (const job of jobs) {
+    const lat = job.location_lat;
+    const lng = job.location_lng;
+    if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+    const known = EGYPT_MARKETPLACE_CITIES.find((c) => missionWithinCity(lat, lng, c));
+    if (known) {
+      usedKnownIds.add(known.id);
+      continue;
+    }
+
+    const existingCluster = dynamic.find(
+      (c) => haversineKm(lat, lng, c.lat, c.lng) <= c.radiusKm
+    );
+    if (existingCluster) continue;
+
+    dynamic.push({
+      id: `loc-${lat.toFixed(3)}-${lng.toFixed(3)}`,
+      name: formatAreaLabel(lat, lng),
+      lat,
+      lng,
+      radiusKm: 30,
+    });
+  }
+
+  const known = EGYPT_MARKETPLACE_CITIES.filter((c) => usedKnownIds.has(c.id));
+  return [...known, ...dynamic].sort((a, b) => a.name.localeCompare(b.name));
+}

@@ -20,7 +20,7 @@ import {
   SCOUT_STAKE_FEE_EGP,
 } from '../constants';
 import {
-  EGYPT_MARKETPLACE_CITIES,
+  deriveMarketplaceCitiesFromJobs,
   MARKETPLACE_REGION_EGYPT,
   missionWithinCity,
 } from '../src/lib/egyptMarketplace';
@@ -282,10 +282,29 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     return true;
   };
 
-  const selectedMarketCity = useMemo(
-    () => EGYPT_MARKETPLACE_CITIES.find((c) => c.id === marketCityId) ?? null,
-    [marketCityId]
+  const availableMarketCities = useMemo(
+    () =>
+      deriveMarketplaceCitiesFromJobs(
+        (marketplaceJobs || []).filter(
+          (job) =>
+            ['pending', 'available', 'funding'].includes(job.status) &&
+            job.cleaner_id == null
+        )
+      ),
+    [marketplaceJobs]
   );
+
+  const selectedMarketCity = useMemo(
+    () => availableMarketCities.find((c) => c.id === marketCityId) ?? null,
+    [availableMarketCities, marketCityId]
+  );
+
+  useEffect(() => {
+    if (!marketCityId) return;
+    if (!availableMarketCities.some((c) => c.id === marketCityId)) {
+      setMarketCityId('');
+    }
+  }, [availableMarketCities, marketCityId]);
 
   const filteredMarketplaceJobs = useMemo(() => {
     const base = (marketplaceJobs || []).filter(
@@ -2349,7 +2368,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 className={`w-full min-w-0 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500/50 ${PROFILE_GLASS_PANEL} !rounded-xl`}
               >
                 <option value="">{t('selectCityPlaceholder')}</option>
-                {EGYPT_MARKETPLACE_CITIES.map((c) => (
+                {availableMarketCities.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>

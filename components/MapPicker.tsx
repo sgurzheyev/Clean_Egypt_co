@@ -237,6 +237,60 @@ function missionEligibleForMapPin(job: JobOnMap): boolean {
   return false;
 }
 
+/** Keep locally injected missions when a refetch hasn't caught up with the DB yet. */
+function mergeFetchedMissions(existing: JobOnMap[], fetched: JobOnMap[]): JobOnMap[] {
+  const byId = new Map<string, JobOnMap>();
+  for (const j of fetched) byId.set(String(j.id), j);
+  for (const j of existing) {
+    const id = String(j.id);
+    if (!byId.has(id)) byId.set(id, j);
+  }
+  return Array.from(byId.values()).sort((a, b) => {
+    const ta = new Date(a.created_at ?? 0).getTime();
+    const tb = new Date(b.created_at ?? 0).getTime();
+    return tb - ta;
+  });
+}
+
+function buildOptimisticLeadMission(
+  missionId: string,
+  serviceType: string,
+  location: { lat: number; lng: number },
+  sessionUserId: string,
+  descriptionToSave: string,
+  creatorPhotoUrls: string[] | undefined,
+  viewerProfile: any
+): JobOnMap {
+  return {
+    id: String(missionId),
+    category: 'public',
+    service_type: serviceType,
+    amount_target: 1,
+    current_funding: 0,
+    location_lat: Number(location.lat),
+    location_lng: Number(location.lng),
+    status: 'available',
+    building_id: null,
+    cleaner_id: null,
+    creator_id: sessionUserId,
+    description: descriptionToSave || null,
+    photo_urls: creatorPhotoUrls || [],
+    after_photo_urls: null,
+    created_at: new Date().toISOString(),
+    started_at: null,
+    completion_lat: null,
+    completion_lng: null,
+    completion_distance_meters: null,
+    creator: viewerProfile
+      ? {
+          avatar_url: viewerProfile?.avatar_url ?? null,
+          phone_number: viewerProfile?.phone_number ?? null,
+          is_verified: viewerProfile?.is_verified ?? null,
+        }
+      : null,
+  };
+}
+
 interface MissionTransactionRow {
   id: string;
   user_id: string | null;
@@ -1584,7 +1638,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
           typeof row.location_lng === 'number'
       ) as JobOnMap[];
 
-    setJobs(list);
+    setJobs((prev) => {
+      const merged = mergeFetchedMissions(prev || [], list);
+      jobsRef.current = merged;
+      return merged;
+    });
 
     // Fetch active bid counts (pending bids) for marker badges
     try {
@@ -2594,6 +2652,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
 
       // Create lead mission immediately — token-backed.
+      const pendingMissionId =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `pending-${Date.now()}`;
+
+      const optimisticPending = buildOptimisticLeadMission(
+        pendingMissionId,
+        serviceType,
+        location,
+        session.user.id,
+        descriptionToSave,
+        creatorPhotoUrls,
+        viewerProfile
+      );
+
+      setJobs((prev) => {
+        const next = [optimisticPending, ...(prev || [])];
+        jobsRef.current = next;
+        return next;
+      });
+
       const { data: mid, error: leadErr } = await supabase.rpc('create_lead_mission_with_token', {
         p_service_type: serviceType,
         p_location_lat: Number(location.lat),
@@ -2603,40 +2682,25 @@ const MapPicker: React.FC<MapPickerProps> = ({
         p_building_id: null,
         p_building_height_m: null,
       });
-      if (leadErr) throw leadErr;
+      if (leadErr) {
+        setJobs((prev) => {
+          const next = (prev || []).filter((j) => String(j.id) !== pendingMissionId);
+          jobsRef.current = next;
+          return next;
+        });
+        throw leadErr;
+      }
 
-      // Optimistic mission insert so the glow/pin appears immediately (no refresh needed).
-      // DB function guarantees `category='public'` and `amount_target=1` for lead-gen pins.
-      if (mid) {
-        const optimistic: JobOnMap = {
-          id: String(mid),
-          category: 'public',
-          service_type: serviceType,
-          amount_target: 1,
-          current_funding: 0,
-          location_lat: Number(location.lat),
-          location_lng: Number(location.lng),
-          status: 'available',
-          building_id: null,
-          cleaner_id: null,
-          creator_id: session.user.id,
-          description: descriptionToSave || null,
-          photo_urls: creatorPhotoUrls || [],
-          after_photo_urls: null,
-          created_at: new Date().toISOString(),
-          started_at: null,
-          completion_lat: null,
-          completion_lng: null,
-          completion_distance_meters: null,
-          creator: viewerProfile
-            ? {
-                avatar_url: (viewerProfile as any)?.avatar_url ?? null,
-                phone_number: (viewerProfile as any)?.phone_number ?? null,
-                is_verified: (viewerProfile as any)?.is_verified ?? null,
-              }
-            : null,
-        };
-        setJobs((prev) => [optimistic, ...(prev || [])]);
+      const missionId = mid != null && String(mid).length > 0 ? String(mid) : pendingMissionId;
+
+      if (missionId !== pendingMissionId) {
+        setJobs((prev) => {
+          const next = (prev || []).map((j) =>
+            String(j.id) === pendingMissionId ? { ...j, id: missionId } : j
+          );
+          jobsRef.current = next;
+          return next;
+        });
       }
 
       // Update local token balance snapshot.
@@ -2714,7 +2778,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           type: 'Point' as const,
           coordinates: [j.location_lng, j.location_lat],
         },
-        properties: { mission_id: j.id },
+        properties: { mission_id: String(j.id) },
       }));
     return { type: 'FeatureCollection' as const, features };
   }, [jobs, currentUserId]);
@@ -2726,13 +2790,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
       .filter((j) => Number.isFinite(j.location_lat) && Number.isFinite(j.location_lng))
       .map((j) => ({
         type: 'Feature' as const,
-        id: j.id,
+        id: String(j.id),
         geometry: {
           type: 'Point' as const,
           coordinates: [j.location_lng, j.location_lat],
         },
         properties: {
-          mission_id: j.id,
+          mission_id: String(j.id),
           status: j.status,
           service_type: serviceTypeForMission(j),
           category: j.category,
