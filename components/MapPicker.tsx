@@ -3434,15 +3434,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
             aria-hidden
           />
           <div
-            className={`pointer-events-auto relative z-[1] w-full max-w-xl flex flex-col h-[50dvh] sm:h-auto sm:max-h-[78dvh] animate-slide-up p-4 shadow-2xl ${PROFILE_GLASS_PANEL}`}
+            className={`pointer-events-auto relative z-[1] w-full max-w-xl flex flex-col min-h-0 max-h-[calc(100dvh-9rem)] sm:max-h-[75dvh] overflow-hidden animate-slide-up p-4 shadow-2xl ${PROFILE_GLASS_PANEL}`}
             style={{
               marginBottom: isMobile
                 ? 'calc(env(safe-area-inset-bottom) + 4.5rem)'
                 : undefined,
             }}
           >
-            <form ref={orderFormRef} onSubmit={handleSubmit} className="flex flex-col h-full">
-              <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-2 pb-8 space-y-4">
+            <form ref={orderFormRef} onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-2 pb-3 space-y-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
               <div className="flex items-center justify-between mb-2">
                 <button
                   type="button"
@@ -3533,35 +3533,34 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
               )}
 
-              </div>
-
-              <div className="mt-auto pb-[max(2rem,env(safe-area-inset-bottom))]">
-              <div
-                className={`w-full mt-1 rounded-full animated-border-home ${
-                  orderSubmitting ||
-                  uploadingProof ||
-                  photoModerationBusy ||
-                  !selectedLocation ||
-                  !!descriptionPolicyError
-                    ? 'opacity-60'
-                    : ''
-                }`}
-              >
-                <button
-                  type="submit"
-                  disabled={
+              <div className="sticky bottom-0 z-10 -mx-2 mt-2 px-2 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-white/10 bg-slate-950/95 backdrop-blur-md">
+                <div
+                  className={`w-full rounded-full animated-border-home ${
                     orderSubmitting ||
                     uploadingProof ||
                     photoModerationBusy ||
                     !selectedLocation ||
                     !!descriptionPolicyError
-                  }
-                  className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] transition-all text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] disabled:cursor-not-allowed active:scale-95"
+                      ? 'opacity-60'
+                      : ''
+                  }`}
                 >
-                  {uploadingProof || orderSubmitting
-                    ? t('processing')
-                    : t('payAndPlacePin')}
-                </button>
+                  <button
+                    type="submit"
+                    disabled={
+                      orderSubmitting ||
+                      uploadingProof ||
+                      photoModerationBusy ||
+                      !selectedLocation ||
+                      !!descriptionPolicyError
+                    }
+                    className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] transition-all text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] disabled:cursor-not-allowed active:scale-95"
+                  >
+                    {uploadingProof || orderSubmitting
+                      ? t('processing')
+                      : t('payAndPlacePin')}
+                  </button>
+                </div>
               </div>
               </div>
             </form>

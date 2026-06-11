@@ -255,8 +255,8 @@ const CreateMission: React.FC<Props> = ({
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
+      <div className="grid grid-cols-1 gap-4">
+        <div className="min-w-0">
           <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
             {t('uploadPhoto')}
           </label>
@@ -298,11 +298,11 @@ const CreateMission: React.FC<Props> = ({
           )}
 
           {photoSlots.length > 0 && (
-            <ul className="mt-3 flex flex-wrap gap-2">
+            <ul className="mt-3 grid max-h-32 grid-cols-4 gap-2 overflow-y-auto overscroll-y-contain pr-1 sm:grid-cols-5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
               {photoSlots.map((slot) => (
                 <li
                   key={slot.key}
-                  className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/40"
+                  className="relative aspect-square w-full overflow-hidden rounded-lg border border-white/10 bg-black/40"
                 >
                   <img
                     src={slot.previewUrl}
