@@ -1322,6 +1322,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [orderDescription, setOrderDescription] = useState('');
   const [orderPhotos, setOrderPhotos] = useState<File[]>([]);
   const [descriptionPolicyError, setDescriptionPolicyError] = useState<string | null>(null);
+  const [photoModerationBusy, setPhotoModerationBusy] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -3516,10 +3517,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
               <CreateMission
                 taskType={taskType}
+                serviceType={serviceType}
+                serviceLabel={serviceLabelFromId(serviceType)}
                 orderDescription={orderDescription}
                 setOrderDescription={setOrderDescription}
                 orderPhotos={orderPhotos}
                 setOrderPhotos={setOrderPhotos}
+                onModerationBusy={setPhotoModerationBusy}
                 onDescriptionPolicyError={setDescriptionPolicyError}
                 onTextWarning={(w) => {
                   setTextWarning(w ?? null);
@@ -3545,6 +3549,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 className={`w-full mt-1 rounded-full animated-border-home ${
                   orderSubmitting ||
                   uploadingProof ||
+                  photoModerationBusy ||
                   !selectedLocation ||
                   !!descriptionPolicyError
                     ? 'opacity-60'
@@ -3556,6 +3561,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   disabled={
                     orderSubmitting ||
                     uploadingProof ||
+                    photoModerationBusy ||
                     !selectedLocation ||
                     !!descriptionPolicyError
                   }

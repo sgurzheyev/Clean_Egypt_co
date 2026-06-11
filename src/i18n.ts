@@ -183,6 +183,11 @@ const resources = {
       missionPhotoRejected: 'One or more photos were rejected. Replace them with real cleanup context.',
       moderationPhotoExplicit: 'Blocked (explicit content — not stored)',
       photoSafetyCheckFailed: 'Photo safety check failed. Try another image.',
+      photoModerationChecking: 'Checking photo…',
+      photoModerationRejectedDefault:
+        'Photo was rejected. Upload a safe image that matches your selected service.',
+      photoModerationMaxReached: 'Maximum {{max}} photos allowed.',
+      removePhoto: 'Remove photo',
       addFunds: 'Add Funds',
       coFundCustomHint: 'any amount you choose',
       closeDeal: 'Close deal',
