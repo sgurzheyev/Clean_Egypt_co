@@ -25,7 +25,6 @@ import {
 import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
 import { profileWalletBalanceEgp } from '../src/lib/walletCredit';
 import { floorEgp, parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '../src/lib/integerEgpInput';
-import { fetchUsdToEgpRate } from '../src/lib/platformSettings';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import TokenPackModal from '../src/components/TokenPackModal';
 import SubscriptionModal from '../src/components/SubscriptionModal';
@@ -253,13 +252,14 @@ function buildOptimisticLeadMission(
   sessionUserId: string,
   descriptionToSave: string,
   creatorPhotoUrls: string[] | undefined,
-  viewerProfile: any
+  viewerProfile: any,
+  tokenBid: number
 ): JobOnMap {
   return {
     id: String(missionId),
     category: 'public',
     service_type: serviceType,
-    amount_target: 1,
+    amount_target: Math.max(1, tokenBid),
     current_funding: 0,
     location_lat: Number(location.lat),
     location_lng: Number(location.lng),
@@ -1318,7 +1318,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [taskType, setTaskType] = useState<TaskType>('city');
   const [orderAmount, setOrderAmount] = useState('');
   const [serviceType, setServiceType] = useState<ServiceType>('home_office');
-  const [pinPlacementFeeEgp, setPinPlacementFeeEgp] = useState<number>(floorEgp(55));
+  const [tokenBid, setTokenBid] = useState(1);
   const [orderDescription, setOrderDescription] = useState('');
   const [orderPhotos, setOrderPhotos] = useState<File[]>([]);
   const [descriptionPolicyError, setDescriptionPolicyError] = useState<string | null>(null);
@@ -1352,20 +1352,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     []
   );
 
-  // SaaS lead-gen: fixed pin placement fee ($1) converted to tokens using platform rate.
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      const rate = await fetchUsdToEgpRate(supabase);
-      const tokens = floorEgp(rate * 1);
-      if (!cancelled) setPinPlacementFeeEgp(tokens > 0 ? tokens : floorEgp(55));
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const selectTaskType = useCallback((type: TaskType) => {
     setDashboardExpanded(false);
     setShowLiveMarketFeed(false);
@@ -1373,6 +1359,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setProofUploadMission(null);
     setTaskType(type);
     setTaskTypeSelected(type);
+    setTokenBid(1);
     setOrderError(null);
     setOrderSuccess(null);
     setDescriptionPolicyError(null);
@@ -2518,10 +2505,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setOrderError(null);
     setOrderSuccess(null);
 
-    // Tokens: placing 1 pin costs 1 token (customers only).
+    const placementTokens = Math.max(1, Math.floor(Number(tokenBid) || 1));
+
     if (viewerProfile?.role === 'customer') {
       const tb = Math.floor(Number(viewerProfile?.token_balance ?? 0));
-      if (tb < 1) {
+      if (tb < placementTokens) {
         setShowTokenPackModal(true);
         return;
       }
@@ -2629,7 +2617,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         session.user.id,
         descriptionToSave,
         creatorPhotoUrls,
-        viewerProfile
+        viewerProfile,
+        placementTokens
       );
 
       setJobs((prev) => {
@@ -2646,6 +2635,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         p_photo_urls: creatorPhotoUrls || [],
         p_building_id: null,
         p_building_height_m: null,
+        p_token_bid: placementTokens,
       });
       if (leadErr) {
         setJobs((prev) => {
@@ -2675,11 +2665,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
           : {
               ...p,
               token_balance:
-                Number.isFinite(Number(p.token_balance)) ? Math.max(0, Number(p.token_balance) - 1) : p.token_balance,
+                Number.isFinite(Number(p.token_balance))
+                  ? Math.max(0, Number(p.token_balance) - placementTokens)
+                  : p.token_balance,
             }
       );
 
       setOrderSuccess(t('pinPlaced'));
+      setTokenBid(1);
       setOrderDescription('');
       setOrderPhotos([]);
       setDescriptionPolicyError(null);
@@ -3510,7 +3503,36 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     ))}
                   </select>
                   <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
-                    {t('pinPlacementPriceHint', { amount: formatEgp(pinPlacementFeeEgp) })}
+                    {t('pinPlacementBaseRule')}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                    {t('missionTokenBidLabel')}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    value={tokenBid}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === '') {
+                        setTokenBid(1);
+                        return;
+                      }
+                      const n = Math.floor(Number(raw));
+                      setTokenBid(Number.isFinite(n) && n >= 1 ? n : 1);
+                    }}
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-2.5 text-sm text-white bg-black/20 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500`}
+                  />
+                  <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
+                    {t('missionTokenBidHint')}
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-cyan-300">
+                    {t('missionPlacementCost', { count: Math.max(1, Math.floor(Number(tokenBid) || 1)) })}
                   </p>
                 </div>
               </div>

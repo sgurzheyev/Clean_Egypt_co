@@ -133,8 +133,6 @@ const CreateMission: React.FC<Props> = ({
           body: JSON.stringify({
             imageBase64: base64,
             mimeType,
-            serviceType,
-            serviceLabel,
             userLanguage: i18n.language || 'en',
           }),
         });
@@ -182,7 +180,7 @@ const CreateMission: React.FC<Props> = ({
         window.setTimeout(() => removeSlot(key), 4500);
       }
     },
-    [i18n.language, removeSlot, serviceLabel, serviceType, syncApprovedPhotos, t]
+    [i18n.language, removeSlot, syncApprovedPhotos, t]
   );
 
   const handleIncomingPhotos = useCallback(

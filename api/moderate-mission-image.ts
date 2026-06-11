@@ -25,24 +25,22 @@ function languageName(code: string): string {
   return map[c] || 'English';
 }
 
-function buildPrompt(serviceType: string, serviceLabel: string, lang: string): string {
+function buildPrompt(lang: string): string {
   const language = languageName(lang);
   return [
-    'You are a fast image moderator for CleanEgypt.co — a cleaning/services marketplace.',
-    'The customer is posting a reference photo for a new mission.',
+    'You are a strict image safety filter for CleanEgypt.co.',
+    'Approve ANY image that is Safe-For-Work.',
+    'Do NOT judge whether the photo matches a cleaning/service context — relevance is not your job.',
     '',
-    `Requested service type: "${serviceLabel}" (id: ${serviceType}).`,
-    '',
-    'Approve ONLY if BOTH are true:',
-    '1. SAFETY: Image is Safe-For-Work. Reject nudity, explicit sexual content, graphic violence, or gore.',
-    '2. RELEVANCE: The image reasonably fits this service (e.g. the space, object, or mess that would be cleaned/serviced).',
-    '   Reject clearly unrelated subjects (e.g. a yacht photo for AC cleaning, a random meme, unrelated landscape).',
-    '   Be practical: messy rooms, appliances, vehicles, pools, facades, trash piles, etc. that plausibly match the service are OK.',
+    'Reject ONLY if the image contains:',
+    '- Nudity or explicit sexual content',
+    '- Pornography',
+    '- Graphic violence or gore',
     '',
     `Respond with ONLY valid JSON (no markdown):`,
     `{ "isApproved": boolean, "reason": string }`,
     `- If approved: isApproved=true and reason=""`,
-    `- If rejected: isApproved=false and reason=short user-facing message in ${language} (max 120 chars) explaining safety or relevance.`,
+    `- If rejected: isApproved=false and reason=short user-facing message in ${language} (max 120 chars) about unsafe content only.`,
   ].join('\n');
 }
 
@@ -68,15 +66,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const body = req.body as {
       imageBase64?: string;
       mimeType?: string;
-      serviceType?: string;
-      serviceLabel?: string;
       userLanguage?: string;
     };
 
     const imageBase64 = body?.imageBase64;
     const mimeType = body?.mimeType || 'image/jpeg';
-    const serviceType = String(body?.serviceType || 'home_office').trim() || 'home_office';
-    const serviceLabel = String(body?.serviceLabel || serviceType).trim() || serviceType;
     const userLanguage = String(body?.userLanguage || 'en');
 
     if (!imageBase64 || typeof imageBase64 !== 'string') {
@@ -108,7 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           {
             role: 'user',
             content: [
-              { type: 'text', text: buildPrompt(serviceType, serviceLabel, userLanguage) },
+              { type: 'text', text: buildPrompt(userLanguage) },
               {
                 type: 'image_url',
                 image_url: { url: dataUrl, detail: 'low' },
