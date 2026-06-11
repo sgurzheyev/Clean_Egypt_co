@@ -21,7 +21,7 @@ const WorkerPortal = () => {
       // 1. Грузим баланс рабочего
       const { data: wData } = await supabase
         .from('profiles')
-        .select('id, wallet_balance, frozen_balance')
+        .select('id, wallet_balance')
         .eq('telegram_id', TEST_TELEGRAM_ID)
         .maybeSingle();
       setWorker(wData);
@@ -46,17 +46,7 @@ const WorkerPortal = () => {
     const file = event.target.files?.[0];
     if (!file || !pyramid || !worker) return;
 
-    // Считаем депозит: 50% от цены (City или Home)
-    const jobPrice = Number(
-      pyramid.final_price_egp ?? pyramid.current_amount_egp ?? pyramid.amount_target_egp ?? 0
-    );
-    const deposit = jobPrice * 0.5;
-
-    if (worker.wallet_balance < deposit) {
-      alert(`🛑 LOW BALANCE! Need ${formatEgp(deposit)} deposit.`);
-      return;
-    }
-
+    // SaaS model: no security deposit — subscription/token access only.
     try {
       setUploading(true);
       // 1. Загружаем Photo 2 (Worker Start) в Storage
@@ -66,7 +56,7 @@ const WorkerPortal = () => {
 
       const { data: { publicUrl } } = supabase.storage.from('order-photos').getPublicUrl(fileName);
 
-      // 2. Списываем депо и обновляем статус/время/фото в базе
+      // 2. Обновляем статус/время/фото в базе
       const { error: dbErr } = await supabase.from('pyramids').update({
         status: 'active',
         worker_id: worker.id,
@@ -76,16 +66,7 @@ const WorkerPortal = () => {
 
       if (dbErr) throw dbErr;
 
-      // 3. Обновляем баланс рабочего (lock deposit in frozen_balance)
-      await supabase
-        .from('profiles')
-        .update({
-          wallet_balance: worker.wallet_balance - deposit,
-          frozen_balance: (worker.frozen_balance ?? 0) + deposit,
-        })
-        .eq('id', worker.id);
-
-      alert(`🚀 WORK STARTED! ${deposit} Tokens locked.`);
+      alert('🚀 WORK STARTED!');
       fetchData();
     } catch (err: any) {
       alert("Error: " + err.message);
@@ -145,7 +126,7 @@ const WorkerPortal = () => {
           <div className="p-6">
             {pyramid?.status === 'pending' || pyramid?.status === 'bidding' ? (
               <div className="space-y-4">
-                <p className="text-center text-slate-400 text-sm">Take this job? You need 50% deposit.</p>
+                <p className="text-center text-slate-400 text-sm">Take this job?</p>
                 <label className="block w-full bg-teal-500 hover:bg-teal-400 text-slate-900 py-4 rounded-xl font-black text-center cursor-pointer transition-all">
                   {uploading ? "STARTING..." : "📸 TAKE START PHOTO & START"}
                   <input type="file" accept="image/*" onChange={handleStartWork} className="hidden" disabled={uploading} />

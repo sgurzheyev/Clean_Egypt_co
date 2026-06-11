@@ -60,7 +60,6 @@ const resources = {
       coworker: 'Co-worker',
       frozen: 'Frozen',
       amountInUsd: 'Amount (Tokens)',
-      needDepositEgp: 'Need {{amount}} tokens deposit to start',
       enterPositiveEgpAmount: 'Enter a positive token amount.',
       homePriceRangeEgp: 'Amount must be between {{min}} and {{max}} tokens.',
       cityPriceRangeEgp: 'Amount must be between {{min}} and {{max}} tokens.',
@@ -156,10 +155,6 @@ const resources = {
       availableToWithdraw: 'Available: {{amount}}',
       frozenDepositTag: '🔒 Frozen deposit: {{amount}}',
       payoutFeeNote: '*12% platform fee applies on payout.',
-      insufficientSecurityDepositFunds:
-        'Insufficient funds for security deposit. Please top up your wallet first.',
-      walletFrozenInvariantError:
-        'Account balance issue: frozen deposit exceeds wallet. Please contact support.',
       cardNumber: 'Card Number',
       expiry: 'Expiry',
       cvc: 'CVC',
@@ -182,21 +177,12 @@ const resources = {
       amountEgp: 'Amount (Tokens)',
       orderFormAmountHintEgp: 'All amounts are in tokens.',
       paymentsEgpOnlyNote: 'Payments are token-based.',
-      insufficientTrustDeposit: 'Insufficient Trust Deposit',
       frozenDepositInfoTitle: 'About frozen deposit',
       frozenDepositInfoBody:
         'This amount is reserved for your active bids and missions. It will be released once the missions are completed or cancelled.',
-      trustDepositModalTitle: 'Security deposit',
-      trustDepositBidExplanation:
-        'To make a bid, you need a minimum balance available as a security guarantee.',
-      trustDepositLearnMore: 'Learn more',
-      aiVerifyingPhoto: 'AI is verifying photo…',
-      aiVerifyingPhotoShort: '…',
-      waitForAiVerification: 'Please wait for AI photo verification.',
       missionPhotoRejected: 'One or more photos were rejected. Replace them with real cleanup context.',
       moderationPhotoExplicit: 'Blocked (explicit content — not stored)',
       photoSafetyCheckFailed: 'Photo safety check failed. Try another image.',
-      aiSuggestions: 'AI suggestions',
       addFunds: 'Add Funds',
       coFundCustomHint: 'any amount you choose',
       closeDeal: 'Close deal',
@@ -410,7 +396,6 @@ const resources = {
       coworker: 'زميل',
       frozen: 'مجمد',
       amountInUsd: 'المبلغ (توكن)',
-      needDepositEgp: 'تحتاج {{amount}} توكن للبدء',
       enterPositiveEgpAmount: 'أدخل عدد توكنات موجب.',
       homePriceRangeEgp: 'يجب أن يكون العدد بين {{min}} و{{max}} توكن.',
       cityPriceRangeEgp: 'يجب أن يكون العدد بين {{min}} و{{max}} توكن.',
@@ -501,10 +486,6 @@ const resources = {
       availableToWithdraw: 'المتاح: {{amount}}',
       frozenDepositTag: '🔒 وديعة مجمّدة: {{amount}}',
       payoutFeeNote: '*تُطبق عمولة المنصة 12٪ عند السحب.',
-      insufficientSecurityDepositFunds:
-        'أموال غير كافية لوديعة الأمان. يرجى شحن المحفظة أولاً.',
-      walletFrozenInvariantError:
-        'مشكلة في الرصيد: الوديعة المجمّدة تتجاوز المحفظة. تواصل مع الدعم.',
       cardNumber: 'رقم البطاقة',
       expiry: 'تاريخ الانتهاء',
       cvc: 'CVC',
@@ -525,14 +506,9 @@ const resources = {
       stripeMinimumCharge: 'الحد الأدنى للخصم يعادل نحو ٢٥ ج.م. زد المبلغ.',
       depositCurrencyEgp: 'EGP',
       amountEgp: 'المبلغ (ج.م)',
-      insufficientTrustDeposit: 'وديعة ثقة غير كافية',
       frozenDepositInfoTitle: 'عن الوديعة المجمّدة',
       frozenDepositInfoBody:
         'هذا المبلغ محجوز لعروضك النشطة ومهامك. يُفرج عنه عند اكتمال المهام أو إلغائها.',
-      trustDepositModalTitle: 'وديعة الأمان',
-      trustDepositBidExplanation:
-        'لتقديم عرض، تحتاج إلى 100 ج.م على الأقل متاحة في محفظتك كضمان أمان.',
-      trustDepositLearnMore: 'اعرف المزيد',
       whatNeedsCleaning: 'ماذا يحتاج تنظيفاً؟',
       serviceMarketplace: 'سوق الخدمات',
       cleanCityArea: 'تنظيف منطقة المدينة',
@@ -735,7 +711,6 @@ const resources = {
       coworker: 'Сотрудник',
       frozen: 'Заморожено',
       amountInUsd: 'Сумма (токены)',
-      needDepositEgp: 'Нужен депозит {{amount}} токенов для старта',
       enterPositiveEgpAmount: 'Введите положительное количество токенов.',
       homePriceRangeEgp: 'Сумма должна быть от {{min}} до {{max}} токенов.',
       cityPriceRangeEgp: 'Сумма должна быть от {{min}} до {{max}} токенов.',
@@ -828,10 +803,6 @@ const resources = {
       availableToWithdraw: 'Доступно к выводу: {{amount}} EGP',
       frozenDepositTag: '🔒 Замороженный залог: {{amount}} EGP',
       payoutFeeNote: '*При выплате удерживается комиссия платформы 12%.',
-      insufficientSecurityDepositFunds:
-        'Недостаточно средств для залога безопасности. Пополните кошелёк.',
-      walletFrozenInvariantError:
-        'Ошибка баланса: заморожено больше, чем в кошельке. Свяжитесь с поддержкой.',
       cardNumber: 'Номер карты',
       expiry: 'Срок действия',
       cvc: 'CVC',
@@ -856,14 +827,9 @@ const resources = {
       orderFormAmountHintEgp:
         'Город: диапазон по правилам. Дом: от 250 EGP. Все суммы только в EGP.',
       paymentsEgpOnlyNote: 'Оплата миссий в этой форме — в EGP, без шага конвертации валют.',
-      insufficientTrustDeposit: 'Недостаточно залога доверия',
       frozenDepositInfoTitle: 'О замороженном залоге',
       frozenDepositInfoBody:
         'Эта сумма зарезервирована под активные ставки и задания. Она разблокируется после завершения или отмены заданий.',
-      trustDepositModalTitle: 'Залог безопасности',
-      trustDepositBidExplanation:
-        'Чтобы сделать ставку, нужно иметь в кошельке не менее 100 EGP как гарантийный залог.',
-      trustDepositLearnMore: 'Подробнее',
       whatNeedsCleaning: 'Что нужно очистить?',
       serviceMarketplace: 'Рынок услуг',
       cleanCityArea: 'Очистить район города',
@@ -1071,7 +1037,6 @@ const resources = {
       coworker: 'Mitarbeiter',
       frozen: 'Eingefroren',
       amountInUsd: 'Betrag (EGP)',
-      needDepositEgp: 'Es werden {{amount}} Kaution zum Start benötigt',
       enterPositiveEgpAmount: 'Bitte einen positiven Betrag in EGP eingeben.',
       homePriceRangeEgp: 'Hausmission: Preis zwischen {{min}} und {{max}} EGP.',
       cityPriceRangeEgp: 'Stadtmission: Ziel zwischen {{min}} und {{max}} EGP.',
@@ -1163,10 +1128,6 @@ const resources = {
       availableToWithdraw: 'Verfügbar zur Auszahlung: {{amount}} EGP',
       frozenDepositTag: '🔒 Eingefrorene Kaution: {{amount}} EGP',
       payoutFeeNote: '*12% Plattformgebühr bei Auszahlung.',
-      insufficientSecurityDepositFunds:
-        'Unzureichende Mittel für die Sicherheitskaution. Bitte Wallet aufladen.',
-      walletFrozenInvariantError:
-        'Kontoproblem: Eingefrorenes Guthaben übersteigt das Wallet. Support kontaktieren.',
       cardNumber: 'Kartennummer',
       expiry: 'Ablauf',
       cvc: 'CVC',
@@ -1187,14 +1148,9 @@ const resources = {
       stripeMinimumCharge: 'Mindestbetrag entspricht ca. 25 EGP. Bitte erhöhen.',
       depositCurrencyEgp: 'EGP',
       amountEgp: 'Betrag (EGP)',
-      insufficientTrustDeposit: 'Unzureichende Vertrauenskaution',
       frozenDepositInfoTitle: 'Über eingefrorene Kaution',
       frozenDepositInfoBody:
         'Dieser Betrag ist für aktive Gebote und Missionen reserviert. Er wird freigegeben, sobald die Missionen abgeschlossen oder storniert sind.',
-      trustDepositModalTitle: 'Sicherheitskaution',
-      trustDepositBidExplanation:
-        'Für ein Gebot brauchst du mindestens 100 EGP verfügbar in deinem Wallet als Sicherheitsgarantie.',
-      trustDepositLearnMore: 'Mehr erfahren',
       whatNeedsCleaning: 'Was soll gereinigt werden?',
       cleanCityArea: 'Stadtbereich reinigen',
       cleanYourHomeOffice: 'Zuhause/Büro reinigen',
@@ -1339,7 +1295,6 @@ const resources = {
       coworker: 'Collaboratore',
       frozen: 'Congelato',
       amountInUsd: 'Importo (EGP)',
-      needDepositEgp: 'Servono {{amount}} di deposito per iniziare',
       enterPositiveEgpAmount: 'Inserisci un importo positivo in EGP.',
       homePriceRangeEgp: 'Prezzo missione casa: tra {{min}} e {{max}} EGP.',
       cityPriceRangeEgp: 'Obiettivo missione città: tra {{min}} e {{max}} EGP.',
@@ -1431,10 +1386,6 @@ const resources = {
       availableToWithdraw: 'Disponibile per il prelievo: {{amount}} EGP',
       frozenDepositTag: '🔒 Deposito vincolato: {{amount}} EGP',
       payoutFeeNote: '*Commissione piattaforma 12% sul prelievo.',
-      insufficientSecurityDepositFunds:
-        'Fondi insufficienti per il deposito cauzionale. Ricarica il wallet.',
-      walletFrozenInvariantError:
-        'Errore saldo: il deposito vincolato supera il wallet. Contatta il supporto.',
       cardNumber: 'Numero carta',
       expiry: 'Scadenza',
       cvc: 'CVC',
@@ -1456,14 +1407,9 @@ const resources = {
       stripeMinimumCharge: 'Addebito minimo equivalente a ~25 EGP. Aumenta l’importo.',
       depositCurrencyEgp: 'EGP',
       amountEgp: 'Importo (EGP)',
-      insufficientTrustDeposit: 'Deposito cauzionale insufficiente',
       frozenDepositInfoTitle: 'Deposito vincolato',
       frozenDepositInfoBody:
         'Questo importo è riservato alle tue offerte e missioni attive. Verrà sbloccato al completamento o all’annullamento delle missioni.',
-      trustDepositModalTitle: 'Deposito cauzionale',
-      trustDepositBidExplanation:
-        'Per fare un’offerta servono almeno 100 EGP disponibili nel portafoglio come garanzia.',
-      trustDepositLearnMore: 'Scopri di più',
       whatNeedsCleaning: 'Cosa va pulito?',
       cleanCityArea: 'Pulisci area città',
       cleanYourHomeOffice: 'Pulisci casa/ufficio',
@@ -1608,7 +1554,6 @@ const resources = {
       coworker: 'Compañero',
       frozen: 'Congelado',
       amountInUsd: 'Importe (EGP)',
-      needDepositEgp: 'Se necesita depósito de {{amount}} para empezar',
       enterPositiveEgpAmount: 'Introduce un importe positivo en EGP.',
       homePriceRangeEgp: 'Precio misión hogar: entre {{min}} y {{max}} EGP.',
       cityPriceRangeEgp: 'Objetivo misión ciudad: entre {{min}} y {{max}} EGP.',
@@ -1700,10 +1645,6 @@ const resources = {
       availableToWithdraw: 'Disponible para retirar: {{amount}} EGP',
       frozenDepositTag: '🔒 Depósito retenido: {{amount}} EGP',
       payoutFeeNote: '*Comisión de plataforma del 12% al retirar.',
-      insufficientSecurityDepositFunds:
-        'Fondos insuficientes para el depósito de seguridad. Recarga tu cartera.',
-      walletFrozenInvariantError:
-        'Error de saldo: el congelado supera la cartera. Contacta soporte.',
       cardNumber: 'Número de tarjeta',
       expiry: 'Vencimiento',
       cvc: 'CVC',
@@ -1725,14 +1666,9 @@ const resources = {
       stripeMinimumCharge: 'Cargo mínimo equivalente a ~25 EGP. Aumenta el importe.',
       depositCurrencyEgp: 'EGP',
       amountEgp: 'Importe (EGP)',
-      insufficientTrustDeposit: 'Depósito de confianza insuficiente',
       frozenDepositInfoTitle: 'Depósito retenido',
       frozenDepositInfoBody:
         'Este importe está reservado para tus pujas y misiones activas. Se liberará cuando las misiones se completen o cancelen.',
-      trustDepositModalTitle: 'Depósito de seguridad',
-      trustDepositBidExplanation:
-        'Para pujar necesitas al menos 100 EGP disponibles en tu cartera como garantía.',
-      trustDepositLearnMore: 'Más información',
       whatNeedsCleaning: '¿Qué hay que limpiar?',
       cleanCityArea: 'Limpiar zona ciudad',
       cleanYourHomeOffice: 'Limpiar casa/oficina',

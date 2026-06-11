@@ -24,11 +24,7 @@ import {
   MARKETPLACE_REGION_EGYPT,
   missionWithinCity,
 } from '../src/lib/egyptMarketplace';
-import {
-  workerCanSecureMissionDeposit,
-  isSecurityDepositFailure,
-  checkHomeMissionWorkerVerification,
-} from '../src/lib/trustDeposit';
+import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
 import { computeWithdrawalExitBreakdown } from '../src/lib/withdrawalTax';
 import { floorEgp, parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '../src/lib/integerEgpInput';
@@ -88,9 +84,6 @@ interface Bid {
   bid_amount: number;
   status: string;
   created_at?: string;
-  /** Merged from profiles when loading bids (worker trust deposit). */
-  worker_frozen_balance?: number | null;
-  worker_wallet_balance?: number | null;
 }
 
 interface ProfileRow {
@@ -672,34 +665,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           .from('mission_bids')
           .select('id, mission_id, cleaner_id, bid_amount, status, created_at')
           .in('mission_id', pendingJobIds);
-        const cleanerIds = [
-          ...new Set(
-            ((bidsData || []) as Bid[]).map((b) => b.cleaner_id).filter(Boolean) as string[]
-          ),
-        ];
-        let frozenByCleaner: Record<string, number> = {};
-        let walletByCleaner: Record<string, number> = {};
-        if (cleanerIds.length > 0) {
-          const { data: frozenRows } = await supabase
-            .from('profiles')
-            .select('id, frozen_balance, wallet_balance')
-            .in('id', cleanerIds);
-          frozenByCleaner = Object.fromEntries(
-            (frozenRows || []).map((r: any) => [r.id, Number(r.frozen_balance ?? 0)])
-          );
-          walletByCleaner = Object.fromEntries(
-            (frozenRows || []).map((r: any) => [r.id, Number(r.wallet_balance ?? 0)])
-          );
-        }
         const byJob: Record<string, Bid[]> = {};
         for (const bid of (bidsData || []) as Bid[]) {
-          const enriched: Bid = {
-            ...bid,
-            worker_frozen_balance: frozenByCleaner[bid.cleaner_id] ?? 0,
-            worker_wallet_balance: walletByCleaner[bid.cleaner_id] ?? 0,
-          };
           if (!byJob[bid.mission_id]) byJob[bid.mission_id] = [];
-          byJob[bid.mission_id].push(enriched);
+          byJob[bid.mission_id].push(bid);
         }
         setJobBidsById(byJob);
       } else {
@@ -784,31 +753,20 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     const missionValue = Number(bid.bid_amount ?? 0);
     if (!Number.isFinite(missionValue) || missionValue <= 0) return;
 
+    // SaaS model: no security deposit — only home/office missions require an ID-verified worker.
     const { data: workerProf, error: workerProfErr } = await supabase
       .from('profiles')
-      .select('frozen_balance, wallet_balance, is_verified')
+      .select('is_verified')
       .eq('id', bid.cleaner_id)
       .maybeSingle();
     if (workerProfErr) {
       console.error(workerProfErr);
-      toast.error(workerProfErr.message || 'Could not verify worker deposit.');
+      toast.error(workerProfErr.message || 'Could not load worker profile.');
       return;
     }
     const homeOk = checkHomeMissionWorkerVerification(job.category, workerProf?.is_verified);
     if (!homeOk.ok) {
       alert(t('verificationPromptOnlyVerified'));
-      return;
-    }
-    const walletEgp = Number(workerProf?.wallet_balance ?? 0);
-    const frozenEgp = Number(workerProf?.frozen_balance ?? 0);
-    const amtTarget = Number(job.amount_target ?? bid.bid_amount ?? 0);
-    const sec = workerCanSecureMissionDeposit(walletEgp, frozenEgp, job.category, amtTarget);
-    if (isSecurityDepositFailure(sec)) {
-      toast.error(
-        sec.reason === 'frozen_exceeds_wallet'
-          ? t('walletFrozenInvariantError')
-          : t('insufficientSecurityDepositFunds')
-      );
       return;
     }
 
@@ -1878,30 +1836,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                 <button
                                   type="button"
                                   onClick={() => handleAcceptBid(job, bid)}
-                                  disabled={(() => {
-                                    const target = Number(job.amount_target ?? bid.bid_amount ?? 0);
-                                    const wallet = Number(bid.worker_wallet_balance ?? 0);
-                                    const frozen = Number(bid.worker_frozen_balance ?? 0);
-                                    return !workerCanSecureMissionDeposit(wallet, frozen, job.category, target).ok;
-                                  })()}
-                                  className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
                                 >
                                   Accept offer
                                 </button>
-                                {(() => {
-                                  const target = Number(job.amount_target ?? bid.bid_amount ?? 0);
-                                  const wallet = Number(bid.worker_wallet_balance ?? 0);
-                                  const frozen = Number(bid.worker_frozen_balance ?? 0);
-                                  const sec = workerCanSecureMissionDeposit(wallet, frozen, job.category, target);
-                                  if (!isSecurityDepositFailure(sec)) return null;
-                                  return (
-                                    <p className="mt-2 text-[10px] text-amber-300">
-                                      {sec.reason === 'frozen_exceeds_wallet'
-                                        ? t('walletFrozenInvariantError')
-                                        : t('insufficientSecurityDepositFunds')}
-                                    </p>
-                                  );
-                                })()}
                               </div>
                             </div>
                           ))}
@@ -2232,30 +2170,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                   <button
                                     type="button"
                                     onClick={() => handleAcceptBid(job, bid)}
-                                    disabled={(() => {
-                                      const target = Number(job.amount_target ?? bid.bid_amount ?? 0);
-                                      const wallet = Number(bid.worker_wallet_balance ?? 0);
-                                      const frozen = Number(bid.worker_frozen_balance ?? 0);
-                                      return !workerCanSecureMissionDeposit(wallet, frozen, job.category, target).ok;
-                                    })()}
-                                    className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
                                   >
                                     Accept offer
                                   </button>
-                                  {(() => {
-                                    const target = Number(job.amount_target ?? bid.bid_amount ?? 0);
-                                    const wallet = Number(bid.worker_wallet_balance ?? 0);
-                                    const frozen = Number(bid.worker_frozen_balance ?? 0);
-                                    const sec = workerCanSecureMissionDeposit(wallet, frozen, job.category, target);
-                                    if (!isSecurityDepositFailure(sec)) return null;
-                                    return (
-                                      <p className="mt-2 text-[10px] text-amber-300">
-                                        {sec.reason === 'frozen_exceeds_wallet'
-                                          ? t('walletFrozenInvariantError')
-                                          : t('insufficientSecurityDepositFunds')}
-                                      </p>
-                                    );
-                                  })()}
                                 </div>
                               </div>
                             ))}

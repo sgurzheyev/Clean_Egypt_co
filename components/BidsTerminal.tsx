@@ -1,9 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { formatEgp } from '../src/lib/formatMoney';
-import { workerCanSecureMissionDeposit } from '../src/lib/trustDeposit';
-import TrustDepositInfoModal from './TrustDepositInfoModal';
-import { useTranslation } from 'react-i18next';
 
 interface BidsTerminalProps {
   onclose?: () => void;
@@ -11,53 +8,16 @@ interface BidsTerminalProps {
 }
 
 const BidsTerminal: React.FC<BidsTerminalProps> = ({ onclose, onShowTryFree }) => {
-  const { t } = useTranslation();
   const [task, setTask] = useState('');
   const [price, setPrice] = useState('');
   const [location, setLocation] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [missions, setMissions] = useState<any[]>([]);
-  const [walletSnap, setWalletSnap] = useState<{ w: number; f: number } | null>(null);
-  const [trustDepositInfoOpen, setTrustDepositInfoOpen] = useState(false);
 
   useEffect(() => {
     fetchMissions();
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.user?.id) {
-        if (!cancelled) setWalletSnap(null);
-        return;
-      }
-      const { data: p } = await supabase
-        .from('profiles')
-        .select('wallet_balance, frozen_balance')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      if (!cancelled) {
-        setWalletSnap({
-          w: Number(p?.wallet_balance ?? 0),
-          f: Number(p?.frozen_balance ?? 0),
-        });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const bidTrustBlocked = useMemo(() => {
-    if (walletSnap === null) return false;
-    const priceNum = Number(price);
-    const target = Number.isFinite(priceNum) && priceNum > 0 ? priceNum : 100;
-    return !workerCanSecureMissionDeposit(walletSnap.w, walletSnap.f, 'public', target).ok;
-  }, [walletSnap, price]);
 
   const fetchMissions = async () => {
     const { data, error } = await supabase
@@ -113,7 +73,6 @@ const BidsTerminal: React.FC<BidsTerminalProps> = ({ onclose, onShowTryFree }) =
 
   return (
     <div className="w-full max-w-md mx-auto animated-border animated-border-rect relative overflow-hidden">
-      <TrustDepositInfoModal open={trustDepositInfoOpen} onClose={() => setTrustDepositInfoOpen(false)} />
       <div className="animated-border-inner w-full bg-[#020617]/95 backdrop-blur-2xl text-white p-6 font-sans rounded-3xl relative overflow-hidden">
       
       {/* ЭКРАН ЗАГРУЗКИ / ОШИБКИ */}
@@ -184,21 +143,6 @@ const BidsTerminal: React.FC<BidsTerminalProps> = ({ onclose, onShowTryFree }) =
               />
             </div>
           </div>
-
-          {bidTrustBlocked && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 space-y-1.5">
-              <p className="text-[10px] text-amber-300 text-center font-bold uppercase tracking-wider">
-                {t('insufficientTrustDeposit')}
-              </p>
-              <button
-                type="button"
-                onClick={() => setTrustDepositInfoOpen(true)}
-                className="w-full text-[10px] font-bold uppercase tracking-wider text-cyan-300 underline underline-offset-2 hover:text-cyan-200"
-              >
-                {t('trustDepositLearnMore')}
-              </button>
-            </div>
-          )}
 
           <div className="w-full mt-4 animated-border rounded-2xl">
             <button

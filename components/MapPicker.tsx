@@ -7,15 +7,9 @@ import { useTranslation } from 'react-i18next';
 import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
 import { Recycle, Navigation, Camera, X, Clock, User } from 'lucide-react';
-import TrustDepositInfoModal from './TrustDepositInfoModal';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
-import {
-  workerCanSecureMissionDeposit,
-  isSecurityDepositFailure,
-  checkHomeMissionWorkerVerification,
-} from '../src/lib/trustDeposit';
+import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import CreateMission from './CreateMission';
-import type { PhotoVerificationState } from './CreateMission';
 import {
   validateMissionDescription,
   filterMissionDescription,
@@ -1328,11 +1322,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [orderDescription, setOrderDescription] = useState('');
   const [orderPhotos, setOrderPhotos] = useState<File[]>([]);
   const [descriptionPolicyError, setDescriptionPolicyError] = useState<string | null>(null);
-  const [photoVerification, setPhotoVerification] = useState<PhotoVerificationState>({
-    verifying: false,
-    allApproved: true,
-    hasRejected: false,
-  });
   const [uploadingProof, setUploadingProof] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -1732,12 +1721,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [hallOfFameCleanerName, setHallOfFameCleanerName] = useState<string | null>(null);
   const [hallOfFameHeroes, setHallOfFameHeroes] = useState<string[]>([]);
   const [isAccepting, setIsAccepting] = useState(false);
-  /** Worker wallet + frozen (tokens) for security deposit checks on the selected mission. */
-  const [workerTrustSnapshot, setWorkerTrustSnapshot] = useState<{
-    wallet: number;
-    frozen: number;
-    isVerified: boolean;
-  } | null>(null);
   const [showBidInput, setShowBidInput] = useState(false);
   const [missionBidAmount, setMissionBidAmount] = useState<string>('');
   const [showCrowdfundConfirm, setShowCrowdfundConfirm] = useState(false);
@@ -1747,7 +1730,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [showDonate, setShowDonate] = useState(false);
   const [donateAmount, setDonateAmount] = useState<string>('');
   const [donating, setDonating] = useState(false);
-  const [trustDepositInfoOpen, setTrustDepositInfoOpen] = useState(false);
 
   /** Keep WebGL map markers visually below modal stack (z-[9999]); dim when any overlay is open. */
   const mapMarkerLayerSuppressed = useMemo(
@@ -1757,8 +1739,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           selectedMission ||
           showCrowdfundConfirm ||
           hallOfFameMission ||
-          taskTypeSelected ||
-          trustDepositInfoOpen
+          taskTypeSelected
       ),
     [
       bidJob,
@@ -1766,7 +1747,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
       showCrowdfundConfirm,
       hallOfFameMission,
       taskTypeSelected,
-      trustDepositInfoOpen,
     ]
   );
 
@@ -1810,37 +1790,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [missionTxError, setMissionTxError] = useState<string | null>(null);
   const [gpsDistanceMeters, setGpsDistanceMeters] = useState<number | null>(null);
   const [gpsDistanceError, setGpsDistanceError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!selectedMission) {
-      setWorkerTrustSnapshot(null);
-      return;
-    }
-    (async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.user?.id) {
-        if (!cancelled) setWorkerTrustSnapshot(null);
-        return;
-      }
-      const { data: p } = await supabase
-        .from('profiles')
-        .select('wallet_balance, frozen_balance, is_verified')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      if (!cancelled)
-        setWorkerTrustSnapshot({
-          wallet: Number(p?.wallet_balance ?? 0),
-          frozen: Number(p?.frozen_balance ?? 0),
-          isVerified: !!p?.is_verified,
-        });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedMission?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1996,7 +1945,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setMissionBidAmount(String(Math.floor(Number(job.amount_target ?? 0))));
   }, [clearMissionPinHover]);
 
-  /** Bbox hit-test on mission-pins-core (pad in screen px). */
+  /**
+   * Bbox hit-test on mission-pins-core (pad in screen px).
+   * Primary path: queryRenderedFeatures on the pins layer only (buildings/terrain ignored).
+   * Fallback path: at high zoom with 3D terrain + fill-extrusions, Mapbox depth-culls circle
+   * features and queryRenderedFeatures returns nothing even though the pin is visually there.
+   * In that case we project every eligible mission to screen space and pick the nearest pin
+   * within the pad — occlusion-proof.
+   */
   const findMissionPinAtPoint = useCallback(
     (point: { x: number; y: number } | undefined, pad = 15): JobOnMap | null => {
       const map = mapRef.current?.getMap();
@@ -2007,17 +1963,44 @@ const MapPicker: React.FC<MapPickerProps> = ({
         [point.x + pad, point.y + pad],
       ];
 
-      const hits = map.queryRenderedFeatures(bbox, {
-        layers: ['mission-pins-core'],
-      });
+      try {
+        const hits = map.queryRenderedFeatures(bbox, {
+          layers: ['mission-pins-core'],
+        });
+        const validHit = hits.find(
+          (hit) => hit.properties?.mission_id != null && hit.properties.mission_id !== ''
+        );
+        if (validHit?.properties?.mission_id) {
+          const missionId = String(validHit.properties.mission_id);
+          const job = (jobsRef.current || []).find((j) => String(j.id) === missionId);
+          if (job) return job;
+        }
+      } catch {
+        /* layer may not be registered yet — fall through to projection check */
+      }
 
-      const validHit = hits.find(
-        (hit) => hit.properties?.mission_id != null && hit.properties.mission_id !== ''
-      );
-      if (!validHit?.properties?.mission_id) return null;
-
-      const missionId = String(validHit.properties.mission_id);
-      return (jobsRef.current || []).find((j) => String(j.id) === missionId) ?? null;
+      // Occlusion-proof fallback: screen-space distance to each eligible pin.
+      let best: JobOnMap | null = null;
+      let bestDist = Infinity;
+      for (const j of jobsRef.current || []) {
+        if (!missionEligibleForMapPin(j)) continue;
+        if (!Number.isFinite(j.location_lat) || !Number.isFinite(j.location_lng)) continue;
+        let projected: { x: number; y: number };
+        try {
+          projected = map.project([j.location_lng, j.location_lat]);
+        } catch {
+          continue;
+        }
+        if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y)) continue;
+        const dx = projected.x - point.x;
+        const dy = projected.y - point.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist <= pad && dist < bestDist) {
+          best = j;
+          bestDist = dist;
+        }
+      }
+      return best;
     },
     []
   );
@@ -2109,10 +2092,30 @@ const MapPicker: React.FC<MapPickerProps> = ({
       map.on('mouseleave', 'mission-pins-core', onLayerLeave);
     };
 
+    // Pins must render above 3d-buildings/labels or fill-extrusions hide them at zoom 13+.
+    const keepPinLayersOnTop = () => {
+      try {
+        const layers = map.getStyle()?.layers;
+        if (!layers || layers.length === 0) return;
+        const order = ['mission-pins-glow', 'mission-pins-core'];
+        const topIds = layers.slice(-order.length).map((l: { id: string }) => l.id);
+        if (order.every((id, i) => topIds[i] === id)) return;
+        for (const id of order) {
+          if (map.getLayer(id)) map.moveLayer(id);
+        }
+      } catch {
+        /* style may be transitioning */
+      }
+    };
+
     map.on('click', onCanvasClick);
     map.on('mousemove', onCanvasMove);
     bindLayerHandlers();
-    const onIdle = () => bindLayerHandlers();
+    keepPinLayersOnTop();
+    const onIdle = () => {
+      bindLayerHandlers();
+      keepPinLayersOnTop();
+    };
     map.on('idle', onIdle);
 
     return () => {
@@ -2379,9 +2382,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
+      // SaaS model: no security deposit — access is subscription/token gated only.
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('wallet_balance, frozen_balance, phone_number, is_verified')
+        .select('phone_number, is_verified')
         .eq('id', user.id)
         .maybeSingle();
       if (profileError) {
@@ -2393,22 +2397,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         );
         if (!homeOk.ok) {
           toast.error(t('verificationPromptOnlyVerified'));
-          return;
-        }
-        const wb = Number(profile?.wallet_balance ?? 0);
-        const fr = Number(profile?.frozen_balance ?? 0);
-        const target = Number(selectedMission.amount_target ?? amtEgp);
-        const sec = workerCanSecureMissionDeposit(wb, fr, selectedMission.category, target);
-        if (isSecurityDepositFailure(sec)) {
-          if (sec.reason === 'insufficient_funds' && sec.shortfallEgp != null && sec.shortfallEgp > 0) {
-            toast.error(t('needDepositEgp', { amount: formatEgp(sec.shortfallEgp) }));
-          } else {
-            toast.error(
-              sec.reason === 'frozen_exceeds_wallet'
-                ? t('walletFrozenInvariantError')
-                : t('insufficientSecurityDepositFunds')
-            );
-          }
           return;
         }
 
@@ -2481,9 +2469,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
       const userId = session.user.id;
 
+      // SaaS model: no security deposit — access is subscription/token gated only.
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('wallet_balance, frozen_balance, phone_number, is_verified')
+        .select('phone_number, is_verified')
         .eq('id', userId)
         .maybeSingle();
       if (profileError) {
@@ -2492,22 +2481,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const homeOk = checkHomeMissionWorkerVerification(bidJob.category, profile?.is_verified);
         if (!homeOk.ok) {
           setBidError(t('verificationPromptOnlyVerified'));
-          return;
-        }
-        const wb = Number(profile?.wallet_balance ?? 0);
-        const fr = Number(profile?.frozen_balance ?? 0);
-        const target = Number(bidJob.amount_target ?? bidEgp);
-        const sec = workerCanSecureMissionDeposit(wb, fr, bidJob.category, target);
-        if (isSecurityDepositFailure(sec)) {
-          if (sec.reason === 'insufficient_funds' && sec.shortfallEgp != null && sec.shortfallEgp > 0) {
-            setBidError(t('needDepositEgp', { amount: formatEgp(sec.shortfallEgp) }));
-          } else {
-            setBidError(
-              sec.reason === 'frozen_exceeds_wallet'
-                ? t('walletFrozenInvariantError')
-                : t('insufficientSecurityDepositFunds')
-            );
-          }
           return;
         }
 
@@ -2570,15 +2543,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
     const { filteredText } = filterMissionDescription(rawDesc);
     let descriptionToSave = filteredText.trim() || rawDesc;
-    const tags = photoVerification.aiTags;
-    if (Array.isArray(tags) && tags.length > 0) {
-      const tagStr = tags.filter(Boolean).join(', ');
-      if (tagStr) descriptionToSave = descriptionToSave ? `${descriptionToSave} [${tagStr}]` : tagStr;
-    }
-    if (orderPhotos.length > 0 && photoVerification.verifying) {
-      setOrderError(t('waitForAiVerification'));
-      return;
-    }
     if (!descriptionToSave) {
       descriptionToSave = t('leadPinDefaultDescription');
     }
@@ -2718,7 +2682,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setOrderDescription('');
       setOrderPhotos([]);
       setDescriptionPolicyError(null);
-      setPhotoVerification({ verifying: false, allApproved: true, hasRejected: false });
       setSelectedLocation(null);
       await fetchMissions();
       setTaskType(null);
@@ -2734,29 +2697,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setOrderSubmitting(false);
     }
   };
-
-  const { missionTrustBlocked, missionTrustShortfallEgp } = useMemo(() => {
-    if (!showBidInput || !selectedMission || workerTrustSnapshot === null) {
-      return { missionTrustBlocked: false, missionTrustShortfallEgp: 0 };
-    }
-    const homeOk = checkHomeMissionWorkerVerification(
-      selectedMission.category,
-      workerTrustSnapshot.isVerified
-    );
-    if (!homeOk.ok) return { missionTrustBlocked: true, missionTrustShortfallEgp: 0 };
-    const sec = workerCanSecureMissionDeposit(
-      workerTrustSnapshot.wallet,
-      workerTrustSnapshot.frozen,
-      selectedMission.category,
-      Number(selectedMission.amount_target ?? 0)
-    );
-    if (sec.ok) return { missionTrustBlocked: false, missionTrustShortfallEgp: 0 };
-    const shortfall = isSecurityDepositFailure(sec) ? (sec.shortfallEgp ?? 0) : 0;
-    return {
-      missionTrustBlocked: true,
-      missionTrustShortfallEgp: shortfall,
-    };
-  }, [showBidInput, selectedMission, workerTrustSnapshot]);
 
   // SaaS lead-gen: no crowdfunding heatmap/towers — leads are displayed as pins only.
 
@@ -2991,7 +2931,22 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 maxzoom: 14,
               });
             }
-            map.setTerrain({ source: 'mapbox-dem', exaggeration: 2.0 });
+            // Taper exaggeration when zoomed in: at 2.0 the inflated terrain depth-culls
+            // mission pins at high zoom (queryRenderedFeatures returns nothing on hover).
+            map.setTerrain({
+              source: 'mapbox-dem',
+              exaggeration: [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                10,
+                2.0,
+                14,
+                1.3,
+                16,
+                1.0,
+              ],
+            });
             // Add hillshade for extra mountain texture as you zoom in.
             if (!map.getLayer('terrain-hillshade')) {
               map.addLayer(
@@ -3566,7 +3521,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 orderPhotos={orderPhotos}
                 setOrderPhotos={setOrderPhotos}
                 onDescriptionPolicyError={setDescriptionPolicyError}
-                onPhotoVerificationChange={setPhotoVerification}
                 onTextWarning={(w) => {
                   setTextWarning(w ?? null);
                   if (w) toast.notice(w);
@@ -3592,9 +3546,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   orderSubmitting ||
                   uploadingProof ||
                   !selectedLocation ||
-                  !!descriptionPolicyError ||
-                  (orderPhotos.length > 0 &&
-                    photoVerification.verifying)
+                  !!descriptionPolicyError
                     ? 'opacity-60'
                     : ''
                 }`}
@@ -3605,9 +3557,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     orderSubmitting ||
                     uploadingProof ||
                     !selectedLocation ||
-                    !!descriptionPolicyError ||
-                    (orderPhotos.length > 0 &&
-                      photoVerification.verifying)
+                    !!descriptionPolicyError
                   }
                   className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] transition-all text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] disabled:cursor-not-allowed active:scale-95"
                 >
@@ -4215,28 +4165,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
                             onRequestAuth?.();
                             return;
                           }
-                          const { data: p } = await supabase
-                            .from('profiles')
-                            .select('wallet_balance, frozen_balance')
-                            .eq('id', session.user.id)
-                            .maybeSingle();
-                          const wb = profileWalletBalanceEgp(p?.wallet_balance);
-                          const fr = profileWalletBalanceEgp(p?.frozen_balance);
-                          const target = Number(selectedMission.amount_target ?? coFundEgp);
-                          const sec = workerCanSecureMissionDeposit(
-                            wb,
-                            fr,
-                            selectedMission.category,
-                            target
-                          );
-                          if (isSecurityDepositFailure(sec)) {
-                            toast.error(
-                              sec.reason === 'frozen_exceeds_wallet'
-                                ? t('walletFrozenInvariantError')
-                                : t('insufficientSecurityDepositFunds')
-                            );
-                            return;
-                          }
                           setIsAccepting(true);
                           await handleCoFundMission(selectedMission.id, floorEgp(coFundEgp));
                           toast.success(t('mapToastCoFundSuccess'));
@@ -4272,28 +4200,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
                           } = await supabase.auth.getSession();
                           if (!session?.user?.id) {
                             onRequestAuth?.();
-                            return;
-                          }
-                          const { data: p } = await supabase
-                            .from('profiles')
-                            .select('wallet_balance, frozen_balance')
-                            .eq('id', session.user.id)
-                            .maybeSingle();
-                          const wb = profileWalletBalanceEgp(p?.wallet_balance);
-                          const fr = profileWalletBalanceEgp(p?.frozen_balance);
-                          const target = Number(selectedMission.amount_target ?? crowdfundBidAmount);
-                          const sec = workerCanSecureMissionDeposit(
-                            wb,
-                            fr,
-                            selectedMission.category,
-                            target
-                          );
-                          if (isSecurityDepositFailure(sec)) {
-                            toast.error(
-                              sec.reason === 'frozen_exceeds_wallet'
-                                ? t('walletFrozenInvariantError')
-                                : t('insufficientSecurityDepositFunds')
-                            );
                             return;
                           }
                           setIsAccepting(true);
@@ -4391,8 +4297,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
           </div>
         </div>
       )}
-
-      <TrustDepositInfoModal open={trustDepositInfoOpen} onClose={() => setTrustDepositInfoOpen(false)} />
 
       {mapToast && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[10000] pointer-events-none max-w-[min(92vw,24rem)]">
