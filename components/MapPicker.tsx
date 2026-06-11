@@ -3442,7 +3442,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }}
           >
             <form ref={orderFormRef} onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-              <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-2 pb-3 space-y-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain pl-2 pr-3 pb-3 space-y-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
               <div className="flex items-center justify-between mb-2">
                 <button
                   type="button"
@@ -3508,6 +3508,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 </div>
               </div>
 
+              {textWarning && (
+                <div
+                  className="mt-3 mb-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3 text-sm leading-snug text-yellow-200"
+                  role="alert"
+                >
+                  {textWarning}
+                </div>
+              )}
+
               <CreateMission
                 taskType={taskType}
                 orderDescription={orderDescription}
@@ -3516,10 +3525,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 setOrderPhotos={setOrderPhotos}
                 onModerationBusy={setPhotoModerationBusy}
                 onDescriptionPolicyError={setDescriptionPolicyError}
-                onTextWarning={(w) => {
-                  setTextWarning(w ?? null);
-                  if (w) toast.notice(w);
-                }}
+                onTextWarning={(w) => setTextWarning(w ?? null)}
                 hasTextWarning={!!textWarning}
                 showDescription={false}
               />
@@ -3533,34 +3539,22 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
               )}
 
-              <div className="sticky bottom-0 z-10 -mx-2 mt-2 px-2 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-white/10 bg-slate-950/95 backdrop-blur-md">
-                <div
-                  className={`w-full rounded-full animated-border-home ${
+              <div className="sticky bottom-0 z-10 -mx-2 mt-4 px-4 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] border-t border-white/10 bg-slate-950/95 backdrop-blur-md">
+                <button
+                  type="submit"
+                  disabled={
                     orderSubmitting ||
                     uploadingProof ||
                     photoModerationBusy ||
                     !selectedLocation ||
                     !!descriptionPolicyError
-                      ? 'opacity-60'
-                      : ''
-                  }`}
+                  }
+                  className="w-full touch-manipulation rounded-xl border border-orange-400/40 bg-orange-500 px-6 py-3.5 text-sm font-bold uppercase tracking-[0.18em] text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-50 active:opacity-90"
                 >
-                  <button
-                    type="submit"
-                    disabled={
-                      orderSubmitting ||
-                      uploadingProof ||
-                      photoModerationBusy ||
-                      !selectedLocation ||
-                      !!descriptionPolicyError
-                    }
-                    className="animated-border-inner w-full rounded-full px-6 py-2 text-sm font-black uppercase tracking-[0.24em] transition-all text-orange-400 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] disabled:cursor-not-allowed active:scale-95"
-                  >
-                    {uploadingProof || orderSubmitting
-                      ? t('processing')
-                      : t('payAndPlacePin')}
-                  </button>
-                </div>
+                  {uploadingProof || orderSubmitting
+                    ? t('processing')
+                    : t('payAndPlacePin')}
+                </button>
               </div>
               </div>
             </form>

@@ -277,28 +277,8 @@ const CreateMission: React.FC<Props> = ({
             />
           </label>
 
-          {moderationToast && (
-            <p className="mt-2 text-[11px] font-medium text-amber-300 leading-snug" role="alert">
-              {moderationToast}
-            </p>
-          )}
-
-          {approvedCount > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {approvedCount <= 4 ? (
-                <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-500/10 border border-amber-400/50 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
-                  {t('lowProofWork')}
-                </span>
-              ) : (
-                <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-400/50 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-                  {t('highProofWork')}
-                </span>
-              )}
-            </div>
-          )}
-
           {photoSlots.length > 0 && (
-            <ul className="mt-3 grid max-h-32 grid-cols-4 gap-2 overflow-y-auto overscroll-y-contain pr-1 sm:grid-cols-5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
+            <ul className="mt-3 grid max-h-32 grid-cols-4 gap-2 overflow-y-auto overscroll-y-contain pr-2 sm:grid-cols-5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
               {photoSlots.map((slot) => (
                 <li
                   key={slot.key}
@@ -339,6 +319,29 @@ const CreateMission: React.FC<Props> = ({
                 </li>
               ))}
             </ul>
+          )}
+
+          {moderationToast && (
+            <div
+              className="mt-3 mb-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3 text-sm leading-snug text-yellow-200"
+              role="alert"
+            >
+              {moderationToast}
+            </div>
+          )}
+
+          {approvedCount > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {approvedCount <= 4 ? (
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-500/10 border border-amber-400/50 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
+                  {t('lowProofWork')}
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-400/50 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+                  {t('highProofWork')}
+                </span>
+              )}
+            </div>
           )}
 
           {photoSlots.some((s) => s.status === 'checking') && (
