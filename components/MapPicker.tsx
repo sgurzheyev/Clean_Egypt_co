@@ -1346,27 +1346,34 @@ const MapPicker: React.FC<MapPickerProps> = ({
     []
   );
 
-  const selectTaskType = useCallback((type: TaskType) => {
-    setDashboardExpanded(false);
-    setShowLiveMarketFeed(false);
-    setShowCreatorStatusPanel(false);
-    setProofUploadMission(null);
-    setTaskType(type);
-    setTaskTypeSelected(type);
+  const resetMissionDraft = useCallback(() => {
     setTokenBid(1);
+    setOrderDescription('');
+    setOrderPhotos([]);
+    setSelectedLocation(null);
+    setPhotoModerationBusy(false);
+    setTextWarning(null);
     setOrderError(null);
     setOrderSuccess(null);
     setDescriptionPolicyError(null);
   }, []);
 
+  const selectTaskType = useCallback((type: TaskType) => {
+    setDashboardExpanded(false);
+    setShowLiveMarketFeed(false);
+    setShowCreatorStatusPanel(false);
+    setProofUploadMission(null);
+    resetMissionDraft();
+    setTaskType(type);
+    setTaskTypeSelected(type);
+  }, [resetMissionDraft]);
+
   const closeFormOverlay = useCallback(() => {
     if (!orderSubmitting) {
+      resetMissionDraft();
       setTaskTypeSelected(null);
-      setOrderError(null);
-      setOrderSuccess(null);
-      setDescriptionPolicyError(null);
     }
-  }, [orderSubmitting]);
+  }, [orderSubmitting, resetMissionDraft]);
 
   // Bidding modal state
   const [bidJob, setBidJob] = useState<JobOnMap | null>(null);
@@ -1392,14 +1399,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
     token_balance?: number | null;
     subscription_expires_at?: string | null;
   } | null>(null);
-  const [executorSubscribed, setExecutorSubscribed] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('leadgen_subscribed') === '1';
-    } catch {
-      return false;
-    }
-  });
   const [leadPhoneVisible, setLeadPhoneVisible] = useState(false);
+  const [unlockedLeadPhone, setUnlockedLeadPhone] = useState<string | null>(null);
+  const [unlockLeadLoading, setUnlockLeadLoading] = useState(false);
   const [showTokenPackModal, setShowTokenPackModal] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
@@ -1461,21 +1463,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     [serviceLabelFromId, t]
   );
 
-  const handleUnlockLead = useCallback(() => {
-    if (!currentUserId) {
-      onRequestAuth?.();
-      return;
-    }
-    const expRaw = viewerProfile?.subscription_expires_at;
-    const exp = expRaw ? new Date(expRaw).getTime() : NaN;
-    const active = Number.isFinite(exp) && Date.now() < exp;
-    if (!active) {
-      setShowSubscriptionModal(true);
-      return;
-    }
-    setLeadPhoneVisible(true);
-  }, [currentUserId, onRequestAuth, viewerProfile?.subscription_expires_at]);
-
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setCurrentUserId(session?.user?.id ?? null);
@@ -1520,18 +1507,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     };
   }, [currentUserId]);
 
-  useEffect(() => {
-    const onStorage = () => {
-      try {
-        setExecutorSubscribed(localStorage.getItem('leadgen_subscribed') === '1');
-      } catch {
-        // ignore
-      }
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
-
   // Fetch pending and in_progress missions from Supabase
   const fetchMissions = useCallback(async () => {
     const { data, error } = await supabase
@@ -1558,7 +1533,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         completion_distance_meters,
         creator:profiles!creator_id (
           avatar_url,
-          phone_number,
           is_verified
         )
       `)
@@ -1660,6 +1634,56 @@ const MapPicker: React.FC<MapPickerProps> = ({
   // Stripe is the only payment gateway now. Mission creation is token-backed (no redirect flow).
 
   const [selectedMission, setSelectedMission] = useState<JobOnMap | null>(null);
+
+  const handleUnlockLead = useCallback(async (opts?: { skipSubscriptionCheck?: boolean }) => {
+    if (!currentUserId) {
+      onRequestAuth?.();
+      return;
+    }
+    if (!opts?.skipSubscriptionCheck) {
+      const expRaw = viewerProfile?.subscription_expires_at;
+      const exp = expRaw ? new Date(expRaw).getTime() : NaN;
+      const active = Number.isFinite(exp) && Date.now() < exp;
+      if (!active) {
+        setShowSubscriptionModal(true);
+        return;
+      }
+    }
+    const creatorId = selectedMission?.creator_id;
+    if (!creatorId) {
+      toast.error(t('contactUnavailable'));
+      return;
+    }
+    setUnlockLeadLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('phone_number')
+        .eq('id', creatorId)
+        .maybeSingle();
+      if (error) throw error;
+      const phone = String((data as { phone_number?: string | null })?.phone_number ?? '').trim();
+      if (!phone) {
+        toast.error(t('contactUnavailable'));
+        return;
+      }
+      setUnlockedLeadPhone(phone);
+      setLeadPhoneVisible(true);
+    } catch (err) {
+      console.error('handleUnlockLead', err);
+      toast.error(t('unexpectedErrorTryAgain'));
+    } finally {
+      setUnlockLeadLoading(false);
+    }
+  }, [
+    currentUserId,
+    onRequestAuth,
+    selectedMission?.creator_id,
+    t,
+    toast,
+    viewerProfile?.subscription_expires_at,
+  ]);
+
   const [mobileTapPulse, setMobileTapPulse] = useState<{ lng: number; lat: number } | null>(null);
   const [sheetDragY, setSheetDragY] = useState(0);
   const sheetTouchStartYRef = React.useRef<number | null>(null);
@@ -2101,6 +2125,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setShowDonate(false);
     setDonateAmount('');
     setLeadPhoneVisible(false);
+    setUnlockedLeadPhone(null);
     setSelectedRating(0);
   }, []);
 
@@ -2643,11 +2668,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       );
 
       setOrderSuccess(t('pinPlaced'));
-      setTokenBid(1);
-      setOrderDescription('');
-      setOrderPhotos([]);
-      setDescriptionPolicyError(null);
-      setSelectedLocation(null);
+      resetMissionDraft();
       await fetchMissions();
       setTaskType(null);
       setTaskTypeSelected(null);
@@ -3232,14 +3253,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
             .select('subscription_expires_at')
             .eq('id', currentUserId)
             .maybeSingle();
+          const exp = (data as any)?.subscription_expires_at ?? null;
           setViewerProfile((p) =>
             !p
               ? p
               : {
                   ...p,
-                  subscription_expires_at: (data as any)?.subscription_expires_at ?? p.subscription_expires_at,
+                  subscription_expires_at: exp ?? p.subscription_expires_at,
                 }
           );
+          if (exp && Date.parse(exp) > Date.now() && selectedMission?.creator_id) {
+            void handleUnlockLead({ skipSubscriptionCheck: true });
+          }
         }}
       />
 
@@ -4040,23 +4065,24 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
                 {isExecutorViewer ? (
                   <div className="space-y-2">
-                    <div className="w-full rounded-full animated-border-home">
+                    {!leadPhoneVisible && (
                       <button
                         type="button"
-                        onClick={handleUnlockLead}
-                        className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.22em] text-orange-200 border border-orange-500/60 bg-orange-500/15 hover:bg-orange-500/25 hover:shadow-[0_0_20px_rgba(249,115,22,0.35)] transition-all active:scale-95"
+                        onClick={() => void handleUnlockLead()}
+                        disabled={unlockLeadLoading}
+                        className="w-full touch-manipulation rounded-xl border border-orange-400/40 bg-orange-500 px-6 py-3 text-sm font-bold uppercase tracking-[0.18em] text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-50 active:opacity-90"
                       >
-                        {t('unlockLead')}
+                        {unlockLeadLoading ? t('processing') : t('unlockLead')}
                       </button>
-                    </div>
+                    )}
 
-                    {leadPhoneVisible && (
+                    {leadPhoneVisible && unlockedLeadPhone && (
                       <div className={`${PROFILE_GLASS_PANEL} px-4 py-3`}>
                         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
                           {t('contactCustomer')}
                         </p>
                         <p className="mt-1 text-sm font-black text-emerald-300 break-all">
-                          {selectedMission.creator?.phone_number || t('contactUnavailable')}
+                          {unlockedLeadPhone}
                         </p>
                       </div>
                     )}

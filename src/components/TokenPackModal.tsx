@@ -45,11 +45,13 @@ function SaasPaymentForm({
   userId,
   onClose,
   onSuccess,
+  onSubmittingChange,
   initialMode = 'subscription',
 }: {
   userId: string | null;
   onClose: () => void;
   onSuccess: () => void;
+  onSubmittingChange?: (busy: boolean) => void;
   initialMode?: CheckoutMode;
 }) {
   const { t } = useTranslation();
@@ -80,6 +82,7 @@ function SaasPaymentForm({
     e.preventDefault();
     if (!stripe || !elements || !userId) return;
     setSubmitting(true);
+    onSubmittingChange?.(true);
     try {
       let clientSecret: string | undefined;
 
@@ -137,7 +140,13 @@ function SaasPaymentForm({
       alert(err?.message || t('unexpectedErrorTryAgain'));
     } finally {
       setSubmitting(false);
+      onSubmittingChange?.(false);
     }
+  };
+
+  const requestClose = () => {
+    if (submitting) return;
+    onClose();
   };
 
   return (
@@ -264,8 +273,9 @@ function SaasPaymentForm({
       <div className="flex gap-2 pt-2">
         <button
           type="button"
-          onClick={onClose}
-          className="flex-1 py-3 rounded-full text-sm font-bold uppercase tracking-[0.2em] border border-white/15 text-slate-300 hover:bg-white/5 transition-all"
+          onClick={requestClose}
+          disabled={submitting}
+          className="flex-1 py-3 rounded-full text-sm font-bold uppercase tracking-[0.2em] border border-white/15 text-slate-300 hover:bg-white/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {t('cancel')}
         </button>
@@ -299,11 +309,18 @@ export default function TokenPackModal({
   initialMode?: CheckoutMode;
 }) {
   const { t } = useTranslation();
+  const [paymentBusy, setPaymentBusy] = useState(false);
   if (!open) return null;
+
+  const requestClose = () => {
+    if (paymentBusy) return;
+    onClose();
+  };
+
   return (
     <div
       className="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
-      onClick={onClose}
+      onClick={requestClose}
     >
       <div
         className="w-full max-w-md rounded-3xl bg-slate-950/80 backdrop-blur-xl border border-lime-500/20 shadow-2xl p-6"
@@ -316,8 +333,9 @@ export default function TokenPackModal({
             </h3>
             <button
               type="button"
-              onClick={onClose}
-              className="text-slate-400 hover:text-white text-lg font-bold"
+              onClick={requestClose}
+              disabled={paymentBusy}
+              className="text-slate-400 hover:text-white text-lg font-bold disabled:opacity-40 disabled:cursor-not-allowed"
               aria-label={t('close')}
             >
               ✕
@@ -327,8 +345,9 @@ export default function TokenPackModal({
           <Elements stripe={stripePromise}>
             <SaasPaymentForm
               userId={userId}
-              onClose={onClose}
+              onClose={requestClose}
               onSuccess={onSuccess}
+              onSubmittingChange={setPaymentBusy}
               initialMode={initialMode}
             />
           </Elements>

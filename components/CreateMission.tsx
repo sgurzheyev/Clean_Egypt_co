@@ -83,6 +83,12 @@ const CreateMission: React.FC<Props> = ({
     onModerationBusy?.(busy);
   }, [photoSlots, onModerationBusy]);
 
+  useEffect(() => {
+    return () => {
+      onModerationBusy?.(false);
+    };
+  }, [onModerationBusy]);
+
   /**
    * Parent clears `orderPhotos` after submit — reset local thumbnails too.
    * Only treat it as a reset when the count actually dropped to zero (prev > 0):

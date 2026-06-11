@@ -17,7 +17,6 @@ import {
   HOME_MAX_PRICE,
   CITY_MIN_PRICE,
   CITY_MAX_PRICE,
-  SCOUT_STAKE_FEE_EGP,
 } from '../constants';
 import {
   EGYPT_MARKETPLACE_CITIES,
@@ -27,9 +26,7 @@ import {
   isValidMarketCityId,
 } from '../src/lib/egyptMarketplace';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
-import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
-import { computeWithdrawalExitBreakdown } from '../src/lib/withdrawalTax';
-import { floorEgp, parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '../src/lib/integerEgpInput';
+import { formatEgp } from '../src/lib/formatMoney';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 
 interface ProfileProps {
@@ -107,14 +104,6 @@ interface ProfileRow {
 
 const SUPPORT_TELEGRAM = 'https://t.me/CleanEgypt_Admin_Bot';
 
-/** Legacy helper (token-only UI). */
-function maxWithdrawableEgp(profile: ProfileRow | null): number {
-  if (!profile) return 0;
-  const w = Number(profile.wallet_balance ?? 0);
-  const f = Number(profile.frozen_balance ?? 0);
-  return Math.max(0, Math.round((w - f) * 100) / 100);
-}
-
 const shortId = (id: unknown): string => {
   if (id == null) return 'N/A';
   try {
@@ -123,11 +112,6 @@ const shortId = (id: unknown): string => {
     return 'N/A';
   }
 };
-
-/** Legacy helper (token-only UI). */
-function workerPayoutFromFundingEgp(f: number | null | undefined): number {
-  return Math.floor(Math.max(0, Number(f ?? 0)) * 0.9);
-}
 
 function ProfileAccordion({
   title,
@@ -187,7 +171,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [showAdmin, setShowAdmin] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [showRefunds, setShowRefunds] = useState(false);
-  const [balance, setBalance] = useState(0);
   const [myHomeJobs, setMyHomeJobs] = useState<Job[]>([]);
   const [myCityJobs, setMyCityJobs] = useState<Job[]>([]);
   const [myActiveJobs, setMyActiveJobs] = useState<Job[]>([]);
@@ -304,7 +287,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     });
   }, [openMarketplaceJobs, marketCityId]);
 
-  // Real-time wallet balance subscription
+  // Real-time token balance subscription
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
@@ -316,7 +299,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       if (!userId) return;
 
       channel = supabase
-        .channel(`profiles-balance-${userId}`)
+        .channel(`profiles-tokens-${userId}`)
         .on(
           'postgres_changes',
           {
@@ -327,8 +310,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           },
           (payload: any) => {
             const newRow = payload.new as ProfileRow | undefined;
-            if (newRow && typeof newRow.wallet_balance === 'number') {
-              setBalance(newRow.wallet_balance);
+            if (newRow && Number.isFinite(Number(newRow.token_balance))) {
+              setUserProfile((prev) =>
+                !prev
+                  ? prev
+                  : { ...prev, token_balance: Number(newRow.token_balance) }
+              );
             }
           }
         )
@@ -566,7 +553,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       const { data: profile } = await supabase
         .from('profiles')
         .select(
-          'id, role, wallet_balance, frozen_balance, token_balance, subscription_expires_at, contact_email, is_verified, verification_status, full_name, phone_number, telegram_username, rating, avatar_url'
+          'id, role, token_balance, subscription_expires_at, contact_email, is_verified, verification_status, full_name, phone_number, telegram_username, rating, avatar_url'
         )
         .eq('id', userId)
         .maybeSingle();
@@ -574,7 +561,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       const profileRow = profile as ProfileRow | null;
       setUserProfile(profileRow ?? null);
       if (profileRow) {
-        setBalance(profileRow.wallet_balance ?? 0);
         setPhoneNumber(profileRow.phone_number ?? '');
         setTelegramUsername(profileRow.telegram_username ?? '');
         setContactEmail(profileRow.contact_email ?? session.user.email ?? '');
@@ -712,23 +698,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     } catch (e) {
       console.error('cancelPendingPaymentMission:', e);
       toast.error(t('cancelMissionFailed'));
-    } finally {
-      setPhantomPaymentActionId(null);
-    }
-  };
-
-  const payMissionFromWallet = async (job: Job) => {
-    try {
-      setPhantomPaymentActionId(job.id);
-      const { error } = await supabase.rpc('pay_mission_from_wallet', {
-        p_mission_id: job.id,
-      });
-      if (error) throw error;
-      toast.success(t('paymentWalletSuccess'));
-      await fetchProfileData();
-    } catch (e) {
-      console.error('payMissionFromWallet:', e);
-      toast.error(t('retryPaymentFailed'));
     } finally {
       setPhantomPaymentActionId(null);
     }
@@ -1707,8 +1676,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 const isPhantomPayment = job.status === 'pending_payment';
                 if (isPhantomPayment) {
                   const busy = phantomPaymentActionId === job.id;
-                  const targetEgp = floorEgp(Number(job.amount_target ?? 0));
-                  const canPayFromWallet = balance >= targetEgp && targetEgp > 0;
                   return (
                     <div
                       key={job.id}
@@ -1723,42 +1690,21 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           {t('paymentPendingBadge')}
                         </div>
                       </div>
-                      <p className="text-sm text-slate-300 mb-3">
+                      <p className="text-sm text-slate-300 mb-2">
                         <span className="text-amber-400 font-bold">{formatEgp(Number(job.amount_target))}</span>
                         {job.description && (
                           <span className="ml-2 text-slate-400">— {job.description}</span>
                         )}
                       </p>
-                      <div className="flex flex-col gap-2">
-                        {canPayFromWallet && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => payMissionFromWallet(job)}
-                            className="w-full rounded-full px-4 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-black bg-gradient-to-r from-cyan-300 to-emerald-400 hover:brightness-110 border border-cyan-400/60 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(34,211,238,0.35)]"
-                          >
-                            {t('payFromWallet')}
-                          </button>
-                        )}
-                        <div className="flex flex-wrap gap-2">
-                          <div className="flex flex-col gap-1 min-w-0">
-                            {/* Stripe-only gateway: legacy retry removed */}
-                            {!canPayFromWallet && (
-                              <p className="text-[9px] text-amber-300/90 leading-snug max-w-[14rem]">
-                                {t('insufficientWalletBalance')}
-                              </p>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => cancelPendingPaymentMission(job, 'home')}
-                            className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed self-start"
-                          >
-                            {t('cancelMission')}
-                          </button>
-                        </div>
-                      </div>
+                      <p className="text-[10px] text-slate-400 mb-3 leading-snug">{t('tokenOnlyNote')}</p>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => cancelPendingPaymentMission(job, 'home')}
+                        className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {t('cancelMission')}
+                      </button>
                     </div>
                   );
                 }
@@ -1885,9 +1831,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         <p className="mt-2 text-[10px] text-emerald-200/90 text-center font-bold">
                           {t('releaseWorkerReceives', {
                             amount: formatEgp(
-                              workerPayoutFromFundingEgp(
-                                Number(job.current_funding ?? job.amount_target ?? 0),
-                              ),
+                              Number(job.current_funding ?? job.amount_target ?? 0),
                             ),
                           })}
                         </p>
@@ -2040,8 +1984,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   const isPhantomPayment = job.status === 'pending_payment';
                   if (isPhantomPayment) {
                     const busy = phantomPaymentActionId === job.id;
-                    const targetEgp = floorEgp(Number(job.amount_target ?? 0));
-                    const canPayFromWallet = balance >= targetEgp && targetEgp > 0;
                     return (
                       <div
                         key={job.id}
@@ -2059,42 +2001,21 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-400 font-bold mb-1">
                           {displayTitle}
                         </p>
-                        <p className="text-sm font-bold text-emerald-400 mb-3">
+                        <p className="text-sm font-bold text-emerald-400 mb-2">
                           {formatEgp(Number(job.amount_target))}
                         </p>
                         {job.description && (
-                          <p className="text-xs text-slate-400 mb-3">{job.description}</p>
+                          <p className="text-xs text-slate-400 mb-2">{job.description}</p>
                         )}
-                        <div className="flex flex-col gap-2">
-                          {canPayFromWallet && (
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => payMissionFromWallet(job)}
-                              className="w-full rounded-full px-4 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-black bg-gradient-to-r from-cyan-300 to-emerald-400 hover:brightness-110 border border-cyan-400/60 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(34,211,238,0.35)]"
-                            >
-                              {t('payFromWallet')}
-                            </button>
-                          )}
-                          <div className="flex flex-wrap gap-2">
-                            <div className="flex flex-col gap-1 min-w-0">
-                              {/* Stripe-only gateway: legacy retry removed */}
-                              {!canPayFromWallet && (
-                                <p className="text-[9px] text-amber-300/90 leading-snug max-w-[14rem]">
-                                  {t('insufficientWalletBalance')}
-                                </p>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => cancelPendingPaymentMission(job, 'city')}
-                              className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed self-start"
-                            >
-                              {t('cancelMission')}
-                            </button>
-                          </div>
-                        </div>
+                        <p className="text-[10px] text-slate-400 mb-3 leading-snug">{t('tokenOnlyNote')}</p>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => cancelPendingPaymentMission(job, 'city')}
+                          className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {t('cancelMission')}
+                        </button>
                       </div>
                     );
                   }
@@ -2190,9 +2111,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <p className="mt-2 text-[10px] text-emerald-200/90 text-center font-bold">
                             {t('releaseWorkerReceives', {
                               amount: formatEgp(
-                                workerPayoutFromFundingEgp(
-                                  Number(job.current_funding ?? job.amount_target ?? 0),
-                                ),
+                                Number(job.current_funding ?? job.amount_target ?? 0),
                               ),
                             })}
                           </p>
@@ -2211,9 +2130,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <p className="mt-2 text-[10px] text-emerald-200/90 text-center font-bold">
                             {t('releaseWorkerReceives', {
                               amount: formatEgp(
-                                workerPayoutFromFundingEgp(
-                                  Number(job.current_funding ?? job.amount_target ?? 0),
-                                ),
+                                Number(job.current_funding ?? job.amount_target ?? 0),
                               ),
                             })}
                           </p>
@@ -2821,9 +2738,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   <p className="text-[11px] text-emerald-200/95 text-center font-bold px-2">
                     {t('releaseWorkerReceives', {
                       amount: formatEgp(
-                        workerPayoutFromFundingEgp(
-                          Number(reviewJob.current_funding ?? reviewJob.amount_target ?? 0),
-                        ),
+                        Number(reviewJob.current_funding ?? reviewJob.amount_target ?? 0),
                       ),
                     })}
                   </p>

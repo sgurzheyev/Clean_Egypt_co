@@ -38,8 +38,12 @@ const EmailCaptureGate: React.FC<EmailCaptureGateProps> = ({ onUnlock }) => {
       return;
     }
     setIsSubmitting(true);
-    setEmailGatePassed(trimmed);
-    onUnlock();
+    try {
+      setEmailGatePassed(trimmed);
+      onUnlock();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const content = (

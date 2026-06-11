@@ -17,7 +17,7 @@ const App: React.FC = () => {
   const [flyToTarget, setFlyToTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [showAuthOverlay, setShowAuthOverlay] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentSuccessType, setPaymentSuccessType] = useState<'job' | 'deposit'>('job');
+  const [paymentSuccessType, setPaymentSuccessType] = useState<'pin' | 'tokens' | 'subscription'>('pin');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
@@ -42,8 +42,14 @@ const App: React.FC = () => {
       params.get('payment') === 'success' || params.get('success') === 'true';
 
     if (isSuccess) {
-      const returnType = sessionStorage.getItem('paymentReturnType') || 'job_creation';
-      setPaymentSuccessType(returnType === 'deposit' ? 'deposit' : 'job');
+      const returnType = sessionStorage.getItem('paymentReturnType') || 'pin';
+      setPaymentSuccessType(
+        returnType === 'tokens'
+          ? 'tokens'
+          : returnType === 'subscription'
+            ? 'subscription'
+            : 'pin',
+      );
       sessionStorage.setItem('paymentSuccessNeedsVerify', returnType);
       sessionStorage.removeItem('paymentReturnType');
       setShowPaymentModal(true);
@@ -119,9 +125,11 @@ const App: React.FC = () => {
               </div>
               <h3 className="text-xl font-bold text-white mb-2">Payment successful</h3>
               <p className="text-slate-400 text-sm mb-6">
-                {paymentSuccessType === 'deposit'
-                  ? 'Deposit paid successfully! Mission is yours.'
-                  : 'Deposit paid successfully! Job is now live on the map.'}
+                {paymentSuccessType === 'tokens'
+                  ? 'Tokens added to your balance. You can place pins on the map.'
+                  : paymentSuccessType === 'subscription'
+                    ? 'Subscription active. You can unlock client phone numbers on the map.'
+                    : 'Your pin is live on the map.'}
               </p>
               <button
                 type="button"

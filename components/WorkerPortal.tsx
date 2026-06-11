@@ -21,7 +21,7 @@ const WorkerPortal = () => {
       // 1. Грузим баланс рабочего
       const { data: wData } = await supabase
         .from('profiles')
-        .select('id, wallet_balance')
+        .select('id, token_balance, subscription_expires_at')
         .eq('telegram_id', TEST_TELEGRAM_ID)
         .maybeSingle();
       setWorker(wData);
@@ -110,9 +110,9 @@ const WorkerPortal = () => {
         
         {/* Legacy worker portal — token-only UI */}
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-700 mb-6">
-          <p className="text-teal-400 font-bold uppercase text-[10px] tracking-[2px]">Your Wallet</p>
+          <p className="text-teal-400 font-bold uppercase text-[10px] tracking-[2px]">Tokens</p>
           <p className="text-4xl font-black">
-            {worker?.wallet_balance != null ? formatEgp(Number(worker.wallet_balance)) : '—'}
+            {worker?.token_balance != null ? formatEgp(Number(worker.token_balance)) : '—'}
           </p>
         </div>
 
