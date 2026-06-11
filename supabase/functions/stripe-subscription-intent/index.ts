@@ -7,8 +7,15 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+/** Yearly SaaS subscription — keep in sync with `src/lib/tokenPricing.ts`. */
+const YEARLY_PLAN = {
+  cents: 999,
+  months: 12,
+  bonusTokens: 100,
+  tier: 'yearly_access',
+};
+
 Deno.serve(async (req) => {
-  // 1. Обработка CORS (нужна для мобильных устройств)
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -33,11 +40,18 @@ Deno.serve(async (req) => {
     const body = (await req.json()) as {
       user_id?: unknown;
       plan_usd?: unknown;
+      plan_usd_cents?: unknown;
       plan_months?: unknown;
+      bonus_tokens?: unknown;
+      plan_tier?: unknown;
     };
     const user_id = String(body.user_id ?? '');
-    const plan_usd = Math.floor(Number(body.plan_usd ?? 0));
     const plan_months = Math.floor(Number(body.plan_months ?? 0));
+    const plan_usd_cents = Math.floor(
+      Number(body.plan_usd_cents ?? 0) || Math.floor(Number(body.plan_usd ?? 0)) * 100
+    );
+    const bonus_tokens = Math.floor(Number(body.bonus_tokens ?? 0));
+    const plan_tier = String(body.plan_tier ?? '');
 
     if (!user_id) {
       return new Response(JSON.stringify({ error: 'Missing user_id' }), {
@@ -47,8 +61,11 @@ Deno.serve(async (req) => {
     }
 
     const planOk =
-      (plan_usd === 1 && plan_months === 1) ||
-      (plan_usd === 10 && plan_months === 12);
+      plan_usd_cents === YEARLY_PLAN.cents &&
+      plan_months === YEARLY_PLAN.months &&
+      bonus_tokens === YEARLY_PLAN.bonusTokens &&
+      plan_tier === YEARLY_PLAN.tier;
+
     if (!planOk) {
       return new Response(JSON.stringify({ error: 'Invalid plan' }), {
         status: 400,
@@ -56,7 +73,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify caller matches the provided user_id (zero-trust).
     const supabaseUser = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -70,20 +86,18 @@ Deno.serve(async (req) => {
 
     const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string, {
       apiVersion: '2023-10-16',
-      httpClient: Stripe.createFetchHttpClient(), // Критично для Deno!
+      httpClient: Stripe.createFetchHttpClient(),
     });
 
-    // 2. Создание платежа в Stripe
-    const plan_tier = plan_usd === 1 && plan_months === 1 ? 'beginner_test' : 'full_access';
-
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: plan_usd * 100, // USD → cents
+      amount: plan_usd_cents,
       currency: 'usd',
       metadata: {
         user_id,
         months: String(plan_months),
         purpose: 'executor_subscription',
-        plan_tier,
+        plan_tier: YEARLY_PLAN.tier,
+        bonus_tokens: String(bonus_tokens),
       },
       automatic_payment_methods: { enabled: true },
     });
@@ -92,7 +106,6 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
-
   } catch (error: any) {
     console.error('Error creating payment intent:', error?.message || error);
     return new Response(JSON.stringify({ error: String(error?.message || 'Unknown error') }), {

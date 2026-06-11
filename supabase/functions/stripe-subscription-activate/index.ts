@@ -80,8 +80,7 @@ Deno.serve(async (req) => {
     }
 
     const months = Math.floor(Number(pi.metadata?.months ?? 0));
-    const ok = months === 1 || months === 12;
-    if (!ok) {
+    if (months <= 0 || months > 120) {
       return new Response(JSON.stringify({ error: 'Invalid months metadata' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -103,6 +102,21 @@ Deno.serve(async (req) => {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    const bonusTokens = Math.floor(Number(pi.metadata?.bonus_tokens ?? 0));
+    if (bonusTokens > 0) {
+      const { error: bonusErr } = await supabaseService.rpc(
+        'credit_tokens_from_payment_service_role',
+        {
+          p_user_id: user.id,
+          p_payment_intent_id: `${paymentIntentId}:bonus`,
+          p_tokens: bonusTokens,
+        }
+      );
+      if (bonusErr) {
+        console.error('subscription bonus token credit', bonusErr);
+      }
     }
 
     return new Response(JSON.stringify({ subscription_expires_at: exp }), {

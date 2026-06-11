@@ -7,9 +7,20 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+/** SaaS token top-up tiers — keep in sync with `src/lib/tokenPricing.ts`. */
+const ALLOWED_PACKS: { cents: number; tokens: number }[] = [
+  { cents: 1000, tokens: 100 },
+  { cents: 1999, tokens: 300 },
+  { cents: 4999, tokens: 700 },
+  { cents: 9900, tokens: 5000 },
+];
+
+function isAllowedPack(cents: number, tokens: number): boolean {
+  return ALLOWED_PACKS.some((p) => p.cents === cents && p.tokens === tokens);
+}
+
 /**
- * Stripe PaymentIntent for token pack purchase.
- * Only supports: 50 tokens for $5.
+ * Stripe PaymentIntent for token top-up purchase (tiered SaaS packs).
  */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -32,7 +43,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body = (await req.json()) as { user_id?: unknown; pack_tokens?: unknown; pack_usd?: unknown };
+    const body = (await req.json()) as {
+      user_id?: unknown;
+      pack_tokens?: unknown;
+      pack_usd?: unknown;
+      pack_usd_cents?: unknown;
+    };
     const userId = typeof body.user_id === 'string' ? body.user_id.trim() : '';
     if (!userId) {
       return new Response(JSON.stringify({ error: 'Missing user_id' }), {
@@ -42,8 +58,13 @@ Deno.serve(async (req) => {
     }
 
     const packTokens = Math.floor(Number(body.pack_tokens));
-    const packUsd = Math.floor(Number(body.pack_usd));
-    if (packTokens !== 50 || packUsd !== 5) {
+    let packCents = Math.floor(Number(body.pack_usd_cents));
+    if (!Number.isFinite(packCents) || packCents <= 0) {
+      const legacyUsd = Math.floor(Number(body.pack_usd));
+      if (legacyUsd > 0) packCents = legacyUsd * 100;
+    }
+
+    if (!isAllowedPack(packCents, packTokens)) {
       return new Response(JSON.stringify({ error: 'Invalid pack' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -66,12 +87,13 @@ Deno.serve(async (req) => {
       httpClient: Stripe.createFetchHttpClient(),
     });
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: 5 * 100,
+      amount: packCents,
       currency: 'usd',
       metadata: {
         user_id: userId,
         purpose: 'token_pack',
         tokens: String(packTokens),
+        pack_usd_cents: String(packCents),
       },
       automatic_payment_methods: { enabled: true },
     });
@@ -88,4 +110,3 @@ Deno.serve(async (req) => {
     });
   }
 });
-
