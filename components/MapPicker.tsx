@@ -22,8 +22,7 @@ import {
   CITY_MAX_PRICE,
   SCOUT_STAKE_FEE_EGP,
 } from '../constants';
-import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
-import { profileWalletBalanceEgp } from '../src/lib/walletCredit';
+import { formatEgp } from '../src/lib/formatMoney';
 import { floorEgp, parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '../src/lib/integerEgpInput';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import TokenPackModal from '../src/components/TokenPackModal';
@@ -1002,10 +1001,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const mapClickHandlerRef = React.useRef<(event: any) => void>(() => {});
   const mapMoveHandlerRef = React.useRef<(event: any) => void>(() => {});
 
-  /** When true, next home submit uses wallet instead of card checkout. */
-  const orderFormWalletPayRef = React.useRef(false);
-  /** Creator wallet (tokens) for legacy flows. */
-  const [creatorWalletEgp, setCreatorWalletEgp] = useState<number | null>(null);
   const [viewState, setViewState] = useState({
     latitude: 27.2579,
     longitude: 33.8116,
@@ -1316,7 +1311,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [showCreatorStatusPanel, setShowCreatorStatusPanel] = useState(false);
   const [proofUploadMission, setProofUploadMission] = useState<JobOnMap | null>(null);
   const [taskType, setTaskType] = useState<TaskType>('city');
-  const [orderAmount, setOrderAmount] = useState('');
   const [serviceType, setServiceType] = useState<ServiceType>('home_office');
   const [tokenBid, setTokenBid] = useState(1);
   const [orderDescription, setOrderDescription] = useState('');
@@ -1373,29 +1367,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setDescriptionPolicyError(null);
     }
   }, [orderSubmitting]);
-
-  useEffect(() => {
-    if (!taskTypeSelected) return;
-    let cancelled = false;
-    (async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.user?.id) {
-        if (!cancelled) setCreatorWalletEgp(null);
-        return;
-      }
-      const { data: p } = await supabase
-        .from('profiles')
-        .select('wallet_balance')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      if (!cancelled) setCreatorWalletEgp(profileWalletBalanceEgp(p?.wallet_balance));
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [taskTypeSelected]);
 
   // Bidding modal state
   const [bidJob, setBidJob] = useState<JobOnMap | null>(null);
@@ -3539,8 +3510,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
               <CreateMission
                 taskType={taskType}
-                serviceType={serviceType}
-                serviceLabel={serviceLabelFromId(serviceType)}
                 orderDescription={orderDescription}
                 setOrderDescription={setOrderDescription}
                 orderPhotos={orderPhotos}

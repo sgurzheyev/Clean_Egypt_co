@@ -1429,7 +1429,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   {t('tokens')}
                 </p>
                 <p className="mt-1 text-2xl font-black text-lime-300 tabular-nums">
-                  {Math.max(0, Number(userProfile?.token_balance ?? 0))} Tokens
+                  {Math.max(0, Number(userProfile?.token_balance ?? 0))}
                 </p>
               </div>
               <button
@@ -1437,7 +1437,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 onClick={() => setShowTokenPackModal(true)}
                 className="shrink-0 rounded-full bg-lime-500 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-black hover:bg-lime-400 transition-all"
               >
-                {t('buyTokensPack', { tokens: 50, usd: 5 })}
+                {t('topUpTokens')}
               </button>
             </div>
             <p className="mt-2 text-[11px] text-slate-500 leading-relaxed">

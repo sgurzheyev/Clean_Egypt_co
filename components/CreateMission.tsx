@@ -30,8 +30,6 @@ type PhotoSlot = {
 
 type Props = {
   taskType: 'city' | 'home';
-  serviceType: string;
-  serviceLabel: string;
   orderDescription: string;
   setOrderDescription: (v: string) => void;
   orderPhotos: File[];
@@ -47,8 +45,6 @@ type Props = {
 
 const CreateMission: React.FC<Props> = ({
   taskType,
-  serviceType,
-  serviceLabel,
   orderDescription,
   setOrderDescription,
   orderPhotos,
@@ -87,9 +83,19 @@ const CreateMission: React.FC<Props> = ({
     onModerationBusy?.(busy);
   }, [photoSlots, onModerationBusy]);
 
-  /** Parent clears `orderPhotos` after submit — reset local thumbnails too. */
+  /**
+   * Parent clears `orderPhotos` after submit — reset local thumbnails too.
+   * Only treat it as a reset when the count actually dropped to zero (prev > 0):
+   * `orderPhotos` holds approved photos only, so it is legitimately empty while
+   * a fresh photo is still being checked — wiping then would kill every upload.
+   */
+  const prevOrderPhotosCount = useRef(orderPhotos.length);
   useEffect(() => {
-    if (orderPhotos.length === 0 && photoSlots.length > 0) {
+    const prevCount = prevOrderPhotosCount.current;
+    prevOrderPhotosCount.current = orderPhotos.length;
+    const hasChecking = photoSlots.some((s) => s.status === 'checking');
+    if (prevCount > 0 && orderPhotos.length === 0 && photoSlots.length > 0 && !hasChecking) {
+      moderationRunRef.current += 1; // cancel any in-flight moderation callbacks
       photoSlots.forEach((s) => URL.revokeObjectURL(s.previewUrl));
       setPhotoSlots([]);
       setModerationToast(null);
@@ -121,10 +127,43 @@ const CreateMission: React.FC<Props> = ({
     });
   }, [syncApprovedPhotos]);
 
+  const approveSlot = useCallback(
+    (key: string) => {
+      setPhotoSlots((prev) => {
+        const next = prev.map((s) =>
+          s.key === key ? { ...s, status: 'approved' as const } : s
+        );
+        syncApprovedPhotos(next);
+        return next;
+      });
+    },
+    [syncApprovedPhotos]
+  );
+
+  const rejectSlot = useCallback(
+    (key: string, reason: string) => {
+      setPhotoSlots((prev) =>
+        prev.map((s) =>
+          s.key === key ? { ...s, status: 'rejected' as const, reason } : s
+        )
+      );
+      setModerationToast(reason);
+      window.setTimeout(() => removeSlot(key), 4500);
+    },
+    [removeSlot]
+  );
+
+  /**
+   * Safety check for one photo. NEVER leaves a slot in 'checking':
+   * - 200 + isApproved=false  -> reject (real NSFW verdict)
+   * - 200 + isApproved=true   -> approve
+   * - any service failure (network error, 4xx/5xx, bad JSON) -> fail-open:
+   *   approve with a warning toast so a flaky moderation API can't block uploads.
+   */
   const moderateOneFile = useCallback(
     async (file: File, key: string, runId: number) => {
       try {
-        const compressed = await imageCompression(file, MODERATION_COMPRESSION);
+        const compressed = await imageCompression(file, MODERATION_COMPRESSION).catch(() => file);
         const { base64, mimeType } = await fileToBase64Parts(compressed);
 
         const res = await fetch('/api/moderate-mission-image', {
@@ -137,50 +176,36 @@ const CreateMission: React.FC<Props> = ({
           }),
         });
 
-        const data = (await res.json().catch(() => ({}))) as {
+        const data = (await res.json().catch(() => null)) as {
           isApproved?: boolean;
           reason?: string;
-        };
+        } | null;
 
         if (moderationRunRef.current !== runId) return;
 
-        const approved = res.ok && data.isApproved === true;
-
-        if (approved) {
-          setPhotoSlots((prev) => {
-            const next = prev.map((s) =>
-              s.key === key ? { ...s, status: 'approved' as const } : s
-            );
-            syncApprovedPhotos(next);
-            return next;
-          });
+        if (res.ok && data && typeof data.isApproved === 'boolean') {
+          if (data.isApproved) {
+            approveSlot(key);
+          } else {
+            const reason =
+              (typeof data.reason === 'string' && data.reason.trim()) ||
+              t('photoModerationRejectedDefault');
+            rejectSlot(key, reason);
+          }
           return;
         }
 
-        const reason =
-          (typeof data.reason === 'string' && data.reason.trim()) ||
-          t('photoModerationRejectedDefault');
-
-        setPhotoSlots((prev) =>
-          prev.map((s) =>
-            s.key === key ? { ...s, status: 'rejected' as const, reason } : s
-          )
-        );
-        setModerationToast(reason);
-        window.setTimeout(() => removeSlot(key), 4500);
-      } catch {
+        console.warn('moderate-mission-image unavailable, approving photo without check', res.status);
+        approveSlot(key);
+        setModerationToast(t('photoModerationUnavailable'));
+      } catch (err) {
         if (moderationRunRef.current !== runId) return;
-        const reason = t('photoSafetyCheckFailed');
-        setPhotoSlots((prev) =>
-          prev.map((s) =>
-            s.key === key ? { ...s, status: 'rejected' as const, reason } : s
-          )
-        );
-        setModerationToast(reason);
-        window.setTimeout(() => removeSlot(key), 4500);
+        console.warn('moderate-mission-image failed, approving photo without check', err);
+        approveSlot(key);
+        setModerationToast(t('photoModerationUnavailable'));
       }
     },
-    [i18n.language, removeSlot, syncApprovedPhotos, t]
+    [approveSlot, i18n.language, rejectSlot, t]
   );
 
   const handleIncomingPhotos = useCallback(
@@ -188,37 +213,34 @@ const CreateMission: React.FC<Props> = ({
       const imageFiles = incoming.filter((f) => f.type.startsWith('image/'));
       if (imageFiles.length === 0) return;
 
-      const runId = ++moderationRunRef.current;
+      // Snapshot the run token WITHOUT bumping it: bumping here orphaned earlier
+      // in-flight checks, leaving them stuck in 'checking' and locking the form.
+      // The token is only bumped when slots are wiped (parent reset).
+      const runId = moderationRunRef.current;
       setModerationToast(null);
 
-      let newSlots: PhotoSlot[] = [];
-      setPhotoSlots((prev) => {
-        const approvedCount = prev.filter((s) => s.status === 'approved').length;
-        const room = Math.max(0, MAX_PHOTOS - approvedCount);
-        const toQueue = imageFiles.slice(0, room);
+      const approvedCount = photoSlots.filter((s) => s.status === 'approved').length;
+      const checkingCount = photoSlots.filter((s) => s.status === 'checking').length;
+      const room = Math.max(0, MAX_PHOTOS - approvedCount - checkingCount);
+      const toQueue = imageFiles.slice(0, room);
 
-        if (toQueue.length < imageFiles.length) {
-          window.setTimeout(
-            () => setModerationToast(t('photoModerationMaxReached', { max: MAX_PHOTOS })),
-            0
-          );
-        }
+      if (toQueue.length < imageFiles.length) {
+        setModerationToast(t('photoModerationMaxReached', { max: MAX_PHOTOS }));
+      }
+      if (toQueue.length === 0) return;
 
-        newSlots = toQueue.map((file) => ({
-          key: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2)}`,
-          file,
-          previewUrl: URL.createObjectURL(file),
-          status: 'checking' as const,
-        }));
+      const newSlots: PhotoSlot[] = toQueue.map((file) => ({
+        key: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2)}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        status: 'checking' as const,
+      }));
 
-        return [...prev, ...newSlots];
-      });
-
-      if (newSlots.length === 0) return;
+      setPhotoSlots((prev) => [...prev, ...newSlots]);
 
       await Promise.all(newSlots.map((slot) => moderateOneFile(slot.file, slot.key, runId)));
     },
-    [moderateOneFile, t]
+    [moderateOneFile, photoSlots, t]
   );
 
   const handleDescriptionChange = (v: string) => {
