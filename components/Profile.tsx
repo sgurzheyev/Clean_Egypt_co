@@ -20,9 +20,11 @@ import {
   SCOUT_STAKE_FEE_EGP,
 } from '../constants';
 import {
-  deriveMarketplaceCitiesFromJobs,
+  EGYPT_MARKETPLACE_CITIES,
+  MARKETPLACE_ALL_EGYPT_ID,
   MARKETPLACE_REGION_EGYPT,
-  missionWithinCity,
+  filterMissionsByMarketCity,
+  isValidMarketCityId,
 } from '../src/lib/egyptMarketplace';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import { formatEgp, formatEgpDigits } from '../src/lib/formatMoney';
@@ -275,48 +277,32 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     return true;
   };
 
-  const availableMarketCities = useMemo(
+  const openMarketplaceJobs = useMemo(
     () =>
-      deriveMarketplaceCitiesFromJobs(
-        (marketplaceJobs || []).filter(
-          (job) =>
-            ['pending', 'available', 'funding'].includes(job.status) &&
-            job.cleaner_id == null
-        )
+      (marketplaceJobs || []).filter(
+        (job) =>
+          ['pending', 'available', 'funding'].includes(job.status) &&
+          job.cleaner_id == null
       ),
     [marketplaceJobs]
   );
 
-  const selectedMarketCity = useMemo(
-    () => availableMarketCities.find((c) => c.id === marketCityId) ?? null,
-    [availableMarketCities, marketCityId]
-  );
-
   useEffect(() => {
     if (!marketCityId) return;
-    if (!availableMarketCities.some((c) => c.id === marketCityId)) {
+    if (!isValidMarketCityId(marketCityId)) {
       setMarketCityId('');
     }
-  }, [availableMarketCities, marketCityId]);
+  }, [marketCityId]);
 
   const filteredMarketplaceJobs = useMemo(() => {
-    const base = (marketplaceJobs || []).filter(
-      (job) =>
-        ['pending', 'available', 'funding'].includes(job.status) &&
-        job.cleaner_id == null
-    );
-    if (!selectedMarketCity) return [] as Job[];
-    return base
-      .filter((job) =>
-        missionWithinCity(job.location_lat, job.location_lng, selectedMarketCity)
-      )
-      .sort((a, b) => {
-        const aAvailable = a.status === 'available' ? 1 : 0;
-        const bAvailable = b.status === 'available' ? 1 : 0;
-        if (aAvailable !== bAvailable) return bAvailable - aAvailable;
-        return Number(b.amount_target ?? 0) - Number(a.amount_target ?? 0);
-      });
-  }, [marketplaceJobs, selectedMarketCity]);
+    if (!marketCityId) return [] as Job[];
+    return filterMissionsByMarketCity(openMarketplaceJobs, marketCityId).sort((a, b) => {
+      const aAvailable = a.status === 'available' ? 1 : 0;
+      const bAvailable = b.status === 'available' ? 1 : 0;
+      if (aAvailable !== bAvailable) return bAvailable - aAvailable;
+      return Number(b.amount_target ?? 0) - Number(a.amount_target ?? 0);
+    });
+  }, [openMarketplaceJobs, marketCityId]);
 
   // Real-time wallet balance subscription
   useEffect(() => {
@@ -2286,9 +2272,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 className={`w-full min-w-0 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500/50 ${PROFILE_GLASS_PANEL} !rounded-xl`}
               >
                 <option value="">{t('selectCityPlaceholder')}</option>
-                {availableMarketCities.map((c) => (
+                <option value={MARKETPLACE_ALL_EGYPT_ID}>{t('marketplaceCityAll')}</option>
+                {EGYPT_MARKETPLACE_CITIES.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name}
+                    {t(c.nameKey)}
                   </option>
                 ))}
               </select>

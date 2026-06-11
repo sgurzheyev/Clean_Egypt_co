@@ -1,23 +1,41 @@
-/** Approximate centers for marketplace city filter (Egypt) */
+/** Fixed marketplace city hubs (Egypt) — radius grouping for Global Market filter */
+
+export const MARKETPLACE_REGION_EGYPT = 'egypt';
+
+/** Dropdown value: show every open mission regardless of coordinates */
+export const MARKETPLACE_ALL_EGYPT_ID = 'all_egypt';
+
+/** Default grouping radius when filtering missions by selected city */
+export const DEFAULT_MARKETPLACE_RADIUS_KM = 50;
 
 export type MarketplaceCity = {
   id: string;
-  name: string;
+  /** i18n key, e.g. `marketplaceCity_cairo` */
+  nameKey: string;
   lat: number;
   lng: number;
   radiusKm: number;
 };
 
-export const MARKETPLACE_REGION_EGYPT = 'egypt';
-
+/** Major Egyptian hubs — always shown in the city dropdown (not derived from missions). */
 export const EGYPT_MARKETPLACE_CITIES: MarketplaceCity[] = [
-  { id: 'cairo', name: 'Cairo', lat: 30.0444, lng: 31.2357, radiusKm: 55 },
-  { id: 'hurghada', name: 'Hurghada', lat: 27.2579, lng: 33.8116, radiusKm: 45 },
-  { id: 'alexandria', name: 'Alexandria', lat: 31.2001, lng: 29.9182, radiusKm: 45 },
-  { id: 'luxor', name: 'Luxor', lat: 25.6872, lng: 32.6396, radiusKm: 35 },
-  { id: 'giza', name: 'Giza', lat: 30.0131, lng: 31.2089, radiusKm: 40 },
+  { id: 'cairo', nameKey: 'marketplaceCity_cairo', lat: 30.0444, lng: 31.2357, radiusKm: DEFAULT_MARKETPLACE_RADIUS_KM },
+  { id: 'giza', nameKey: 'marketplaceCity_giza', lat: 30.0131, lng: 31.2089, radiusKm: DEFAULT_MARKETPLACE_RADIUS_KM },
+  { id: 'alexandria', nameKey: 'marketplaceCity_alexandria', lat: 31.2001, lng: 29.9182, radiusKm: DEFAULT_MARKETPLACE_RADIUS_KM },
+  { id: 'hurghada', nameKey: 'marketplaceCity_hurghada', lat: 27.2579, lng: 33.8116, radiusKm: DEFAULT_MARKETPLACE_RADIUS_KM },
+  { id: 'sharm_el_sheikh', nameKey: 'marketplaceCity_sharm_el_sheikh', lat: 27.9158, lng: 34.3300, radiusKm: DEFAULT_MARKETPLACE_RADIUS_KM },
+  { id: 'luxor', nameKey: 'marketplaceCity_luxor', lat: 25.6872, lng: 32.6396, radiusKm: DEFAULT_MARKETPLACE_RADIUS_KM },
 ];
 
+export function getMarketplaceCityById(id: string): MarketplaceCity | undefined {
+  return EGYPT_MARKETPLACE_CITIES.find((c) => c.id === id);
+}
+
+export function isValidMarketCityId(id: string): boolean {
+  return id === MARKETPLACE_ALL_EGYPT_ID || EGYPT_MARKETPLACE_CITIES.some((c) => c.id === id);
+}
+
+/** Great-circle distance between two WGS84 points, in kilometres */
 export function haversineKm(
   lat1: number,
   lng1: number,
@@ -53,46 +71,18 @@ type MissionCoords = {
   location_lng?: number | null;
 };
 
-function formatAreaLabel(lat: number, lng: number): string {
-  const latHem = lat >= 0 ? 'N' : 'S';
-  const lngHem = lng >= 0 ? 'E' : 'W';
-  return `${Math.abs(lat).toFixed(2)}°${latHem}, ${Math.abs(lng).toFixed(2)}°${lngHem}`;
-}
+/** Filter missions for Global Market by fixed city id (or all Egypt). */
+export function filterMissionsByMarketCity<T extends MissionCoords>(
+  missions: T[],
+  cityId: string | null | undefined
+): T[] {
+  if (!cityId) return [];
+  if (cityId === MARKETPLACE_ALL_EGYPT_ID) return missions;
 
-/**
- * Build the city filter list from missions currently on the marketplace.
- * Known Egypt hubs appear when a mission falls inside their radius; missions
- * elsewhere (e.g. Abu Simbel) get a dynamic cluster entry so they remain filterable.
- */
-export function deriveMarketplaceCitiesFromJobs(jobs: MissionCoords[]): MarketplaceCity[] {
-  const usedKnownIds = new Set<string>();
-  const dynamic: MarketplaceCity[] = [];
+  const city = getMarketplaceCityById(cityId);
+  if (!city) return [];
 
-  for (const job of jobs) {
-    const lat = job.location_lat;
-    const lng = job.location_lng;
-    if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-
-    const known = EGYPT_MARKETPLACE_CITIES.find((c) => missionWithinCity(lat, lng, c));
-    if (known) {
-      usedKnownIds.add(known.id);
-      continue;
-    }
-
-    const existingCluster = dynamic.find(
-      (c) => haversineKm(lat, lng, c.lat, c.lng) <= c.radiusKm
-    );
-    if (existingCluster) continue;
-
-    dynamic.push({
-      id: `loc-${lat.toFixed(3)}-${lng.toFixed(3)}`,
-      name: formatAreaLabel(lat, lng),
-      lat,
-      lng,
-      radiusKm: 30,
-    });
-  }
-
-  const known = EGYPT_MARKETPLACE_CITIES.filter((c) => usedKnownIds.has(c.id));
-  return [...known, ...dynamic].sort((a, b) => a.name.localeCompare(b.name));
+  return missions.filter((m) =>
+    missionWithinCity(m.location_lat, m.location_lng, city)
+  );
 }
