@@ -3564,7 +3564,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
               )}
 
-              <div className="sticky bottom-0 z-10 -mx-2 mt-4 px-4 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] border-t border-white/10 bg-slate-950/95 backdrop-blur-md">
+              <div className="sticky bottom-0 z-10 -mx-2 mt-5 px-4 sm:px-5 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] border-t border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
                 <button
                   type="submit"
                   disabled={
@@ -3574,7 +3574,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     !selectedLocation ||
                     !!descriptionPolicyError
                   }
-                  className="w-full touch-manipulation rounded-xl border border-orange-400/40 bg-orange-500 px-6 py-3.5 text-sm font-bold uppercase tracking-[0.18em] text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-50 active:opacity-90"
+                  className="w-full touch-manipulation rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-4 sm:py-3.5 text-sm font-bold uppercase tracking-[0.18em] text-white shadow-[0_0_20px_rgba(249,115,22,0.35)] ring-1 ring-white/15 transition-all duration-300 hover:shadow-[0_0_28px_rgba(249,115,22,0.55)] hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:from-slate-600 disabled:to-slate-700 disabled:text-slate-300 disabled:shadow-none disabled:ring-white/5 disabled:brightness-100"
                 >
                   {uploadingProof || orderSubmitting
                     ? t('processing')
