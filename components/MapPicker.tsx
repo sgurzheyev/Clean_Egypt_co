@@ -27,6 +27,7 @@ import { floorEgp, parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '..
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import TokenPackModal from '../src/components/TokenPackModal';
 import SubscriptionModal from '../src/components/SubscriptionModal';
+import { YEARLY_SUBSCRIPTION, formatUsdPrice } from '../src/lib/tokenPricing';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 // Egypt approximate bounding box (used only to validate pin placement — map view is global).
@@ -503,6 +504,7 @@ function ProofUploadModal({
   onSuccess: () => Promise<void> | void;
   toast: { error: (msg: string) => void; success: (msg: string) => void };
 }) {
+  const { t } = useTranslation();
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -531,7 +533,7 @@ function ProofUploadModal({
   const submitProof = useCallback(async () => {
     if (!mission) return;
     if (files.length === 0) {
-      toast.error('Please add at least one after photo.');
+      toast.error(t('proofAddPhotoRequired'));
       return;
     }
     setSubmitting(true);
@@ -540,7 +542,7 @@ function ProofUploadModal({
         data: { session },
       } = await supabase.auth.getSession();
       if (!session?.user?.id) {
-        toast.error('Please sign in first.');
+        toast.error(t('signInToPlaceBid'));
         return;
       }
 
@@ -593,16 +595,16 @@ function ProofUploadModal({
         .eq('status', 'in_progress');
       if (updateError) throw updateError;
 
-      toast.success('Proof uploaded! Tokens will be credited after quick review.');
+      toast.success(t('proofUploadSuccess'));
       await onSuccess();
       onClose();
       setFiles([]);
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to upload proof. Try again.');
+      toast.error(err?.message || t('failedUploadProof'));
     } finally {
       setSubmitting(false);
     }
-  }, [files, mission, onClose, onSuccess, toast]);
+  }, [files, mission, onClose, onSuccess, t, toast]);
 
   return (
     <AnimatePresence>
@@ -624,7 +626,7 @@ function ProofUploadModal({
           >
             <div className="flex items-center justify-between">
               <h3 className="text-2xl sm:text-3xl font-black uppercase tracking-[0.12em] text-orange-300">
-                MISSION ACCOMPLISHED?
+                {t('missionAccomplishedPrompt')}
               </h3>
               <button
                 type="button"
@@ -1000,6 +1002,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   // through these refs, so updating React state never detaches/re-attaches the canvas listeners.
   const mapClickHandlerRef = React.useRef<(event: any) => void>(() => {});
   const mapMoveHandlerRef = React.useRef<(event: any) => void>(() => {});
+  /** Brief cooldown after pin placement so the same tap cannot re-open the draft flow. */
+  const pinPlacementCooldownRef = React.useRef(0);
 
   const [viewState, setViewState] = useState({
     latitude: 27.2579,
@@ -1421,6 +1425,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [unlockLeadLoading, setUnlockLeadLoading] = useState(false);
   const [showTokenPackModal, setShowTokenPackModal] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showWorkerSubscriptionGate, setShowWorkerSubscriptionGate] = useState(false);
 
   const availableLeadsCount = useMemo(() => {
     return (jobs || []).filter((j) => j.status === 'available').length;
@@ -1445,6 +1450,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const u = String(viewerProfile?.telegram_username ?? '').toLowerCase();
     return n.includes('ahmed') || u === 'ahmed';
   }, [viewerProfile?.role, viewerProfile?.full_name, viewerProfile?.telegram_username]);
+
+  const workerHasActiveSubscription = useMemo(() => {
+    const expRaw = viewerProfile?.subscription_expires_at;
+    const exp = expRaw ? Date.parse(expRaw) : NaN;
+    return Number.isFinite(exp) && Date.now() < exp;
+  }, [viewerProfile?.subscription_expires_at]);
 
   const profileAvatarInitial = useMemo(() => {
     const name = String(viewerProfile?.full_name ?? '').trim();
@@ -1662,7 +1673,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const exp = expRaw ? new Date(expRaw).getTime() : NaN;
       const active = Number.isFinite(exp) && Date.now() < exp;
       if (!active) {
-        setShowSubscriptionModal(true);
+        setShowWorkerSubscriptionGate(true);
         return;
       }
     }
@@ -1739,7 +1750,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
           selectedMission ||
           showCrowdfundConfirm ||
           hallOfFameMission ||
-          taskTypeSelected
+          taskTypeSelected ||
+          showWorkerSubscriptionGate ||
+          showSubscriptionModal
       ),
     [
       bidJob,
@@ -1747,6 +1760,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
       showCrowdfundConfirm,
       hallOfFameMission,
       taskTypeSelected,
+      showWorkerSubscriptionGate,
+      showSubscriptionModal,
     ]
   );
 
@@ -2007,6 +2022,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleMapClick = useCallback(
     (event: any) => {
+      if (Date.now() < pinPlacementCooldownRef.current) return;
+      if (orderSubmitting) return;
+
       // 1. FORGIVING HITBOX DETECTION (15px bbox)
       const job = findMissionPinAtPoint(event?.point, 15);
       if (job) {
@@ -2014,7 +2032,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      // 2. WE CLICKED EMPTY SPACE
+      // 2. Draft pin placement only while the creation form is open
+      if (!taskTypeSelected) return;
       if (!event?.lngLat) return;
       const { lng, lat } = event.lngLat;
 
@@ -2023,11 +2042,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      // Drop the blue draft pin
       setSelectedLocation({ lat, lng });
       onLocationSelect(lat, lng);
     },
-    [findMissionPinAtPoint, handleMarkerClick, onLocationSelect, t]
+    [findMissionPinAtPoint, handleMarkerClick, onLocationSelect, orderSubmitting, t, taskTypeSelected]
   );
 
   const handleMapMouseMove = useCallback(
@@ -2684,11 +2702,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }
       );
 
-      setOrderSuccess(t('pinPlaced'));
-      resetMissionDraft();
-      await fetchMissions();
-      setTaskType(null);
+      pinPlacementCooldownRef.current = Date.now() + 800;
       setTaskTypeSelected(null);
+      setTaskType(null);
+      resetMissionDraft();
+      clearMissionPinHover();
+      await fetchMissions();
+      toast.success(t('pinPlaced'));
       return;
     } catch (err) {
       console.error('Job submit exception:', err);
@@ -2784,7 +2804,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   /** Native Mapbox draft location (replaces HTML MissionMarker). */
   const draftPinGeoJSON = useMemo(() => {
-    if (!selectedLocation) return { type: 'FeatureCollection' as const, features: [] };
+    if (!taskTypeSelected || !selectedLocation) {
+      return { type: 'FeatureCollection' as const, features: [] };
+    }
     return {
       type: 'FeatureCollection' as const,
       features: [
@@ -2798,7 +2820,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         },
       ],
     };
-  }, [selectedLocation]);
+  }, [selectedLocation, taskTypeSelected]);
 
   /** Mobile tap feedback pulse on mission pin tap. */
   const mobileTapPulseGeoJSON = useMemo(() => {
@@ -3029,53 +3051,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }
           }
 
-          if (!map.getSource('missions-heatmap')) {
-            map.addSource('missions-heatmap', {
-              type: 'geojson',
-              data: { type: 'FeatureCollection', features: [] },
-            });
-            map.addLayer(
-              {
-                id: 'missions-heat',
-                type: 'heatmap',
-                source: 'missions-heatmap',
-                paint: {
-                  'heatmap-weight': [
-                    'interpolate',
-                    ['linear'],
-                    ['coalesce', ['get', 'funding'], 0],
-                    0,
-                    0,
-                    250,
-                    1,
-                  ],
-                  'heatmap-color': [
-                    'interpolate',
-                    ['linear'],
-                    ['heatmap-density'],
-                    0,
-                    'rgba(0,255,255,0)',
-                    0.2,
-                    'rgba(0,255,255,0.5)',
-                    0.5,
-                    'rgba(128,0,255,0.7)',
-                    1,
-                    'rgba(255,0,128,1)',
-                  ],
-                  'heatmap-radius': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    10,
-                    15,
-                    15,
-                    30,
-                  ],
-                },
-              },
-              'place_label'
-            );
-          }
+          // SaaS lead-gen: legacy crowdfunding heatmap removed (2D bubble pins only).
 
           if (!map.getLayer('3d-buildings')) {
             map.addLayer(
@@ -3259,10 +3235,71 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }}
       />
 
+      {/* Worker subscription gate — blurred map stays visible behind slide-up */}
+      {showWorkerSubscriptionGate && (
+        <div
+          className="absolute inset-0 z-[10060] flex items-end justify-center pt-[env(safe-area-inset-top)] pointer-events-none isolate"
+          aria-hidden="false"
+        >
+          <div
+            className="absolute inset-0 bg-black/45 backdrop-blur-md pointer-events-auto"
+            onClick={() => setShowWorkerSubscriptionGate(false)}
+            aria-hidden="true"
+          />
+          <div
+            className="relative z-[1] w-full max-w-xl pointer-events-auto animate-slide-up rounded-t-3xl border-t border-cyan-500/30 bg-slate-950/75 backdrop-blur-xl px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_-12px_48px_rgba(34,211,238,0.18)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-white/15 border border-white/10" aria-hidden />
+            <p className="text-[10px] font-black uppercase tracking-[0.32em] text-cyan-400">
+              {t('subscriptionGateTitle')}
+            </p>
+            <p className="mt-3 text-sm leading-relaxed text-slate-300">
+              {t('subscriptionGateBody')}
+            </p>
+            <p className="mt-4 text-3xl font-black text-white">
+              {t('subscriptionGatePerYear', { price: formatUsdPrice(YEARLY_SUBSCRIPTION.usd) })}
+            </p>
+            <ul className="mt-4 space-y-2 text-xs text-slate-300">
+              <li className="flex items-start gap-2">
+                <span className="text-cyan-400 shrink-0">✓</span>
+                <span>{t('saasPerkUnlimitedContacts')}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-cyan-400 shrink-0">✓</span>
+                <span>{t('saasPerkBonusTokens', { tokens: YEARLY_SUBSCRIPTION.bonusTokens })}</span>
+              </li>
+            </ul>
+            <div className="mt-6 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowWorkerSubscriptionGate(false)}
+                className="flex-1 min-h-[52px] rounded-2xl border border-white/15 bg-black/30 px-4 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-300 transition-all hover:bg-white/5 active:scale-[0.98]"
+              >
+                {t('close')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowWorkerSubscriptionGate(false);
+                  setShowSubscriptionModal(true);
+                }}
+                className="flex-1 min-h-[52px] rounded-2xl border border-cyan-400/35 bg-cyan-600/90 px-4 text-[11px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_4px_20px_rgba(34,211,238,0.35),inset_0_1px_0_0_rgba(255,255,255,0.12)] transition-all hover:border-cyan-300/50 hover:bg-cyan-500/95 active:scale-[0.98] active:bg-cyan-500"
+              >
+                {t('saasPaySubscription')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <SubscriptionModal
         open={showSubscriptionModal}
         userId={currentUserId}
-        onClose={() => setShowSubscriptionModal(false)}
+        onClose={() => {
+          setShowSubscriptionModal(false);
+          setShowWorkerSubscriptionGate(false);
+        }}
         onSuccess={async () => {
           if (!currentUserId) return;
           const { data } = await supabase
@@ -3279,6 +3316,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   subscription_expires_at: exp ?? p.subscription_expires_at,
                 }
           );
+          setShowWorkerSubscriptionGate(false);
           if (exp && Date.parse(exp) > Date.now() && selectedMission?.creator_id) {
             void handleUnlockLead({ skipSubscriptionCheck: true });
           }
@@ -3749,7 +3787,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 type="button"
                 onClick={handleCloseMissionBriefing}
                 className="mr-2 inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-200 bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 transition-all"
-                aria-label="Close"
+                aria-label={t('close')}
               >
                 ✕
               </button>
@@ -3767,7 +3805,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               <div className="py-10 flex flex-col items-center justify-center">
                 <div className="h-6 w-6 border-2 border-cyan-500/60 border-t-cyan-200 rounded-full animate-spin" />
                 <p className="mt-3 text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
-                  Loading…
+                  {t('loading')}
                 </p>
               </div>
             ) : null}
@@ -4076,12 +4114,33 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
                 {isExecutorViewer ? (
                   <div className="space-y-2">
-                    {!leadPhoneVisible && (
+                    {!workerHasActiveSubscription && !leadPhoneVisible && (
+                      <div className={`${PROFILE_GLASS_PANEL} px-4 py-4 space-y-3`}>
+                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                          {t('subscriptionGateTitle')}
+                        </p>
+                        <p className="text-xs leading-relaxed text-slate-300">
+                          {t('subscriptionGateBody')}
+                        </p>
+                        <p className="text-lg font-black text-white">
+                          {t('subscriptionGatePerYear', { price: formatUsdPrice(YEARLY_SUBSCRIPTION.usd) })}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setShowWorkerSubscriptionGate(true)}
+                          className="flex min-h-[52px] w-full touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/90 px-4 text-[11px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_4px_20px_rgba(34,211,238,0.35),inset_0_1px_0_0_rgba(255,255,255,0.12)] transition-all hover:border-cyan-300/50 hover:bg-cyan-500/95 active:scale-[0.98] active:bg-cyan-500"
+                        >
+                          {t('subscribeToUnlock')}
+                        </button>
+                      </div>
+                    )}
+
+                    {workerHasActiveSubscription && !leadPhoneVisible && (
                       <button
                         type="button"
                         onClick={() => void handleUnlockLead()}
                         disabled={unlockLeadLoading}
-                        className="w-full touch-manipulation rounded-xl border border-orange-400/40 bg-orange-500 px-6 py-3 text-sm font-bold uppercase tracking-[0.18em] text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-50 active:opacity-90"
+                        className="flex min-h-[52px] w-full touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/90 px-4 text-[11px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_4px_20px_rgba(34,211,238,0.35),inset_0_1px_0_0_rgba(255,255,255,0.12)] transition-all hover:border-cyan-300/50 hover:bg-cyan-500/95 active:scale-[0.98] active:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {unlockLeadLoading ? t('processing') : t('unlockLead')}
                       </button>
