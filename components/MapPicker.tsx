@@ -1346,11 +1346,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
     []
   );
 
-  const resetMissionDraft = useCallback(() => {
+  const resetMissionDraft = useCallback((options?: { keepLocation?: boolean }) => {
     setTokenBid(1);
     setOrderDescription('');
     setOrderPhotos([]);
-    setSelectedLocation(null);
+    if (!options?.keepLocation) {
+      setSelectedLocation(null);
+    }
     setPhotoModerationBusy(false);
     setTextWarning(null);
     setOrderError(null);
@@ -1363,10 +1365,25 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setShowLiveMarketFeed(false);
     setShowCreatorStatusPanel(false);
     setProofUploadMission(null);
-    resetMissionDraft();
+    resetMissionDraft({ keepLocation: true });
     setTaskType(type);
     setTaskTypeSelected(type);
   }, [resetMissionDraft]);
+
+  /** Default pin to map center when the creation form opens (overlay blocks easy re-taps). */
+  useEffect(() => {
+    if (!taskTypeSelected) return;
+    setSelectedLocation((prev) => {
+      if (prev) return prev;
+      const map = mapInstanceRef.current;
+      const center = map?.getCenter?.();
+      const lat = Number(center?.lat ?? viewState.latitude);
+      const lng = Number(center?.lng ?? viewState.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return prev;
+      if (!isInsideEgyptBounds(lng, lat)) return prev;
+      return { lat, lng };
+    });
+  }, [taskTypeSelected, viewState.latitude, viewState.longitude]);
 
   const closeFormOverlay = useCallback(() => {
     if (!orderSubmitting) {
@@ -3563,24 +3580,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
               {orderSuccess && (
                 <p className="text-xs text-emerald-400 font-medium">{orderSuccess}</p>
               )}
+              </div>
 
-              <div className="sticky bottom-0 z-10 -mx-2 mt-5 px-4 sm:px-5 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] border-t border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
+              <div className="relative z-20 shrink-0 bg-transparent px-2 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                 <button
                   type="submit"
-                  disabled={
-                    orderSubmitting ||
-                    uploadingProof ||
-                    photoModerationBusy ||
-                    !selectedLocation ||
-                    !!descriptionPolicyError
-                  }
-                  className="w-full touch-manipulation rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-4 sm:py-3.5 text-sm font-bold uppercase tracking-[0.18em] text-white shadow-[0_0_20px_rgba(249,115,22,0.35)] ring-1 ring-white/15 transition-all duration-300 hover:shadow-[0_0_28px_rgba(249,115,22,0.55)] hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:from-slate-600 disabled:to-slate-700 disabled:text-slate-300 disabled:shadow-none disabled:ring-white/5 disabled:brightness-100"
+                  disabled={orderSubmitting || uploadingProof || photoModerationBusy}
+                  className="flex min-h-[52px] w-full touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/90 px-4 text-center text-[11px] font-bold uppercase tracking-[0.18em] text-white shadow-[0_4px_20px_rgba(34,211,238,0.35),inset_0_1px_0_0_rgba(255,255,255,0.12)] transition-all hover:border-cyan-300/50 hover:bg-cyan-500/95 active:scale-[0.98] active:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
                 >
                   {uploadingProof || orderSubmitting
                     ? t('processing')
                     : t('payAndPlacePin')}
                 </button>
-              </div>
               </div>
             </form>
           </div>
