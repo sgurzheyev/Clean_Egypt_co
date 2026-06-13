@@ -1,7 +1,6 @@
 import React from 'react';
 import { MapPin, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import TranslatableMissionDescription from './TranslatableMissionDescription';
 import { useMissionTextTranslation } from '../src/hooks/useMissionTextTranslation';
 import {
@@ -152,7 +151,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
 
   return (
     <div
-      className="absolute inset-0 z-[9999] flex items-end justify-center pt-[env(safe-area-inset-top)] isolate pointer-events-none"
+      className="absolute inset-0 z-[10030] flex items-end justify-center pt-[env(safe-area-inset-top)] isolate pointer-events-none"
       aria-hidden="false"
     >
       <div
@@ -162,7 +161,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
       />
 
       <div
-        className="relative w-full max-w-xl max-h-[82dvh] overflow-y-auto overflow-x-hidden rounded-t-3xl bg-slate-950 shadow-[0_-10px_40px_rgba(0,229,255,0.12)] pb-[calc(7rem+max(2rem,env(safe-area-inset-bottom)))] pointer-events-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+        className="relative z-[10030] w-full max-w-xl max-h-[82dvh] overflow-y-auto overflow-x-hidden overscroll-y-contain rounded-t-3xl bg-slate-950 shadow-[0_-10px_40px_rgba(0,229,255,0.12)] pb-[calc(5rem+max(2rem,env(safe-area-inset-bottom)))] pointer-events-auto touch-pan-y [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
         onClick={(e) => e.stopPropagation()}
         style={{ transform: sheetDragY > 0 ? `translateY(${sheetDragY}px)` : undefined }}
       >
@@ -184,23 +183,29 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           </div>
         ) : (
           <>
-            <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-900">
+            <div className="relative w-full max-h-[40vh] shrink-0 aspect-video overflow-hidden bg-slate-900">
               {photos.length > 0 ? (
                 <>
-                  <div className="absolute inset-0 flex overflow-x-auto snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [scrollbar-width:none] [-ms-overflow-style:none]">
+                  <div
+                    className="flex h-full w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain overscroll-y-none touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                    style={{ WebkitOverflowScrolling: 'touch' }}
+                  >
                     {photos.map((url, index) => (
-                      <div key={`${url}-${index}`} className="h-full min-w-full shrink-0 snap-center">
-                        <ModeratedMissionPhoto
-                          url={url}
+                      <div
+                        key={`${url}-${index}`}
+                        className="relative h-full w-full shrink-0 snap-center snap-always overflow-hidden"
+                      >
+                        <img
+                          src={url}
                           alt={`Mission photo ${index + 1}`}
-                          imgClassName="h-full w-full object-cover"
-                          showSafeBadge={false}
+                          draggable={false}
+                          className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover"
                         />
                       </div>
                     ))}
                   </div>
                   {photos.length > 1 && (
-                    <p className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/20 bg-black/45 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white/80 backdrop-blur-sm">
+                    <p className="pointer-events-none absolute top-12 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/20 bg-black/45 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white/80 backdrop-blur-sm">
                       {t('swipeForMorePhotos')} · {photos.length}
                     </p>
                   )}
@@ -211,27 +216,27 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     placeholderVariant
                   )}`}
                 >
-                  <span className="text-5xl opacity-90" aria-hidden>
+                  <span className="text-4xl opacity-90" aria-hidden>
                     {placeholderIcon}
                   </span>
                 </div>
               )}
 
               <div
-                className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-black/10"
+                className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/95 via-black/35 to-transparent"
                 aria-hidden
               />
 
               <button
                 type="button"
                 onClick={onClose}
-                className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white shadow-lg backdrop-blur-md transition-transform hover:bg-black/70 active:scale-95"
+                className="absolute right-3 top-3 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white shadow-lg backdrop-blur-md transition-transform hover:bg-black/70 active:scale-95"
                 aria-label={t('close')}
               >
                 <X className="h-4 w-4" strokeWidth={2.25} />
               </button>
 
-              <div className="absolute left-3 top-3 z-10 flex max-w-[65%] flex-wrap gap-1.5">
+              <div className="pointer-events-none absolute left-3 top-3 z-20 flex max-w-[calc(100%-4.5rem)] flex-wrap gap-1.5">
                 <span
                   className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${
                     placeholderVariant === 'home'
@@ -248,40 +253,41 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 )}
               </div>
 
-              <div className="absolute inset-x-0 bottom-0 z-[1] p-4 pt-10">
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4 pt-8">
                 <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-300/80">
                   {t('missionBriefing')}
                 </p>
-                <p className="text-3xl font-black leading-none tracking-tight text-orange-300 drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)] sm:text-4xl">
+                <p className="text-2xl font-black leading-none tracking-tight text-orange-300 drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)] sm:text-3xl">
                   {budgetValue}
                 </p>
                 <div className="mt-2 flex items-start gap-1.5">
                   <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300/90" strokeWidth={2.25} />
-                  <p className="text-xs font-medium leading-snug text-slate-100/90">
+                  <p className="line-clamp-2 text-xs font-medium leading-snug text-slate-100/90">
                     {locationTranslation.displayText}
                   </p>
                 </div>
-                <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                  <span
-                    className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${statusBadgeClass(
-                      mission.status
-                    )}`}
-                  >
-                    {t('status')}: {statusLabel}
-                  </span>
-                  <span className="text-[10px] font-medium text-slate-300/75">
-                    {t('missionTokenBidLabel')}: {formatEgp(missionTokenBid(mission))}
-                  </span>
-                </div>
-                {activeBidCount > 0 && (
-                  <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-400">
-                    {t('lockedDeposit')}
-                  </p>
-                )}
               </div>
             </div>
 
-            <div className="space-y-5 px-5 pt-4">
+            <div className="relative z-[1] space-y-5 px-5 pt-5 pb-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${statusBadgeClass(
+                    mission.status
+                  )}`}
+                >
+                  {t('status')}: {statusLabel}
+                </span>
+                <span className="text-[10px] font-medium text-slate-400">
+                  {t('missionTokenBidLabel')}: {formatEgp(missionTokenBid(mission))}
+                </span>
+                {activeBidCount > 0 && (
+                  <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-400">
+                    {t('lockedDeposit')}
+                  </span>
+                )}
+              </div>
+
               {feedDescription && (
                 <section>
                   <TranslatableMissionDescription

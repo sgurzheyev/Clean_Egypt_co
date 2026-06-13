@@ -3578,7 +3578,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
-      {!taskTypeSelected && (
+      {!taskTypeSelected && !selectedMission && (
         <div className="fixed inset-x-0 bottom-0 z-[10020] flex justify-center pointer-events-none pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))]">
           <button
             type="button"
