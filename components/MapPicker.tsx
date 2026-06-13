@@ -440,16 +440,20 @@ function DraftPinActionHub({
   spongeLabel: string;
   marketLabel: string;
 }) {
-  const ORBIT_RADIUS = 60;
-  const TRIANGLE_HALF_WIDTH = ORBIT_RADIUS * (Math.sqrt(3) / 2);
-  const TRIANGLE_HALF_HEIGHT = ORBIT_RADIUS * 0.5;
+  const ORBIT_RADIUS = 42;
   const orbitClass =
-    'pointer-events-auto absolute flex h-11 w-11 items-center justify-center rounded-full border text-lg leading-none shadow-lg backdrop-blur-md transition-transform active:scale-95';
+    'pointer-events-auto absolute left-1/2 top-1/2 flex h-11 w-11 items-center justify-center rounded-full border text-lg leading-none shadow-lg backdrop-blur-md transition-transform active:scale-95';
+
+  const orbitTransformTemplate = (
+    { x, y, scale }: { x?: number | string; y?: number | string; scale?: number },
+    _generated: string
+  ) =>
+    `translate(calc(-50% + ${x ?? 0}px), calc(-50% + ${y ?? 0}px)) scale(${scale ?? 1})`;
 
   const orbitActions = [
     {
       key: 'mop-orbit',
-      offset: { x: -TRIANGLE_HALF_WIDTH, y: -TRIANGLE_HALF_HEIGHT },
+      offset: { x: -36, y: -21 },
       label: mopLabel,
       onClick: onMop,
       className:
@@ -458,7 +462,7 @@ function DraftPinActionHub({
     },
     {
       key: 'sponge-orbit',
-      offset: { x: TRIANGLE_HALF_WIDTH, y: -TRIANGLE_HALF_HEIGHT },
+      offset: { x: 36, y: -21 },
       label: spongeLabel,
       onClick: onSponge,
       className:
@@ -479,62 +483,56 @@ function DraftPinActionHub({
   return (
     <Marker longitude={lng} latitude={lat} anchor="center">
       <div className="draft-pin-action-hub pointer-events-none relative h-0 w-0 overflow-visible">
-        <div className="absolute left-0 top-0 h-0 w-0 overflow-visible">
-          <AnimatePresence mode="popLayout">
-            {expanded &&
-              orbitActions.map((action, index) => {
-                const { x, y } = action.offset;
-                return (
-                  <motion.button
-                    key={action.key}
-                    type="button"
-                    initial={{ scale: 0, opacity: 0, x: '-50%', y: '-50%' }}
-                    animate={{
-                      scale: 1,
-                      opacity: 1,
-                      x: `calc(-50% + ${x}px)`,
-                      y: `calc(-50% + ${y}px)`,
-                    }}
-                    exit={{ scale: 0, opacity: 0, x: '-50%', y: '-50%' }}
-                    transition={{
-                      type: 'spring',
-                      stiffness: 420,
-                      damping: 22,
-                      delay: index * 0.05,
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      action.onClick();
-                    }}
-                    className={`${orbitClass} left-1/2 top-1/2 ${action.className}`}
-                    aria-label={action.label}
-                  >
-                    {action.content}
-                  </motion.button>
-                );
-              })}
-          </AnimatePresence>
+        <AnimatePresence mode="popLayout">
+          {expanded &&
+            orbitActions.map((action, index) => {
+              const { x, y } = action.offset;
+              return (
+                <motion.button
+                  key={action.key}
+                  type="button"
+                  transformTemplate={orbitTransformTemplate}
+                  initial={{ scale: 0, opacity: 0, x: 0, y: 0 }}
+                  animate={{ scale: 1, opacity: 1, x, y }}
+                  exit={{ scale: 0, opacity: 0, x: 0, y: 0 }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 420,
+                    damping: 22,
+                    delay: index * 0.05,
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    action.onClick();
+                  }}
+                  className={`${orbitClass} ${action.className}`}
+                  aria-label={action.label}
+                >
+                  {action.content}
+                </motion.button>
+              );
+            })}
+        </AnimatePresence>
 
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.92 }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleExpand();
-            }}
-            className="pointer-events-auto absolute left-1/2 top-1/2 z-[1] flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/80 bg-slate-950/90 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
-            aria-label={expanded ? 'Collapse actions' : 'Open actions'}
-            aria-expanded={expanded}
-          >
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-            ) : avatarInitial ? (
-              <span className="text-sm font-black text-emerald-300">{avatarInitial}</span>
-            ) : (
-              <User className="h-5 w-5 text-cyan-200" aria-hidden />
-            )}
-          </motion.button>
-        </div>
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.92 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand();
+          }}
+          className="pointer-events-auto absolute left-1/2 top-1/2 z-[1] flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/80 bg-slate-950/90 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
+          aria-label={expanded ? 'Collapse actions' : 'Open actions'}
+          aria-expanded={expanded}
+        >
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : avatarInitial ? (
+            <span className="text-sm font-black text-emerald-300">{avatarInitial}</span>
+          ) : (
+            <User className="h-5 w-5 text-cyan-200" aria-hidden />
+          )}
+        </motion.button>
       </div>
     </Marker>
   );
