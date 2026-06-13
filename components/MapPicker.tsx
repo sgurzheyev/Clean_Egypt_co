@@ -159,6 +159,8 @@ const MISSION_PIN_CORE_COLOR: mapboxgl.Expression = [
   '#0284c7',
   'junk_removal',
   '#94a3b8',
+  'beach_street_cleanup',
+  '#22c55e',
   MISSION_PIN_CATEGORY_FALLBACK,
 ];
 

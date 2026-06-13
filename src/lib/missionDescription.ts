@@ -17,6 +17,7 @@ const SERVICE_TYPE_HASHTAGS: Record<ServiceType, string[]> = {
   laundry_ironing: ['#laundry', '#ironing', '#home'],
   water_tank_cleaning: ['#water', '#tank', '#cleaning'],
   junk_removal: ['#junk', '#heavy', '#haul'],
+  beach_street_cleanup: ['#beach', '#street', '#cleanup', '#eco'],
 };
 
 const HASHTAG_RE = /#\S+/gi;

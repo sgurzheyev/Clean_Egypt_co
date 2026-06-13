@@ -328,6 +328,7 @@ const resources = {
       serviceLaundryIroning: 'Laundry / Ironing',
       serviceWaterTankCleaning: 'Water Tank Cleaning',
       serviceJunkRemoval: 'Junk Removal',
+      serviceBeachStreetCleanup: 'Clean beach / street',
       geofenceEgyptShelf: 'You can place a bid only in Egypt',
       uploadPhoto: 'Upload photo',
       photosSelected: 'photo(s) selected',
@@ -685,6 +686,7 @@ const resources = {
       serviceLaundryIroning: 'غسيل / كي',
       serviceWaterTankCleaning: 'تنظيف خزان المياه',
       serviceJunkRemoval: 'إزالة المخلفات',
+      serviceBeachStreetCleanup: 'تنظيف الشاطئ / الشارع',
       geofenceEgyptShelf: 'يمكنك وضع عرض فقط داخل مصر',
       descriptionContactWarning:
         'ممنوع إدخال جهات اتصال خارجية أو صفقات خارج المنصة في الوصف.',
@@ -1072,6 +1074,7 @@ const resources = {
       serviceLaundryIroning: 'Стирка / глажка',
       serviceWaterTankCleaning: 'Чистка водяного бака',
       serviceJunkRemoval: 'Вывоз хлама',
+      serviceBeachStreetCleanup: 'Уборка пляжа / улицы',
       geofenceEgyptShelf: 'Ставку можно сделать только в Египте',
       descriptionContactWarning:
         'В описании нельзя указывать контакты и сделки в обход платформы.',
@@ -1360,6 +1363,7 @@ const resources = {
       formTitleSpongeStreet: 'Objekt / Straße reinigen',
       location: 'Standort',
       tapMapToSetLocation: 'Tippe auf die Karte, um den Standort zu setzen.',
+      serviceBeachStreetCleanup: 'Strand- / Straßenreinigung',
       geofenceEgyptShelf: 'Du kannst nur in Ägypten bieten',
       descriptionContactWarning:
         'Externe Kontakte und Deals ausserhalb der Plattform sind in der Beschreibung nicht erlaubt.',
@@ -1660,6 +1664,7 @@ const resources = {
       formTitleSpongeStreet: 'Pulisci oggetto / strada',
       location: 'Posizione',
       tapMapToSetLocation: 'Tocca la mappa per impostare la posizione.',
+      serviceBeachStreetCleanup: 'Pulizia spiaggia / strada',
       geofenceEgyptShelf: 'Puoi fare un’offerta solo in Egitto',
       descriptionContactWarning:
         'Nella descrizione non sono ammessi contatti esterni o accordi fuori piattaforma.',
@@ -1960,6 +1965,7 @@ const resources = {
       formTitleSpongeStreet: 'Limpiar objeto / calle',
       location: 'Ubicación',
       tapMapToSetLocation: 'Toca el mapa para fijar la ubicación.',
+      serviceBeachStreetCleanup: 'Limpieza de playa / calle',
       geofenceEgyptShelf: 'Solo puedes pujar en Egipto',
       descriptionContactWarning:
         'No se permiten contactos externos ni acuerdos fuera de la plataforma en la descripción.',

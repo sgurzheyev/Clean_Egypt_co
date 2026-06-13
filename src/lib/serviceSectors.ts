@@ -14,7 +14,8 @@ export type ServiceType =
   | 'kitchen_hoods_grease'
   | 'laundry_ironing'
   | 'water_tank_cleaning'
-  | 'junk_removal';
+  | 'junk_removal'
+  | 'beach_street_cleanup';
 
 export type FormTrigger = 'mop' | 'sponge';
 
@@ -36,6 +37,7 @@ export const STREET_OBJECT_SECTOR_SERVICES: ServiceOption[] = [
   { id: 'car_detailing', labelKey: 'serviceCarDetailing' },
   { id: 'yacht_boat_cleaning', labelKey: 'serviceYachtBoatCleaning' },
   { id: 'junk_removal', labelKey: 'serviceJunkRemoval' },
+  { id: 'beach_street_cleanup', labelKey: 'serviceBeachStreetCleanup' },
   { id: 'terrace_garden', labelKey: 'serviceTerraceGarden' },
   { id: 'pool_maintenance', labelKey: 'servicePoolMaintenance' },
   { id: 'solar_panels', labelKey: 'serviceSolarPanels' },
