@@ -6,6 +6,7 @@ import { formatWorkBudgetEgp } from '../src/lib/formatMoney';
 import { missionWorkBudgetEgp } from '../src/lib/missionBudget';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
+import MissionFeedCard from './MissionFeedCard';
 
 export interface LiveMarketMission {
   id: string;
@@ -34,8 +35,8 @@ const ACTIVE_MARKET_STATUSES = ['pending', 'available', 'funding', 'in_progress'
 
 const statusClass = (status: string) =>
   status === 'in_progress'
-    ? 'border-cyan-400/55 bg-cyan-500/15 text-cyan-200'
-    : 'border-emerald-400/55 bg-emerald-500/15 text-emerald-200';
+    ? 'border-cyan-400/55 bg-cyan-500/25 text-cyan-100'
+    : 'border-emerald-400/55 bg-emerald-500/25 text-emerald-100';
 
 function missionLocationLine(
   mission: LiveMarketMission,
@@ -123,7 +124,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[140] bg-black/60 backdrop-blur-sm pointer-events-auto"
+          className="fixed inset-0 z-[140] bg-black/70 backdrop-blur-sm pointer-events-auto"
           onClick={onClose}
         >
           <motion.div
@@ -132,98 +133,76 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
             exit={{ y: 32, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 280, damping: 24 }}
             onClick={(e) => e.stopPropagation()}
-            className="absolute inset-x-3 bottom-0 mx-auto max-w-xl rounded-t-3xl border border-cyan-500/25 bg-slate-950/85 p-4 shadow-[0_0_30px_rgba(8,145,178,0.2)]"
+            className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[88vh] w-full max-w-xl flex-col rounded-t-2xl bg-slate-950/95 shadow-[0_-12px_40px_rgba(0,0,0,0.45)]"
           >
-            <div className="mb-3 flex items-center justify-between">
-              <div className="mx-auto h-1.5 w-14 rounded-full bg-white/20" />
+            <div className="relative shrink-0 px-4 pb-2 pt-3">
+              <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-white/20" />
               <button
                 type="button"
                 onClick={onClose}
-                className="absolute right-4 top-3 h-7 w-7 rounded-full border border-cyan-500/50 bg-cyan-500/10 text-cyan-300"
+                className="absolute right-3 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-slate-300"
                 aria-label={t('close')}
               >
                 ✕
               </button>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                {t('serviceMarketplace')}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">{t('liveMarketBrowseHint')}</p>
             </div>
 
-            <p className="mb-1 px-1 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
-              {t('serviceMarketplace')}
-            </p>
-            <p className="mb-3 px-1 text-xs text-slate-400">{t('liveMarketBrowseHint')}</p>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <div className="space-y-3">
+                {loading && <p className="py-4 text-center text-xs text-slate-400">{t('loading')}</p>}
+                {!loading && loadError && (
+                  <p className="py-4 text-center text-xs text-red-300">{loadError}</p>
+                )}
+                {!loading && !loadError && missions.length === 0 && (
+                  <p className="py-4 text-center text-xs text-slate-400">{t('noLiveMissions')}</p>
+                )}
+                {!loading &&
+                  !loadError &&
+                  missions.map((mission) => {
+                    const budget = missionWorkBudgetEgp(mission);
+                    const isOwnTask =
+                      !!currentUserId && mission.creator_id === currentUserId;
+                    const isHome = mission.category === 'home';
+                    const statusLabel =
+                      mission.status === 'in_progress' ? t('accepted') : mission.status;
 
-            <div className="max-h-[58vh] space-y-2 overflow-y-auto pr-1">
-              {loading && <p className="px-1 py-3 text-xs text-slate-400">{t('loading')}</p>}
-              {!loading && loadError && <p className="px-1 py-3 text-xs text-red-300">{loadError}</p>}
-              {!loading && !loadError && missions.length === 0 && (
-                <p className="px-1 py-3 text-xs text-slate-400">{t('noLiveMissions')}</p>
-              )}
-              {!loading &&
-                !loadError &&
-                missions.map((mission) => {
-                  const budget = missionWorkBudgetEgp(mission);
-                  const isOwnTask =
-                    !!currentUserId && mission.creator_id === currentUserId;
-                  return (
-                  <button
-                    key={mission.id}
-                    type="button"
-                    onClick={() => onSelectMission(mission)}
-                    className={`w-full rounded-2xl border p-2 text-left transition-all hover:border-cyan-400/50 hover:bg-white/10 ${
-                      isOwnTask
-                        ? 'border-emerald-400/35 bg-emerald-500/10'
-                        : 'border-white/10 bg-white/5'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-900">
-                        {mission.photo_urls?.[0] ? (
-                          <img
-                            src={mission.photo_urls[0]}
-                            alt=""
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-[10px] text-slate-500">
-                            IMG
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-[11px] font-black uppercase tracking-[0.16em] text-cyan-300">
-                            {t('orderNumber')} {mission.id.slice(0, 8)}
-                          </p>
-                          {isOwnTask && (
-                            <span className="shrink-0 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-200">
+                    return (
+                      <MissionFeedCard
+                        key={mission.id}
+                        photoUrl={mission.photo_urls?.[0] ?? null}
+                        placeholderVariant={isHome ? 'home' : 'city'}
+                        placeholderIcon={isHome ? '🏠' : '🌆'}
+                        budgetValue={formatWorkBudgetEgp(budget)}
+                        locationLine={missionLocationLine(mission, t)}
+                        metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
+                        highlighted={isOwnTask}
+                        topLeftBadge={
+                          isOwnTask ? (
+                            <span className="rounded-full border border-emerald-400/50 bg-emerald-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100 backdrop-blur-sm">
                               {t('yourTaskBadge')}
                             </span>
-                          )}
-                        </div>
-                        <p className="truncate text-xs text-slate-300">
-                          {missionLocationLine(mission, t)}
-                        </p>
-                        <div className="mt-1 flex items-center gap-2">
+                          ) : undefined
+                        }
+                        statusBadge={
                           <span
-                            className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${statusClass(
+                            className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${statusClass(
                               mission.status
                             )}`}
                           >
-                            {t('status')}: {mission.status === 'in_progress' ? t('accepted') : mission.status}
+                            {t('status')}: {statusLabel}
                           </span>
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500">
-                          {t('workBudgetLabel')}
-                        </p>
-                        <p className="text-sm font-black text-orange-300 drop-shadow-[0_0_10px_rgba(251,146,60,0.35)]">
-                          {formatWorkBudgetEgp(budget)}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                  );
-                })}
+                        }
+                        onClick={() => onSelectMission(mission)}
+                        onLocate={() => onSelectMission(mission)}
+                        locateAriaLabel={t('locateOnMap')}
+                      />
+                    );
+                  })}
+              </div>
             </div>
           </motion.div>
         </motion.div>

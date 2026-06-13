@@ -8,6 +8,7 @@ import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
 import { Navigation, Camera, X, User } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
+import MissionFeedCard from './MissionFeedCard';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import CreateMission from './CreateMission';
 import {
@@ -588,7 +589,7 @@ function MyOrdersPanel({
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain pr-0.5">
               {!isLoggedIn && (
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
                   <p className="text-sm text-slate-300">{t('myOrdersLoginHint')}</p>
@@ -607,22 +608,28 @@ function MyOrdersPanel({
                 <p className="px-1 py-6 text-center text-xs text-slate-400">{t('myOrdersEmpty')}</p>
               )}
               {isLoggedIn &&
-                missions.map((mission) => (
-                  <button
-                    key={mission.id}
-                    type="button"
-                    onClick={() => onSelectMission(mission)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-left transition-all hover:border-cyan-400/45 hover:bg-white/10"
-                  >
-                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-300">
-                      {t('orderNumber')} {mission.id.slice(0, 8)}
-                    </p>
-                    <p className="mt-1 text-xs capitalize text-slate-300">{mission.status}</p>
-                    <p className="mt-2 text-sm font-black text-orange-300">
-                      {formatWorkBudgetEgp(missionWorkBudgetEgp(mission))}
-                    </p>
-                  </button>
-                ))}
+                missions.map((mission) => {
+                  const isHome = mission.category === 'home';
+                  return (
+                    <MissionFeedCard
+                      key={mission.id}
+                      photoUrl={mission.photo_urls?.[0] ?? null}
+                      placeholderVariant={isHome ? 'home' : 'city'}
+                      placeholderIcon={isHome ? '🏠' : '🌆'}
+                      budgetValue={formatWorkBudgetEgp(missionWorkBudgetEgp(mission))}
+                      metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
+                      locationLine={mission.description?.split('\n')[0]?.trim() || undefined}
+                      statusBadge={
+                        <span className="rounded-full border border-white/20 bg-black/40 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-200 backdrop-blur-sm capitalize">
+                          {mission.status}
+                        </span>
+                      }
+                      onClick={() => onSelectMission(mission)}
+                      onLocate={() => onSelectMission(mission)}
+                      locateAriaLabel={t('locateOnMap')}
+                    />
+                  );
+                })}
             </div>
           </motion.aside>
         </motion.div>

@@ -28,6 +28,7 @@ import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
 import { missionWorkBudgetEgp } from '../src/lib/missionBudget';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
+import MissionFeedCard from './MissionFeedCard';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -2242,74 +2243,52 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           )}
 
           {!marketLoading && !marketError && marketCityId && filteredMarketplaceJobs.length > 0 && (
-            <div className="grid grid-cols-1 gap-4 pointer-events-auto">
+            <div className="space-y-3 pointer-events-auto">
               {filteredMarketplaceJobs.map((job) => {
                   const isHome = job.category === 'home';
                   const icon = isHome ? '🏠' : '🌆';
-                  const badgeColor = isHome
-                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
 
                   return (
-                  <div
+                  <MissionFeedCard
                     key={job.id}
-                    className="group w-full text-left transition-all relative z-10"
-                  >
-                    <div className={`relative z-10 ${PROFILE_GLASS_PANEL} p-4 overflow-hidden transition-all duration-200 ${isHome ? 'group-hover:border-amber-500/50' : 'group-hover:border-emerald-500/50'}`}>
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
-                        <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
-                      </div>
-                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" aria-hidden>
-                        <div className={`absolute -inset-32 ${isHome ? 'bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.12),_transparent_60%)]' : 'bg-[radial-gradient(circle_at_top,_rgba(52,211,153,0.12),_transparent_60%)]'}`} />
-                      </div>
-
-                      <div className="relative z-10 flex justify-between items-center gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className={`flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl ${PROFILE_GLASS_PANEL} text-xl transition-transform duration-200 group-hover:scale-105`}>
-                            {Array.isArray(job.photo_urls) && job.photo_urls[0] ? (
-                              <ModeratedMissionPhoto
-                                url={job.photo_urls[0]}
-                                alt=""
-                                showSafeBadge={false}
-                                className="h-full w-full"
-                                imgClassName="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <span>{icon}</span>
-                            )}
-                          </div>
-                          <div>
-                            <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
-                              {(job.category || 'UNKNOWN').toUpperCase()} Mission
-                            </p>
-                            <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-0.5">
-                              {t('workBudgetLabel')}
-                            </p>
-                            <p
-                              className={`text-2xl font-black tracking-tight ${
-                                isHome ? 'text-amber-400' : 'text-emerald-400'
-                              }`}
-                            >
-                              {formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (onNavigateToJob && typeof job.location_lat === 'number' && typeof job.location_lng === 'number') {
-                              onNavigateToJob(job.location_lat, job.location_lng);
-                            }
-                            onClose();
-                          }}
-                          className="relative z-10 inline-flex items-center justify-center rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300 border border-cyan-500/50 bg-cyan-500/10 hover:bg-cyan-500/20 hover:text-cyan-200 hover:shadow-[0_0_14px_rgba(34,211,238,0.35)] transition-all active:scale-95"
-                        >
-                          {t('locateOnMap')}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                    photo={
+                      Array.isArray(job.photo_urls) && job.photo_urls[0] ? (
+                        <ModeratedMissionPhoto
+                          url={job.photo_urls[0]}
+                          alt=""
+                          showSafeBadge={false}
+                          className="h-full w-full"
+                          imgClassName="h-full w-full object-cover"
+                        />
+                      ) : undefined
+                    }
+                    placeholderVariant={isHome ? 'home' : 'city'}
+                    placeholderIcon={icon}
+                    budgetValue={formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
+                    metaLine={`#${shortId(job.id)} · ${new Date(job.created_at).toLocaleDateString()}`}
+                    statusBadge={
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${
+                          isHome
+                            ? 'border-amber-400/50 bg-amber-500/25 text-amber-100'
+                            : 'border-emerald-400/50 bg-emerald-500/25 text-emerald-100'
+                        }`}
+                      >
+                        {(job.category || 'UNKNOWN').toUpperCase()}
+                      </span>
+                    }
+                    onLocate={() => {
+                      if (
+                        onNavigateToJob &&
+                        typeof job.location_lat === 'number' &&
+                        typeof job.location_lng === 'number'
+                      ) {
+                        onNavigateToJob(job.location_lat, job.location_lng);
+                      }
+                      onClose();
+                    }}
+                    locateAriaLabel={t('locateOnMap')}
+                  />
                 );
               })}
             </div>
@@ -2408,16 +2387,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             ) : (missionHistory || []).length === 0 ? (
               <p className="text-slate-500 text-sm italic">{t('noCompletedMissionsYet')}</p>
             ) : (
-              <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-3">
                 {(missionHistory || []).map((job) => {
                   const uid = userProfile.id;
                   const isCreator = job.creator_id === uid;
                   const roleLabel = isCreator ? t('creator') : t('cleaner');
                   const isHome = job.category === 'home';
                   const icon = isHome ? '🏠' : '🌆';
-                  const badgeColor = isHome
-                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
                   const displayTitle =
                     job.title && job.title.trim().length > 0
                       ? job.title
@@ -2428,62 +2404,71 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   const cleanerHandle = job.cleaner?.telegram_username
                     ? `(@${job.cleaner.telegram_username})`
                     : '';
+                  const hasPhoto = Array.isArray(job.photo_urls) && !!job.photo_urls[0];
+
                   return (
-                    <div
+                    <MissionFeedCard
                       key={job.id}
-                      className={`${PROFILE_GLASS_PANEL} p-4 shadow-[0_0_20px_rgba(15,23,42,0.8)]`}
-                    >
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
-                        <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
-                      </div>
-
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          <div className={`flex h-10 w-10 items-center justify-center ${PROFILE_GLASS_PANEL} text-xl`}>
-                            <span>{icon}</span>
-                          </div>
-                          <div>
-                            <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
-                              {displayTitle}
-                            </p>
-                            <p className={`text-2xl font-black tracking-tight mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>
-                              {formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[9px] text-slate-500 uppercase tracking-widest">{t('role')}</p>
-                          <p className="text-xs font-bold text-slate-200">{roleLabel}</p>
-                        </div>
-                      </div>
-
-                      {typeof job.rating === 'number' && !Number.isNaN(job.rating) && (
-                        <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-slate-800/70 border border-amber-400/30 px-2 py-0.5">
-                          <span className="text-[10px] font-bold text-amber-300">
-                            {job.rating.toFixed(1)}
+                      photo={
+                        hasPhoto ? (
+                          <ModeratedMissionPhoto
+                            url={job.photo_urls![0]}
+                            alt=""
+                            showSafeBadge={false}
+                            className="h-full w-full"
+                            imgClassName="h-full w-full object-cover"
+                          />
+                        ) : undefined
+                      }
+                      placeholderVariant={isHome ? 'home' : 'city'}
+                      placeholderIcon={icon}
+                      budgetValue={formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
+                      metaLine={`#${shortId(job.id)} · ${new Date(job.created_at).toLocaleDateString()}`}
+                      locationLine={displayTitle}
+                      statusBadge={
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${
+                            isHome
+                              ? 'border-amber-400/50 bg-amber-500/25 text-amber-100'
+                              : 'border-emerald-400/50 bg-emerald-500/25 text-emerald-100'
+                          }`}
+                        >
+                          {roleLabel}
+                        </span>
+                      }
+                      topLeftBadge={
+                        typeof job.rating === 'number' && !Number.isNaN(job.rating) ? (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-black/50 px-2 py-0.5 text-[10px] font-bold text-amber-200 backdrop-blur-sm">
+                            {job.rating.toFixed(1)} ⭐
                           </span>
-                          <span className="text-xs">⭐</span>
-                        </div>
-                      )}
-
-                      {job.description && (
-                        <p className="text-xs text-slate-400 mt-3">{job.description}</p>
-                      )}
-
-                      {/* Cleaner info (no phone/WhatsApp for privacy) */}
-                      {job.cleaner_id && (
-                        <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400">
-                          <p className="uppercase tracking-[0.18em] text-slate-500">
-                            Cleaner
-                          </p>
-                          <p className="text-right">
-                            <span className="font-semibold text-slate-200">{cleanerName}</span>{' '}
-                            <span className="text-slate-400">{cleanerHandle}</span>
-                          </p>
-                        </div>
-                      )}
-                    </div>
+                        ) : undefined
+                      }
+                      onLocate={
+                        onNavigateToJob &&
+                        typeof job.location_lat === 'number' &&
+                        typeof job.location_lng === 'number'
+                          ? () => {
+                              onNavigateToJob(job.location_lat!, job.location_lng!);
+                              onClose();
+                            }
+                          : undefined
+                      }
+                      locateAriaLabel={t('locateOnMap')}
+                      footer={
+                        <>
+                          {job.description && (
+                            <p className="line-clamp-2 text-slate-400">{job.description}</p>
+                          )}
+                          {job.cleaner_id && (
+                            <p className="mt-1 text-[11px] text-slate-500">
+                              {t('cleaner')}:{' '}
+                              <span className="font-semibold text-slate-300">{cleanerName}</span>{' '}
+                              {cleanerHandle}
+                            </p>
+                          )}
+                        </>
+                      }
+                    />
                   );
                 })}
               </div>
