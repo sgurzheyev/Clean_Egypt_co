@@ -484,61 +484,63 @@ function DraftPinActionHub({
 
   return (
     <Marker longitude={lng} latitude={lat} anchor="center">
-      <div className="draft-pin-action-hub pointer-events-none relative h-0 w-0">
-        <AnimatePresence mode="popLayout">
-          {expanded &&
-            orbitActions.map((action, index) => {
-              const { x, y } = orbitOffset(action.angle);
-              return (
-                <motion.button
-                  key={action.key}
-                  type="button"
-                  initial={{ scale: 0, opacity: 0, x: '-50%', y: '-50%' }}
-                  animate={{
-                    scale: 1,
-                    opacity: 1,
-                    x: `calc(-50% + ${x}px)`,
-                    y: `calc(-50% + ${y}px)`,
-                  }}
-                  exit={{ scale: 0, opacity: 0, x: '-50%', y: '-50%' }}
-                  transition={{
-                    type: 'spring',
-                    stiffness: 420,
-                    damping: 22,
-                    delay: index * 0.05,
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    action.onClick();
-                  }}
-                  className={`${orbitClass} left-0 top-0 ${action.className}`}
-                  aria-label={action.label}
-                >
-                  {action.content}
-                </motion.button>
-              );
-            })}
-        </AnimatePresence>
+      <div className="draft-pin-action-hub pointer-events-none relative h-0 w-0 overflow-visible">
+        <div className="absolute left-0 top-0 h-0 w-0 overflow-visible">
+          <AnimatePresence mode="popLayout">
+            {expanded &&
+              orbitActions.map((action, index) => {
+                const { x, y } = orbitOffset(action.angle);
+                return (
+                  <motion.button
+                    key={action.key}
+                    type="button"
+                    initial={{ scale: 0, opacity: 0, x: '-50%', y: '-50%' }}
+                    animate={{
+                      scale: 1,
+                      opacity: 1,
+                      x: `calc(-50% + ${x}px)`,
+                      y: `calc(-50% + ${y}px)`,
+                    }}
+                    exit={{ scale: 0, opacity: 0, x: '-50%', y: '-50%' }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 420,
+                      damping: 22,
+                      delay: index * 0.05,
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      action.onClick();
+                    }}
+                    className={`${orbitClass} left-1/2 top-1/2 ${action.className}`}
+                    aria-label={action.label}
+                  >
+                    {action.content}
+                  </motion.button>
+                );
+              })}
+          </AnimatePresence>
 
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.92 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleExpand();
-          }}
-          className="pointer-events-auto absolute left-0 top-0 z-[1] flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/80 bg-slate-950/90 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
-          aria-label={expanded ? 'Collapse actions' : 'Open actions'}
-          aria-expanded={expanded}
-        >
-          {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-          ) : avatarInitial ? (
-            <span className="text-sm font-black text-emerald-300">{avatarInitial}</span>
-          ) : (
-            <User className="h-5 w-5 text-cyan-200" aria-hidden />
-          )}
-        </motion.button>
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.92 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleExpand();
+            }}
+            className="pointer-events-auto absolute left-1/2 top-1/2 z-[1] flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/80 bg-slate-950/90 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
+            aria-label={expanded ? 'Collapse actions' : 'Open actions'}
+            aria-expanded={expanded}
+          >
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+            ) : avatarInitial ? (
+              <span className="text-sm font-black text-emerald-300">{avatarInitial}</span>
+            ) : (
+              <User className="h-5 w-5 text-cyan-200" aria-hidden />
+            )}
+          </motion.button>
+        </div>
       </div>
     </Marker>
   );
@@ -3153,6 +3155,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
         .ce-map .mapboxgl-marker:has(.draft-pin-action-hub) {
           z-index: 2;
+          width: 0 !important;
+          height: 0 !important;
+          overflow: visible !important;
         }
         .ce-map .mapboxgl-ctrl-bottom-right {
           margin-right: 12px;
@@ -3471,8 +3476,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
             onToggleExpand={toggleDraftPinMenu}
             avatarUrl={viewerProfile?.avatar_url}
             avatarInitial={profileAvatarInitial}
-            onMop={() => openMissionForm('mop')}
-            onSponge={() => openMissionForm('sponge')}
+            onMop={() => openMissionForm('sponge')}
+            onSponge={() => openMissionForm('mop')}
             onOpenMarket={handleOpenMarketFeed}
             mopLabel={t('formTitleMopPrivate')}
             spongeLabel={t('formTitleSpongeStreet')}
@@ -3679,9 +3684,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   ✕
                 </button>
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                  {activeFormTrigger === 'mop'
+                  {activeFormTrigger === 'sponge'
                     ? t('formTitleMopPrivate')
-                    : activeFormTrigger === 'sponge'
+                    : activeFormTrigger === 'mop'
                       ? t('formTitleSpongeStreet')
                       : taskType === 'city'
                         ? t('cleanCityArea')

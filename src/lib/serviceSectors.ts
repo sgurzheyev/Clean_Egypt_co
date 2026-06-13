@@ -49,7 +49,7 @@ export const ALL_SECTOR_SERVICES: ServiceOption[] = [
 ];
 
 export function servicesForTrigger(trigger: FormTrigger): ServiceOption[] {
-  return trigger === 'mop' ? PRIVATE_SECTOR_SERVICES : STREET_OBJECT_SECTOR_SERVICES;
+  return trigger === 'sponge' ? PRIVATE_SECTOR_SERVICES : STREET_OBJECT_SECTOR_SERVICES;
 }
 
 export function defaultServiceForTrigger(trigger: FormTrigger): ServiceType {
@@ -57,7 +57,7 @@ export function defaultServiceForTrigger(trigger: FormTrigger): ServiceType {
 }
 
 export function taskTypeForTrigger(trigger: FormTrigger): 'home' | 'city' {
-  return trigger === 'mop' ? 'home' : 'city';
+  return trigger === 'sponge' ? 'home' : 'city';
 }
 
 export function findServiceOption(id: string | null | undefined): ServiceOption | undefined {
