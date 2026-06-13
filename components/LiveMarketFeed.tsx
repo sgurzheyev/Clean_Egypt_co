@@ -27,7 +27,10 @@ interface LiveMarketFeedProps {
   open: boolean;
   onClose: () => void;
   onSelectMission: (mission: LiveMarketMission) => void;
+  currentUserId?: string | null;
 }
+
+const ACTIVE_MARKET_STATUSES = ['pending', 'available', 'funding', 'in_progress'] as const;
 
 const statusClass = (status: string) =>
   status === 'in_progress'
@@ -51,7 +54,12 @@ function missionLocationLine(
   return `${mission.location_lat.toFixed(4)}, ${mission.location_lng.toFixed(4)}`;
 }
 
-const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({ open, onClose, onSelectMission }) => {
+const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
+  open,
+  onClose,
+  onSelectMission,
+  currentUserId,
+}) => {
   const { t } = useTranslation();
   const [missions, setMissions] = useState<LiveMarketMission[]>([]);
   const [loading, setLoading] = useState(false);
@@ -80,11 +88,10 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({ open, onClose, onSelect
           photo_urls,
           created_at
         `)
-        .eq('category', 'public')
-        .in('status', ['available', 'in_progress'])
+        .in('status', [...ACTIVE_MARKET_STATUSES])
         .order('amount_target', { ascending: false })
         .order('created_at', { ascending: false })
-        .limit(12);
+        .limit(200);
 
       if (cancelled) return;
       if (error) {
@@ -96,7 +103,9 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({ open, onClose, onSelect
             (mission) =>
               Number.isFinite(mission.location_lat) &&
               Number.isFinite(mission.location_lng) &&
-              (mission.status === 'available' || mission.status === 'in_progress')
+              ACTIVE_MARKET_STATUSES.includes(
+                mission.status as (typeof ACTIVE_MARKET_STATUSES)[number]
+              )
           )
         );
       }
@@ -137,9 +146,10 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({ open, onClose, onSelect
               </button>
             </div>
 
-            <p className="mb-3 px-1 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
-              {t('availableLeads')}
+            <p className="mb-1 px-1 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+              {t('serviceMarketplace')}
             </p>
+            <p className="mb-3 px-1 text-xs text-slate-400">{t('liveMarketBrowseHint')}</p>
 
             <div className="max-h-[58vh] space-y-2 overflow-y-auto pr-1">
               {loading && <p className="px-1 py-3 text-xs text-slate-400">{t('loading')}</p>}
@@ -151,12 +161,18 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({ open, onClose, onSelect
                 !loadError &&
                 missions.map((mission) => {
                   const budget = missionWorkBudgetEgp(mission);
+                  const isOwnTask =
+                    !!currentUserId && mission.creator_id === currentUserId;
                   return (
                   <button
                     key={mission.id}
                     type="button"
                     onClick={() => onSelectMission(mission)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 p-2 text-left transition-all hover:border-cyan-400/50 hover:bg-white/10"
+                    className={`w-full rounded-2xl border p-2 text-left transition-all hover:border-cyan-400/50 hover:bg-white/10 ${
+                      isOwnTask
+                        ? 'border-emerald-400/35 bg-emerald-500/10'
+                        : 'border-white/10 bg-white/5'
+                    }`}
                   >
                     <div className="flex items-center gap-3">
                       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-900">
@@ -173,9 +189,16 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({ open, onClose, onSelect
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[11px] font-black uppercase tracking-[0.16em] text-cyan-300">
-                          {t('orderNumber')} {mission.id.slice(0, 8)}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-[11px] font-black uppercase tracking-[0.16em] text-cyan-300">
+                            {t('orderNumber')} {mission.id.slice(0, 8)}
+                          </p>
+                          {isOwnTask && (
+                            <span className="shrink-0 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-200">
+                              {t('yourTaskBadge')}
+                            </span>
+                          )}
+                        </div>
                         <p className="truncate text-xs text-slate-300">
                           {missionLocationLine(mission, t)}
                         </p>
