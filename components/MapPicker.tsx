@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
-import { Recycle, Navigation, Camera, X, User } from 'lucide-react';
+import { Navigation, Camera, X, User } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import CreateMission from './CreateMission';
@@ -484,7 +484,7 @@ function DraftPinActionHub({
 
   return (
     <Marker longitude={lng} latitude={lat} anchor="center">
-      <div className="draft-pin-action-hub relative h-[10rem] w-[10rem] pointer-events-none">
+      <div className="draft-pin-action-hub pointer-events-none relative h-0 w-0">
         <AnimatePresence mode="popLayout">
           {expanded &&
             orbitActions.map((action, index) => {
@@ -511,7 +511,7 @@ function DraftPinActionHub({
                     e.stopPropagation();
                     action.onClick();
                   }}
-                  className={`${orbitClass} left-1/2 top-1/2 ${action.className}`}
+                  className={`${orbitClass} left-0 top-0 ${action.className}`}
                   aria-label={action.label}
                 >
                   {action.content}
@@ -522,17 +522,12 @@ function DraftPinActionHub({
 
         <motion.button
           type="button"
-          animate={{
-            boxShadow: expanded
-              ? '0 0 24px rgba(34,211,238,0.45)'
-              : '0 0 28px rgba(34,211,238,0.55)',
-          }}
           whileTap={{ scale: 0.92 }}
           onClick={(e) => {
             e.stopPropagation();
             onToggleExpand();
           }}
-          className="pointer-events-auto absolute left-1/2 top-1/2 z-[1] flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/80 bg-slate-950/90 shadow-[0_0_24px_rgba(34,211,238,0.45)]"
+          className="pointer-events-auto absolute left-0 top-0 z-[1] flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/80 bg-slate-950/90 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
           aria-label={expanded ? 'Collapse actions' : 'Open actions'}
           aria-expanded={expanded}
         >
@@ -543,24 +538,7 @@ function DraftPinActionHub({
           ) : (
             <User className="h-5 w-5 text-cyan-200" aria-hidden />
           )}
-          {!expanded && (
-            <span className="absolute inset-0 rounded-full border-2 border-cyan-400/40 animate-ping" aria-hidden />
-          )}
         </motion.button>
-
-        <AnimatePresence>
-          {expanded && (
-            <motion.span
-              key="orbit-halo"
-              initial={{ scale: 0.6, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.6, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 26 }}
-              className="pointer-events-none absolute left-1/2 top-1/2 h-[7.25rem] w-[7.25rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-400/25 bg-cyan-500/[0.04] shadow-[inset_0_0_24px_rgba(34,211,238,0.12)]"
-              aria-hidden
-            />
-          )}
-        </AnimatePresence>
       </div>
     </Marker>
   );
@@ -3049,9 +3027,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [jobs, currentUserId]);
 
   const showWorkerMissionBar = !taskTypeSelected && !!activeWorkerMission;
+  const showDraftPinAvatarHub = !!mapDraftPin && !taskTypeSelected;
 
-  /** Native Mapbox draft location (replaces HTML MissionMarker). */
+  /** Native Mapbox draft dot — only while mission form is open (avatar hub replaces it on the map). */
   const draftPinGeoJSON = useMemo(() => {
+    if (showDraftPinAvatarHub) {
+      return { type: 'FeatureCollection' as const, features: [] };
+    }
     const pin = mapDraftPin ?? (taskTypeSelected ? selectedLocation : null);
     if (!pin) {
       return { type: 'FeatureCollection' as const, features: [] };
@@ -3069,7 +3051,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         },
       ],
     };
-  }, [mapDraftPin, selectedLocation, taskTypeSelected]);
+  }, [mapDraftPin, selectedLocation, showDraftPinAvatarHub, taskTypeSelected]);
 
   /** Mobile tap feedback pulse on mission pin tap. */
   const mobileTapPulseGeoJSON = useMemo(() => {
@@ -3136,11 +3118,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setShowLiveMarketFeed(true);
   }, []);
 
-  const handleOpenMyOrdersPanel = useCallback(() => {
-    setShowLiveMarketFeed(false);
-    setShowMyOrdersPanel(true);
-  }, []);
-
   const toggleDraftPinMenu = useCallback(() => {
     setDraftPinMenuExpanded((prev) => !prev);
   }, []);
@@ -3174,6 +3151,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
           max-width: 2.75rem;
           max-height: 2.75rem;
         }
+        .ce-map .mapboxgl-marker:has(.draft-pin-action-hub) {
+          z-index: 2;
+        }
         .ce-map .mapboxgl-ctrl-bottom-right {
           margin-right: 12px;
           margin-bottom: calc(20px + env(safe-area-inset-bottom));
@@ -3188,7 +3168,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           }
           .ce-map .mapboxgl-ctrl-bottom-right {
             margin-right: 8px;
-            margin-bottom: calc(5rem + env(safe-area-inset-bottom));
+            margin-bottom: calc(1.25rem + env(safe-area-inset-bottom));
           }
         }
         @media (min-width: 641px) {
@@ -3435,7 +3415,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           />
         </Source>
 
-        {/* Draft tap location — native circle only (no HTML markers). */}
+        {/* Draft tap location — native circle only while form is open (avatar hub is the pin otherwise). */}
+        {!showDraftPinAvatarHub && draftPinGeoJSON.features.length > 0 && (
         <Source id="draft-pin" type="geojson" data={draftPinGeoJSON}>
           <Layer
             id="draft-pin"
@@ -3451,6 +3432,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }}
           />
         </Source>
+        )}
 
         {/* Active worker (your in-progress mission): purple pulse — pillar height is 0 there */}
         <Source id="mission-worker-pulse" type="geojson" data={activeWorkerPulseGeoJSON}>
@@ -3481,7 +3463,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
         {/* SaaS lead-gen: removed crowdfunding/funding 3D pillars. */}
 
-        {mapDraftPin && !taskTypeSelected && (
+        {showDraftPinAvatarHub && mapDraftPin && (
           <DraftPinActionHub
             lat={mapDraftPin.lat}
             lng={mapDraftPin.lng}
@@ -3634,46 +3616,31 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
-      {/* Profile entry only — no HUD stats on the map canvas */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-[80] flex justify-end px-3 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-5 sm:pt-5">
-        <button
-          type="button"
-          onClick={onAvatarClick}
-          className="pointer-events-auto relative z-[10000] flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-black/45 backdrop-blur-md text-white shadow-[0_0_20px_rgba(0,0,0,0.35)] transition-all hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] sm:h-12 sm:w-12"
-          aria-label="Profile"
-        >
-          {viewerProfile?.avatar_url ? (
-            <img
-              src={viewerProfile.avatar_url}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-          ) : profileAvatarInitial ? (
-            <span className="text-sm font-black text-emerald-300">{profileAvatarInitial}</span>
-          ) : (
-            <User className="h-5 w-5 text-white/90" aria-hidden />
-          )}
-        </button>
-      </div>
-
       {!taskTypeSelected && (
         <div className="fixed inset-x-0 bottom-0 z-[10020] flex justify-center pointer-events-none pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))]">
           <button
             type="button"
-            onClick={handleOpenMyOrdersPanel}
-            className="pointer-events-auto flex h-14 min-w-[8.5rem] items-center justify-center gap-2 rounded-full border-2 border-cyan-400/70 bg-black/75 px-5 backdrop-blur-lg text-cyan-200 shadow-[0_0_28px_rgba(34,211,238,0.3)] transition-transform active:scale-95"
-            aria-label={isExecutorViewer ? t('myLeads') : t('myOrders')}
+            onClick={() => onAvatarClick?.()}
+            className="pointer-events-auto flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/60 bg-black/80 backdrop-blur-lg shadow-[0_0_24px_rgba(34,211,238,0.35)] transition-transform active:scale-95"
+            aria-label="Profile"
           >
-            <Recycle className="h-5 w-5 shrink-0" />
-            <span className="text-[10px] font-black uppercase tracking-[0.2em]">
-              {isExecutorViewer ? t('myLeads') : t('myOrders')}
-            </span>
+            {viewerProfile?.avatar_url ? (
+              <img
+                src={viewerProfile.avatar_url}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : profileAvatarInitial ? (
+              <span className="text-base font-black text-emerald-300">{profileAvatarInitial}</span>
+            ) : (
+              <User className="h-6 w-6 text-white/90" aria-hidden />
+            )}
           </button>
         </div>
       )}
 
       {showWorkerMissionBar && activeWorkerMission && (
-        <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[10015] flex justify-center px-4 pointer-events-none">
+        <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-[10015] flex justify-center px-4 pointer-events-none">
           <ActiveMissionWidget
             mission={activeWorkerMission}
             onNavigate={navigateToActiveMission}
