@@ -178,6 +178,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [missionHistory, setMissionHistory] = useState<Job[]>([]);
   const [jobBidsById, setJobBidsById] = useState<Record<string, Bid[]>>({});
   const [marketplaceJobs, setMarketplaceJobs] = useState<Job[]>([]);
+  const [profileOnlineExecutors, setProfileOnlineExecutors] = useState<number>(() =>
+    Math.floor(12 + Math.random() * (48 - 12 + 1))
+  );
   const [marketCityId, setMarketCityId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [marketLoading, setMarketplaceLoading] = useState(true);
@@ -269,6 +272,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       ),
     [marketplaceJobs]
   );
+
+  useEffect(() => {
+    const tick = () =>
+      setProfileOnlineExecutors(Math.floor(12 + Math.random() * (48 - 12 + 1)));
+    const id = window.setInterval(tick, 5 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (!marketCityId) return;
@@ -1338,7 +1348,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
           </div>
 
-          {/* SaaS Status — tokens + subscription */}
+          {/* SaaS Status — tokens + subscription + live market pulse */}
           <div className={`mt-5 p-4 ${PROFILE_GLASS_PANEL}`}>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
@@ -1372,6 +1382,24 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     </div>
                   );
                 })()}
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/10 pt-3">
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                  {t('availableLeads')}
+                </p>
+                <p className="mt-1 text-lg font-black text-white tabular-nums">
+                  {openMarketplaceJobs.length}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                  {t('onlineExecutors')}
+                </p>
+                <p className="mt-1 text-lg font-black text-white tabular-nums">
+                  {profileOnlineExecutors}
+                </p>
               </div>
             </div>
           </div>

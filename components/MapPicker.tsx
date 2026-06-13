@@ -1,12 +1,12 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import MapGL, { NavigationControl, GeolocateControl, MapRef, Source, Layer } from 'react-map-gl';
+import MapGL, { NavigationControl, GeolocateControl, MapRef, Source, Layer, Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
-import { Navigation, Camera, X, User } from 'lucide-react';
+import { Recycle, Navigation, Camera, X, User } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import CreateMission from './CreateMission';
@@ -413,6 +413,184 @@ function ActiveMissionWidget({
   );
 }
 
+function DraftPinActionHub({
+  lat,
+  lng,
+  expanded,
+  onToggleExpand,
+  avatarUrl,
+  avatarInitial,
+  tokenBalance,
+  availableLeads,
+  onlineExecutors,
+  onTopUp,
+  onMop,
+  onSponge,
+  onOpenMarket,
+  mopLabel,
+  spongeLabel,
+  marketLabel,
+}: {
+  lat: number;
+  lng: number;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  avatarUrl?: string | null;
+  avatarInitial?: string | null;
+  tokenBalance: number;
+  availableLeads: number;
+  onlineExecutors: number;
+  onTopUp: () => void;
+  onMop: () => void;
+  onSponge: () => void;
+  onOpenMarket: () => void;
+  mopLabel: string;
+  spongeLabel: string;
+  marketLabel: string;
+}) {
+  const { t } = useTranslation();
+  const orbitClass =
+    'pointer-events-auto absolute flex h-11 w-11 items-center justify-center rounded-full border text-lg leading-none shadow-lg backdrop-blur-md transition-transform active:scale-95';
+
+  return (
+    <Marker longitude={lng} latitude={lat} anchor="center">
+      <div className="draft-pin-action-hub relative h-[7.5rem] w-[7.5rem] pointer-events-none">
+        <AnimatePresence>
+          {expanded && (
+            <motion.div
+              key="hub-stats"
+              initial={{ opacity: 0, y: 10, scale: 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 24 }}
+              className={`pointer-events-auto absolute bottom-full left-1/2 mb-2 w-52 -translate-x-1/2 rounded-2xl border border-cyan-500/30 bg-slate-950/90 p-3 shadow-[0_8px_32px_rgba(8,145,178,0.25)] backdrop-blur-md ${PROFILE_GLASS_PANEL}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-lime-400">
+                    {t('tokens')}
+                  </p>
+                  <p className="text-lg font-black tabular-nums text-lime-300">{tokenBalance}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTopUp();
+                  }}
+                  className="shrink-0 rounded-full bg-lime-500 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-black hover:bg-lime-400"
+                >
+                  {t('topUp')}
+                </button>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-1.5">
+                  <p className="text-[8px] font-black uppercase tracking-[0.12em] text-cyan-400">
+                    {t('availableLeads')}
+                  </p>
+                  <p className="text-sm font-black tabular-nums text-white">{availableLeads}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-1.5">
+                  <p className="text-[8px] font-black uppercase tracking-[0.12em] text-cyan-400">
+                    {t('onlineExecutors')}
+                  </p>
+                  <p className="text-sm font-black tabular-nums text-white">
+                    {onlineExecutors}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence mode="popLayout">
+          {expanded && (
+            <>
+              <motion.button
+                key="mop-orbit"
+                type="button"
+                initial={{ scale: 0, opacity: 0, x: '-50%', y: 8 }}
+                animate={{ scale: 1, opacity: 1, x: '-50%', y: -52 }}
+                exit={{ scale: 0, opacity: 0, x: '-50%', y: 8 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 22 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMop();
+                }}
+                className={`${orbitClass} left-1/2 border-emerald-400/70 bg-emerald-500/35 shadow-[0_0_16px_rgba(34,197,94,0.5)]`}
+                aria-label={mopLabel}
+              >
+                🧹
+              </motion.button>
+              <motion.button
+                key="sponge-orbit"
+                type="button"
+                initial={{ scale: 0, opacity: 0, x: 0, y: 0 }}
+                animate={{ scale: 1, opacity: 1, x: -52, y: 28 }}
+                exit={{ scale: 0, opacity: 0, x: 0, y: 0 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 22, delay: 0.04 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSponge();
+                }}
+                className={`${orbitClass} left-1/2 top-1/2 border-amber-400/75 bg-amber-500/35 shadow-[0_0_16px_rgba(251,191,36,0.5)]`}
+                aria-label={spongeLabel}
+              >
+                🧽
+              </motion.button>
+              <motion.button
+                key="market-orbit"
+                type="button"
+                initial={{ scale: 0, opacity: 0, x: 0, y: 0 }}
+                animate={{ scale: 1, opacity: 1, x: 12, y: 28 }}
+                exit={{ scale: 0, opacity: 0, x: 0, y: 0 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 22, delay: 0.08 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenMarket();
+                }}
+                className={`${orbitClass} left-1/2 top-1/2 border-cyan-400/70 bg-cyan-500/35 text-base font-black text-cyan-50 shadow-[0_0_16px_rgba(34,211,238,0.45)]`}
+                aria-label={marketLabel}
+              >
+                $
+              </motion.button>
+            </>
+          )}
+        </AnimatePresence>
+
+        <motion.button
+          type="button"
+          animate={{
+            scale: expanded ? 0.82 : 1,
+            boxShadow: expanded
+              ? '0 0 20px rgba(34,211,238,0.35)'
+              : '0 0 28px rgba(34,211,238,0.55)',
+          }}
+          whileTap={{ scale: expanded ? 0.76 : 0.92 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand();
+          }}
+          className="pointer-events-auto absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/80 bg-slate-950/90 shadow-[0_0_24px_rgba(34,211,238,0.45)]"
+          aria-label={expanded ? 'Collapse actions' : 'Open actions'}
+          aria-expanded={expanded}
+        >
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : avatarInitial ? (
+            <span className="text-sm font-black text-emerald-300">{avatarInitial}</span>
+          ) : (
+            <User className="h-5 w-5 text-cyan-200" aria-hidden />
+          )}
+          {!expanded && (
+            <span className="absolute inset-0 rounded-full border-2 border-cyan-400/40 animate-ping" aria-hidden />
+          )}
+        </motion.button>
+      </div>
+    </Marker>
+  );
+}
+
 function MyOrdersPanel({
   open,
   onClose,
@@ -420,11 +598,6 @@ function MyOrdersPanel({
   onSelectMission,
   isLoggedIn,
   onRequestAuth,
-  draftPin,
-  onMop,
-  onSponge,
-  onOpenMarket,
-  onClearDraftPin,
 }: {
   open: boolean;
   onClose: () => void;
@@ -432,11 +605,6 @@ function MyOrdersPanel({
   onSelectMission: (mission: JobOnMap) => void;
   isLoggedIn: boolean;
   onRequestAuth?: () => void;
-  draftPin: { lat: number; lng: number } | null;
-  onMop: () => void;
-  onSponge: () => void;
-  onOpenMarket: () => void;
-  onClearDraftPin: () => void;
 }) {
   const { t } = useTranslation();
 
@@ -473,69 +641,6 @@ function MyOrdersPanel({
               >
                 ✕
               </button>
-            </div>
-
-            <div className="mb-4 space-y-3">
-              {draftPin ? (
-                <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
-                        {t('draftPinLocked')}
-                      </p>
-                      <p className="mt-1 font-mono text-[11px] text-cyan-100/90">
-                        {draftPin.lat.toFixed(5)}, {draftPin.lng.toFixed(5)}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={onClearDraftPin}
-                      className="shrink-0 rounded-full border border-white/15 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400 hover:border-red-400/40 hover:text-red-200"
-                    >
-                      {t('clearDraftPin')}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs text-slate-400">
-                  {t('tapMapToSetLocation')}
-                </p>
-              )}
-
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={onMop}
-                  disabled={!draftPin}
-                  className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-emerald-400/50 bg-emerald-500/15 px-2 py-3 text-center transition-all hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <span className="text-2xl leading-none">🧹</span>
-                  <span className="text-[9px] font-black uppercase tracking-[0.1em] text-emerald-200">
-                    {t('formTitleMopPrivate')}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={onSponge}
-                  disabled={!draftPin}
-                  className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-amber-400/50 bg-amber-500/15 px-2 py-3 text-center transition-all hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <span className="text-2xl leading-none">🧽</span>
-                  <span className="text-[9px] font-black uppercase tracking-[0.1em] text-amber-200">
-                    {t('formTitleSpongeStreet')}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={onOpenMarket}
-                  className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-cyan-400/50 bg-cyan-500/15 px-2 py-3 text-center transition-all hover:bg-cyan-500/25"
-                >
-                  <span className="text-2xl font-black leading-none text-cyan-100">$</span>
-                  <span className="text-[9px] font-black uppercase tracking-[0.1em] text-cyan-200">
-                    {t('serviceMarketplace')}
-                  </span>
-                </button>
-              </div>
             </div>
 
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
@@ -1406,6 +1511,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [showLiveMarketFeed, setShowLiveMarketFeed] = useState(false);
   const [showMyOrdersPanel, setShowMyOrdersPanel] = useState(false);
   const [mapDraftPin, setMapDraftPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [draftPinMenuExpanded, setDraftPinMenuExpanded] = useState(false);
   const [proofUploadMission, setProofUploadMission] = useState<JobOnMap | null>(null);
   const [taskType, setTaskType] = useState<TaskType>('city');
   const [serviceType, setServiceType] = useState<ServiceType>('home_office');
@@ -1457,6 +1563,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
     if (!options?.keepMapDraftPin) {
       setMapDraftPin(null);
+      setDraftPinMenuExpanded(false);
     }
     setPhotoModerationBusy(false);
     setTextWarning(null);
@@ -1468,6 +1575,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const openMissionForm = useCallback((trigger: FormTrigger) => {
     setShowLiveMarketFeed(false);
     setShowMyOrdersPanel(false);
+    setDraftPinMenuExpanded(false);
     setProofUploadMission(null);
     const draftLoc = mapDraftPin ?? selectedLocation;
     resetMissionDraft({ keepLocation: false, keepMapDraftPin: true });
@@ -2189,13 +2297,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
       if (taskTypeSelected) {
         setSelectedLocation({ lat, lng });
         setMapDraftPin({ lat, lng });
+        setDraftPinMenuExpanded(false);
+        setShowLiveMarketFeed(false);
         onLocationSelect?.(lat, lng);
         return;
       }
 
       setMapDraftPin({ lat, lng });
+      setDraftPinMenuExpanded(false);
       setShowLiveMarketFeed(false);
-      setShowMyOrdersPanel(true);
       onLocationSelect?.(lat, lng);
     },
     [findMissionPinAtPoint, handleMarkerClick, onLocationSelect, orderSubmitting, t, taskTypeSelected]
@@ -3061,15 +3171,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleOpenMarketFeed = useCallback(() => {
     setShowMyOrdersPanel(false);
+    setDraftPinMenuExpanded(false);
     setShowLiveMarketFeed(true);
   }, []);
 
-  const handleClearDraftPin = useCallback(() => {
-    setMapDraftPin(null);
-    if (!taskTypeSelected) {
-      setSelectedLocation(null);
-    }
-  }, [taskTypeSelected]);
+  const handleOpenMyOrdersPanel = useCallback(() => {
+    setShowLiveMarketFeed(false);
+    setShowMyOrdersPanel(true);
+  }, []);
+
+  const toggleDraftPinMenu = useCallback(() => {
+    setDraftPinMenuExpanded((prev) => !prev);
+  }, []);
 
   return (
     <div className="w-full h-screen relative bg-black overflow-hidden">
@@ -3093,6 +3206,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
         .ce-map .mapboxgl-ctrl button.mapboxgl-ctrl-icon {
           filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.25));
         }
+        .ce-map .mapboxgl-marker .draft-pin-action-hub {
+          box-sizing: border-box;
+        }
+        .ce-map .mapboxgl-marker .draft-pin-action-hub button {
+          max-width: 2.75rem;
+          max-height: 2.75rem;
+        }
         .ce-map .mapboxgl-ctrl-bottom-right {
           margin-right: 12px;
           margin-bottom: calc(20px + env(safe-area-inset-bottom));
@@ -3107,7 +3227,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           }
           .ce-map .mapboxgl-ctrl-bottom-right {
             margin-right: 8px;
-            margin-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+            margin-bottom: calc(5rem + env(safe-area-inset-bottom));
           }
         }
         @media (min-width: 641px) {
@@ -3399,6 +3519,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </Source>
 
         {/* SaaS lead-gen: removed crowdfunding/funding 3D pillars. */}
+
+        {mapDraftPin && !taskTypeSelected && (
+          <DraftPinActionHub
+            lat={mapDraftPin.lat}
+            lng={mapDraftPin.lng}
+            expanded={draftPinMenuExpanded}
+            onToggleExpand={toggleDraftPinMenu}
+            avatarUrl={viewerProfile?.avatar_url}
+            avatarInitial={profileAvatarInitial}
+            tokenBalance={Math.max(0, Math.floor(Number(viewerProfile?.token_balance ?? 0)))}
+            availableLeads={availableLeadsCount}
+            onlineExecutors={onlineExecutors}
+            onTopUp={() => setShowTokenPackModal(true)}
+            onMop={() => openMissionForm('mop')}
+            onSponge={() => openMissionForm('sponge')}
+            onOpenMarket={handleOpenMarketFeed}
+            mopLabel={t('formTitleMopPrivate')}
+            spongeLabel={t('formTitleSpongeStreet')}
+            marketLabel={t('serviceMarketplace')}
+          />
+        )}
         </MapGL>
       </div>
 
@@ -3536,82 +3677,46 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
-      {/* Minimalist overlays — wrapper is pointer-events-none so map stays interactive */}
-      <div className="absolute inset-0 pointer-events-none z-[80] flex flex-col">
-        {/* Header: title + badges + profile (mobile-safe flex-wrap) */}
-        <header className="pointer-events-none w-full px-3 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-5 sm:pt-5">
-          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
-            <h1 className="pointer-events-none order-1 min-w-0 flex-1 text-xs font-medium tracking-wide text-white sm:text-sm">
-              CleanEgypt.co
-            </h1>
-
-            <div className="pointer-events-auto order-2 flex shrink-0 items-center gap-1.5 sm:gap-2">
-              <div className="flex items-center gap-1.5 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2">
-                <p className="hidden sm:block text-[10px] md:text-xs font-black uppercase tracking-[0.22em] text-lime-500">
-                  {t('tokens')}:
-                </p>
-                <p className="text-[10px] md:text-xs font-black text-white tabular-nums">
-                  {Math.max(0, Math.floor(Number(viewerProfile?.token_balance ?? 0)))}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowTokenPackModal(true)}
-                  className="rounded-full bg-lime-500 px-2 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-black hover:bg-lime-400 transition-all sm:px-2.5 sm:py-1.5 sm:text-[10px]"
-                >
-                  {t('topUp')}
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={onAvatarClick}
-                className="relative z-[10000] flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] transition-all sm:h-11 sm:w-11"
-                aria-label="Profile"
-              >
-                {viewerProfile?.avatar_url ? (
-                  <img
-                    src={viewerProfile.avatar_url}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : profileAvatarInitial ? (
-                  <span className="text-sm font-black text-emerald-300">{profileAvatarInitial}</span>
-                ) : (
-                  <User className="h-5 w-5 text-white/90" aria-hidden />
-                )}
-              </button>
-            </div>
-
-            <div className="pointer-events-none order-3 flex w-full flex-wrap items-center gap-1.5 sm:gap-2">
-              <div className="flex items-center gap-1.5 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2">
-                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.85)] sm:h-2 sm:w-2" />
-                <div className="leading-tight">
-                  <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
-                    {t('availableLeads')}
-                  </p>
-                  <p className="text-[10px] md:text-xs font-black text-white tabular-nums">
-                    {availableLeadsCount}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5 rounded-2xl bg-slate-950/60 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2">
-                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.85)] sm:h-2 sm:w-2" />
-                <div className="leading-tight">
-                  <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
-                    {t('onlineExecutors')}
-                  </p>
-                  <p className="text-[10px] md:text-xs font-black text-white tabular-nums">
-                    {t('onlineLabel')} {onlineExecutors}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
+      {/* Profile entry only — no HUD stats on the map canvas */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[80] flex justify-end px-3 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-5 sm:pt-5">
+        <button
+          type="button"
+          onClick={onAvatarClick}
+          className="pointer-events-auto relative z-[10000] flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-black/45 backdrop-blur-md text-white shadow-[0_0_20px_rgba(0,0,0,0.35)] transition-all hover:border-emerald-400/50 hover:shadow-[0_0_16px_rgba(16,185,129,0.3)] sm:h-12 sm:w-12"
+          aria-label="Profile"
+        >
+          {viewerProfile?.avatar_url ? (
+            <img
+              src={viewerProfile.avatar_url}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          ) : profileAvatarInitial ? (
+            <span className="text-sm font-black text-emerald-300">{profileAvatarInitial}</span>
+          ) : (
+            <User className="h-5 w-5 text-white/90" aria-hidden />
+          )}
+        </button>
       </div>
 
+      {!taskTypeSelected && (
+        <div className="fixed inset-x-0 bottom-0 z-[10020] flex justify-center pointer-events-none pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))]">
+          <button
+            type="button"
+            onClick={handleOpenMyOrdersPanel}
+            className="pointer-events-auto flex h-14 min-w-[8.5rem] items-center justify-center gap-2 rounded-full border-2 border-cyan-400/70 bg-black/75 px-5 backdrop-blur-lg text-cyan-200 shadow-[0_0_28px_rgba(34,211,238,0.3)] transition-transform active:scale-95"
+            aria-label={isExecutorViewer ? t('myLeads') : t('myOrders')}
+          >
+            <Recycle className="h-5 w-5 shrink-0" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+              {isExecutorViewer ? t('myLeads') : t('myOrders')}
+            </span>
+          </button>
+        </div>
+      )}
+
       {showWorkerMissionBar && activeWorkerMission && (
-        <div className="fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-[10015] flex justify-center px-4 pointer-events-none">
+        <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[10015] flex justify-center px-4 pointer-events-none">
           <ActiveMissionWidget
             mission={activeWorkerMission}
             onNavigate={navigateToActiveMission}
@@ -4606,11 +4711,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         onSelectMission={openMyOrderMission}
         isLoggedIn={!!currentUserId}
         onRequestAuth={onRequestAuth}
-        draftPin={mapDraftPin}
-        onMop={() => openMissionForm('mop')}
-        onSponge={() => openMissionForm('sponge')}
-        onOpenMarket={handleOpenMarketFeed}
-        onClearDraftPin={handleClearDraftPin}
       />
       <ProofUploadModal
         open={!!proofUploadMission}

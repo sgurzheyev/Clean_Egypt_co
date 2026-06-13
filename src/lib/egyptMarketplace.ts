@@ -23,6 +23,13 @@ export const EGYPT_MARKETPLACE_CITIES: MarketplaceCity[] = [
   { id: 'hurghada', nameKey: 'marketplaceCity_hurghada', lat: 27.2579, lng: 33.8116 },
   { id: 'sharm_el_sheikh', nameKey: 'marketplaceCity_sharm_el_sheikh', lat: 27.9158, lng: 34.33 },
   { id: 'luxor', nameKey: 'marketplaceCity_luxor', lat: 25.6872, lng: 32.6396 },
+  { id: 'aswan', nameKey: 'marketplaceCity_aswan', lat: 24.0889, lng: 32.8998 },
+  { id: 'ismailia', nameKey: 'marketplaceCity_ismailia', lat: 30.5965, lng: 32.2715 },
+  { id: 'port_said', nameKey: 'marketplaceCity_port_said', lat: 31.2653, lng: 32.3019 },
+  { id: 'suez', nameKey: 'marketplaceCity_suez', lat: 29.9668, lng: 32.5498 },
+  { id: 'mansoura', nameKey: 'marketplaceCity_mansoura', lat: 31.0409, lng: 31.3785 },
+  { id: 'tanta', nameKey: 'marketplaceCity_tanta', lat: 30.7865, lng: 31.0004 },
+  { id: 'asyut', nameKey: 'marketplaceCity_asyut', lat: 27.1783, lng: 31.1859 },
 ];
 
 export function getMarketplaceCityById(id: string): MarketplaceCity | undefined {
