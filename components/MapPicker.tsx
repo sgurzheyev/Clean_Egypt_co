@@ -440,22 +440,16 @@ function DraftPinActionHub({
   spongeLabel: string;
   marketLabel: string;
 }) {
-  const ORBIT_RADIUS = 54;
+  const ORBIT_RADIUS = 60;
+  const TRIANGLE_HALF_WIDTH = ORBIT_RADIUS * (Math.sqrt(3) / 2);
+  const TRIANGLE_HALF_HEIGHT = ORBIT_RADIUS * 0.5;
   const orbitClass =
     'pointer-events-auto absolute flex h-11 w-11 items-center justify-center rounded-full border text-lg leading-none shadow-lg backdrop-blur-md transition-transform active:scale-95';
-
-  const orbitOffset = (angleDeg: number) => {
-    const rad = (angleDeg * Math.PI) / 180;
-    return {
-      x: ORBIT_RADIUS * Math.sin(rad),
-      y: -ORBIT_RADIUS * Math.cos(rad),
-    };
-  };
 
   const orbitActions = [
     {
       key: 'mop-orbit',
-      angle: -45,
+      offset: { x: -TRIANGLE_HALF_WIDTH, y: -TRIANGLE_HALF_HEIGHT },
       label: mopLabel,
       onClick: onMop,
       className:
@@ -464,7 +458,7 @@ function DraftPinActionHub({
     },
     {
       key: 'sponge-orbit',
-      angle: 45,
+      offset: { x: TRIANGLE_HALF_WIDTH, y: -TRIANGLE_HALF_HEIGHT },
       label: spongeLabel,
       onClick: onSponge,
       className:
@@ -473,7 +467,7 @@ function DraftPinActionHub({
     },
     {
       key: 'market-orbit',
-      angle: 180,
+      offset: { x: 0, y: ORBIT_RADIUS },
       label: marketLabel,
       onClick: onOpenMarket,
       className:
@@ -489,7 +483,7 @@ function DraftPinActionHub({
           <AnimatePresence mode="popLayout">
             {expanded &&
               orbitActions.map((action, index) => {
-                const { x, y } = orbitOffset(action.angle);
+                const { x, y } = action.offset;
                 return (
                   <motion.button
                     key={action.key}
