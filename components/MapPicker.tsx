@@ -1915,10 +1915,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [sheetDragY, setSheetDragY] = useState(0);
   const sheetTouchStartYRef = React.useRef<number | null>(null);
   const sheetTouchStartTimeRef = React.useRef<number | null>(null);
-  const [translatedText, setTranslatedText] = useState<string | null>(null);
-  const [isTranslationLoading, setIsTranslationLoading] = useState(false);
-  const [translationError, setTranslationError] = useState<string | null>(null);
-  const [showTranslateAction, setShowTranslateAction] = useState(false);
   const [hoveredPinInfo, setHoveredPinInfo] = useState<{
     lat: number;
     lng: number;
@@ -1963,38 +1959,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
       showSubscriptionModal,
     ]
   );
-
-  const detectLikelyLanguage = (text: string): 'ar' | 'ru' | 'en' => {
-    if (/[\u0600-\u06FF]/.test(text)) return 'ar';
-    if (/[\u0400-\u04FF]/.test(text)) return 'ru';
-    return 'en';
-  };
-
-  const appLanguage = (i18n.language || 'en').split('-')[0];
-
-  const translateMissionDescription = useCallback(async (text: string) => {
-    try {
-      setIsTranslationLoading(true);
-      setTranslationError(null);
-      const res = await fetch('/api/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, targetLanguage: appLanguage }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || 'Translate failed');
-      }
-      const payload = (await res.json()) as { translation?: string };
-      setTranslatedText(payload.translation || null);
-    } catch (e) {
-      console.error('Mission description translation error:', e);
-      setTranslatedText(null);
-      setTranslationError('Translation failed. Try again.');
-    } finally {
-      setIsTranslationLoading(false);
-    }
-  }, [appLanguage]);
 
   const [selectedRating, setSelectedRating] = useState<number>(0);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
@@ -2518,23 +2482,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setHallOfFameCleanerName(null);
     setHallOfFameHeroes([]);
   }, []);
-
-  useEffect(() => {
-    if (!selectedMission?.description) {
-      setShowTranslateAction(false);
-      setTranslatedText(null);
-      setTranslationError(null);
-      return;
-    }
-    const detected = detectLikelyLanguage(selectedMission.description);
-    const shouldTranslate = detected !== appLanguage;
-    setShowTranslateAction(shouldTranslate);
-    setTranslatedText(null);
-    setTranslationError(null);
-    if (shouldTranslate) {
-      translateMissionDescription(selectedMission.description);
-    }
-  }, [selectedMission?.id, selectedMission?.description, appLanguage, translateMissionDescription]);
 
   useEffect(() => {
     const loadHallOfFameMeta = async () => {
@@ -3985,11 +3932,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
           currentUserId={currentUserId}
           activeBidCount={activeBidCounts[selectedMission.id] || 0}
           serviceLabel={serviceLabelFromId(serviceTypeForMission(selectedMission))}
-          showTranslateAction={showTranslateAction}
-          isTranslationLoading={isTranslationLoading}
-          translatedText={translatedText}
-          translationError={translationError}
-          onTranslate={() => translateMissionDescription(selectedMission.description!)}
           missionTxLoading={missionTxLoading}
           missionTxError={missionTxError}
           missionTransactions={missionTransactions}

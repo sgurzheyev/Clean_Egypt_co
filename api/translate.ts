@@ -40,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           {
             role: 'system',
             content:
-              'You are a translation engine. Translate user text precisely to target language. Return only translated text, no explanations.',
+              'You are a translation engine. Translate user text precisely to the target language. Keep placeholder tokens like ⟦HT0⟧, ⟦HT1⟧ exactly unchanged. Return only the translated text, no explanations.',
           },
           {
             role: 'user',

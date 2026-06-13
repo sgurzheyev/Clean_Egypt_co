@@ -1,6 +1,7 @@
 import React from 'react';
 import { MapPin } from 'lucide-react';
-import MissionDescriptionText from './MissionDescriptionText';
+import TranslatableMissionDescription from './TranslatableMissionDescription';
+import { useMissionTextTranslation } from '../src/hooks/useMissionTextTranslation';
 import {
   missionFeedPlaceholderGradient,
   type MissionFeedPlaceholderVariant,
@@ -44,6 +45,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
   onLocate,
   locateAriaLabel = 'Locate on map',
 }) => {
+  const locationTranslation = useMissionTextTranslation(locationLine);
   const showLocate = !!(onLocate || onClick);
 
   const handleLocate = (e: React.MouseEvent) => {
@@ -127,11 +129,17 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
               {budgetValue}
             </p>
             {locationLine && (
-              <p className="mt-1.5 truncate text-xs font-medium text-slate-100/90">{locationLine}</p>
+              <p className="mt-1.5 truncate text-xs font-medium text-slate-100/90">
+                {locationTranslation.displayText}
+              </p>
             )}
             {description && (
               <div className="mt-1.5">
-                <MissionDescriptionText text={description} clampClassName="line-clamp-2" />
+                <TranslatableMissionDescription
+                  text={description}
+                  autoTranslate
+                  clampClassName="line-clamp-2"
+                />
               </div>
             )}
             {statusBadge && <div className="mt-2 flex flex-wrap gap-1.5">{statusBadge}</div>}

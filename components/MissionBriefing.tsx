@@ -2,7 +2,8 @@ import React from 'react';
 import { MapPin, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
-import MissionDescriptionText from './MissionDescriptionText';
+import TranslatableMissionDescription from './TranslatableMissionDescription';
+import { useMissionTextTranslation } from '../src/hooks/useMissionTextTranslation';
 import {
   missionFeedPlaceholderGradient,
   type MissionFeedPlaceholderVariant,
@@ -48,11 +49,6 @@ export type MissionBriefingProps = {
   currentUserId: string | null | undefined;
   activeBidCount: number;
   serviceLabel: string;
-  showTranslateAction: boolean;
-  isTranslationLoading: boolean;
-  translatedText: string | null;
-  translationError: string | null;
-  onTranslate: () => void;
   missionTxLoading: boolean;
   missionTxError: string | null;
   missionTransactions: MissionTransaction[];
@@ -117,11 +113,6 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   currentUserId,
   activeBidCount,
   serviceLabel,
-  showTranslateAction,
-  isTranslationLoading,
-  translatedText,
-  translationError,
-  onTranslate,
   missionTxLoading,
   missionTxError,
   missionTransactions,
@@ -152,7 +143,8 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const placeholderVariant = placeholderVariantFor(mission);
   const placeholderIcon = placeholderVariant === 'home' ? '🏠' : '🌆';
   const feedDescription = extractMissionFeedDescription(mission.description);
-  const locationLine = missionLocationLine(mission, t);
+  const locationSource = missionLocationLine(mission, t);
+  const locationTranslation = useMissionTextTranslation(locationSource);
   const budgetValue = formatWorkBudgetEgp(missionWorkBudgetEgp(mission));
   const isOwnActive =
     mission.status === 'in_progress' && mission.cleaner_id === currentUserId;
@@ -265,7 +257,9 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 </p>
                 <div className="mt-2 flex items-start gap-1.5">
                   <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300/90" strokeWidth={2.25} />
-                  <p className="text-xs font-medium leading-snug text-slate-100/90">{locationLine}</p>
+                  <p className="text-xs font-medium leading-snug text-slate-100/90">
+                    {locationTranslation.displayText}
+                  </p>
                 </div>
                 <div className="mt-2.5 flex flex-wrap items-center gap-2">
                   <span
@@ -290,37 +284,13 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
             <div className="space-y-5 px-5 pt-4">
               {feedDescription && (
                 <section>
-                  <MissionDescriptionText
+                  <TranslatableMissionDescription
                     text={feedDescription}
+                    autoTranslate
+                    showTranslateButton
                     clampClassName=""
                     className="text-sm font-medium leading-relaxed text-slate-200"
                   />
-                  {(showTranslateAction ||
-                    isTranslationLoading ||
-                    translatedText ||
-                    translationError) && (
-                    <div className="mt-3 space-y-2">
-                      {showTranslateAction && (
-                        <button
-                          type="button"
-                          onClick={onTranslate}
-                          disabled={isTranslationLoading}
-                          className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-400 hover:text-cyan-300 disabled:opacity-60"
-                        >
-                          {isTranslationLoading ? t('translating') : t('translate')}
-                        </button>
-                      )}
-                      {isTranslationLoading && (
-                        <div className="h-8 w-full animate-pulse rounded-lg bg-white/5" />
-                      )}
-                      {translatedText && !isTranslationLoading && (
-                        <p className="text-sm leading-relaxed text-cyan-100/90">{translatedText}</p>
-                      )}
-                      {translationError && !isTranslationLoading && (
-                        <p className="text-sm text-red-300">{translationError}</p>
-                      )}
-                    </div>
-                  )}
                 </section>
               )}
 
