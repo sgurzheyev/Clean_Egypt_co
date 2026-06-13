@@ -440,14 +440,13 @@ function DraftPinActionHub({
   spongeLabel: string;
   marketLabel: string;
 }) {
-  const ORBIT_RADIUS = 42;
   const orbitButtonClass =
-    'pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border text-lg leading-none shadow-lg backdrop-blur-md transition-transform active:scale-95';
+    'absolute -left-[1.375rem] -top-[1.375rem] pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border text-lg leading-none shadow-lg backdrop-blur-md transition-transform active:scale-95';
 
   const orbitActions = [
     {
       key: 'mop-orbit',
-      offset: { x: -36, y: -21 },
+      offset: { x: -48, y: -28 },
       label: mopLabel,
       onClick: onMop,
       className:
@@ -456,7 +455,7 @@ function DraftPinActionHub({
     },
     {
       key: 'sponge-orbit',
-      offset: { x: 36, y: -21 },
+      offset: { x: 48, y: -28 },
       label: spongeLabel,
       onClick: onSponge,
       className:
@@ -465,7 +464,7 @@ function DraftPinActionHub({
     },
     {
       key: 'market-orbit',
-      offset: { x: 0, y: ORBIT_RADIUS },
+      offset: { x: 0, y: 55 },
       label: marketLabel,
       onClick: onOpenMarket,
       className:
@@ -484,7 +483,7 @@ function DraftPinActionHub({
               return (
                 <div
                   key={action.key}
-                  className="pointer-events-none absolute left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 overflow-visible"
+                  className="pointer-events-none absolute left-1/2 top-1/2 z-50 flex h-0 w-0 items-center justify-center overflow-visible"
                 >
                   <motion.button
                     type="button"
@@ -511,25 +510,27 @@ function DraftPinActionHub({
             })}
         </AnimatePresence>
 
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.92 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleExpand();
-          }}
-          className="pointer-events-auto absolute left-1/2 top-1/2 z-[60] flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/80 bg-slate-950/90 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
-          aria-label={expanded ? 'Collapse actions' : 'Open actions'}
-          aria-expanded={expanded}
-        >
-          {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-          ) : avatarInitial ? (
-            <span className="text-sm font-black text-emerald-300">{avatarInitial}</span>
-          ) : (
-            <User className="h-5 w-5 text-cyan-200" aria-hidden />
-          )}
-        </motion.button>
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[60] flex h-0 w-0 items-center justify-center overflow-visible">
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.92 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleExpand();
+            }}
+            className="pointer-events-auto absolute -left-6 -top-6 flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/80 bg-slate-950/90 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
+            aria-label={expanded ? 'Collapse actions' : 'Open actions'}
+            aria-expanded={expanded}
+          >
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+            ) : avatarInitial ? (
+              <span className="text-sm font-black text-emerald-300">{avatarInitial}</span>
+            ) : (
+              <User className="h-5 w-5 text-cyan-200" aria-hidden />
+            )}
+          </motion.button>
+        </div>
       </div>
     </Marker>
   );
