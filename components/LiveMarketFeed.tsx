@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabase';
-import { formatEgp } from '../src/lib/formatMoney';
+import { formatWorkBudgetEgp } from '../src/lib/formatMoney';
+import { missionWorkBudgetEgp } from '../src/lib/missionBudget';
 
 export interface LiveMarketMission {
   id: string;
   category: 'public' | 'home' | 'office' | string;
   amount_target: number;
+  expected_price?: number | null;
   current_funding?: number | null;
   location_lat: number;
   location_lng: number;
@@ -48,6 +50,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({ open, onClose, onSelect
           id,
           category,
           amount_target,
+          expected_price,
           current_funding,
           location_lat,
           location_lng,
@@ -60,12 +63,13 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({ open, onClose, onSelect
         `)
         .eq('category', 'public')
         .in('status', ['available', 'in_progress'])
+        .order('amount_target', { ascending: false })
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(12);
 
       if (cancelled) return;
       if (error) {
-        setLoadError(error.message || 'Failed to load live market');
+        setLoadError(error.message || t('liveMarketLoadFailed'));
         setMissions([]);
       } else {
         setMissions(
@@ -82,7 +86,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({ open, onClose, onSelect
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, t]);
 
   return (
     <AnimatePresence>
@@ -108,21 +112,27 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({ open, onClose, onSelect
                 type="button"
                 onClick={onClose}
                 className="absolute right-4 top-3 h-7 w-7 rounded-full border border-cyan-500/50 bg-cyan-500/10 text-cyan-300"
-                aria-label="Close"
+                aria-label={t('close')}
               >
                 ✕
               </button>
             </div>
 
+            <p className="mb-3 px-1 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+              {t('availableLeads')}
+            </p>
+
             <div className="max-h-[58vh] space-y-2 overflow-y-auto pr-1">
-              {loading && <p className="px-1 py-3 text-xs text-slate-400">Loading live feed...</p>}
+              {loading && <p className="px-1 py-3 text-xs text-slate-400">{t('loading')}</p>}
               {!loading && loadError && <p className="px-1 py-3 text-xs text-red-300">{loadError}</p>}
               {!loading && !loadError && missions.length === 0 && (
-                <p className="px-1 py-3 text-xs text-slate-400">No live missions now.</p>
+                <p className="px-1 py-3 text-xs text-slate-400">{t('noLiveMissions')}</p>
               )}
               {!loading &&
                 !loadError &&
-                missions.map((mission) => (
+                missions.map((mission) => {
+                  const budget = missionWorkBudgetEgp(mission);
+                  return (
                   <button
                     key={mission.id}
                     type="button"
@@ -160,12 +170,18 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({ open, onClose, onSelect
                           </span>
                         </div>
                       </div>
-                      <p className="shrink-0 text-sm font-black text-orange-300 drop-shadow-[0_0_10px_rgba(251,146,60,0.35)]">
-                        {formatEgp(Number(mission.amount_target ?? 0))}
-                      </p>
+                      <div className="shrink-0 text-right">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                          {t('workBudgetLabel')}
+                        </p>
+                        <p className="text-sm font-black text-orange-300 drop-shadow-[0_0_10px_rgba(251,146,60,0.35)]">
+                          {formatWorkBudgetEgp(budget)}
+                        </p>
+                      </div>
                     </div>
                   </button>
-                ))}
+                  );
+                })}
             </div>
           </motion.div>
         </motion.div>

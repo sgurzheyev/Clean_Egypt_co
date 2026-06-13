@@ -26,6 +26,13 @@ export function formatEgp(amount: number): string {
   return `${formatNumber(amount)} Tokens`;
 }
 
+/** Client-offered work budget for workers (EGP, not platform tokens). */
+export function formatWorkBudgetEgp(amount: number): string {
+  const n = roundWhole(amount);
+  if (n <= 0) return '—';
+  return `${formatNumber(n)} EGP`;
+}
+
 /** Same as formatEgp (legacy alias). */
 export function formatLe(amount: number): string {
   return `${formatNumber(amount)} Tokens`;

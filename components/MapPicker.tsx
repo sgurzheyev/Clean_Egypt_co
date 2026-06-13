@@ -22,12 +22,21 @@ import {
   CITY_MAX_PRICE,
   SCOUT_STAKE_FEE_EGP,
 } from '../constants';
-import { formatEgp } from '../src/lib/formatMoney';
+import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
+import { missionTokenBid, missionWorkBudgetEgp } from '../src/lib/missionBudget';
 import { floorEgp, parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '../src/lib/integerEgpInput';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import TokenPackModal from '../src/components/TokenPackModal';
 import SubscriptionModal from '../src/components/SubscriptionModal';
 import { YEARLY_SUBSCRIPTION, formatUsdPrice } from '../src/lib/tokenPricing';
+import {
+  type FormTrigger,
+  type ServiceType,
+  defaultServiceForTrigger,
+  findServiceOption,
+  servicesForTrigger,
+  taskTypeForTrigger,
+} from '../src/lib/serviceSectors';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 // Egypt approximate bounding box (used only to validate pin placement — map view is global).
@@ -150,46 +159,12 @@ const MISSION_PIN_HOVER_STROKE_WIDTH: mapboxgl.Expression = [
 
 type TaskType = 'city' | 'home';
 
-type ServiceType =
-  | 'home_office'
-  | 'ac_cleaning'
-  | 'pool_maintenance'
-  | 'pest_control'
-  | 'windows_facades'
-  | 'terrace_garden'
-  | 'car_detailing'
-  | 'yacht_boat_cleaning'
-  | 'solar_panels'
-  | 'ultrasound_cleaning'
-  | 'carpets_mattresses'
-  | 'kitchen_hoods_grease'
-  | 'laundry_ironing'
-  | 'water_tank_cleaning'
-  | 'junk_removal';
-
-const CLEAN_WHEEL_SERVICES: { id: ServiceType; labelKey: string }[] = [
-  { id: 'home_office', labelKey: 'serviceHomeOffice' },
-  { id: 'ac_cleaning', labelKey: 'serviceAcCleaning' },
-  { id: 'pool_maintenance', labelKey: 'servicePoolMaintenance' },
-  { id: 'pest_control', labelKey: 'servicePestControl' },
-  { id: 'windows_facades', labelKey: 'serviceWindowsFacades' },
-  { id: 'terrace_garden', labelKey: 'serviceTerraceGarden' },
-  { id: 'car_detailing', labelKey: 'serviceCarDetailing' },
-  { id: 'yacht_boat_cleaning', labelKey: 'serviceYachtBoatCleaning' },
-  { id: 'solar_panels', labelKey: 'serviceSolarPanels' },
-  { id: 'ultrasound_cleaning', labelKey: 'serviceUltrasoundCleaning' },
-  { id: 'carpets_mattresses', labelKey: 'serviceCarpetsMattresses' },
-  { id: 'kitchen_hoods_grease', labelKey: 'serviceKitchenHoodsGrease' },
-  { id: 'laundry_ironing', labelKey: 'serviceLaundryIroning' },
-  { id: 'water_tank_cleaning', labelKey: 'serviceWaterTankCleaning' },
-  { id: 'junk_removal', labelKey: 'serviceJunkRemoval' },
-];
-
 interface JobOnMap {
   id: string;
   category: 'public' | 'home' | 'office' | string;
   service_type?: string | null;
   amount_target: number;
+  expected_price?: number | null;
   current_funding?: number | null;
   location_lat: number;
   location_lng: number;
@@ -253,13 +228,15 @@ function buildOptimisticLeadMission(
   descriptionToSave: string,
   creatorPhotoUrls: string[] | undefined,
   viewerProfile: any,
-  tokenBid: number
+  tokenBid: number,
+  expectedPrice: number
 ): JobOnMap {
   return {
     id: String(missionId),
     category: 'public',
     service_type: serviceType,
     amount_target: Math.max(1, tokenBid),
+    expected_price: Math.max(1, expectedPrice),
     current_funding: 0,
     location_lat: Number(location.lat),
     location_lng: Number(location.lng),
@@ -405,7 +382,7 @@ function ActiveMissionWidget({
     >
       <div className="flex items-center justify-between gap-3">
         <p className="text-lg font-black text-orange-300 tabular-nums">
-          {formatEgp(Number(mission.amount_target ?? 0))}
+          {formatWorkBudgetEgp(missionWorkBudgetEgp(mission))}
         </p>
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-300 tabular-nums">
           {`${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`}
@@ -471,7 +448,7 @@ function CreatorMissionWidget({
       </button>
       <div className="flex items-center justify-between gap-3">
         <p className="text-lg font-black text-orange-300 tabular-nums">
-          {formatEgp(Number(mission.amount_target ?? 0))}
+          {formatWorkBudgetEgp(missionWorkBudgetEgp(mission))}
         </p>
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-300 tabular-nums">
           {`${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`}
@@ -1310,6 +1287,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   // Adaptive UI: task type selected = show form overlay
   const [taskTypeSelected, setTaskTypeSelected] = useState<TaskType | null>(null);
+  const [activeFormTrigger, setActiveFormTrigger] = useState<FormTrigger | null>(null);
   const [dashboardExpanded, setDashboardExpanded] = useState(false);
   const [showLiveMarketFeed, setShowLiveMarketFeed] = useState(false);
   const [showCreatorStatusPanel, setShowCreatorStatusPanel] = useState(false);
@@ -1317,6 +1295,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [taskType, setTaskType] = useState<TaskType>('city');
   const [serviceType, setServiceType] = useState<ServiceType>('home_office');
   const [tokenBid, setTokenBid] = useState(1);
+  const [workBudget, setWorkBudget] = useState<number | ''>('');
   const [orderDescription, setOrderDescription] = useState('');
   const [orderPhotos, setOrderPhotos] = useState<File[]>([]);
   const [descriptionPolicyError, setDescriptionPolicyError] = useState<string | null>(null);
@@ -1352,6 +1331,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const resetMissionDraft = useCallback((options?: { keepLocation?: boolean }) => {
     setTokenBid(1);
+    setWorkBudget('');
+    setActiveFormTrigger(null);
     setOrderDescription('');
     setOrderPhotos([]);
     if (!options?.keepLocation) {
@@ -1364,15 +1345,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setDescriptionPolicyError(null);
   }, []);
 
-  const selectTaskType = useCallback((type: TaskType) => {
+  const openMissionForm = useCallback((trigger: FormTrigger) => {
     setDashboardExpanded(false);
     setShowLiveMarketFeed(false);
     setShowCreatorStatusPanel(false);
     setProofUploadMission(null);
     resetMissionDraft({ keepLocation: true });
-    setTaskType(type);
-    setTaskTypeSelected(type);
+    setActiveFormTrigger(trigger);
+    const nextTaskType = taskTypeForTrigger(trigger);
+    setTaskType(nextTaskType);
+    setServiceType(defaultServiceForTrigger(trigger));
+    setTaskTypeSelected(nextTaskType);
   }, [resetMissionDraft]);
+
+  const formSectorServices = useMemo(
+    () => (activeFormTrigger ? servicesForTrigger(activeFormTrigger) : []),
+    [activeFormTrigger]
+  );
 
   /** Default pin to map center when the creation form opens (overlay blocks easy re-taps). */
   useEffect(() => {
@@ -1467,7 +1456,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const serviceLabelFromId = useCallback(
     (id: string | null | undefined) => {
-      const found = CLEAN_WHEEL_SERVICES.find((s) => s.id === id);
+      const found = findServiceOption(id);
       if (found) return t(found.labelKey);
       return id ? String(id) : t('serviceHomeOffice');
     },
@@ -1544,6 +1533,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         category,
         service_type,
         amount_target,
+        expected_price,
         current_funding,
         location_lat,
         location_lng,
@@ -1947,7 +1937,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         lng: job.location_lng,
         title: missionHoverTitle(job),
         status: job.status,
-        priceLabel: formatEgp(Number(job.amount_target ?? 0)),
+        priceLabel: formatWorkBudgetEgp(missionWorkBudgetEgp(job)),
       });
     },
     [missionHoverTitle]
@@ -2537,6 +2527,26 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setOrderSuccess(null);
 
     const placementTokens = Math.max(1, Math.floor(Number(tokenBid) || 1));
+    const budgetRaw = Math.floor(Number(workBudget));
+    const minBudget = taskType === 'home' ? HOME_MIN_PRICE : CITY_MIN_PRICE;
+    const maxBudget = taskType === 'home' ? HOME_MAX_PRICE : CITY_MAX_PRICE;
+
+    if (!Number.isFinite(budgetRaw) || budgetRaw < minBudget) {
+      setOrderError(
+        taskType === 'home'
+          ? t('homePriceRangeEgp', { min: minBudget, max: maxBudget })
+          : t('cityPriceRangeEgp', { min: minBudget, max: maxBudget }),
+      );
+      return;
+    }
+    if (budgetRaw > maxBudget) {
+      setOrderError(
+        taskType === 'home'
+          ? t('homePriceRangeEgp', { min: minBudget, max: maxBudget })
+          : t('cityPriceRangeEgp', { min: minBudget, max: maxBudget }),
+      );
+      return;
+    }
 
     if (viewerProfile?.role === 'customer') {
       const tb = Math.floor(Number(viewerProfile?.token_balance ?? 0));
@@ -2582,8 +2592,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
             location_lat: location.lat,
             location_lng: location.lng,
             description: descriptionToSave || orderDescription || '',
-            building_id: null,
-            building_height_m: null,
+            token_bid: placementTokens,
+            expected_price: budgetRaw,
           })
         );
         setOrderSubmitting(false);
@@ -2649,7 +2659,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         descriptionToSave,
         creatorPhotoUrls,
         viewerProfile,
-        placementTokens
+        placementTokens,
+        budgetRaw
       );
 
       setJobs((prev) => {
@@ -2667,6 +2678,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         p_building_id: null,
         p_building_height_m: null,
         p_token_bid: placementTokens,
+        p_expected_price: budgetRaw,
       });
       if (leadErr) {
         setJobs((prev) => {
@@ -3450,9 +3462,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         exit={{ scale: 0.4, opacity: 0, x: 0, y: 0 }}
                         transition={{ type: 'spring', stiffness: 360, damping: 22 }}
                         type="button"
-                        onClick={() => selectTaskType('city')}
+                        onClick={() => openMissionForm('mop')}
                         className="absolute left-1/2 top-1/2 -ml-7 -mt-7 h-14 w-14 rounded-full border border-emerald-400/70 bg-emerald-500/20 text-2xl shadow-[0_0_20px_rgba(34,197,94,0.5)]"
-                        aria-label="City mission"
+                        aria-label={t('formTitleMopPrivate')}
                       >
                         🧹
                       </motion.button>
@@ -3462,9 +3474,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         exit={{ scale: 0.4, opacity: 0, x: 0, y: 0 }}
                         transition={{ type: 'spring', stiffness: 360, damping: 22, delay: 0.03 }}
                         type="button"
-                        onClick={() => selectTaskType('home')}
+                        onClick={() => openMissionForm('sponge')}
                         className="absolute left-1/2 top-1/2 -ml-7 -mt-7 h-14 w-14 rounded-full border border-amber-400/80 bg-amber-500/20 text-2xl shadow-[0_0_20px_rgba(251,191,36,0.5)]"
-                        aria-label="Home mission"
+                        aria-label={t('formTitleSpongeStreet')}
                       >
                         🧽
                       </motion.button>
@@ -3533,7 +3545,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   ✕
                 </button>
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                  {taskType === 'city' ? t('cleanCityArea') : t('cleanYourHomeOffice')}
+                  {activeFormTrigger === 'mop'
+                    ? t('formTitleMopPrivate')
+                    : activeFormTrigger === 'sponge'
+                      ? t('formTitleSpongeStreet')
+                      : taskType === 'city'
+                        ? t('cleanCityArea')
+                        : t('cleanYourHomeOffice')}
                 </p>
               </div>
 
@@ -3547,7 +3565,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     onChange={(e) => setServiceType(e.target.value as ServiceType)}
                     className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-2.5 text-sm text-white bg-black/20 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500`}
                   >
-                    {CLEAN_WHEEL_SERVICES.map((s) => (
+                    {formSectorServices.map((s) => (
                       <option key={s.id} value={s.id} className="bg-slate-950">
                         {t(s.labelKey)}
                       </option>
@@ -3555,6 +3573,39 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   </select>
                   <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
                     {t('pinPlacementBaseRule')}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                    {t('missionWorkBudgetLabel')}
+                  </label>
+                  <input
+                    type="number"
+                    min={taskType === 'home' ? HOME_MIN_PRICE : CITY_MIN_PRICE}
+                    max={taskType === 'home' ? HOME_MAX_PRICE : CITY_MAX_PRICE}
+                    step={1}
+                    inputMode="numeric"
+                    required
+                    value={workBudget}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === '') {
+                        setWorkBudget('');
+                        return;
+                      }
+                      const n = Math.floor(Number(raw));
+                      setWorkBudget(Number.isFinite(n) && n >= 0 ? n : '');
+                    }}
+                    placeholder={
+                      taskType === 'home'
+                        ? t('homePriceRangeEgp', { min: HOME_MIN_PRICE, max: HOME_MAX_PRICE })
+                        : t('cityPriceRangeEgp', { min: CITY_MIN_PRICE, max: CITY_MAX_PRICE })
+                    }
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-2.5 text-sm text-white bg-black/20 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500`}
+                  />
+                  <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
+                    {t('missionWorkBudgetHint')}
                   </p>
                 </div>
 
@@ -3826,7 +3877,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
               <div className="py-4">
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
-                  {selectedMission.category === 'public' ? t('currentFunding') : t('reward')}
+                  {t('workBudgetLabel')}
                 </p>
                 <p
                   className={`text-4xl sm:text-5xl font-black tracking-tight ${
@@ -3839,15 +3890,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         : '0 0 24px rgba(251, 191, 36, 0.6)',
                   }}
                 >
-                  {selectedMission.category === 'public'
-                    ? formatEgp(Number(selectedMission.current_funding || 0))
-                    : formatEgp(Number(selectedMission.amount_target))}
+                  {formatWorkBudgetEgp(missionWorkBudgetEgp(selectedMission))}
                 </p>
-                {selectedMission.category === 'public' && (
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    {t('targetGoal')}: {formatEgp(Number(selectedMission.amount_target))}
-                  </p>
-                )}
+                <p className="mt-2 text-[11px] text-slate-400">
+                  {t('missionTokenBidLabel')}: {formatEgp(missionTokenBid(selectedMission))}
+                </p>
                 {(activeBidCounts[selectedMission.id] || 0) > 0 && (
                   <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-sky-400">
                     {t('lockedDeposit')}

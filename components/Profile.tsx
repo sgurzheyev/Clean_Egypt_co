@@ -26,7 +26,8 @@ import {
   isValidMarketCityId,
 } from '../src/lib/egyptMarketplace';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
-import { formatEgp } from '../src/lib/formatMoney';
+import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
+import { missionWorkBudgetEgp } from '../src/lib/missionBudget';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 
 interface ProfileProps {
@@ -42,6 +43,7 @@ interface Job {
   cleaner_id: string | null;
   category: 'public' | 'home' | 'office' | string;
   amount_target: number;
+  expected_price?: number | null;
   current_funding?: number | null;
   location_lat?: number | null;
   location_lng?: number | null;
@@ -1691,7 +1693,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </div>
                       </div>
                       <p className="text-sm text-slate-300 mb-2">
-                        <span className="text-amber-400 font-bold">{formatEgp(Number(job.amount_target))}</span>
+                        <span className="text-amber-400 font-bold">{formatWorkBudgetEgp(missionWorkBudgetEgp(job))}</span>
                         {job.description && (
                           <span className="ml-2 text-slate-400">— {job.description}</span>
                         )}
@@ -1737,7 +1739,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     </div>
 
                     <p className="text-sm text-slate-300 mb-1">
-                      <span className="text-amber-400 font-bold">{formatEgp(Number(job.amount_target))}</span>
+                      <span className="text-amber-400 font-bold">{formatWorkBudgetEgp(missionWorkBudgetEgp(job))}</span>
                       {job.description && (
                         <span className="ml-2 text-slate-400">— {job.description}</span>
                       )}
@@ -1902,7 +1904,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
                             {(job.category || 'UNKNOWN').toUpperCase()} Mission
                           </p>
-                          <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>{formatEgp(Number(job.amount_target))}</p>
+                          <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>{formatWorkBudgetEgp(missionWorkBudgetEgp(job))}</p>
                         </div>
                       </div>
                       {job.started_at && (
@@ -2002,7 +2004,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           {displayTitle}
                         </p>
                         <p className="text-sm font-bold text-emerald-400 mb-2">
-                          {formatEgp(Number(job.amount_target))}
+                          {formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
                         </p>
                         {job.description && (
                           <p className="text-xs text-slate-400 mb-2">{job.description}</p>
@@ -2034,7 +2036,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             {displayTitle}
                           </p>
                           <p className="text-sm font-bold text-emerald-400 mb-1">
-                            {formatEgp(Number(job.amount_target))}
+                            {formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
                           </p>
                         </div>
                         {/* VIEW ON MAP */}
@@ -2268,20 +2270,16 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
                               {(job.category || 'UNKNOWN').toUpperCase()} Mission
                             </p>
+                            <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-0.5">
+                              {t('workBudgetLabel')}
+                            </p>
                             <p
-                              className={`text-2xl font-black tracking-tight mt-1 ${
+                              className={`text-2xl font-black tracking-tight ${
                                 isHome ? 'text-amber-400' : 'text-emerald-400'
                               }`}
                             >
-                              {isHome
-                                ? formatEgp(Number(job.amount_target))
-                                : formatEgp(Number(job.current_funding || 0))}
+                              {formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
                             </p>
-                            {!isHome && (
-                              <p className="text-[10px] text-slate-500 mt-0.5">
-                                {t('target')}: {formatEgp(Number(job.amount_target))}
-                              </p>
-                            )}
                           </div>
                         </div>
                         <button
@@ -2367,7 +2365,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                               {(job.category || 'UNKNOWN').toUpperCase()} Mission
                             </p>
                             <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>
-                              {formatEgp(Number(job.amount_target))}
+                              {formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
                             </p>
                           </div>
                         </div>
@@ -2437,7 +2435,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                               {displayTitle}
                             </p>
                             <p className={`text-2xl font-black tracking-tight mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>
-                              {formatEgp(Number(job.amount_target))}
+                              {formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
                             </p>
                           </div>
                         </div>
