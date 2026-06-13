@@ -1,5 +1,6 @@
 import React from 'react';
 import { MapPin } from 'lucide-react';
+import MissionDescriptionText from './MissionDescriptionText';
 
 export type MissionFeedPlaceholderVariant = 'home' | 'city' | 'default';
 
@@ -10,6 +11,8 @@ export interface MissionFeedCardProps {
   placeholderIcon?: string;
   budgetValue: string;
   locationLine?: string;
+  /** Short description with smart hashtags (rendered below location). */
+  description?: string;
   statusBadge?: React.ReactNode;
   topLeftBadge?: React.ReactNode;
   metaLine?: string;
@@ -37,6 +40,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
   placeholderIcon,
   budgetValue,
   locationLine,
+  description,
   statusBadge,
   topLeftBadge,
   metaLine,
@@ -130,6 +134,11 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
             </p>
             {locationLine && (
               <p className="mt-1.5 truncate text-xs font-medium text-slate-100/90">{locationLine}</p>
+            )}
+            {description && (
+              <div className="mt-1.5">
+                <MissionDescriptionText text={description} clampClassName="line-clamp-2" />
+              </div>
             )}
             {statusBadge && <div className="mt-2 flex flex-wrap gap-1.5">{statusBadge}</div>}
           </div>

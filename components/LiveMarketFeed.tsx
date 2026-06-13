@@ -6,6 +6,7 @@ import { formatWorkBudgetEgp } from '../src/lib/formatMoney';
 import { missionWorkBudgetEgp } from '../src/lib/missionBudget';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
+import { extractMissionFeedDescription } from '../src/lib/missionDescription';
 import MissionFeedCard from './MissionFeedCard';
 
 export interface LiveMarketMission {
@@ -178,6 +179,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                         placeholderIcon={isHome ? '🏠' : '🌆'}
                         budgetValue={formatWorkBudgetEgp(budget)}
                         locationLine={missionLocationLine(mission, t)}
+                        description={extractMissionFeedDescription(mission.description)}
                         metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
                         highlighted={isOwnTask}
                         topLeftBadge={

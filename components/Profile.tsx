@@ -29,6 +29,7 @@ import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
 import { missionWorkBudgetEgp } from '../src/lib/missionBudget';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import MissionFeedCard from './MissionFeedCard';
+import { extractMissionFeedDescription } from '../src/lib/missionDescription';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -2266,6 +2267,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     placeholderIcon={icon}
                     budgetValue={formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
                     metaLine={`#${shortId(job.id)} · ${new Date(job.created_at).toLocaleDateString()}`}
+                    locationLine={(() => {
+                      const first = String(job.description ?? '').split('\n')[0]?.trim();
+                      return first?.startsWith('📍') ? first : undefined;
+                    })()}
+                    description={extractMissionFeedDescription(job.description)}
                     statusBadge={
                       <span
                         className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${
@@ -2425,6 +2431,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       budgetValue={formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
                       metaLine={`#${shortId(job.id)} · ${new Date(job.created_at).toLocaleDateString()}`}
                       locationLine={displayTitle}
+                      description={extractMissionFeedDescription(job.description)}
                       statusBadge={
                         <span
                           className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${
@@ -2456,9 +2463,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       locateAriaLabel={t('locateOnMap')}
                       footer={
                         <>
-                          {job.description && (
-                            <p className="line-clamp-2 text-slate-400">{job.description}</p>
-                          )}
                           {job.cleaner_id && (
                             <p className="mt-1 text-[11px] text-slate-500">
                               {t('cleaner')}:{' '}

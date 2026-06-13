@@ -16,6 +16,11 @@ import {
   filterMissionDescription,
 } from '../src/lib/missionContentPolicy';
 import {
+  processMissionDescription,
+  extractMissionFeedDescription,
+  MISSION_SHORT_DESCRIPTION_MAX,
+} from '../src/lib/missionDescription';
+import {
   PROFILE_GLASS_PANEL,
   HOME_MIN_PRICE,
   HOME_MAX_PRICE,
@@ -619,6 +624,7 @@ function MyOrdersPanel({
                       budgetValue={formatWorkBudgetEgp(missionWorkBudgetEgp(mission))}
                       metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
                       locationLine={mission.description?.split('\n')[0]?.trim() || undefined}
+                      description={extractMissionFeedDescription(mission.description)}
                       statusBadge={
                         <span className="rounded-full border border-white/20 bg-black/40 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-200 backdrop-blur-sm capitalize">
                           {mission.status}
@@ -2773,7 +2779,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       return;
     }
 
-    const rawDesc = (orderDescription || '').trim();
+    const rawDesc = (orderDescription || '').trim().slice(0, MISSION_SHORT_DESCRIPTION_MAX);
     if (rawDesc.length > 0) {
       const policy = validateMissionDescription(rawDesc);
       if (!policy.ok) {
@@ -2783,10 +2789,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
 
     const { filteredText } = filterMissionDescription(rawDesc);
-    let descriptionToSave = filteredText.trim() || rawDesc;
-    if (!descriptionToSave) {
-      descriptionToSave = t('leadPinDefaultDescription');
+    let bodyText = filteredText.trim() || rawDesc;
+    if (!bodyText) {
+      bodyText = t('leadPinDefaultDescription');
     }
+    bodyText = processMissionDescription(bodyText, serviceType);
+    let descriptionToSave = bodyText;
 
     if (pinLocationContext) {
       const locationTag = formatPinLocationTag(
@@ -3721,6 +3729,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   </select>
                   <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
                     {t('pinPlacementBaseRule')}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                    {t('missionShortDescriptionLabel')}
+                  </label>
+                  <textarea
+                    value={orderDescription}
+                    onChange={(e) =>
+                      setOrderDescription(e.target.value.slice(0, MISSION_SHORT_DESCRIPTION_MAX))
+                    }
+                    maxLength={MISSION_SHORT_DESCRIPTION_MAX}
+                    rows={3}
+                    placeholder={t('missionShortDescriptionPlaceholder')}
+                    className={`w-full min-h-[4.5rem] ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none ${
+                      textWarning ? 'border-b-2 border-dashed border-[#ea580c]' : ''
+                    }`}
+                  />
+                  <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
+                    {t('missionShortDescriptionHint')}
                   </p>
                 </div>
 
