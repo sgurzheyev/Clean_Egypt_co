@@ -428,32 +428,38 @@ function DraftPinSectorMenu({
   mopLabel: string;
   spongeLabel: string;
 }) {
+  const sectorBtnClass =
+    'pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-lg leading-none shadow-md backdrop-blur-sm transition-transform active:scale-95';
+
   return (
     <Marker longitude={lng} latitude={lat} anchor="center">
-      <div className="relative h-0 w-0 pointer-events-none">
+      <div
+        className="draft-pin-sector-menu pointer-events-none flex flex-col items-center justify-center gap-2"
+        style={{ width: 48, height: 88 }}
+      >
         <motion.button
-          initial={{ scale: 0.6, opacity: 0, y: 6 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
+          initial={{ scale: 0.85, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onMop();
           }}
-          className="pointer-events-auto absolute bottom-[calc(100%+14px)] left-1/2 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full border border-emerald-400/70 bg-emerald-500/30 text-2xl shadow-[0_0_20px_rgba(34,197,94,0.55)] backdrop-blur-md"
+          className={`${sectorBtnClass} border-emerald-400/70 bg-emerald-500/35 shadow-[0_0_12px_rgba(34,197,94,0.45)]`}
           aria-label={mopLabel}
         >
           🧹
         </motion.button>
         <motion.button
-          initial={{ scale: 0.6, opacity: 0, y: -6 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          transition={{ delay: 0.04 }}
+          initial={{ scale: 0.85, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.03 }}
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onSponge();
           }}
-          className="pointer-events-auto absolute top-[calc(100%+14px)] left-1/2 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full border border-amber-400/80 bg-amber-500/30 text-2xl shadow-[0_0_20px_rgba(251,191,36,0.55)] backdrop-blur-md"
+          className={`${sectorBtnClass} border-amber-400/75 bg-amber-500/35 shadow-[0_0_12px_rgba(251,191,36,0.45)]`}
           aria-label={spongeLabel}
         >
           🧽
@@ -3063,6 +3069,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
         .ce-map .mapboxgl-ctrl button.mapboxgl-ctrl-icon {
           filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.25));
+        }
+        .ce-map .mapboxgl-marker .draft-pin-sector-menu {
+          box-sizing: border-box;
+          flex-shrink: 0;
+          max-width: 48px;
+          max-height: 88px;
+        }
+        .ce-map .mapboxgl-marker .draft-pin-sector-menu button {
+          width: 40px;
+          height: 40px;
+          min-width: 40px;
+          min-height: 40px;
+          max-width: 40px;
+          max-height: 40px;
+          padding: 0;
         }
         .ce-map .mapboxgl-ctrl-bottom-right {
           margin-right: 12px;
