@@ -420,10 +420,6 @@ function DraftPinActionHub({
   onToggleExpand,
   avatarUrl,
   avatarInitial,
-  tokenBalance,
-  availableLeads,
-  onlineExecutors,
-  onTopUp,
   onMop,
   onSponge,
   onOpenMarket,
@@ -437,10 +433,6 @@ function DraftPinActionHub({
   onToggleExpand: () => void;
   avatarUrl?: string | null;
   avatarInitial?: string | null;
-  tokenBalance: number;
-  availableLeads: number;
-  onlineExecutors: number;
-  onTopUp: () => void;
   onMop: () => void;
   onSponge: () => void;
   onOpenMarket: () => void;
@@ -448,130 +440,99 @@ function DraftPinActionHub({
   spongeLabel: string;
   marketLabel: string;
 }) {
-  const { t } = useTranslation();
+  const ORBIT_RADIUS = 54;
   const orbitClass =
     'pointer-events-auto absolute flex h-11 w-11 items-center justify-center rounded-full border text-lg leading-none shadow-lg backdrop-blur-md transition-transform active:scale-95';
 
+  const orbitOffset = (angleDeg: number) => {
+    const rad = (angleDeg * Math.PI) / 180;
+    return {
+      x: ORBIT_RADIUS * Math.sin(rad),
+      y: -ORBIT_RADIUS * Math.cos(rad),
+    };
+  };
+
+  const orbitActions = [
+    {
+      key: 'mop-orbit',
+      angle: -45,
+      label: mopLabel,
+      onClick: onMop,
+      className:
+        'border-emerald-400/70 bg-emerald-500/35 shadow-[0_0_16px_rgba(34,197,94,0.5)]',
+      content: '🧹',
+    },
+    {
+      key: 'sponge-orbit',
+      angle: 45,
+      label: spongeLabel,
+      onClick: onSponge,
+      className:
+        'border-amber-400/75 bg-amber-500/35 shadow-[0_0_16px_rgba(251,191,36,0.5)]',
+      content: '🧽',
+    },
+    {
+      key: 'market-orbit',
+      angle: 180,
+      label: marketLabel,
+      onClick: onOpenMarket,
+      className:
+        'border-cyan-400/70 bg-cyan-500/35 text-base font-black text-cyan-50 shadow-[0_0_16px_rgba(34,211,238,0.45)]',
+      content: '$',
+    },
+  ] as const;
+
   return (
     <Marker longitude={lng} latitude={lat} anchor="center">
-      <div className="draft-pin-action-hub relative h-[7.5rem] w-[7.5rem] pointer-events-none">
-        <AnimatePresence>
-          {expanded && (
-            <motion.div
-              key="hub-stats"
-              initial={{ opacity: 0, y: 10, scale: 0.92 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.92 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 24 }}
-              className={`pointer-events-auto absolute bottom-full left-1/2 mb-2 w-52 -translate-x-1/2 rounded-2xl border border-cyan-500/30 bg-slate-950/90 p-3 shadow-[0_8px_32px_rgba(8,145,178,0.25)] backdrop-blur-md ${PROFILE_GLASS_PANEL}`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-lime-400">
-                    {t('tokens')}
-                  </p>
-                  <p className="text-lg font-black tabular-nums text-lime-300">{tokenBalance}</p>
-                </div>
-                <button
+      <div className="draft-pin-action-hub relative h-[10rem] w-[10rem] pointer-events-none">
+        <AnimatePresence mode="popLayout">
+          {expanded &&
+            orbitActions.map((action, index) => {
+              const { x, y } = orbitOffset(action.angle);
+              return (
+                <motion.button
+                  key={action.key}
                   type="button"
+                  initial={{ scale: 0, opacity: 0, x: '-50%', y: '-50%' }}
+                  animate={{
+                    scale: 1,
+                    opacity: 1,
+                    x: `calc(-50% + ${x}px)`,
+                    y: `calc(-50% + ${y}px)`,
+                  }}
+                  exit={{ scale: 0, opacity: 0, x: '-50%', y: '-50%' }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 420,
+                    damping: 22,
+                    delay: index * 0.05,
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onTopUp();
+                    action.onClick();
                   }}
-                  className="shrink-0 rounded-full bg-lime-500 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-black hover:bg-lime-400"
+                  className={`${orbitClass} left-1/2 top-1/2 ${action.className}`}
+                  aria-label={action.label}
                 >
-                  {t('topUp')}
-                </button>
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-1.5">
-                  <p className="text-[8px] font-black uppercase tracking-[0.12em] text-cyan-400">
-                    {t('availableLeads')}
-                  </p>
-                  <p className="text-sm font-black tabular-nums text-white">{availableLeads}</p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-1.5">
-                  <p className="text-[8px] font-black uppercase tracking-[0.12em] text-cyan-400">
-                    {t('onlineExecutors')}
-                  </p>
-                  <p className="text-sm font-black tabular-nums text-white">
-                    {onlineExecutors}
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence mode="popLayout">
-          {expanded && (
-            <>
-              <motion.button
-                key="mop-orbit"
-                type="button"
-                initial={{ scale: 0, opacity: 0, x: '-50%', y: 8 }}
-                animate={{ scale: 1, opacity: 1, x: '-50%', y: -52 }}
-                exit={{ scale: 0, opacity: 0, x: '-50%', y: 8 }}
-                transition={{ type: 'spring', stiffness: 420, damping: 22 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onMop();
-                }}
-                className={`${orbitClass} left-1/2 border-emerald-400/70 bg-emerald-500/35 shadow-[0_0_16px_rgba(34,197,94,0.5)]`}
-                aria-label={mopLabel}
-              >
-                🧹
-              </motion.button>
-              <motion.button
-                key="sponge-orbit"
-                type="button"
-                initial={{ scale: 0, opacity: 0, x: 0, y: 0 }}
-                animate={{ scale: 1, opacity: 1, x: -52, y: 28 }}
-                exit={{ scale: 0, opacity: 0, x: 0, y: 0 }}
-                transition={{ type: 'spring', stiffness: 420, damping: 22, delay: 0.04 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSponge();
-                }}
-                className={`${orbitClass} left-1/2 top-1/2 border-amber-400/75 bg-amber-500/35 shadow-[0_0_16px_rgba(251,191,36,0.5)]`}
-                aria-label={spongeLabel}
-              >
-                🧽
-              </motion.button>
-              <motion.button
-                key="market-orbit"
-                type="button"
-                initial={{ scale: 0, opacity: 0, x: 0, y: 0 }}
-                animate={{ scale: 1, opacity: 1, x: 12, y: 28 }}
-                exit={{ scale: 0, opacity: 0, x: 0, y: 0 }}
-                transition={{ type: 'spring', stiffness: 420, damping: 22, delay: 0.08 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenMarket();
-                }}
-                className={`${orbitClass} left-1/2 top-1/2 border-cyan-400/70 bg-cyan-500/35 text-base font-black text-cyan-50 shadow-[0_0_16px_rgba(34,211,238,0.45)]`}
-                aria-label={marketLabel}
-              >
-                $
-              </motion.button>
-            </>
-          )}
+                  {action.content}
+                </motion.button>
+              );
+            })}
         </AnimatePresence>
 
         <motion.button
           type="button"
           animate={{
-            scale: expanded ? 0.82 : 1,
             boxShadow: expanded
-              ? '0 0 20px rgba(34,211,238,0.35)'
+              ? '0 0 24px rgba(34,211,238,0.45)'
               : '0 0 28px rgba(34,211,238,0.55)',
           }}
-          whileTap={{ scale: expanded ? 0.76 : 0.92 }}
+          whileTap={{ scale: 0.92 }}
           onClick={(e) => {
             e.stopPropagation();
             onToggleExpand();
           }}
-          className="pointer-events-auto absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/80 bg-slate-950/90 shadow-[0_0_24px_rgba(34,211,238,0.45)]"
+          className="pointer-events-auto absolute left-1/2 top-1/2 z-[1] flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/80 bg-slate-950/90 shadow-[0_0_24px_rgba(34,211,238,0.45)]"
           aria-label={expanded ? 'Collapse actions' : 'Open actions'}
           aria-expanded={expanded}
         >
@@ -586,6 +547,20 @@ function DraftPinActionHub({
             <span className="absolute inset-0 rounded-full border-2 border-cyan-400/40 animate-ping" aria-hidden />
           )}
         </motion.button>
+
+        <AnimatePresence>
+          {expanded && (
+            <motion.span
+              key="orbit-halo"
+              initial={{ scale: 0.6, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.6, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 26 }}
+              className="pointer-events-none absolute left-1/2 top-1/2 h-[7.25rem] w-[7.25rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-400/25 bg-cyan-500/[0.04] shadow-[inset_0_0_24px_rgba(34,211,238,0.12)]"
+              aria-hidden
+            />
+          )}
+        </AnimatePresence>
       </div>
     </Marker>
   );
@@ -1677,20 +1652,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [showTokenPackModal, setShowTokenPackModal] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showWorkerSubscriptionGate, setShowWorkerSubscriptionGate] = useState(false);
-
-  const availableLeadsCount = useMemo(() => {
-    return (jobs || []).filter((j) => j.status === 'available').length;
-  }, [jobs]);
-
-  const [onlineExecutors, setOnlineExecutors] = useState<number>(() => {
-    return Math.floor(12 + Math.random() * (48 - 12 + 1));
-  });
-
-  useEffect(() => {
-    const tick = () => setOnlineExecutors(Math.floor(12 + Math.random() * (48 - 12 + 1)));
-    const id = window.setInterval(tick, 5 * 60 * 1000);
-    return () => window.clearInterval(id);
-  }, []);
 
   const isExecutorViewer = useMemo(() => {
     const role = String(viewerProfile?.role ?? '').toLowerCase();
@@ -3528,10 +3489,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
             onToggleExpand={toggleDraftPinMenu}
             avatarUrl={viewerProfile?.avatar_url}
             avatarInitial={profileAvatarInitial}
-            tokenBalance={Math.max(0, Math.floor(Number(viewerProfile?.token_balance ?? 0)))}
-            availableLeads={availableLeadsCount}
-            onlineExecutors={onlineExecutors}
-            onTopUp={() => setShowTokenPackModal(true)}
             onMop={() => openMissionForm('mop')}
             onSponge={() => openMissionForm('sponge')}
             onOpenMarket={handleOpenMarketFeed}
