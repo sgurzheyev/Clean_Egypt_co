@@ -441,14 +441,8 @@ function DraftPinActionHub({
   marketLabel: string;
 }) {
   const ORBIT_RADIUS = 42;
-  const orbitClass =
-    'pointer-events-auto absolute left-1/2 top-1/2 flex h-11 w-11 items-center justify-center rounded-full border text-lg leading-none shadow-lg backdrop-blur-md transition-transform active:scale-95';
-
-  const orbitTransformTemplate = (
-    { x, y, scale }: { x?: number | string; y?: number | string; scale?: number },
-    _generated: string
-  ) =>
-    `translate(calc(-50% + ${x ?? 0}px), calc(-50% + ${y ?? 0}px)) scale(${scale ?? 1})`;
+  const orbitButtonClass =
+    'pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border text-lg leading-none shadow-lg backdrop-blur-md transition-transform active:scale-95';
 
   const orbitActions = [
     {
@@ -482,34 +476,37 @@ function DraftPinActionHub({
 
   return (
     <Marker longitude={lng} latitude={lat} anchor="center">
-      <div className="draft-pin-action-hub pointer-events-none relative h-0 w-0 overflow-visible">
+      <div className="draft-pin-action-hub pointer-events-none relative z-50 h-0 w-0 overflow-visible">
         <AnimatePresence mode="popLayout">
           {expanded &&
             orbitActions.map((action, index) => {
               const { x, y } = action.offset;
               return (
-                <motion.button
+                <div
                   key={action.key}
-                  type="button"
-                  transformTemplate={orbitTransformTemplate}
-                  initial={{ scale: 0, opacity: 0, x: 0, y: 0 }}
-                  animate={{ scale: 1, opacity: 1, x, y }}
-                  exit={{ scale: 0, opacity: 0, x: 0, y: 0 }}
-                  transition={{
-                    type: 'spring',
-                    stiffness: 420,
-                    damping: 22,
-                    delay: index * 0.05,
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    action.onClick();
-                  }}
-                  className={`${orbitClass} ${action.className}`}
-                  aria-label={action.label}
+                  className="pointer-events-none absolute left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 overflow-visible"
                 >
-                  {action.content}
-                </motion.button>
+                  <motion.button
+                    type="button"
+                    initial={{ scale: 0, opacity: 0, x: 0, y: 0 }}
+                    animate={{ scale: 1, opacity: 1, x, y }}
+                    exit={{ scale: 0, opacity: 0, x: 0, y: 0 }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 420,
+                      damping: 22,
+                      delay: index * 0.05,
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      action.onClick();
+                    }}
+                    className={`${orbitButtonClass} ${action.className}`}
+                    aria-label={action.label}
+                  >
+                    {action.content}
+                  </motion.button>
+                </div>
               );
             })}
         </AnimatePresence>
@@ -521,7 +518,7 @@ function DraftPinActionHub({
             e.stopPropagation();
             onToggleExpand();
           }}
-          className="pointer-events-auto absolute left-1/2 top-1/2 z-[1] flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/80 bg-slate-950/90 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
+          className="pointer-events-auto absolute left-1/2 top-1/2 z-[60] flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/80 bg-slate-950/90 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
           aria-label={expanded ? 'Collapse actions' : 'Open actions'}
           aria-expanded={expanded}
         >
@@ -3140,13 +3137,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
         .ce-map .mapboxgl-marker .draft-pin-action-hub {
           box-sizing: border-box;
+          overflow: visible !important;
+          z-index: 50;
         }
         .ce-map .mapboxgl-marker .draft-pin-action-hub button {
           max-width: 2.75rem;
           max-height: 2.75rem;
         }
         .ce-map .mapboxgl-marker:has(.draft-pin-action-hub) {
-          z-index: 2;
+          z-index: 50 !important;
           width: 0 !important;
           height: 0 !important;
           overflow: visible !important;
