@@ -1,0 +1,558 @@
+import React from 'react';
+import { MapPin, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import ModeratedMissionPhoto from './ModeratedMissionPhoto';
+import MissionDescriptionText from './MissionDescriptionText';
+import {
+  missionFeedPlaceholderGradient,
+  type MissionFeedPlaceholderVariant,
+} from '../src/lib/missionFeedVisuals';
+import { extractMissionFeedDescription } from '../src/lib/missionDescription';
+import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
+import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
+import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
+import { missionTokenBid, missionWorkBudgetEgp } from '../src/lib/missionBudget';
+import { formatUsdPrice, YEARLY_SUBSCRIPTION } from '../src/lib/tokenPricing';
+
+export type MissionBriefingMission = {
+  id: string;
+  category: string;
+  service_type?: string | null;
+  amount_target: number;
+  expected_price?: number | null;
+  current_funding?: number | null;
+  location_lat: number;
+  location_lng: number;
+  status: string;
+  cleaner_id?: string | null;
+  creator_id?: string | null;
+  description?: string | null;
+  photo_urls?: string[] | null;
+  completion_distance_meters?: number | null;
+};
+
+type MissionTransaction = {
+  id: string;
+  gateway?: string | null;
+  user_id?: string | null;
+  type?: string | null;
+  amount: number;
+  created_at: string;
+  profile?: { full_name?: string | null; avatar_url?: string | null } | null;
+};
+
+export type MissionBriefingProps = {
+  mission: MissionBriefingMission;
+  booting: boolean;
+  sheetDragY: number;
+  currentUserId: string | null | undefined;
+  activeBidCount: number;
+  serviceLabel: string;
+  showTranslateAction: boolean;
+  isTranslationLoading: boolean;
+  translatedText: string | null;
+  translationError: string | null;
+  onTranslate: () => void;
+  missionTxLoading: boolean;
+  missionTxError: string | null;
+  missionTransactions: MissionTransaction[];
+  potentialCardingUserIds: Set<string>;
+  gpsDistanceMeters: number | null;
+  gpsDistanceError: string | null;
+  isExecutorViewer: boolean;
+  workerHasActiveSubscription: boolean;
+  leadPhoneVisible: boolean;
+  unlockedLeadPhone: string | null;
+  unlockLeadLoading: boolean;
+  reviewedMissions: Set<string>;
+  selectedRating: number;
+  isSubmittingReview: boolean;
+  onClose: () => void;
+  onSheetTouchStart: (e: React.TouchEvent) => void;
+  onSheetTouchMove: (e: React.TouchEvent) => void;
+  onSheetTouchEnd: () => void;
+  onViewPhotos: () => void;
+  onStartWork: () => void;
+  onUnlockLead: () => void;
+  onSubscribe: () => void;
+  onSubmitReview: (rating: number) => void;
+  onSelectRating: (rating: number) => void;
+};
+
+function missionLocationLine(
+  mission: MissionBriefingMission,
+  t: (key: string) => string
+): string {
+  const descLine = String(mission.description ?? '').split('\n')[0]?.trim();
+  if (descLine.startsWith('📍')) return descLine;
+  const hub = closestMarketplaceCity(mission.location_lat, mission.location_lng);
+  if (hub) {
+    return formatPinLocationTag(
+      { areaName: '', closestCityId: hub.id, closestCityNameKey: hub.nameKey },
+      (key) => t(key),
+      t('pinLocationLabel')
+    );
+  }
+  return `${mission.location_lat.toFixed(4)}, ${mission.location_lng.toFixed(4)}`;
+}
+
+function placeholderVariantFor(mission: MissionBriefingMission): MissionFeedPlaceholderVariant {
+  return mission.category === 'home' || mission.category === 'office' ? 'home' : 'city';
+}
+
+function statusBadgeClass(status: string): string {
+  if (status === 'in_progress') {
+    return 'border-cyan-400/55 bg-cyan-500/25 text-cyan-100';
+  }
+  if (status === 'completed') {
+    return 'border-amber-400/55 bg-amber-500/25 text-amber-100';
+  }
+  return 'border-emerald-400/55 bg-emerald-500/25 text-emerald-100';
+}
+
+const MissionBriefing: React.FC<MissionBriefingProps> = ({
+  mission,
+  booting,
+  sheetDragY,
+  currentUserId,
+  activeBidCount,
+  serviceLabel,
+  showTranslateAction,
+  isTranslationLoading,
+  translatedText,
+  translationError,
+  onTranslate,
+  missionTxLoading,
+  missionTxError,
+  missionTransactions,
+  potentialCardingUserIds,
+  gpsDistanceMeters,
+  gpsDistanceError,
+  isExecutorViewer,
+  workerHasActiveSubscription,
+  leadPhoneVisible,
+  unlockedLeadPhone,
+  unlockLeadLoading,
+  reviewedMissions,
+  selectedRating,
+  isSubmittingReview,
+  onClose,
+  onSheetTouchStart,
+  onSheetTouchMove,
+  onSheetTouchEnd,
+  onViewPhotos,
+  onStartWork,
+  onUnlockLead,
+  onSubscribe,
+  onSubmitReview,
+  onSelectRating,
+}) => {
+  const { t } = useTranslation();
+  const photos = mission.photo_urls?.filter(Boolean) ?? [];
+  const placeholderVariant = placeholderVariantFor(mission);
+  const placeholderIcon = placeholderVariant === 'home' ? '🏠' : '🌆';
+  const feedDescription = extractMissionFeedDescription(mission.description);
+  const locationLine = missionLocationLine(mission, t);
+  const budgetValue = formatWorkBudgetEgp(missionWorkBudgetEgp(mission));
+  const isOwnActive =
+    mission.status === 'in_progress' && mission.cleaner_id === currentUserId;
+  const statusLabel = String(mission.status || '').replace(/_/g, ' ');
+
+  return (
+    <div
+      className="absolute inset-0 z-[9999] flex items-end justify-center pt-[env(safe-area-inset-top)] isolate pointer-events-none"
+      aria-hidden="false"
+    >
+      <div
+        className="absolute inset-x-0 bottom-0 top-[28%] bg-gradient-to-t from-black/85 via-black/40 to-transparent backdrop-blur-[2px] pointer-events-auto"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      <div
+        className="relative w-full max-w-xl max-h-[82dvh] overflow-y-auto overflow-x-hidden rounded-t-3xl bg-slate-950 shadow-[0_-10px_40px_rgba(0,229,255,0.12)] pb-[calc(7rem+max(2rem,env(safe-area-inset-bottom)))] pointer-events-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+        onClick={(e) => e.stopPropagation()}
+        style={{ transform: sheetDragY > 0 ? `translateY(${sheetDragY}px)` : undefined }}
+      >
+        <div
+          className="sticky top-0 z-20 flex justify-center pt-2 pb-1 bg-gradient-to-b from-slate-950 via-slate-950/90 to-transparent"
+          onTouchStart={onSheetTouchStart}
+          onTouchMove={onSheetTouchMove}
+          onTouchEnd={onSheetTouchEnd}
+        >
+          <div className="h-1.5 w-14 rounded-full bg-white/20" aria-hidden />
+        </div>
+
+        {booting ? (
+          <div className="py-16 flex flex-col items-center justify-center px-5">
+            <div className="h-6 w-6 border-2 border-cyan-500/60 border-t-cyan-200 rounded-full animate-spin" />
+            <p className="mt-3 text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
+              {t('loading')}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-900">
+              {photos.length > 0 ? (
+                <>
+                  <div className="absolute inset-0 flex overflow-x-auto snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [scrollbar-width:none] [-ms-overflow-style:none]">
+                    {photos.map((url, index) => (
+                      <div key={`${url}-${index}`} className="h-full min-w-full shrink-0 snap-center">
+                        <ModeratedMissionPhoto
+                          url={url}
+                          alt={`Mission photo ${index + 1}`}
+                          imgClassName="h-full w-full object-cover"
+                          showSafeBadge={false}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  {photos.length > 1 && (
+                    <p className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/20 bg-black/45 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white/80 backdrop-blur-sm">
+                      {t('swipeForMorePhotos')} · {photos.length}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div
+                  className={`flex h-full w-full items-center justify-center ${missionFeedPlaceholderGradient(
+                    placeholderVariant
+                  )}`}
+                >
+                  <span className="text-5xl opacity-90" aria-hidden>
+                    {placeholderIcon}
+                  </span>
+                </div>
+              )}
+
+              <div
+                className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-black/10"
+                aria-hidden
+              />
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white shadow-lg backdrop-blur-md transition-transform hover:bg-black/70 active:scale-95"
+                aria-label={t('close')}
+              >
+                <X className="h-4 w-4" strokeWidth={2.25} />
+              </button>
+
+              <div className="absolute left-3 top-3 z-10 flex max-w-[65%] flex-wrap gap-1.5">
+                <span
+                  className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${
+                    placeholderVariant === 'home'
+                      ? 'border-amber-400/50 bg-amber-500/25 text-amber-100'
+                      : 'border-emerald-400/50 bg-emerald-500/25 text-emerald-100'
+                  }`}
+                >
+                  {placeholderVariant === 'home' ? t('homeCleaning') : t('cityCleaning')}
+                </span>
+                {isOwnActive && (
+                  <span className="rounded-full border border-sky-400/50 bg-sky-500/25 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-sky-100 backdrop-blur-sm">
+                    {t('yourActiveMission')}
+                  </span>
+                )}
+              </div>
+
+              <div className="absolute inset-x-0 bottom-0 z-[1] p-4 pt-10">
+                <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-300/80">
+                  {t('missionBriefing')}
+                </p>
+                <p className="text-3xl font-black leading-none tracking-tight text-orange-300 drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)] sm:text-4xl">
+                  {budgetValue}
+                </p>
+                <div className="mt-2 flex items-start gap-1.5">
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300/90" strokeWidth={2.25} />
+                  <p className="text-xs font-medium leading-snug text-slate-100/90">{locationLine}</p>
+                </div>
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${statusBadgeClass(
+                      mission.status
+                    )}`}
+                  >
+                    {t('status')}: {statusLabel}
+                  </span>
+                  <span className="text-[10px] font-medium text-slate-300/75">
+                    {t('missionTokenBidLabel')}: {formatEgp(missionTokenBid(mission))}
+                  </span>
+                </div>
+                {activeBidCount > 0 && (
+                  <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-400">
+                    {t('lockedDeposit')}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-5 px-5 pt-4">
+              {feedDescription && (
+                <section>
+                  <MissionDescriptionText
+                    text={feedDescription}
+                    clampClassName=""
+                    className="text-sm font-medium leading-relaxed text-slate-200"
+                  />
+                  {(showTranslateAction ||
+                    isTranslationLoading ||
+                    translatedText ||
+                    translationError) && (
+                    <div className="mt-3 space-y-2">
+                      {showTranslateAction && (
+                        <button
+                          type="button"
+                          onClick={onTranslate}
+                          disabled={isTranslationLoading}
+                          className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-400 hover:text-cyan-300 disabled:opacity-60"
+                        >
+                          {isTranslationLoading ? t('translating') : t('translate')}
+                        </button>
+                      )}
+                      {isTranslationLoading && (
+                        <div className="h-8 w-full animate-pulse rounded-lg bg-white/5" />
+                      )}
+                      {translatedText && !isTranslationLoading && (
+                        <p className="text-sm leading-relaxed text-cyan-100/90">{translatedText}</p>
+                      )}
+                      {translationError && !isTranslationLoading && (
+                        <p className="text-sm text-red-300">{translationError}</p>
+                      )}
+                    </div>
+                  )}
+                </section>
+              )}
+
+              <section className="border-t border-white/5 pt-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                    Financial Trail
+                  </h3>
+                  {missionTxLoading && (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-500/60 border-t-cyan-300" />
+                  )}
+                </div>
+                {missionTxError && <p className="mb-2 text-xs text-red-400">{missionTxError}</p>}
+                <ul className="max-h-48 divide-y divide-white/5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {missionTransactions.map((tx) => {
+                    const gw = (tx.gateway || '').toLowerCase();
+                    const badge = gw.includes('stripe') ? 'Stripe' : tx.gateway || null;
+                    const isCarding = tx.user_id
+                      ? potentialCardingUserIds.has(tx.user_id)
+                      : false;
+                    const profile = tx.profile;
+                    const displayName = profile?.full_name || 'Eco Hero';
+                    const avatarUrl = profile?.avatar_url;
+
+                    return (
+                      <li key={tx.id} className="flex items-center justify-between gap-3 py-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/5">
+                            {avatarUrl ? (
+                              <img
+                                src={avatarUrl}
+                                alt={displayName}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-[10px] font-bold text-emerald-300">
+                                {(displayName || 'E')[0]}
+                              </span>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-white">{displayName}</p>
+                            <p className="text-[9px] uppercase tracking-tight text-slate-500">
+                              {tx.type}
+                              {badge ? <span className="ml-1 opacity-70">· {badge}</span> : null}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p
+                            className={`font-mono text-xs font-black tabular-nums ${
+                              isCarding ? 'text-red-300' : 'text-emerald-300'
+                            }`}
+                          >
+                            +{formatEgp(Number(tx.amount))}
+                          </p>
+                          <p className="text-[8px] text-slate-600">
+                            {new Date(tx.created_at).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                  {!missionTxLoading && missionTransactions.length === 0 && (
+                    <li className="py-4 text-center text-xs italic text-slate-500">
+                      No transactions yet. Be the first hero!
+                    </li>
+                  )}
+                </ul>
+              </section>
+
+              <section className="border-t border-white/5 pt-4">
+                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                  GPS Integrity
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-slate-300">
+                  {typeof mission.completion_distance_meters === 'number'
+                    ? `Verification Distance at Completion: ${
+                        mission.completion_distance_meters < 1000
+                          ? `${Math.round(mission.completion_distance_meters)} m`
+                          : `${(mission.completion_distance_meters / 1000).toFixed(2)} km`
+                      }`
+                    : gpsDistanceMeters != null
+                      ? `Current distance to mission: ${
+                          gpsDistanceMeters < 1000
+                            ? `${Math.round(gpsDistanceMeters)} m`
+                            : `${(gpsDistanceMeters / 1000).toFixed(2)} km`
+                        }`
+                      : gpsDistanceError || 'Calculating distance...'}
+                </p>
+                {typeof mission.completion_distance_meters === 'number' &&
+                  mission.completion_distance_meters > 500 && (
+                    <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.16em] text-red-300">
+                      ⚠ Verification distance &gt; 500m
+                    </p>
+                  )}
+              </section>
+
+              {mission.status === 'completed' ? (
+                <div className="space-y-4 border-t border-white/5 pt-4">
+                  <p className="text-sm font-semibold text-amber-200">{t('missionAccomplished')}</p>
+                  <div className="w-full rounded-full animated-border-completed">
+                    <button
+                      type="button"
+                      onClick={onViewPhotos}
+                      className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-95"
+                    >
+                      {t('viewPhotos')}
+                    </button>
+                  </div>
+                  {mission.creator_id === currentUserId &&
+                    !reviewedMissions.has(mission.id) && (
+                      <div className="space-y-3 border-t border-white/5 pt-4">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300">
+                          {t('rateTheCleaner')}
+                        </p>
+                        <p className="text-[11px] text-slate-300">{t('ratingHelpsReward')}</p>
+                        <div className="flex items-center gap-2">
+                          {[1, 2, 3, 4, 5].map((star) => {
+                            const active = star <= selectedRating;
+                            return (
+                              <button
+                                key={star}
+                                type="button"
+                                disabled={isSubmittingReview}
+                                onClick={() => onSelectRating(star)}
+                                className={`text-2xl transition-transform ${
+                                  active ? 'scale-110 text-amber-300' : 'scale-100 text-slate-600'
+                                } hover:scale-110`}
+                              >
+                                ⭐
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {selectedRating > 0 && (
+                          <button
+                            type="button"
+                            disabled={isSubmittingReview}
+                            onClick={() => onSubmitReview(selectedRating)}
+                            className="mt-2 w-full rounded-full bg-amber-500 py-2.5 text-[11px] font-black uppercase tracking-[0.18em] text-black hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60"
+                          >
+                            {isSubmittingReview ? t('submitting') : t('submitRating')}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                </div>
+              ) : mission.status === 'in_progress' && mission.cleaner_id !== currentUserId ? (
+                <p className="border-t border-white/5 pt-4 text-sm font-semibold text-sky-200">
+                  {t('workInProgress')}
+                </p>
+              ) : mission.status === 'in_progress' && mission.cleaner_id === currentUserId ? (
+                <div className="border-t border-white/5 pt-4">
+                  <div className="w-full rounded-full animated-border-city">
+                    <button
+                      type="button"
+                      onClick={onStartWork}
+                      className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-95"
+                    >
+                      {t('startWorkUploadProof')}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 border-t border-white/5 pt-4">
+                  <div className="flex items-center justify-between gap-4 py-1">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                      {t('serviceRequested')}
+                    </span>
+                    <span className="text-right text-sm font-semibold text-white">{serviceLabel}</span>
+                  </div>
+
+                  {isExecutorViewer && (
+                    <div className="space-y-3">
+                      {!workerHasActiveSubscription && !leadPhoneVisible && (
+                        <div className="space-y-3 border-t border-white/5 pt-4">
+                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                            {t('subscriptionGateTitle')}
+                          </p>
+                          <p className="text-xs leading-relaxed text-slate-300">
+                            {t('subscriptionGateBody')}
+                          </p>
+                          <p className="text-lg font-black text-white">
+                            {t('subscriptionGatePerYear', {
+                              price: formatUsdPrice(YEARLY_SUBSCRIPTION.usd),
+                            })}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={onSubscribe}
+                            className="flex min-h-[52px] w-full touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/90 px-4 text-[11px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_4px_20px_rgba(34,211,238,0.35)] transition-all hover:bg-cyan-500/95 active:scale-[0.98]"
+                          >
+                            {t('subscribeToUnlock')}
+                          </button>
+                        </div>
+                      )}
+
+                      {workerHasActiveSubscription && !leadPhoneVisible && (
+                        <button
+                          type="button"
+                          onClick={onUnlockLead}
+                          disabled={unlockLeadLoading}
+                          className="flex min-h-[52px] w-full touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/90 px-4 text-[11px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_4px_20px_rgba(34,211,238,0.35)] transition-all hover:bg-cyan-500/95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {unlockLeadLoading ? t('processing') : t('unlockLead')}
+                        </button>
+                      )}
+
+                      {leadPhoneVisible && unlockedLeadPhone && (
+                        <div className="flex items-center justify-between gap-4 border-t border-white/5 pt-4">
+                          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                            {t('contactCustomer')}
+                          </span>
+                          <span className="text-right text-sm font-black text-emerald-300 break-all">
+                            {unlockedLeadPhone}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default MissionBriefing;

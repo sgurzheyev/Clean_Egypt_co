@@ -9,6 +9,7 @@ import { supabase } from '../services/supabase';
 import { Navigation, Camera, X, User } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import MissionFeedCard from './MissionFeedCard';
+import MissionBriefing from './MissionBriefing';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import CreateMission from './CreateMission';
 import {
@@ -3976,449 +3977,68 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
-      {/* Mission Briefing — bottom sheet when active pyramid marker clicked */}
       {selectedMission && (
-        <div
-          className="absolute inset-0 z-[9999] flex items-end justify-center pt-[env(safe-area-inset-top)] isolate pointer-events-none"
-          aria-hidden="false"
-        >
-          <div
-            className="absolute inset-x-0 bottom-0 top-[35%] bg-gradient-to-t from-black/80 via-black/35 to-transparent backdrop-blur-[2px] pointer-events-auto"
-            onClick={handleCloseMissionBriefing}
-            aria-hidden="true"
-          />
-          <div
-            className="relative w-full max-w-xl max-h-[78dvh] overflow-y-auto rounded-t-3xl bg-slate-950/70 backdrop-blur-xl border-t border-x border-cyan-500/25 shadow-[0_-10px_40px_rgba(0,229,255,0.12)] px-5 pb-[calc(7rem+max(2rem,env(safe-area-inset-bottom)))] pt-3 animate-slide-up pointer-events-auto"
-            onClick={(e) => e.stopPropagation()}
-            style={{ transform: sheetDragY > 0 ? `translateY(${sheetDragY}px)` : undefined }}
-          >
-            {/* Drag handle + swipe-to-close (mobile) */}
-            <div
-              className="mx-auto mb-2 h-1.5 w-14 rounded-full bg-white/15 border border-white/10"
-              onTouchStart={(e) => {
-                sheetTouchStartYRef.current = e.touches?.[0]?.clientY ?? null;
-                sheetTouchStartTimeRef.current = Date.now();
-              }}
-              onTouchMove={(e) => {
-                const start = sheetTouchStartYRef.current;
-                const y = e.touches?.[0]?.clientY;
-                if (start == null || y == null) return;
-                const dy = y - start;
-                setSheetDragY(dy > 0 ? Math.min(220, dy) : 0);
-              }}
-              onTouchEnd={() => {
-                const dy = sheetDragY;
-                const dt = (sheetTouchStartTimeRef.current ? Date.now() - sheetTouchStartTimeRef.current : 0) || 0;
-                const shouldClose = dy > 110 || (dy > 70 && dt < 220);
-                setSheetDragY(0);
-                sheetTouchStartYRef.current = null;
-                sheetTouchStartTimeRef.current = null;
-                if (shouldClose) handleCloseMissionBriefing();
-              }}
-              aria-hidden
-            />
-
-            <div className="flex items-start justify-between mb-3">
-              <button
-                type="button"
-                onClick={handleCloseMissionBriefing}
-                className="mr-2 inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-200 bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 transition-all"
-                aria-label={t('close')}
-              >
-                ✕
-              </button>
-              <div>
-                <h2 className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-500">
-                  {t('missionBriefing')}
-                </h2>
-                {selectedMission.status === 'in_progress' && selectedMission.cleaner_id === currentUserId && (
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-sky-400 mt-1">{t('yourActiveMission')}</p>
-                )}
-              </div>
-            </div>
-
-            {missionBriefingBooting ? (
-              <div className="py-10 flex flex-col items-center justify-center">
-                <div className="h-6 w-6 border-2 border-cyan-500/60 border-t-cyan-200 rounded-full animate-spin" />
-                <p className="mt-3 text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
-                  {t('loading')}
-                </p>
-              </div>
-            ) : null}
-
-            {!missionBriefingBooting && (
-              <div className="space-y-4 mb-6">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">{selectedMission.category === 'home' ? '🏠' : '🌆'}</span>
-                <div>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${selectedMission.category === 'public' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {selectedMission.category === 'public' ? t('cityCleaning') : t('homeCleaning')}
-                  </p>
-                  {(() => {
-                    const descLine = String(selectedMission.description ?? '').split('\n')[0]?.trim();
-                    if (descLine.startsWith('📍')) {
-                      return (
-                        <p className="mt-1 text-xs font-medium text-cyan-200 leading-snug">{descLine}</p>
-                      );
-                    }
-                    const hub = closestMarketplaceCity(
-                      selectedMission.location_lat,
-                      selectedMission.location_lng
-                    );
-                    if (hub) {
-                      return (
-                        <p className="mt-1 text-xs font-medium text-cyan-200 leading-snug">
-                          {formatPinLocationTag(
-                            { areaName: '', closestCityId: hub.id, closestCityNameKey: hub.nameKey },
-                            (key) => t(key),
-                            t('pinLocationLabel')
-                          )}
-                        </p>
-                      );
-                    }
-                    return (
-                      <p className="text-xs text-slate-500 font-mono">
-                        {selectedMission.location_lat.toFixed(6)}, {selectedMission.location_lng.toFixed(6)}
-                      </p>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              <div className="py-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
-                  {t('workBudgetLabel')}
-                </p>
-                <p
-                  className={`text-4xl sm:text-5xl font-black tracking-tight ${
-                    selectedMission.category === 'public' ? 'text-emerald-400' : 'text-amber-400'
-                  }`}
-                  style={{
-                    textShadow:
-                      selectedMission.category === 'public'
-                        ? '0 0 24px rgba(52, 211, 153, 0.6)'
-                        : '0 0 24px rgba(251, 191, 36, 0.6)',
-                  }}
-                >
-                  {formatWorkBudgetEgp(missionWorkBudgetEgp(selectedMission))}
-                </p>
-                <p className="mt-2 text-[11px] text-slate-400">
-                  {t('missionTokenBidLabel')}: {formatEgp(missionTokenBid(selectedMission))}
-                </p>
-                {(activeBidCounts[selectedMission.id] || 0) > 0 && (
-                  <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-sky-400">
-                    {t('lockedDeposit')}
-                  </p>
-                )}
-              </div>
-
-              {selectedMission.photo_urls && selectedMission.photo_urls.length > 0 && (
-                <div className="mb-3">
-                  <div className="flex overflow-x-auto snap-x snap-mandatory gap-2 pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                    {selectedMission.photo_urls.map((url, index) => (
-                      <div key={`${url}-${index}`} className="min-w-full snap-center shrink-0">
-                        <ModeratedMissionPhoto
-                          url={url}
-                          alt={`Before (work scope) ${index + 1}`}
-                          imgClassName="w-full h-48 object-cover rounded-xl shadow-md bg-slate-800"
-                          showSafeBadge
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  {selectedMission.photo_urls.length > 1 && (
-                    <p className="text-[10px] text-slate-400 text-center mt-2 uppercase tracking-wider">
-                      {t('swipeForMorePhotos')} • {selectedMission.photo_urls.length} {t('photos')}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {selectedMission.description && (
-                <div className="space-y-2">
-                  <p className="text-sm text-slate-400">{selectedMission.description}</p>
-                  {(showTranslateAction || isTranslationLoading || !!translatedText || !!translationError) && (
-                    <div className="space-y-2">
-                      {showTranslateAction && (
-                        <button
-                          type="button"
-                          onClick={() => translateMissionDescription(selectedMission.description!)}
-                          disabled={isTranslationLoading}
-                          className="inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.16em] border border-cyan-400/40 text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all disabled:opacity-60 disabled:cursor-wait"
-                        >
-                          {isTranslationLoading ? t('translating') : t('translate')}
-                        </button>
-                      )}
-                      {isTranslationLoading && (
-                        <div className="h-10 w-full rounded-xl bg-cyan-500/10 border border-cyan-500/20 animate-pulse" />
-                      )}
-                      {translatedText && !isTranslationLoading && (
-                        <p className="text-sm text-cyan-100 rounded-xl border border-cyan-500/30 bg-cyan-950/30 px-3 py-2">
-                          {translatedText}
-                        </p>
-                      )}
-                      {translationError && !isTranslationLoading && (
-                        <p className="text-sm text-red-300 rounded-xl border border-red-500/30 bg-red-950/30 px-3 py-2">
-                          {translationError}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-             {/* Financial Trail */}
-             <div className={`border border-cyan-500/20 p-4 ${PROFILE_GLASS_PANEL}`}>
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                    Financial Trail
-                  </p>
-                  {missionTxLoading && (
-                    <div className="h-4 w-4 border-2 border-cyan-500/60 border-t-cyan-300 rounded-full animate-spin" />
-                  )}
-                </div>
-                {missionTxError && (
-                  <p className="mt-2 text-xs text-red-400">{missionTxError}</p>
-                )}
-                <div className="mt-3 max-h-48 overflow-y-auto space-y-2 pr-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
-                  {missionTransactions.map((tx: any) => {
-                    const gw = (tx.gateway || '').toLowerCase();
-                    const badge =
-                      gw.includes('stripe') ? 'Stripe' : tx.gateway || null;
-                    
-                    // @ts-ignore
-                    const isCarding = tx.user_id ? potentialCardingUserIds.has(tx.user_id) : false;
-
-                    // Достаем данные профиля из нашего нового запроса
-                    const profile = tx.profile;
-                    const displayName = profile?.full_name || 'Eco Hero';
-                    const avatarUrl = profile?.avatar_url;
-
-                    return (
-                      <div
-                        key={tx.id}
-                        className={`flex items-center justify-between gap-3 border border-cyan-500/10 px-3 py-2 text-[11px] ${PROFILE_GLASS_PANEL} !rounded-xl transition-all hover:bg-white/5`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          {/* АВАТАРКА ГЕРОЯ */}
-                          <div className="h-8 w-8 shrink-0 rounded-full border border-white/20 bg-gradient-to-br from-emerald-500/30 to-cyan-500/20 overflow-hidden flex items-center justify-center shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                            {avatarUrl ? (
-                              <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
-                            ) : (
-                              <span className="text-[10px] font-bold text-emerald-300">{(displayName || 'E')[0]}</span>
-                            )}
-                          </div>
-
-                          <div className="min-w-0">
-                            <p className="font-bold text-white truncate">
-                              {displayName}
-                            </p>
-                            <p className="text-[9px] text-slate-500 uppercase tracking-tight">
-                              {tx.type}
-                              {badge ? <span className="ml-1 opacity-70">• {badge}</span> : null}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <p
-                            className={[
-                              'font-mono font-black tabular-nums text-xs',
-                              isCarding
-                                ? 'text-red-300 drop-shadow-[0_0_10px_rgba(239,68,68,0.55)]'
-                                : 'text-emerald-300',
-                            ].join(' ')}
-                          >
-                            +{formatEgp(Number(tx.amount))}
-                          </p>
-                          <p className="text-[8px] text-slate-600">
-                             {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {!missionTxLoading && missionTransactions.length === 0 && (
-                    <p className="text-xs text-slate-500 italic py-4 text-center">No transactions yet. Be the first hero!</p>
-                  )}
-                </div>
-              </div>
-              {/* GPS Integrity */}
-              <div className={`border border-cyan-500/20 p-4 ${PROFILE_GLASS_PANEL}`}>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                  GPS Integrity
-                </p>
-                <p className="mt-2 text-xs text-slate-300">
-                  {typeof selectedMission.completion_distance_meters === 'number'
-                    ? `Verification Distance at Completion: ${
-                        selectedMission.completion_distance_meters < 1000
-                          ? `${Math.round(selectedMission.completion_distance_meters)} m`
-                          : `${(selectedMission.completion_distance_meters / 1000).toFixed(2)} km`
-                      }`
-                    : gpsDistanceMeters != null
-                      ? `Current distance to mission: ${
-                          gpsDistanceMeters < 1000
-                            ? `${Math.round(gpsDistanceMeters)} m`
-                            : `${(gpsDistanceMeters / 1000).toFixed(2)} km`
-                        }`
-                      : gpsDistanceError
-                        ? gpsDistanceError
-                        : 'Calculating distance...'}
-                </p>
-                {typeof selectedMission.completion_distance_meters === 'number' &&
-                  selectedMission.completion_distance_meters > 500 && (
-                    <div className="mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1 bg-red-500/10 border border-red-400/40 text-[10px] font-black uppercase tracking-[0.2em] text-red-300 shadow-[0_0_14px_rgba(239,68,68,0.35)]">
-                      ⚠ Verification distance &gt; 500m
-                    </div>
-                  )}
-              </div>
-              </div>
-            )}
-
-            {selectedMission.status === 'completed' ? (
-              <div className="space-y-5">
-                <div className="space-y-3">
-                  <p className="text-sm text-amber-200 font-semibold">
-                    {t('missionAccomplished')}
-                  </p>
-                  <div className="w-full rounded-full animated-border-completed">
-                    <button
-                      type="button"
-                      onClick={() => setHallOfFameMission(selectedMission)}
-                      className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-95"
-                    >
-                      {t('viewPhotos')}
-                    </button>
-                  </div>
-                </div>
-
-                {selectedMission.creator_id === currentUserId &&
-                  !reviewedMissions.has(selectedMission.id) && (
-                    <div className={`space-y-3 border border-amber-500/40 p-4 ${PROFILE_GLASS_PANEL}`}>
-                      <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300">
-                        {t('rateTheCleaner')}
-                      </p>
-                      <p className="text-[11px] text-slate-300">
-                        {t('ratingHelpsReward')}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        {[1, 2, 3, 4, 5].map((star) => {
-                          const active = star <= selectedRating;
-                          return (
-                            <button
-                              key={star}
-                              type="button"
-                              disabled={isSubmittingReview}
-                              onClick={() => setSelectedRating(star)}
-                              className={`text-2xl transition-transform ${
-                                active ? 'text-amber-300' : 'text-slate-600'
-                              } ${active ? 'scale-110' : 'scale-100'} hover:scale-110`}
-                            >
-                              ⭐
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {selectedRating > 0 && (
-                        <button
-                          type="button"
-                          disabled={isSubmittingReview}
-                          onClick={() => handleSubmitReview(selectedRating)}
-                          className="mt-2 w-full rounded-full bg-amber-500 text-black text-[11px] font-black uppercase tracking-[0.18em] py-2.5 hover:bg-amber-400 disabled:opacity-60 disabled:cursor-wait transition-all"
-                        >
-                          {isSubmittingReview ? t('submitting') : t('submitRating')}
-                        </button>
-                      )}
-                    </div>
-                  )}
-              </div>
-            ) : selectedMission.status === 'in_progress' && selectedMission.cleaner_id !== currentUserId ? (
-              <div className="space-y-3">
-                <p className="text-sm text-sky-200 font-semibold">
-                  {t('workInProgress')}
-                </p>
-              </div>
-            ) : selectedMission.status === 'in_progress' && selectedMission.cleaner_id === currentUserId ? (
-              <div className="w-full rounded-full animated-border-city">
-                <button
-                  type="button"
-                  onClick={() => {
-                    toast.success(t('mapToastMissionAcceptedProfile'));
-                    handleCloseMissionBriefing();
-                    onAvatarClick?.();
-                  }}
-                  className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-95"
-                >
-                  {t('startWorkUploadProof')}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className={`${PROFILE_GLASS_PANEL} px-4 py-3`}>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                    {t('serviceRequested')}
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-white">
-                    {serviceLabelFromId(serviceTypeForMission(selectedMission))}
-                  </p>
-                  <p className="mt-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                    {t('status')}
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-cyan-200">
-                    {String(selectedMission.status || '').replace(/_/g, ' ')}
-                  </p>
-                </div>
-
-                {isExecutorViewer ? (
-                  <div className="space-y-2">
-                    {!workerHasActiveSubscription && !leadPhoneVisible && (
-                      <div className={`${PROFILE_GLASS_PANEL} px-4 py-4 space-y-3`}>
-                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
-                          {t('subscriptionGateTitle')}
-                        </p>
-                        <p className="text-xs leading-relaxed text-slate-300">
-                          {t('subscriptionGateBody')}
-                        </p>
-                        <p className="text-lg font-black text-white">
-                          {t('subscriptionGatePerYear', { price: formatUsdPrice(YEARLY_SUBSCRIPTION.usd) })}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setShowWorkerSubscriptionGate(true)}
-                          className="flex min-h-[52px] w-full touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/90 px-4 text-[11px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_4px_20px_rgba(34,211,238,0.35),inset_0_1px_0_0_rgba(255,255,255,0.12)] transition-all hover:border-cyan-300/50 hover:bg-cyan-500/95 active:scale-[0.98] active:bg-cyan-500"
-                        >
-                          {t('subscribeToUnlock')}
-                        </button>
-                      </div>
-                    )}
-
-                    {workerHasActiveSubscription && !leadPhoneVisible && (
-                      <button
-                        type="button"
-                        onClick={() => void handleUnlockLead()}
-                        disabled={unlockLeadLoading}
-                        className="flex min-h-[52px] w-full touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/90 px-4 text-[11px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_4px_20px_rgba(34,211,238,0.35),inset_0_1px_0_0_rgba(255,255,255,0.12)] transition-all hover:border-cyan-300/50 hover:bg-cyan-500/95 active:scale-[0.98] active:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {unlockLeadLoading ? t('processing') : t('unlockLead')}
-                      </button>
-                    )}
-
-                    {leadPhoneVisible && unlockedLeadPhone && (
-                      <div className={`${PROFILE_GLASS_PANEL} px-4 py-3`}>
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                          {t('contactCustomer')}
-                        </p>
-                        <p className="mt-1 text-sm font-black text-emerald-300 break-all">
-                          {unlockedLeadPhone}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            )}
-          </div>
-        </div>
+        <MissionBriefing
+          mission={selectedMission}
+          booting={missionBriefingBooting}
+          sheetDragY={sheetDragY}
+          currentUserId={currentUserId}
+          activeBidCount={activeBidCounts[selectedMission.id] || 0}
+          serviceLabel={serviceLabelFromId(serviceTypeForMission(selectedMission))}
+          showTranslateAction={showTranslateAction}
+          isTranslationLoading={isTranslationLoading}
+          translatedText={translatedText}
+          translationError={translationError}
+          onTranslate={() => translateMissionDescription(selectedMission.description!)}
+          missionTxLoading={missionTxLoading}
+          missionTxError={missionTxError}
+          missionTransactions={missionTransactions}
+          potentialCardingUserIds={potentialCardingUserIds}
+          gpsDistanceMeters={gpsDistanceMeters}
+          gpsDistanceError={gpsDistanceError}
+          isExecutorViewer={isExecutorViewer}
+          workerHasActiveSubscription={workerHasActiveSubscription}
+          leadPhoneVisible={leadPhoneVisible}
+          unlockedLeadPhone={unlockedLeadPhone}
+          unlockLeadLoading={unlockLeadLoading}
+          reviewedMissions={reviewedMissions}
+          selectedRating={selectedRating}
+          isSubmittingReview={isSubmittingReview}
+          onClose={handleCloseMissionBriefing}
+          onSheetTouchStart={(e) => {
+            sheetTouchStartYRef.current = e.touches?.[0]?.clientY ?? null;
+            sheetTouchStartTimeRef.current = Date.now();
+          }}
+          onSheetTouchMove={(e) => {
+            const start = sheetTouchStartYRef.current;
+            const y = e.touches?.[0]?.clientY;
+            if (start == null || y == null) return;
+            const dy = y - start;
+            setSheetDragY(dy > 0 ? Math.min(220, dy) : 0);
+          }}
+          onSheetTouchEnd={() => {
+            const dy = sheetDragY;
+            const dt =
+              (sheetTouchStartTimeRef.current
+                ? Date.now() - sheetTouchStartTimeRef.current
+                : 0) || 0;
+            const shouldClose = dy > 110 || (dy > 70 && dt < 220);
+            setSheetDragY(0);
+            sheetTouchStartYRef.current = null;
+            sheetTouchStartTimeRef.current = null;
+            if (shouldClose) handleCloseMissionBriefing();
+          }}
+          onViewPhotos={() => setHallOfFameMission(selectedMission)}
+          onStartWork={() => {
+            toast.success(t('mapToastMissionAcceptedProfile'));
+            handleCloseMissionBriefing();
+            onAvatarClick?.();
+          }}
+          onUnlockLead={() => void handleUnlockLead()}
+          onSubscribe={() => setShowWorkerSubscriptionGate(true)}
+          onSubmitReview={handleSubmitReview}
+          onSelectRating={setSelectedRating}
+        />
       )}
 
       {/* Crowdfunding confirm modal (public missions) */}

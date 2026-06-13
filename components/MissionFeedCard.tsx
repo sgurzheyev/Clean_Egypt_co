@@ -1,8 +1,12 @@
 import React from 'react';
 import { MapPin } from 'lucide-react';
 import MissionDescriptionText from './MissionDescriptionText';
+import {
+  missionFeedPlaceholderGradient,
+  type MissionFeedPlaceholderVariant,
+} from '../src/lib/missionFeedVisuals';
 
-export type MissionFeedPlaceholderVariant = 'home' | 'city' | 'default';
+export type { MissionFeedPlaceholderVariant };
 
 export interface MissionFeedCardProps {
   photo?: React.ReactNode;
@@ -21,16 +25,6 @@ export interface MissionFeedCardProps {
   onClick?: () => void;
   onLocate?: () => void;
   locateAriaLabel?: string;
-}
-
-function placeholderGradient(variant: MissionFeedPlaceholderVariant): string {
-  if (variant === 'home') {
-    return 'bg-gradient-to-br from-amber-500/50 via-orange-950/80 to-slate-950';
-  }
-  if (variant === 'city') {
-    return 'bg-gradient-to-br from-emerald-500/45 via-cyan-950/75 to-slate-950';
-  }
-  return 'bg-gradient-to-br from-cyan-500/35 via-indigo-950/70 to-slate-950';
 }
 
 const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
@@ -85,7 +79,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
             <img src={photoUrl} alt="" className="h-full w-full object-cover" />
           ) : (
             <div
-              className={`flex h-full w-full items-center justify-center ${placeholderGradient(
+              className={`flex h-full w-full items-center justify-center ${missionFeedPlaceholderGradient(
                 placeholderVariant
               )}`}
             >
