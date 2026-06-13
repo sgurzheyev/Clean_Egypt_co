@@ -1,12 +1,12 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import MapGL, { NavigationControl, GeolocateControl, MapRef, Source, Layer, Marker } from 'react-map-gl';
+import MapGL, { NavigationControl, GeolocateControl, MapRef, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
-import { Recycle, Navigation, Camera, X, User } from 'lucide-react';
+import { Navigation, Camera, X, User } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import CreateMission from './CreateMission';
@@ -413,62 +413,6 @@ function ActiveMissionWidget({
   );
 }
 
-function DraftPinSectorMenu({
-  lat,
-  lng,
-  onMop,
-  onSponge,
-  mopLabel,
-  spongeLabel,
-}: {
-  lat: number;
-  lng: number;
-  onMop: () => void;
-  onSponge: () => void;
-  mopLabel: string;
-  spongeLabel: string;
-}) {
-  const sectorBtnClass =
-    'pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-lg leading-none shadow-md backdrop-blur-sm transition-transform active:scale-95';
-
-  return (
-    <Marker longitude={lng} latitude={lat} anchor="center">
-      <div
-        className="draft-pin-sector-menu pointer-events-none flex flex-col items-center justify-center gap-2"
-        style={{ width: 48, height: 88 }}
-      >
-        <motion.button
-          initial={{ scale: 0.85, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onMop();
-          }}
-          className={`${sectorBtnClass} border-emerald-400/70 bg-emerald-500/35 shadow-[0_0_12px_rgba(34,197,94,0.45)]`}
-          aria-label={mopLabel}
-        >
-          🧹
-        </motion.button>
-        <motion.button
-          initial={{ scale: 0.85, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.03 }}
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSponge();
-          }}
-          className={`${sectorBtnClass} border-amber-400/75 bg-amber-500/35 shadow-[0_0_12px_rgba(251,191,36,0.45)]`}
-          aria-label={spongeLabel}
-        >
-          🧽
-        </motion.button>
-      </div>
-    </Marker>
-  );
-}
-
 function MyOrdersPanel({
   open,
   onClose,
@@ -476,6 +420,11 @@ function MyOrdersPanel({
   onSelectMission,
   isLoggedIn,
   onRequestAuth,
+  draftPin,
+  onMop,
+  onSponge,
+  onOpenMarket,
+  onClearDraftPin,
 }: {
   open: boolean;
   onClose: () => void;
@@ -483,6 +432,11 @@ function MyOrdersPanel({
   onSelectMission: (mission: JobOnMap) => void;
   isLoggedIn: boolean;
   onRequestAuth?: () => void;
+  draftPin: { lat: number; lng: number } | null;
+  onMop: () => void;
+  onSponge: () => void;
+  onOpenMarket: () => void;
+  onClearDraftPin: () => void;
 }) {
   const { t } = useTranslation();
 
@@ -519,6 +473,69 @@ function MyOrdersPanel({
               >
                 ✕
               </button>
+            </div>
+
+            <div className="mb-4 space-y-3">
+              {draftPin ? (
+                <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
+                        {t('draftPinLocked')}
+                      </p>
+                      <p className="mt-1 font-mono text-[11px] text-cyan-100/90">
+                        {draftPin.lat.toFixed(5)}, {draftPin.lng.toFixed(5)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onClearDraftPin}
+                      className="shrink-0 rounded-full border border-white/15 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400 hover:border-red-400/40 hover:text-red-200"
+                    >
+                      {t('clearDraftPin')}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs text-slate-400">
+                  {t('tapMapToSetLocation')}
+                </p>
+              )}
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={onMop}
+                  disabled={!draftPin}
+                  className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-emerald-400/50 bg-emerald-500/15 px-2 py-3 text-center transition-all hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <span className="text-2xl leading-none">🧹</span>
+                  <span className="text-[9px] font-black uppercase tracking-[0.1em] text-emerald-200">
+                    {t('formTitleMopPrivate')}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onSponge}
+                  disabled={!draftPin}
+                  className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-amber-400/50 bg-amber-500/15 px-2 py-3 text-center transition-all hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <span className="text-2xl leading-none">🧽</span>
+                  <span className="text-[9px] font-black uppercase tracking-[0.1em] text-amber-200">
+                    {t('formTitleSpongeStreet')}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenMarket}
+                  className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-cyan-400/50 bg-cyan-500/15 px-2 py-3 text-center transition-all hover:bg-cyan-500/25"
+                >
+                  <span className="text-2xl font-black leading-none text-cyan-100">$</span>
+                  <span className="text-[9px] font-black uppercase tracking-[0.1em] text-cyan-200">
+                    {t('serviceMarketplace')}
+                  </span>
+                </button>
+              </div>
             </div>
 
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
@@ -1427,7 +1444,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     []
   );
 
-  const resetMissionDraft = useCallback((options?: { keepLocation?: boolean }) => {
+  const resetMissionDraft = useCallback((options?: { keepLocation?: boolean; keepMapDraftPin?: boolean }) => {
     setTokenBid(1);
     setWorkBudget('');
     setActiveFormTrigger(null);
@@ -1437,6 +1454,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setOrderPhotos([]);
     if (!options?.keepLocation) {
       setSelectedLocation(null);
+    }
+    if (!options?.keepMapDraftPin) {
       setMapDraftPin(null);
     }
     setPhotoModerationBusy(false);
@@ -1451,12 +1470,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setShowMyOrdersPanel(false);
     setProofUploadMission(null);
     const draftLoc = mapDraftPin ?? selectedLocation;
-    resetMissionDraft({ keepLocation: false });
+    resetMissionDraft({ keepLocation: false, keepMapDraftPin: true });
     if (draftLoc) {
       setSelectedLocation(draftLoc);
       onLocationSelect?.(draftLoc.lat, draftLoc.lng);
     }
-    setMapDraftPin(null);
     setActiveFormTrigger(trigger);
     const nextTaskType = taskTypeForTrigger(trigger);
     setTaskType(nextTaskType);
@@ -1516,7 +1534,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const closeFormOverlay = useCallback(() => {
     if (!orderSubmitting) {
-      resetMissionDraft();
+      resetMissionDraft({ keepMapDraftPin: true });
       setTaskTypeSelected(null);
     }
   }, [orderSubmitting, resetMissionDraft]);
@@ -2170,11 +2188,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       if (taskTypeSelected) {
         setSelectedLocation({ lat, lng });
+        setMapDraftPin({ lat, lng });
         onLocationSelect?.(lat, lng);
         return;
       }
 
       setMapDraftPin({ lat, lng });
+      setShowLiveMarketFeed(false);
+      setShowMyOrdersPanel(true);
       onLocationSelect?.(lat, lng);
     },
     [findMissionPinAtPoint, handleMarkerClick, onLocationSelect, orderSubmitting, t, taskTypeSelected]
@@ -2960,7 +2981,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   /** Native Mapbox draft location (replaces HTML MissionMarker). */
   const draftPinGeoJSON = useMemo(() => {
-    const pin = taskTypeSelected ? selectedLocation : mapDraftPin;
+    const pin = mapDraftPin ?? (taskTypeSelected ? selectedLocation : null);
     if (!pin) {
       return { type: 'FeatureCollection' as const, features: [] };
     }
@@ -3043,10 +3064,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setShowLiveMarketFeed(true);
   }, []);
 
-  const handleOpenMyOrdersPanel = useCallback(() => {
-    setShowLiveMarketFeed(false);
-    setShowMyOrdersPanel(true);
-  }, []);
+  const handleClearDraftPin = useCallback(() => {
+    setMapDraftPin(null);
+    if (!taskTypeSelected) {
+      setSelectedLocation(null);
+    }
+  }, [taskTypeSelected]);
 
   return (
     <div className="w-full h-screen relative bg-black overflow-hidden">
@@ -3070,21 +3093,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         .ce-map .mapboxgl-ctrl button.mapboxgl-ctrl-icon {
           filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.25));
         }
-        .ce-map .mapboxgl-marker .draft-pin-sector-menu {
-          box-sizing: border-box;
-          flex-shrink: 0;
-          max-width: 48px;
-          max-height: 88px;
-        }
-        .ce-map .mapboxgl-marker .draft-pin-sector-menu button {
-          width: 40px;
-          height: 40px;
-          min-width: 40px;
-          min-height: 40px;
-          max-width: 40px;
-          max-height: 40px;
-          padding: 0;
-        }
         .ce-map .mapboxgl-ctrl-bottom-right {
           margin-right: 12px;
           margin-bottom: calc(20px + env(safe-area-inset-bottom));
@@ -3099,7 +3107,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           }
           .ce-map .mapboxgl-ctrl-bottom-right {
             margin-right: 8px;
-            margin-bottom: calc(9.5rem + env(safe-area-inset-bottom));
+            margin-bottom: calc(1.25rem + env(safe-area-inset-bottom));
           }
         }
         @media (min-width: 641px) {
@@ -3391,17 +3399,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </Source>
 
         {/* SaaS lead-gen: removed crowdfunding/funding 3D pillars. */}
-
-        {mapDraftPin && !taskTypeSelected && (
-          <DraftPinSectorMenu
-            lat={mapDraftPin.lat}
-            lng={mapDraftPin.lng}
-            onMop={() => openMissionForm('mop')}
-            onSponge={() => openMissionForm('sponge')}
-            mopLabel={t('formTitleMopPrivate')}
-            spongeLabel={t('formTitleSpongeStreet')}
-          />
-        )}
         </MapGL>
       </div>
 
@@ -3613,33 +3610,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </header>
       </div>
 
-      {/* Permanent bottom FAB hub — always visible (guests included), isolated from My Orders auth */}
-      {!taskTypeSelected && (
-        <div className="fixed inset-x-0 bottom-0 z-[10020] flex justify-center gap-4 px-4 pointer-events-none pb-[max(1.25rem,calc(env(safe-area-inset-bottom)+0.75rem))]">
-          <button
-            type="button"
-            onClick={handleOpenMarketFeed}
-            className="pointer-events-auto h-[4.5rem] w-[4.5rem] shrink-0 rounded-full border-2 border-cyan-400/70 bg-black/70 backdrop-blur-lg text-2xl font-black text-cyan-100 shadow-[0_0_34px_rgba(34,211,238,0.35)] transition-transform active:scale-95"
-            aria-label={t('serviceMarketplace')}
-          >
-            $
-          </button>
-          <button
-            type="button"
-            onClick={handleOpenMyOrdersPanel}
-            className="pointer-events-auto flex h-[4.5rem] w-[4.5rem] shrink-0 flex-col items-center justify-center rounded-full border-2 border-cyan-400/70 bg-black/70 backdrop-blur-lg text-cyan-200 shadow-[0_0_34px_rgba(34,211,238,0.35)] transition-transform active:scale-95"
-            aria-label={isExecutorViewer ? t('myLeads') : t('myOrders')}
-          >
-            <Recycle className="h-7 w-7" />
-            <span className="mt-1 text-[9px] font-black uppercase tracking-[0.22em] text-cyan-200/90">
-              {isExecutorViewer ? t('myLeads') : t('myOrders')}
-            </span>
-          </button>
-        </div>
-      )}
-
       {showWorkerMissionBar && activeWorkerMission && (
-        <div className="fixed inset-x-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-[10015] flex justify-center px-4 pointer-events-none">
+        <div className="fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-[10015] flex justify-center px-4 pointer-events-none">
           <ActiveMissionWidget
             mission={activeWorkerMission}
             onNavigate={navigateToActiveMission}
@@ -3662,7 +3634,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             className={`pointer-events-auto relative z-[1] w-full max-w-xl flex flex-col min-h-0 max-h-[calc(100dvh-9rem)] sm:max-h-[75dvh] overflow-hidden animate-slide-up p-4 shadow-2xl ${PROFILE_GLASS_PANEL}`}
             style={{
               marginBottom: isMobile
-                ? 'calc(env(safe-area-inset-bottom) + 4.5rem)'
+                ? 'calc(env(safe-area-inset-bottom) + 1rem)'
                 : undefined,
             }}
           >
@@ -4634,6 +4606,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
         onSelectMission={openMyOrderMission}
         isLoggedIn={!!currentUserId}
         onRequestAuth={onRequestAuth}
+        draftPin={mapDraftPin}
+        onMop={() => openMissionForm('mop')}
+        onSponge={() => openMissionForm('sponge')}
+        onOpenMarket={handleOpenMarketFeed}
+        onClearDraftPin={handleClearDraftPin}
       />
       <ProofUploadModal
         open={!!proofUploadMission}
