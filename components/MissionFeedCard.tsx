@@ -74,19 +74,26 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
         onKeyDown={handleKeyDown}
         className={`w-full text-left ${onClick ? 'cursor-pointer' : ''}`}
       >
-        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-900">
+        <div className="relative aspect-video w-full touch-pan-y overflow-hidden rounded-xl bg-slate-900">
           {photo ? (
-            <div className="absolute inset-0">{photo}</div>
+            <div className="pointer-events-none absolute inset-0 select-none [&_img]:h-full [&_img]:w-full [&_img]:object-cover">
+              {photo}
+            </div>
           ) : photoUrl ? (
-            <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+            <img
+              src={photoUrl}
+              alt=""
+              draggable={false}
+              className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover"
+            />
           ) : (
             <div
-              className={`flex h-full w-full items-center justify-center ${missionFeedPlaceholderGradient(
+              className={`pointer-events-none flex h-full w-full select-none items-center justify-center ${missionFeedPlaceholderGradient(
                 placeholderVariant
               )}`}
             >
               {placeholderIcon ? (
-                <span className="text-4xl opacity-90" aria-hidden>
+                <span className="text-3xl opacity-90" aria-hidden>
                   {placeholderIcon}
                 </span>
               ) : (
@@ -103,7 +110,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
           />
 
           {topLeftBadge && (
-            <div className="absolute left-2.5 top-2.5 z-10 flex max-w-[70%] flex-wrap gap-1.5">
+            <div className="pointer-events-none absolute left-2.5 top-2.5 z-10 flex max-w-[70%] flex-wrap gap-1.5">
               {topLeftBadge}
             </div>
           )}
@@ -119,7 +126,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
             </button>
           )}
 
-          <div className="absolute inset-x-0 bottom-0 z-[1] p-3 pt-8">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] p-3 pt-6">
             {metaLine && (
               <p className="mb-1 truncate text-[10px] font-medium uppercase tracking-[0.14em] text-slate-300/80">
                 {metaLine}
