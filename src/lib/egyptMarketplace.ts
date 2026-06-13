@@ -1,12 +1,9 @@
-/** Fixed marketplace city hubs (Egypt) — radius grouping for Global Market filter */
+/** Fixed marketplace city hubs (Egypt) — closest-city grouping for market filter */
 
 export const MARKETPLACE_REGION_EGYPT = 'egypt';
 
 /** Dropdown value: show every open mission regardless of coordinates */
 export const MARKETPLACE_ALL_EGYPT_ID = 'all_egypt';
-
-/** Default grouping radius when filtering missions by selected city */
-export const DEFAULT_MARKETPLACE_RADIUS_KM = 50;
 
 export type MarketplaceCity = {
   id: string;
@@ -14,17 +11,18 @@ export type MarketplaceCity = {
   nameKey: string;
   lat: number;
   lng: number;
-  radiusKm: number;
+  /** @deprecated Closest-city assignment replaces strict radius filtering */
+  radiusKm?: number;
 };
 
 /** Major Egyptian hubs — always shown in the city dropdown (not derived from missions). */
 export const EGYPT_MARKETPLACE_CITIES: MarketplaceCity[] = [
-  { id: 'cairo', nameKey: 'marketplaceCity_cairo', lat: 30.0444, lng: 31.2357, radiusKm: DEFAULT_MARKETPLACE_RADIUS_KM },
-  { id: 'giza', nameKey: 'marketplaceCity_giza', lat: 30.0131, lng: 31.2089, radiusKm: DEFAULT_MARKETPLACE_RADIUS_KM },
-  { id: 'alexandria', nameKey: 'marketplaceCity_alexandria', lat: 31.2001, lng: 29.9182, radiusKm: DEFAULT_MARKETPLACE_RADIUS_KM },
-  { id: 'hurghada', nameKey: 'marketplaceCity_hurghada', lat: 27.2579, lng: 33.8116, radiusKm: DEFAULT_MARKETPLACE_RADIUS_KM },
-  { id: 'sharm_el_sheikh', nameKey: 'marketplaceCity_sharm_el_sheikh', lat: 27.9158, lng: 34.3300, radiusKm: DEFAULT_MARKETPLACE_RADIUS_KM },
-  { id: 'luxor', nameKey: 'marketplaceCity_luxor', lat: 25.6872, lng: 32.6396, radiusKm: DEFAULT_MARKETPLACE_RADIUS_KM },
+  { id: 'cairo', nameKey: 'marketplaceCity_cairo', lat: 30.0444, lng: 31.2357 },
+  { id: 'giza', nameKey: 'marketplaceCity_giza', lat: 30.0131, lng: 31.2089 },
+  { id: 'alexandria', nameKey: 'marketplaceCity_alexandria', lat: 31.2001, lng: 29.9182 },
+  { id: 'hurghada', nameKey: 'marketplaceCity_hurghada', lat: 27.2579, lng: 33.8116 },
+  { id: 'sharm_el_sheikh', nameKey: 'marketplaceCity_sharm_el_sheikh', lat: 27.9158, lng: 34.33 },
+  { id: 'luxor', nameKey: 'marketplaceCity_luxor', lat: 25.6872, lng: 32.6396 },
 ];
 
 export function getMarketplaceCityById(id: string): MarketplaceCity | undefined {
@@ -55,15 +53,33 @@ export function haversineKm(
   return R * c;
 }
 
-export function missionWithinCity(
+/** Nearest predefined hub for a mission coordinate (no radius cutoff). */
+export function closestMarketplaceCity(
+  lat: number | null | undefined,
+  lng: number | null | undefined
+): MarketplaceCity | null {
+  if (lat == null || lng == null) return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  let best: MarketplaceCity | null = null;
+  let bestDist = Infinity;
+
+  for (const city of EGYPT_MARKETPLACE_CITIES) {
+    const d = haversineKm(lat, lng, city.lat, city.lng);
+    if (d < bestDist) {
+      bestDist = d;
+      best = city;
+    }
+  }
+
+  return best;
+}
+
+export function missionAssignedCityId(
   missionLat: number | null | undefined,
-  missionLng: number | null | undefined,
-  city: MarketplaceCity
-): boolean {
-  if (missionLat == null || missionLng == null) return false;
-  if (!Number.isFinite(missionLat) || !Number.isFinite(missionLng)) return false;
-  const d = haversineKm(missionLat, missionLng, city.lat, city.lng);
-  return d <= city.radiusKm;
+  missionLng: number | null | undefined
+): string | null {
+  return closestMarketplaceCity(missionLat, missionLng)?.id ?? null;
 }
 
 type MissionCoords = {
@@ -71,7 +87,7 @@ type MissionCoords = {
   location_lng?: number | null;
 };
 
-/** Filter missions for Global Market by fixed city id (or all Egypt). */
+/** Filter missions by closest hub city (or all Egypt). */
 export function filterMissionsByMarketCity<T extends MissionCoords>(
   missions: T[],
   cityId: string | null | undefined
@@ -82,7 +98,7 @@ export function filterMissionsByMarketCity<T extends MissionCoords>(
   const city = getMarketplaceCityById(cityId);
   if (!city) return [];
 
-  return missions.filter((m) =>
-    missionWithinCity(m.location_lat, m.location_lng, city)
+  return missions.filter(
+    (m) => missionAssignedCityId(m.location_lat, m.location_lng) === city.id
   );
 }

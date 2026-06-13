@@ -21,7 +21,6 @@ import {
 import {
   EGYPT_MARKETPLACE_CITIES,
   MARKETPLACE_ALL_EGYPT_ID,
-  MARKETPLACE_REGION_EGYPT,
   filterMissionsByMarketCity,
   isValidMarketCityId,
 } from '../src/lib/egyptMarketplace';
@@ -179,7 +178,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [missionHistory, setMissionHistory] = useState<Job[]>([]);
   const [jobBidsById, setJobBidsById] = useState<Record<string, Bid[]>>({});
   const [marketplaceJobs, setMarketplaceJobs] = useState<Job[]>([]);
-  const [marketRegion, setMarketRegion] = useState(MARKETPLACE_REGION_EGYPT);
   const [marketCityId, setMarketCityId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [marketLoading, setMarketplaceLoading] = useState(true);
@@ -2155,9 +2153,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           </div>
         </ProfileAccordion>
 
-        {/* GLOBAL MARKETPLACE */}
         <ProfileAccordion
-          title={t('globalMarketplace')}
+          title={t('selectCity')}
           icon={<Globe className="w-5 h-5 shrink-0 text-emerald-400/90" aria-hidden />}
           defaultOpen
         >
@@ -2168,20 +2165,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </p>
           )}
 
-          <div className="mb-4 flex flex-wrap gap-3">
-            <label className="flex min-w-[140px] flex-1 flex-col gap-1">
-              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                {t('selectRegion')}
-              </span>
-              <select
-                value={marketRegion}
-                onChange={(e) => setMarketRegion(e.target.value)}
-                className={`w-full min-w-0 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500/50 ${PROFILE_GLASS_PANEL} !rounded-xl`}
-              >
-                <option value={MARKETPLACE_REGION_EGYPT}>{t('regionEgypt')}</option>
-              </select>
-            </label>
-            <label className="flex min-w-[140px] flex-1 flex-col gap-1">
+          <div className="mb-4">
+            <label className="flex w-full flex-col gap-1">
               <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
                 {t('selectCity')}
               </span>

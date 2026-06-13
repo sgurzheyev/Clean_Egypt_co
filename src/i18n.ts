@@ -226,6 +226,8 @@ const resources = {
       mapLocationPlaceholder: "Tap map or paste '27.320282, 33.708599'",
       serviceTypeLabel: 'Service type',
       pinPlacementBaseRule: '1 ad = 1 token (minimum).',
+      pinLocationLabel: 'Location',
+      pinLocationResolving: 'Detecting area name…',
       missionTokenBidLabel: 'Token bid',
       missionTokenBidHint:
         'Raise your token bid to rank your listing higher for workers. Base pin cost is 1 token.',
@@ -577,6 +579,8 @@ const resources = {
       mapLocationPlaceholder: "انقر على الخريطة أو الصق '27.320282, 33.708599'",
       serviceTypeLabel: 'نوع الخدمة',
       pinPlacementBaseRule: '1 إعلان = 1 توكن (الحد الأدنى).',
+      pinLocationLabel: 'الموقع',
+      pinLocationResolving: 'جاري تحديد اسم المنطقة…',
       missionTokenBidLabel: 'عرض التوكن',
       missionTokenBidHint:
         'ارفع عرض التوكن لترتيب إعلانك أعلى للعمال. تكلفة الدبوس الأساسية توكن واحد.',
@@ -927,6 +931,8 @@ const resources = {
       mapLocationPlaceholder: "Нажмите на карту или вставьте '27.320282, 33.708599'",
       serviceTypeLabel: 'Тип услуги',
       pinPlacementBaseRule: '1 объявление = 1 токен (минимум).',
+      pinLocationLabel: 'Место',
+      pinLocationResolving: 'Определяем название района…',
       photoModerationUnavailable:
         'Проверка фото временно недоступна — фото добавлено без проверки.',
       missionTokenBidLabel: 'Ставка токенов',

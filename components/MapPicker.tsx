@@ -37,6 +37,12 @@ import {
   servicesForTrigger,
   taskTypeForTrigger,
 } from '../src/lib/serviceSectors';
+import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
+import {
+  type PinLocationContext,
+  formatPinLocationTag,
+  reverseGeocodePinLocation,
+} from '../src/lib/mapboxReverseGeocode';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 // Egypt approximate bounding box (used only to validate pin placement — map view is global).
@@ -1284,6 +1290,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [selectedLocation, setSelectedLocation] = useState<
     { lat: number; lng: number } | null
   >(selectedCoords || null);
+  const [pinLocationContext, setPinLocationContext] = useState<PinLocationContext | null>(null);
+  const [pinLocationLoading, setPinLocationLoading] = useState(false);
 
   // Adaptive UI: task type selected = show form overlay
   const [taskTypeSelected, setTaskTypeSelected] = useState<TaskType | null>(null);
@@ -1333,6 +1341,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setTokenBid(1);
     setWorkBudget('');
     setActiveFormTrigger(null);
+    setPinLocationContext(null);
+    setPinLocationLoading(false);
     setOrderDescription('');
     setOrderPhotos([]);
     if (!options?.keepLocation) {
@@ -1377,6 +1387,36 @@ const MapPicker: React.FC<MapPickerProps> = ({
       return { lat, lng };
     });
   }, [taskTypeSelected, viewState.latitude, viewState.longitude]);
+
+  const resolvePinLocation = useCallback(async (lat: number, lng: number) => {
+    setPinLocationLoading(true);
+    try {
+      const ctx = await reverseGeocodePinLocation(lat, lng, MAPBOX_TOKEN);
+      setPinLocationContext(ctx);
+    } catch {
+      const city = closestMarketplaceCity(lat, lng);
+      setPinLocationContext(
+        city
+          ? { areaName: '', closestCityId: city.id, closestCityNameKey: city.nameKey }
+          : null
+      );
+    } finally {
+      setPinLocationLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedLocation) {
+      setPinLocationContext(null);
+      return;
+    }
+    void resolvePinLocation(selectedLocation.lat, selectedLocation.lng);
+  }, [selectedLocation, resolvePinLocation]);
+
+  const pinLocationPreview = useMemo(() => {
+    if (!pinLocationContext) return null;
+    return formatPinLocationTag(pinLocationContext, (key) => t(key), t('pinLocationLabel'));
+  }, [pinLocationContext, t]);
 
   const closeFormOverlay = useCallback(() => {
     if (!orderSubmitting) {
@@ -2577,6 +2617,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
       descriptionToSave = t('leadPinDefaultDescription');
     }
 
+    if (pinLocationContext) {
+      const locationTag = formatPinLocationTag(
+        pinLocationContext,
+        (key) => t(key),
+        t('pinLocationLabel')
+      );
+      if (!descriptionToSave.startsWith('📍') && !descriptionToSave.includes(locationTag)) {
+        descriptionToSave = `${locationTag}\n\n${descriptionToSave}`;
+      }
+    }
+
     try {
       setOrderSubmitting(true);
       const {
@@ -3555,6 +3606,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 </p>
               </div>
 
+              {(pinLocationLoading || pinLocationPreview) && (
+                <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-3 py-2.5">
+                  {pinLocationLoading ? (
+                    <p className="text-[11px] text-cyan-200/80 animate-pulse">{t('pinLocationResolving')}</p>
+                  ) : (
+                    <p className="text-[11px] font-medium leading-snug text-cyan-100">{pinLocationPreview}</p>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
@@ -3869,9 +3930,34 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${selectedMission.category === 'public' ? 'text-emerald-400' : 'text-amber-400'}`}>
                     {selectedMission.category === 'public' ? t('cityCleaning') : t('homeCleaning')}
                   </p>
-                  <p className="text-xs text-slate-500 font-mono">
-                    {selectedMission.location_lat.toFixed(6)}, {selectedMission.location_lng.toFixed(6)}
-                  </p>
+                  {(() => {
+                    const descLine = String(selectedMission.description ?? '').split('\n')[0]?.trim();
+                    if (descLine.startsWith('📍')) {
+                      return (
+                        <p className="mt-1 text-xs font-medium text-cyan-200 leading-snug">{descLine}</p>
+                      );
+                    }
+                    const hub = closestMarketplaceCity(
+                      selectedMission.location_lat,
+                      selectedMission.location_lng
+                    );
+                    if (hub) {
+                      return (
+                        <p className="mt-1 text-xs font-medium text-cyan-200 leading-snug">
+                          {formatPinLocationTag(
+                            { areaName: '', closestCityId: hub.id, closestCityNameKey: hub.nameKey },
+                            (key) => t(key),
+                            t('pinLocationLabel')
+                          )}
+                        </p>
+                      );
+                    }
+                    return (
+                      <p className="text-xs text-slate-500 font-mono">
+                        {selectedMission.location_lat.toFixed(6)}, {selectedMission.location_lng.toFixed(6)}
+                      </p>
+                    );
+                  })()}
                 </div>
               </div>
 

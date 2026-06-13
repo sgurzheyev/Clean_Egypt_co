@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabase';
 import { formatWorkBudgetEgp } from '../src/lib/formatMoney';
 import { missionWorkBudgetEgp } from '../src/lib/missionBudget';
+import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
+import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 
 export interface LiveMarketMission {
   id: string;
@@ -31,6 +33,23 @@ const statusClass = (status: string) =>
   status === 'in_progress'
     ? 'border-cyan-400/55 bg-cyan-500/15 text-cyan-200'
     : 'border-emerald-400/55 bg-emerald-500/15 text-emerald-200';
+
+function missionLocationLine(
+  mission: LiveMarketMission,
+  t: (key: string) => string
+): string {
+  const descLine = String(mission.description ?? '').split('\n')[0]?.trim();
+  if (descLine.startsWith('📍')) return descLine;
+  const hub = closestMarketplaceCity(mission.location_lat, mission.location_lng);
+  if (hub) {
+    return formatPinLocationTag(
+      { areaName: '', closestCityId: hub.id, closestCityNameKey: hub.nameKey },
+      (key) => t(key),
+      t('pinLocationLabel')
+    );
+  }
+  return `${mission.location_lat.toFixed(4)}, ${mission.location_lng.toFixed(4)}`;
+}
 
 const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({ open, onClose, onSelectMission }) => {
   const { t } = useTranslation();
@@ -158,7 +177,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({ open, onClose, onSelect
                           {t('orderNumber')} {mission.id.slice(0, 8)}
                         </p>
                         <p className="truncate text-xs text-slate-300">
-                          {t('address')}: {mission.location_lat.toFixed(4)}, {mission.location_lng.toFixed(4)}
+                          {missionLocationLine(mission, t)}
                         </p>
                         <div className="mt-1 flex items-center gap-2">
                           <span
