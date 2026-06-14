@@ -21,6 +21,7 @@ import {
   extractMissionFeedDescription,
   MISSION_SHORT_DESCRIPTION_MAX,
 } from '../src/lib/missionDescription';
+import { type MissionBidRow } from '../src/lib/missionBids';
 import {
   PROFILE_GLASS_PANEL,
   HOME_MIN_PRICE,
@@ -277,15 +278,7 @@ function buildOptimisticLeadMission(
   };
 }
 
-interface MissionTransactionRow {
-  id: string;
-  user_id: string | null;
-  mission_id?: string | null;
-  amount: number;
-  type: string;
-  gateway?: string | null;
-  created_at: string;
-}
+const OPEN_BID_MISSION_STATUSES = new Set(['pending', 'funding', 'available']);
 
 function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const R = 6371000;
@@ -1963,48 +1956,56 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [selectedRating, setSelectedRating] = useState<number>(0);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewedMissions, setReviewedMissions] = useState<Set<string>>(new Set());
-  const [missionTransactions, setMissionTransactions] = useState<MissionTransactionRow[]>([]);
-  const [missionTxLoading, setMissionTxLoading] = useState(false);
-  const [missionTxError, setMissionTxError] = useState<string | null>(null);
+  const [missionBids, setMissionBids] = useState<MissionBidRow[]>([]);
+  const [missionBidsLoading, setMissionBidsLoading] = useState(false);
+  const [missionBidsError, setMissionBidsError] = useState<string | null>(null);
+  const [briefingBidSubmitting, setBriefingBidSubmitting] = useState(false);
   const [gpsDistanceMeters, setGpsDistanceMeters] = useState<number | null>(null);
   const [gpsDistanceError, setGpsDistanceError] = useState<string | null>(null);
+
+  const loadMissionBids = useCallback(async (missionId: string) => {
+    const { data, error } = await supabase
+      .from('mission_bids')
+      .select(`
+        id,
+        mission_id,
+        cleaner_id,
+        bid_amount,
+        status,
+        created_at,
+        cleaner:profiles!cleaner_id (
+          full_name,
+          avatar_url,
+          rating,
+          telegram_username
+        )
+      `)
+      .eq('mission_id', missionId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    return (data || []) as MissionBidRow[];
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      setMissionTransactions([]);
-      setMissionTxError(null);
+      setMissionBids([]);
+      setMissionBidsError(null);
       setGpsDistanceMeters(null);
       setGpsDistanceError(null);
       if (!selectedMission?.id) return;
 
-      setMissionTxLoading(true);
+      setMissionBidsLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('transactions')
-          .select(`
-            id, 
-            user_id, 
-            mission_id, 
-            amount, 
-            type, 
-            gateway, 
-            created_at,
-            profile:profiles!user_id (
-              full_name,
-              avatar_url
-            )
-          `)
-          .eq('mission_id', selectedMission.id)
-          .order('created_at', { ascending: false })
-          .limit(200);
-        if (error) throw error;
-        if (!cancelled) setMissionTransactions((data || []) as MissionTransactionRow[]);
+        const bids = await loadMissionBids(selectedMission.id);
+        if (!cancelled) setMissionBids(bids);
       } catch (e: any) {
-        console.error('Mission transactions fetch error:', e);
-        if (!cancelled) setMissionTxError(e?.message || 'Failed to load mission transactions.');
+        console.error('Mission bids fetch error:', e);
+        if (!cancelled) setMissionBidsError(e?.message || 'Failed to load bids.');
       } finally {
-        if (!cancelled) setMissionTxLoading(false);
+        if (!cancelled) setMissionBidsLoading(false);
       }
 
       if (!navigator.geolocation) return;
@@ -2028,33 +2029,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [selectedMission?.id, selectedMission?.location_lat, selectedMission?.location_lng]);
+  }, [selectedMission?.id, selectedMission?.location_lat, selectedMission?.location_lng, loadMissionBids]);
 
-  const potentialCardingUserIds = (() => {
-    const SMALL_EGP_MAX = 100;
-    const WINDOW_MS = 10 * 60 * 1000;
-    const MIN_COUNT = 4;
-    const now = Date.now();
-    const recent = missionTransactions.filter((tx) => {
-      const ts = new Date(tx.created_at).getTime();
-      return Number.isFinite(ts) && now - ts <= WINDOW_MS;
-    });
-    const counts: Record<string, number> = {};
-    for (const tx of recent) {
-      const uid = tx.user_id || '';
-      if (!uid) continue;
-      const amt = Number(tx.amount);
-      if (!Number.isFinite(amt) || amt <= 0 || amt > SMALL_EGP_MAX) continue;
-      counts[uid] = (counts[uid] || 0) + 1;
-    }
-    return new Set(Object.entries(counts).filter(([, c]) => c >= MIN_COUNT).map(([uid]) => uid));
-  })();
-
-  const missionBriefingBooting =
-    !!selectedMission &&
-    missionTxLoading &&
-    missionTransactions.length === 0 &&
-    !missionTxError;
+  const missionBriefingBooting = false;
 
   const clearMissionPinHover = useCallback(() => {
     // Nothing is hovered — bail without touching state (prevents a setState storm on every empty mousemove).
@@ -2454,7 +2431,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      // Place pending bid in mission_bids
       const { error } = await supabase.from('mission_bids').insert({
         mission_id: missionId,
         cleaner_id: user.id,
@@ -2466,6 +2442,148 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
     },
     [onRequestAuth]
+  );
+
+  const refreshMissionBids = useCallback(async () => {
+    if (!selectedMission?.id) return;
+    try {
+      const bids = await loadMissionBids(selectedMission.id);
+      setMissionBids(bids);
+      setMissionBidsError(null);
+    } catch (e: any) {
+      console.error('Mission bids refresh error:', e);
+      setMissionBidsError(e?.message || 'Failed to load bids.');
+    }
+  }, [loadMissionBids, selectedMission?.id]);
+
+  const handleBriefingAcceptBid = useCallback(
+    async (bid: MissionBidRow) => {
+      if (!selectedMission) return;
+      const missionValue = Number(bid.bid_amount ?? 0);
+      if (!Number.isFinite(missionValue) || missionValue <= 0) return;
+
+      const { data: workerProf, error: workerProfErr } = await supabase
+        .from('profiles')
+        .select('is_verified')
+        .eq('id', bid.cleaner_id)
+        .maybeSingle();
+      if (workerProfErr) {
+        toast.error(workerProfErr.message || t('unexpectedErrorTryAgain'));
+        return;
+      }
+      const homeOk = checkHomeMissionWorkerVerification(
+        selectedMission.category,
+        workerProf?.is_verified
+      );
+      if (!homeOk.ok) {
+        toast.error(t('verificationPromptOnlyVerified'));
+        return;
+      }
+
+      try {
+        const { error: jobErr } = await supabase
+          .from('missions')
+          .update({
+            cleaner_id: bid.cleaner_id,
+            amount_target: bid.bid_amount,
+            status: 'in_progress',
+          })
+          .eq('id', selectedMission.id);
+        if (jobErr) throw jobErr;
+
+        await supabase.from('mission_bids').update({ status: 'accepted' }).eq('id', bid.id);
+        await supabase
+          .from('mission_bids')
+          .update({ status: 'rejected' })
+          .eq('mission_id', selectedMission.id)
+          .neq('id', bid.id)
+          .eq('status', 'pending');
+
+        toast.success(t('mapToastMissionAcceptedProfile'));
+        await fetchMissions();
+        handleCloseMissionBriefing();
+      } catch (e: any) {
+        console.error('handleBriefingAcceptBid', e);
+        toast.error(t('unexpectedErrorTryAgain'));
+      }
+    },
+    [fetchMissions, handleCloseMissionBriefing, selectedMission, t, toast]
+  );
+
+  const handleBriefingDeclineBid = useCallback(
+    async (bidId: string) => {
+      try {
+        const { error } = await supabase
+          .from('mission_bids')
+          .update({ status: 'rejected' })
+          .eq('id', bidId);
+        if (error) throw error;
+        await refreshMissionBids();
+        void fetchMissions();
+      } catch (e: any) {
+        console.error('handleBriefingDeclineBid', e);
+        toast.error(t('unexpectedErrorTryAgain'));
+      }
+    },
+    [fetchMissions, refreshMissionBids, t, toast]
+  );
+
+  const handleBriefingPlaceBid = useCallback(
+    async (amountEgp: number) => {
+      if (!selectedMission) return;
+      setBriefingBidSubmitting(true);
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const user = session?.user;
+        if (!user?.id) {
+          onRequestAuth?.();
+          return;
+        }
+        if (selectedMission.creator_id && selectedMission.creator_id === user.id) {
+          toast.error(t('mapToastCannotBidOwnMission'));
+          return;
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('phone_number, is_verified')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (profileError) {
+          console.error('Profile check failed:', profileError.message);
+        } else {
+          const homeOk = checkHomeMissionWorkerVerification(
+            selectedMission.category,
+            profile?.is_verified
+          );
+          if (!homeOk.ok) {
+            toast.error(t('verificationPromptOnlyVerified'));
+            return;
+          }
+        }
+
+        await placePendingBid(selectedMission.id, amountEgp);
+        toast.success(t('placeBid'));
+        await refreshMissionBids();
+        void fetchMissions();
+      } catch (e: any) {
+        console.error('handleBriefingPlaceBid', e);
+        toast.error(t('mapToastBidUnexpectedError'));
+      } finally {
+        setBriefingBidSubmitting(false);
+      }
+    },
+    [
+      fetchMissions,
+      onRequestAuth,
+      placePendingBid,
+      refreshMissionBids,
+      selectedMission,
+      t,
+      toast,
+    ]
   );
 
   /** Wallet debit + assign cleaner + in_progress when funding reaches goal (RPC). */
@@ -3932,10 +4050,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
           currentUserId={currentUserId}
           activeBidCount={activeBidCounts[selectedMission.id] || 0}
           serviceLabel={serviceLabelFromId(serviceTypeForMission(selectedMission))}
-          missionTxLoading={missionTxLoading}
-          missionTxError={missionTxError}
-          missionTransactions={missionTransactions}
-          potentialCardingUserIds={potentialCardingUserIds}
+          missionBids={missionBids}
+          bidsLoading={missionBidsLoading}
+          bidsError={missionBidsError}
+          isMissionCreator={
+            !!currentUserId && !!selectedMission.creator_id && currentUserId === selectedMission.creator_id
+          }
+          canPlaceBid={
+            !!currentUserId &&
+            currentUserId !== selectedMission.creator_id &&
+            OPEN_BID_MISSION_STATUSES.has(String(selectedMission.status || ''))
+          }
+          bidSubmitting={briefingBidSubmitting}
+          onAcceptBid={handleBriefingAcceptBid}
+          onDeclineBid={handleBriefingDeclineBid}
+          onPlaceBid={handleBriefingPlaceBid}
           gpsDistanceMeters={gpsDistanceMeters}
           gpsDistanceError={gpsDistanceError}
           isExecutorViewer={isExecutorViewer}

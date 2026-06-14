@@ -13,6 +13,8 @@ import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
 import { missionTokenBid, missionWorkBudgetEgp } from '../src/lib/missionBudget';
 import { formatUsdPrice, YEARLY_SUBSCRIPTION } from '../src/lib/tokenPricing';
+import { type MissionBidRow, bidWorkerDisplayName } from '../src/lib/missionBids';
+import { sanitizeIntegerEgpDigits, parseIntegerEgpFromInput } from '../src/lib/integerEgpInput';
 
 export type MissionBriefingMission = {
   id: string;
@@ -31,16 +33,6 @@ export type MissionBriefingMission = {
   completion_distance_meters?: number | null;
 };
 
-type MissionTransaction = {
-  id: string;
-  gateway?: string | null;
-  user_id?: string | null;
-  type?: string | null;
-  amount: number;
-  created_at: string;
-  profile?: { full_name?: string | null; avatar_url?: string | null } | null;
-};
-
 export type MissionBriefingProps = {
   mission: MissionBriefingMission;
   booting: boolean;
@@ -48,10 +40,15 @@ export type MissionBriefingProps = {
   currentUserId: string | null | undefined;
   activeBidCount: number;
   serviceLabel: string;
-  missionTxLoading: boolean;
-  missionTxError: string | null;
-  missionTransactions: MissionTransaction[];
-  potentialCardingUserIds: Set<string>;
+  missionBids: MissionBidRow[];
+  bidsLoading: boolean;
+  bidsError: string | null;
+  isMissionCreator: boolean;
+  canPlaceBid: boolean;
+  bidSubmitting: boolean;
+  onAcceptBid: (bid: MissionBidRow) => void;
+  onDeclineBid: (bidId: string) => void;
+  onPlaceBid: (amountEgp: number) => void;
   gpsDistanceMeters: number | null;
   gpsDistanceError: string | null;
   isExecutorViewer: boolean;
@@ -112,10 +109,15 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   currentUserId,
   activeBidCount,
   serviceLabel,
-  missionTxLoading,
-  missionTxError,
-  missionTransactions,
-  potentialCardingUserIds,
+  missionBids,
+  bidsLoading,
+  bidsError,
+  isMissionCreator,
+  canPlaceBid,
+  bidSubmitting,
+  onAcceptBid,
+  onDeclineBid,
+  onPlaceBid,
   gpsDistanceMeters,
   gpsDistanceError,
   isExecutorViewer,
@@ -138,6 +140,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   onSelectRating,
 }) => {
   const { t } = useTranslation();
+  const [bidInput, setBidInput] = React.useState('');
   const photos = mission.photo_urls?.filter(Boolean) ?? [];
   const placeholderVariant = placeholderVariantFor(mission);
   const placeholderIcon = placeholderVariant === 'home' ? '🏠' : '🌆';
@@ -303,72 +306,108 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
               <section className="border-t border-white/5 pt-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                    Financial Trail
+                    {t('bidsAndOffers')}
                   </h3>
-                  {missionTxLoading && (
+                  {bidsLoading && (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-500/60 border-t-cyan-300" />
                   )}
                 </div>
-                {missionTxError && <p className="mb-2 text-xs text-red-400">{missionTxError}</p>}
-                <ul className="max-h-48 divide-y divide-white/5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {missionTransactions.map((tx) => {
-                    const gw = (tx.gateway || '').toLowerCase();
-                    const badge = gw.includes('stripe') ? 'Stripe' : tx.gateway || null;
-                    const isCarding = tx.user_id
-                      ? potentialCardingUserIds.has(tx.user_id)
-                      : false;
-                    const profile = tx.profile;
-                    const displayName = profile?.full_name || 'Eco Hero';
-                    const avatarUrl = profile?.avatar_url;
+                {bidsError && <p className="mb-2 text-xs text-red-400">{bidsError}</p>}
+                <ul className="max-h-52 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {missionBids.map((bid) => {
+                    const displayName = bidWorkerDisplayName(bid);
+                    const avatarUrl = bid.cleaner?.avatar_url;
+                    const rating = bid.cleaner?.rating;
 
                     return (
-                      <li key={tx.id} className="flex items-center justify-between gap-3 py-3">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/5">
-                            {avatarUrl ? (
-                              <img
-                                src={avatarUrl}
-                                alt={displayName}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <span className="text-[10px] font-bold text-emerald-300">
-                                {(displayName || 'E')[0]}
-                              </span>
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-white">{displayName}</p>
-                            <p className="text-[9px] uppercase tracking-tight text-slate-500">
-                              {tx.type}
-                              {badge ? <span className="ml-1 opacity-70">· {badge}</span> : null}
+                      <li
+                        key={bid.id}
+                        className="flex items-center gap-3 border-b border-white/5 py-3 last:border-b-0"
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/5">
+                          {avatarUrl ? (
+                            <img
+                              src={avatarUrl}
+                              alt={displayName}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-[10px] font-bold text-emerald-300">
+                              {(displayName || 'E')[0]}
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-white">{displayName}</p>
+                          {typeof rating === 'number' && !Number.isNaN(rating) && (
+                            <p className="text-[10px] font-medium text-amber-300">
+                              {rating.toFixed(1)} ⭐
                             </p>
+                          )}
+                        </div>
+                        <p className="shrink-0 text-sm font-black tabular-nums text-orange-300">
+                          {formatEgp(Number(bid.bid_amount))}
+                        </p>
+                        {isMissionCreator && bid.status === 'pending' && (
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => onAcceptBid(bid)}
+                              className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/15 text-base transition-transform hover:bg-emerald-500/25 active:scale-95"
+                              aria-label={t('acceptBidAria')}
+                            >
+                              ✅
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDeclineBid(bid.id)}
+                              className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/15 text-base transition-transform hover:bg-red-500/25 active:scale-95"
+                              aria-label={t('declineBidAria')}
+                            >
+                              ❌
+                            </button>
                           </div>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <p
-                            className={`font-mono text-xs font-black tabular-nums ${
-                              isCarding ? 'text-red-300' : 'text-emerald-300'
-                            }`}
-                          >
-                            +{formatEgp(Number(tx.amount))}
-                          </p>
-                          <p className="text-[8px] text-slate-600">
-                            {new Date(tx.created_at).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </p>
-                        </div>
+                        )}
                       </li>
                     );
                   })}
-                  {!missionTxLoading && missionTransactions.length === 0 && (
+                  {!bidsLoading && missionBids.length === 0 && (
                     <li className="py-4 text-center text-xs italic text-slate-500">
-                      No transactions yet. Be the first hero!
+                      {t('noBidsYet')}
                     </li>
                   )}
                 </ul>
+
+                {canPlaceBid && !isMissionCreator && (
+                  <form
+                    className="mt-4 flex gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const amount = parseIntegerEgpFromInput(bidInput);
+                      if (amount <= 0) return;
+                      onPlaceBid(amount);
+                      setBidInput('');
+                    }}
+                  >
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      pattern="\d*"
+                      value={bidInput}
+                      onChange={(e) => setBidInput(sanitizeIntegerEgpDigits(e.target.value))}
+                      placeholder={t('bidAmountLabelEgp')}
+                      className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400/40 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
+                    />
+                    <button
+                      type="submit"
+                      disabled={bidSubmitting || parseIntegerEgpFromInput(bidInput) <= 0}
+                      className="shrink-0 rounded-xl border border-cyan-400/35 bg-cyan-600/90 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-all hover:bg-cyan-500/95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {bidSubmitting ? t('processing') : t('placeBid')}
+                    </button>
+                  </form>
+                )}
               </section>
 
               <section className="border-t border-white/5 pt-4">
