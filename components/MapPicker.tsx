@@ -1763,7 +1763,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           is_verified
         )
       `)
-      .in('status', ['pending', 'available', 'funding', 'in_progress', 'completed'])
+      .in('status', ['pending', 'available', 'funding', 'in_progress', 'review', 'pending_approval'])
       .not('status', 'eq', 'pending_payment')
       .order('created_at', { ascending: false })
       .limit(500);
@@ -1822,6 +1822,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   useEffect(() => {
     fetchMissions();
+  }, [fetchMissions]);
+
+  useEffect(() => {
+    const onMissionCompleted = (event: Event) => {
+      const missionId = (event as CustomEvent<{ missionId?: string }>).detail?.missionId;
+      if (missionId) {
+        setJobs((prev) => {
+          const next = prev.filter((j) => j.id !== missionId);
+          jobsRef.current = next;
+          return next;
+        });
+        setSelectedMission((prev) => (prev?.id === missionId ? null : prev));
+      }
+      void fetchMissions();
+    };
+    window.addEventListener('cleanegypt:mission-completed', onMissionCompleted);
+    return () => window.removeEventListener('cleanegypt:mission-completed', onMissionCompleted);
   }, [fetchMissions]);
 
   useEffect(() => {

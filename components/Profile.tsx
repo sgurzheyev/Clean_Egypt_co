@@ -11,7 +11,6 @@ import PhantomCapture from '../src/components/PhantomCapture';
 import {
   CLIENT_APPROVE_RELEASE_BTN_LIST,
   CLIENT_APPROVE_RELEASE_BTN_MODAL,
-  CLIENT_OPEN_DISPUTE_BTN_MODAL,
   PROFILE_GLASS_PANEL,
   HOME_MIN_PRICE,
   HOME_MAX_PRICE,
@@ -201,8 +200,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [paymentSyncing, setPaymentSyncing] = useState(false);
   const [reviewJob, setReviewJob] = useState<Job | null>(null);
+  const [reviewWorkerProfile, setReviewWorkerProfile] = useState<{
+    full_name?: string | null;
+    phone_number?: string | null;
+    telegram_username?: string | null;
+  } | null>(null);
   const [releasePaySubmitting, setReleasePaySubmitting] = useState(false);
-  const [disputeSubmitting, setDisputeSubmitting] = useState(false);
   const [toastState, setToastState] = useState<ToastState>(null);
   // Mission creation is handled from the map (token-backed). Profile no longer starts checkout flows.
   /** Loading id for Retry/Cancel on `pending_payment` (Phantom Pin) cards. */
@@ -380,6 +383,38 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       urls.forEach((u) => URL.revokeObjectURL(u));
     };
   }, [proofFiles]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const cleanerId = reviewJob?.cleaner_id;
+    if (!cleanerId) {
+      setReviewWorkerProfile(null);
+      return;
+    }
+    void (async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name, phone_number, telegram_username')
+        .eq('id', cleanerId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        console.error('Review worker profile fetch:', error);
+        setReviewWorkerProfile(null);
+        return;
+      }
+      setReviewWorkerProfile(data ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reviewJob?.id, reviewJob?.cleaner_id]);
+
+  const closeReviewModal = useCallback(() => {
+    if (releasePaySubmitting) return;
+    setReviewJob(null);
+    setReviewWorkerProfile(null);
+  }, [releasePaySubmitting]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -1120,28 +1155,36 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     }
   };
 
-  const handleConfirmReleasePay = async (job: Job): Promise<boolean> => {
+  const handleConfirmDirectPayment = async (job: Job): Promise<boolean> => {
     if (!job.cleaner_id) {
-      toast.error('No worker assigned to this job yet.');
+      toast.error(t('reviewMissionNoContact'));
       return false;
     }
-    if (!window.confirm('Confirm completion and release payment to the worker?')) return false;
     if (releasePaySubmitting) return false;
     try {
       setReleasePaySubmitting(true);
-      const { error: rpcErr } = await supabase.rpc('resolve_mission_dispute', {
+      const { error: rpcErr } = await supabase.rpc('confirm_mission_direct_payment', {
         p_mission_id: job.id,
-        p_decision: 'approve',
-        p_supervisor_comment: null,
       });
       if (rpcErr) throw rpcErr;
 
+      setMyCityJobs((prev) =>
+        prev.map((j) => (j.id === job.id ? { ...j, status: 'completed' } : j))
+      );
+      setMyHomeJobs((prev) =>
+        prev.map((j) => (j.id === job.id ? { ...j, status: 'completed' } : j))
+      );
+
+      window.dispatchEvent(
+        new CustomEvent('cleanegypt:mission-completed', { detail: { missionId: job.id } })
+      );
+
       await fetchProfileData();
-      toast.success('Payment released successfully.');
+      toast.success(t('missionCompletedSuccess'));
       return true;
     } catch (err: any) {
-      console.error('Release pay error:', err);
-      toast.error(err?.message || 'Failed to release payment.');
+      console.error('Confirm direct payment error:', err);
+      toast.error(err?.message || 'Failed to close mission. Please try again.');
       return false;
     } finally {
       setReleasePaySubmitting(false);
@@ -1820,7 +1863,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
                     {job.status === 'review' && (
                       <p className="mt-3 text-[10px] text-amber-300 uppercase tracking-wider text-center font-bold">
-                        WAITING FOR ADMIN VERIFICATION
+                        {t('reviewMissionAwaitingPayment')}
                       </p>
                     )}
 
@@ -1833,10 +1876,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           disabled={releasePaySubmitting}
                           className={CLIENT_APPROVE_RELEASE_BTN_LIST}
                         >
-                          Review & Release Pay
+                          {t('reviewMissionOpenButton')}
                         </button>
                         <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
-                          Worker submitted completion photos. Review before confirming or disputing.
+                          Worker submitted completion photos. Review before confirming payment.
                         </p>
                       </div>
                     )}
@@ -1944,7 +1987,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
                     {job.status === 'review' && (
                       <p className="mt-3 text-[10px] text-amber-300 uppercase tracking-wider text-center font-bold">
-                        WAITING FOR ADMIN VERIFICATION
+                        {t('reviewMissionAwaitingPayment')}
                       </p>
                     )}
                     {(job.status === 'completed' || job.status === 'finished') && (
@@ -2101,7 +2144,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             PENDING REVIEW
                           </p>
                           <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
-                            WAITING FOR ADMIN VERIFICATION
+                            {t('reviewMissionAwaitingPayment')}
                           </p>
                           <button
                             type="button"
@@ -2109,7 +2152,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             disabled={releasePaySubmitting}
                             className={`mt-3 ${CLIENT_APPROVE_RELEASE_BTN_LIST}`}
                           >
-                            Review & Release Payment
+                            {t('reviewMissionOpenButton')}
                           </button>
                         </div>
                       )}
@@ -2121,10 +2164,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             disabled={releasePaySubmitting}
                             className={CLIENT_APPROVE_RELEASE_BTN_LIST}
                           >
-                            Review & Release Pay
+                            {t('reviewMissionOpenButton')}
                           </button>
                           <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
-                            Worker marked job completed. Review before confirming or disputing.
+                            Worker marked job completed. Review before confirming payment.
                           </p>
                         </div>
                       )}
@@ -2588,190 +2631,121 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         </div>
       )}
 
-      {/* Client review modal: compare before/after & confirm or dispute */}
-      {false && reviewJob && (
+      {/* Client review modal: proof photos + direct payment confirmation */}
+      {reviewJob && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-          onClick={() => setReviewJob(null)}
+          className="fixed inset-0 z-[9999] flex items-end justify-center sm:items-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={closeReviewModal}
         >
           <div
-            className="w-[95vw] md:w-full max-w-4xl max-h-[85vh] flex flex-col rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] overflow-hidden"
+            className="relative flex w-full max-w-2xl max-h-[min(92dvh,900px)] flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)]"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header — fixed at top */}
-            <div className="flex-shrink-0 flex justify-between items-start p-6 pb-2">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-cyan-500/20 p-5 pb-4">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-1">
-                  Review proof of work
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                  {t('reviewMissionTitle')}
                 </p>
                 <h3 className="text-xl font-black text-white">
-                  {(reviewJob.category || 'UNKNOWN').toUpperCase()} • {formatWorkBudgetEgp(missionWorkBudgetEgp(reviewJob))}
+                  {(reviewJob.category || 'UNKNOWN').toUpperCase()} •{' '}
+                  {formatWorkBudgetEgp(missionWorkBudgetEgp(reviewJob))}
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setReviewJob(null)}
-                className="text-slate-400 hover:text-white text-lg font-bold"
+                onClick={closeReviewModal}
+                disabled={releasePaySubmitting}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-slate-400 hover:text-white disabled:opacity-50"
+                aria-label={t('close')}
               >
                 ✕
               </button>
             </div>
 
-            {/* Scrollable photo grid + disclaimer */}
-            <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div className={`${PROFILE_GLASS_PANEL} p-4`}>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
-                    Before photos
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(((reviewJob.photo_urls || (reviewJob as any).before_photo_urls) || []) as string[]).length === 0 && (
-                      <p className="text-xs text-slate-500 italic">
-                        Worker did not upload before photos.
-                      </p>
-                    )}
-                    {(((reviewJob.photo_urls || (reviewJob as any).before_photo_urls) || []) as string[]).map(
-                      (url, idx) => (
-                        <div
-                          key={`before-${idx}-${url.slice(0, 32)}`}
-                          className={`relative overflow-hidden ${PROFILE_GLASS_PANEL} !rounded-xl`}
-                        >
-                          <ModeratedMissionPhoto
-                            url={url}
-                            alt="Before"
-                            imgClassName="w-full h-28 object-cover"
-                            showSafeBadge
-                          />
-                        </div>
-                      )
-                    )}
-                  </div>
-                </div>
-                <div className={`${PROFILE_GLASS_PANEL} p-4`}>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">
-                    After photos
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(!reviewJob.after_photo_urls || reviewJob.after_photo_urls.length === 0) && (
-                      <p className="text-xs text-slate-500 italic">
-                        Worker did not upload after photos.
-                      </p>
-                    )}
-                    {(reviewJob.after_photo_urls || []).map((url, idx) => (
-                      <div
-                        key={`after-${idx}-${url.slice(0, 32)}`}
-                        className={`relative overflow-hidden ${PROFILE_GLASS_PANEL} !rounded-xl`}
-                      >
-                        <ModeratedMissionPhoto
-                          url={url}
-                          alt="After"
-                          imgClassName="w-full h-28 object-cover"
-                          showSafeBadge
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 pb-32 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3">
+                <p className="text-sm font-semibold leading-relaxed text-amber-100">
+                  {t('reviewMissionWorkerDone', {
+                    amount: formatWorkBudgetEgp(missionWorkBudgetEgp(reviewJob)),
+                  })}
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-amber-100/85">
+                  {t('reviewMissionPayInstructions')}
+                </p>
               </div>
 
-              <p className="text-[11px] text-slate-400">
-                80% Proof is based on photos. For 100% Proof & dispute resolution, our Telegram Team Checker may request video proof.
-              </p>
+              <div className={`mt-4 p-4 ${PROFILE_GLASS_PANEL}`}>
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                  {t('reviewMissionWorkerContact')}
+                </p>
+                {reviewWorkerProfile?.full_name && (
+                  <p className="text-sm font-semibold text-white">{reviewWorkerProfile.full_name}</p>
+                )}
+                {reviewWorkerProfile?.phone_number && (
+                  <p className="mt-1 text-sm text-emerald-300">{reviewWorkerProfile.phone_number}</p>
+                )}
+                {reviewWorkerProfile?.telegram_username && (
+                  <p className="mt-1 text-sm text-cyan-300">
+                    @{reviewWorkerProfile.telegram_username.replace(/^@/, '')}
+                  </p>
+                )}
+                {!reviewWorkerProfile?.phone_number && !reviewWorkerProfile?.telegram_username && (
+                  <p className="text-xs leading-relaxed text-slate-400">{t('reviewMissionNoContact')}</p>
+                )}
+              </div>
+
+              <div className={`mt-4 p-4 ${PROFILE_GLASS_PANEL}`}>
+                <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                  {t('reviewMissionProofTitle')}
+                </p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {(!reviewJob.after_photo_urls || reviewJob.after_photo_urls.length === 0) && (
+                    <p className="col-span-full text-xs italic text-slate-500">
+                      Worker did not upload after photos yet.
+                    </p>
+                  )}
+                  {(reviewJob.after_photo_urls || []).map((url, idx) => (
+                    <div
+                      key={`after-${idx}-${url.slice(0, 32)}`}
+                      className={`relative overflow-hidden ${PROFILE_GLASS_PANEL} !rounded-xl`}
+                    >
+                      <ModeratedMissionPhoto
+                        url={url}
+                        alt="After"
+                        imgClassName="h-32 w-full object-cover"
+                        showSafeBadge
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            {/* Sticky action buttons — always visible at bottom */}
-            <div className="flex-shrink-0 sticky bottom-0 bg-cyan-950/80 backdrop-blur-md pt-4 pb-6 px-6 z-[60] border-t border-cyan-500/30">
-              {(reviewJob?.status === 'completed' || reviewJob?.status === 'finished') ? (
-                <div className="w-full">
-                  <p className="w-full py-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-black text-sm uppercase tracking-[0.2em] text-center">
-                    MISSION ACCOMPLISHED & PAID
-                  </p>
-                </div>
+            <div className="absolute inset-x-0 bottom-0 border-t border-cyan-500/30 bg-cyan-950/95 px-5 py-4 backdrop-blur-md pb-[max(1rem,env(safe-area-inset-bottom))]">
+              {(reviewJob.status === 'completed' || reviewJob.status === 'finished') ? (
+                <p className="w-full rounded-full border border-emerald-500/30 bg-emerald-500/10 py-3 text-center text-sm font-black uppercase tracking-[0.2em] text-emerald-400">
+                  MISSION ACCOMPLISHED & PAID
+                </p>
               ) : (
-                <div className="w-full flex flex-col gap-3">
-                  <p className="text-[11px] text-slate-300 text-center px-2">
-                    {isRu
-                      ? 'Пожалуйста, проверьте фото. Если работа выполнена, подтвердите выплату уборщику.'
-                      : 'Please review the photos. If the job is done, release the funds to the cleaner.'}
-                  </p>
-                  <div className="flex flex-col gap-3 w-full min-w-0 sm:flex-row sm:items-stretch">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const ok = await handleConfirmReleasePay(reviewJob);
-                        if (ok) setReviewJob(null);
-                      }}
-                      disabled={releasePaySubmitting}
-                      className={CLIENT_APPROVE_RELEASE_BTN_MODAL}
-                    >
-                      {releasePaySubmitting && (
-                        <span className="inline-block h-4 w-4 shrink-0 rounded-full border-2 border-black/30 border-t-black animate-spin" aria-hidden />
-                      )}
-                      <span>
-                        {releasePaySubmitting
-                          ? t('waitingForAdminRelease')
-                          : 'Approve & Release Payment'}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (disputeSubmitting) return;
-                        try {
-                          setDisputeSubmitting(true);
-                          const { error } = await supabase
-                            .from('missions')
-                            .update({ is_disputed: true, status: 'disputed' })
-                            .eq('id', reviewJob.id);
-                          if (error) throw error;
-                          await fetchProfileData();
-                          try {
-                            await fetch('/api/notify-dispute', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ jobId: reviewJob.id }),
-                            });
-                          } catch {
-                            // ignore
-                          }
-                          alert('Dispute opened. Support (Muhamed) will review photos and Telegram video.');
-                        } catch (err: any) {
-                          console.error('Dispute error:', err);
-                          alert(err?.message || 'Failed to open dispute.');
-                        } finally {
-                          setDisputeSubmitting(false);
-                          setReviewJob(null);
-                        }
-                      }}
-                      disabled={disputeSubmitting}
-                      className={CLIENT_OPEN_DISPUTE_BTN_MODAL}
-                    >
-                      {disputeSubmitting && (
-                        <span className="inline-block h-4 w-4 shrink-0 rounded-full border-2 border-red-200/40 border-t-red-100 animate-spin" aria-hidden />
-                      )}
-                      <span>{disputeSubmitting ? 'Processing...' : 'Open Dispute'}</span>
-                    </button>
-                  </div>
-                  {(typeof reviewJob.ai_confidence_score === 'number' || reviewJob.ai_verdict) && (
-                    <details className="mt-2 w-full rounded-xl border border-cyan-500/25 bg-slate-950/60 px-3 py-2 text-left max-h-[40vh] overflow-y-auto">
-                      <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-cyan-200/95 [&::-webkit-details-marker]:hidden">
-                        🔍 AI Verification Details
-                      </summary>
-                      <div className="mt-2 space-y-2 text-[11px] text-slate-300">
-                        {typeof reviewJob.ai_confidence_score === 'number' && (
-                          <p className="font-semibold text-emerald-200/90">
-                            Confidence: {reviewJob.ai_confidence_score}%
-                          </p>
-                        )}
-                        {reviewJob.ai_verdict && (
-                          <p className="whitespace-pre-wrap break-words font-sans text-slate-300 leading-relaxed">
-                            {reviewJob.ai_verdict}
-                          </p>
-                        )}
-                      </div>
-                    </details>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const ok = await handleConfirmDirectPayment(reviewJob);
+                    if (ok) closeReviewModal();
+                  }}
+                  disabled={releasePaySubmitting}
+                  className={CLIENT_APPROVE_RELEASE_BTN_MODAL}
+                >
+                  {releasePaySubmitting && (
+                    <span
+                      className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-black/30 border-t-black"
+                      aria-hidden
+                    />
                   )}
-                </div>
+                  <span>
+                    {releasePaySubmitting ? t('processing') : t('confirmPaymentCloseMission')}
+                  </span>
+                </button>
               )}
             </div>
           </div>
