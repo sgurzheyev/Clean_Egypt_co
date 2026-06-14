@@ -12,6 +12,7 @@ import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
 import { missionTokenBid, missionWorkBudgetEgp } from '../src/lib/missionBudget';
+import { missionPinIcon } from '../src/lib/serviceSectors';
 import { formatUsdPrice, YEARLY_SUBSCRIPTION } from '../src/lib/tokenPricing';
 import { type MissionBidRow, bidWorkerDisplayName } from '../src/lib/missionBids';
 
@@ -158,7 +159,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const [bidInput, setBidInput] = React.useState('');
   const photos = mission.photo_urls?.filter(Boolean) ?? [];
   const placeholderVariant = placeholderVariantFor(mission);
-  const placeholderIcon = placeholderVariant === 'home' ? '🏠' : '🌆';
+  const placeholderIcon = missionPinIcon(placeholderVariant === 'home' ? 'home' : 'public');
   const feedDescription = extractMissionFeedDescription(mission.description);
   const locationSource = missionLocationLine(mission, t);
   const locationTranslation = useMissionTextTranslation(locationSource);

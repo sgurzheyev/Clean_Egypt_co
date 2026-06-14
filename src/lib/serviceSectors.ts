@@ -21,7 +21,7 @@ export type FormTrigger = 'mop' | 'sponge';
 
 export type ServiceOption = { id: ServiceType; labelKey: string };
 
-/** Mop 🧹 — private indoor / home-office services. */
+/** Sponge 🧽 — private indoor / home-office services (ОЧИСТИТЬ ДОМ/ОФИС). */
 export const PRIVATE_SECTOR_SERVICES: ServiceOption[] = [
   { id: 'home_office', labelKey: 'serviceHomeOffice' },
   { id: 'laundry_ironing', labelKey: 'serviceLaundryIroning' },
@@ -32,7 +32,7 @@ export const PRIVATE_SECTOR_SERVICES: ServiceOption[] = [
   { id: 'pest_control', labelKey: 'servicePestControl' },
 ];
 
-/** Sponge 🧽 — street, vehicle, and outdoor object services. */
+/** Mop 🧹 — street, city, beach, and outdoor object services (ОЧИСТИТЬ ОБЪЕКТ/УЛИЦУ). */
 export const STREET_OBJECT_SECTOR_SERVICES: ServiceOption[] = [
   { id: 'car_detailing', labelKey: 'serviceCarDetailing' },
   { id: 'yacht_boat_cleaning', labelKey: 'serviceYachtBoatCleaning' },
@@ -60,6 +60,12 @@ export function defaultServiceForTrigger(trigger: FormTrigger): ServiceType {
 
 export function taskTypeForTrigger(trigger: FormTrigger): 'home' | 'city' {
   return trigger === 'sponge' ? 'home' : 'city';
+}
+
+/** Map pin + list icon: sponge = home/office, mop = street/city/beach. */
+export function missionPinIcon(category: string | null | undefined): string {
+  const c = String(category ?? '').toLowerCase();
+  return c === 'home' || c === 'office' ? '🧽' : '🧹';
 }
 
 export function findServiceOption(id: string | null | undefined): ServiceOption | undefined {

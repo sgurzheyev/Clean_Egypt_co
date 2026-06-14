@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabase';
 import { formatWorkBudgetEgp } from '../src/lib/formatMoney';
 import { missionWorkBudgetEgp } from '../src/lib/missionBudget';
+import { missionPinIcon } from '../src/lib/serviceSectors';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
@@ -176,7 +177,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                         key={mission.id}
                         photoUrl={mission.photo_urls?.[0] ?? null}
                         placeholderVariant={isHome ? 'home' : 'city'}
-                        placeholderIcon={isHome ? '🏠' : '🌆'}
+                        placeholderIcon={missionPinIcon(mission.category)}
                         budgetValue={formatWorkBudgetEgp(budget)}
                         locationLine={missionLocationLine(mission, t)}
                         description={extractMissionFeedDescription(mission.description)}

@@ -46,6 +46,7 @@ import {
   findServiceOption,
   servicesForTrigger,
   taskTypeForTrigger,
+  missionPinIcon,
 } from '../src/lib/serviceSectors';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import {
@@ -173,6 +174,22 @@ const MISSION_PIN_HOVER_STROKE_WIDTH: mapboxgl.Expression = [
   ['boolean', ['feature-state', 'hover'], false],
   3,
   2,
+];
+
+const MISSION_PIN_ICON_SIZE: mapboxgl.Expression = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  8,
+  11,
+  12,
+  13,
+  15,
+  15,
+  18,
+  17,
+  22,
+  17,
 ];
 
 type TaskType = 'city' | 'home';
@@ -449,17 +466,8 @@ function DraftPinActionHub({
 
   const orbitActions = [
     {
-      key: 'mop-orbit',
-      offset: { x: -48, y: -28 },
-      label: mopLabel,
-      onClick: onMop,
-      className:
-        'border-emerald-400/70 bg-emerald-500/35 shadow-[0_0_16px_rgba(34,197,94,0.5)]',
-      content: '🧹',
-    },
-    {
       key: 'sponge-orbit',
-      offset: { x: 48, y: -28 },
+      offset: { x: -50, y: -30 },
       label: spongeLabel,
       onClick: onSponge,
       className:
@@ -467,8 +475,17 @@ function DraftPinActionHub({
       content: '🧽',
     },
     {
+      key: 'mop-orbit',
+      offset: { x: 50, y: -30 },
+      label: mopLabel,
+      onClick: onMop,
+      className:
+        'border-emerald-400/70 bg-emerald-500/35 shadow-[0_0_16px_rgba(34,197,94,0.5)]',
+      content: '🧹',
+    },
+    {
       key: 'market-orbit',
-      offset: { x: 0, y: 55 },
+      offset: { x: 0, y: -58 },
       label: marketLabel,
       onClick: onOpenMarket,
       className:
@@ -618,7 +635,7 @@ function MyOrdersPanel({
                       key={mission.id}
                       photoUrl={mission.photo_urls?.[0] ?? null}
                       placeholderVariant={isHome ? 'home' : 'city'}
-                      placeholderIcon={isHome ? '🏠' : '🌆'}
+                      placeholderIcon={missionPinIcon(mission.category)}
                       budgetValue={formatWorkBudgetEgp(missionWorkBudgetEgp(mission))}
                       metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
                       locationLine={mission.description?.split('\n')[0]?.trim() || undefined}
@@ -2349,7 +2366,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       try {
         const layers = map.getStyle()?.layers;
         if (!layers || layers.length === 0) return;
-        const order = ['mission-pins-glow', 'mission-pins-core'];
+        const order = ['mission-pins-glow', 'mission-pins-core', 'mission-pins-icon'];
         const topIds = layers.slice(-order.length).map((l: { id: string }) => l.id);
         if (order.every((id, i) => topIds[i] === id)) return;
         for (const id of order) {
@@ -3170,6 +3187,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           status: j.status,
           service_type: serviceTypeForMission(j),
           category: j.category,
+          pin_icon: missionPinIcon(j.category),
         },
       }));
     return { type: 'FeatureCollection' as const, features };
@@ -3295,8 +3313,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setDraftPinMenuExpanded((prev) => !prev);
   }, []);
 
+  const showProfileFab =
+    !taskTypeSelected && !selectedMission && !proofUploadMission;
+
   return (
-    <div className="w-full h-screen relative bg-black overflow-hidden">
+    <div
+      className={`w-full h-screen relative bg-black overflow-hidden${
+        showProfileFab ? ' ce-map-root--profile-fab' : ''
+      }`}
+    >
       {/* Mobile-first Mapbox control styling (44x44 hit targets + neon glass). */}
       <style>{`
         .ce-map .mapboxgl-ctrl-group {
@@ -3348,10 +3373,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
             margin-right: 8px;
             margin-bottom: calc(1.25rem + env(safe-area-inset-bottom));
           }
+          .ce-map-root--profile-fab .ce-map .mapboxgl-ctrl-bottom-right {
+            margin-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+          }
         }
         @media (min-width: 641px) {
           .ce-map .mapboxgl-ctrl-bottom-right {
             margin-bottom: 24px;
+          }
+          .ce-map-root--profile-fab .ce-map .mapboxgl-ctrl-bottom-right {
+            margin-bottom: calc(5.75rem + env(safe-area-inset-bottom));
           }
         }
       `}</style>
@@ -3591,6 +3622,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
               'circle-stroke-opacity': mapMarkerLayerSuppressed ? 0.08 : 0.95,
             }}
           />
+          <Layer
+            id="mission-pins-icon"
+            type="symbol"
+            layout={{
+              'text-field': ['get', 'pin_icon'],
+              'text-size': MISSION_PIN_ICON_SIZE,
+              'text-allow-overlap': true,
+              'text-ignore-placement': true,
+              'text-anchor': 'center',
+            }}
+            paint={{
+              'text-opacity': mapMarkerLayerSuppressed ? 0 : 1,
+            }}
+          />
         </Source>
 
         {/* Draft tap location — native circle only while form is open (avatar hub is the pin otherwise). */}
@@ -3649,11 +3694,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
             onToggleExpand={toggleDraftPinMenu}
             avatarUrl={viewerProfile?.avatar_url}
             avatarInitial={profileAvatarInitial}
-            onMop={() => openMissionForm('sponge')}
-            onSponge={() => openMissionForm('mop')}
+            onMop={() => openMissionForm('mop')}
+            onSponge={() => openMissionForm('sponge')}
             onOpenMarket={handleOpenMarketFeed}
-            mopLabel={t('formTitleMopPrivate')}
-            spongeLabel={t('formTitleSpongeStreet')}
+            mopLabel={t('formTitleSpongeStreet')}
+            spongeLabel={t('formTitleMopPrivate')}
             marketLabel={t('serviceMarketplace')}
           />
         )}
@@ -3794,7 +3839,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
-      {!taskTypeSelected && !selectedMission && !proofUploadMission && (
+      {showProfileFab && (
         <div className="fixed inset-x-0 bottom-0 z-[10020] flex justify-center pointer-events-none pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))]">
           <button
             type="button"
