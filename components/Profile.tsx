@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
-import { Pencil, Target, Globe, Building2, Clock, Info } from 'lucide-react';
+import { Pencil, Target, Globe, Building2, Clock, Info, Mail, Lock } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import AdminDashboard from '../src/components/AdminDashboard';
@@ -136,7 +136,7 @@ function ProfileAccordion({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className={`${PROFILE_GLASS_PANEL} mb-4 overflow-hidden max-w-full`}>
+    <div className={`${PROFILE_GLASS_PANEL} mb-2 overflow-hidden max-w-full`}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -288,6 +288,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       ),
     [marketplaceJobs]
   );
+
+  const tokenBalance = Math.max(0, Number(userProfile?.token_balance ?? 0));
+  const subscriptionIsActive = useMemo(() => {
+    const exp = userProfile?.subscription_expires_at
+      ? Date.parse(userProfile.subscription_expires_at)
+      : 0;
+    return Number.isFinite(exp) && exp > Date.now();
+  }, [userProfile?.subscription_expires_at]);
 
   useEffect(() => {
     const tick = () =>
@@ -1292,13 +1300,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           </div>
           {/* Scrollable content — job cards and forms */}
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain overflow-x-hidden p-4 flex flex-col gap-4 pb-[max(9rem,env(safe-area-inset-bottom))] max-w-full">
-          <div className="w-full max-w-md mx-auto flex flex-col gap-6 min-w-0">
+          <div className="w-full max-w-md mx-auto flex flex-col gap-3 min-w-0">
         {showAdmin ? (
           <AdminDashboard onBack={() => setShowAdmin(false)} />
         ) : (
           <>
         {/* HEADER: Avatar + Welcome + Wallet */}
-        <header className="mb-8 text-white">
+        <header className="mb-2 text-white">
           <div className="flex items-center gap-4">
             <label className="relative inline-flex items-center justify-center h-14 w-14 rounded-full bg-gradient-to-br from-emerald-500/40 to-cyan-500/20 border border-white/20 shadow-[0_0_20px_rgba(16,185,129,0.4)] cursor-pointer overflow-hidden group">
               {avatarUploading ? (
@@ -1352,7 +1360,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           </div>
 
           {/* Language — compact globe + dropdown */}
-          <div className="mt-4 flex justify-end" ref={langMenuRef}>
+          <div className="mt-2 flex justify-end" ref={langMenuRef}>
             <div className="relative">
               <button
                 type="button"
@@ -1401,320 +1409,43 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
           </div>
 
-          {/* SaaS Status — tokens + subscription + live market pulse */}
-          <div className={`mt-5 p-4 ${PROFILE_GLASS_PANEL}`}>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
-                  {t('tokens')}
-                </p>
-                <p className="mt-1 text-lg font-black text-lime-300 tabular-nums">
-                  {Math.max(0, Number(userProfile?.token_balance ?? 0))}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
-                  {t('subscriptionStatus')}
-                </p>
-                {(() => {
-                  const exp = userProfile?.subscription_expires_at
-                    ? Date.parse(userProfile.subscription_expires_at)
-                    : 0;
-                  const active = exp > Date.now();
-                  return (
-                    <div className="mt-1 flex items-center gap-2">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] border ${
-                          active
-                            ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
-                            : 'border-amber-400/35 bg-amber-500/10 text-amber-200'
-                        }`}
-                      >
-                        {active ? t('subscriptionActive') : t('subscriptionExpired')}
-                      </span>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/10 pt-3">
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
-                  {t('availableLeads')}
-                </p>
-                <p className="mt-1 text-lg font-black text-white tabular-nums">
-                  {openMarketplaceJobs.length}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
-                  {t('onlineExecutors')}
-                </p>
-                <p className="mt-1 text-lg font-black text-white tabular-nums">
-                  {profileOnlineExecutors}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Token actions (token-only system) */}
-          <div className={`mt-6 p-5 shadow-[0_4px_30px_rgba(6,182,212,0.08)] ${PROFILE_GLASS_PANEL}`}>
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
-                  {t('tokens')}
-                </p>
-                <p className="mt-1 text-2xl font-black text-lime-300 tabular-nums">
-                  {Math.max(0, Number(userProfile?.token_balance ?? 0))}
-                </p>
+          {/* Compact account overview */}
+          <div className={`mt-3 p-3 ${PROFILE_GLASS_PANEL}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+                <Info className="h-3.5 w-3.5 shrink-0 text-cyan-400" aria-hidden />
+                {t('profileInfoOverview')}
               </div>
               <button
                 type="button"
                 onClick={() => setShowTokenPackModal(true)}
-                className="shrink-0 rounded-full bg-lime-500 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-black hover:bg-lime-400 transition-all"
+                className="shrink-0 rounded-full border border-lime-400/40 bg-lime-500/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-lime-200 hover:bg-lime-500/25 transition-all"
               >
-                {t('topUpTokens')}
+                {t('topUpShort')}
               </button>
             </div>
-            <p className="mt-2 text-[11px] text-slate-500 leading-relaxed">
-              {t('tokenOnlyNote')}
-            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <span className="inline-flex items-center rounded-full border border-lime-400/35 bg-lime-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-lime-200">
+                {tokenBalance} {t('tokens')}
+              </span>
+              <span
+                className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold ${
+                  subscriptionIsActive
+                    ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-200'
+                    : 'border-amber-400/35 bg-amber-500/10 text-amber-200'
+                }`}
+              >
+                {t('subscriptionStatus')}:{' '}
+                {subscriptionIsActive ? t('subscriptionActive') : t('subscriptionExpired')}
+              </span>
+              <span className="inline-flex items-center rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-cyan-100">
+                {t('profileLeadsShort')}: {openMarketplaceJobs.length}
+              </span>
+              <span className="inline-flex items-center rounded-full border border-violet-400/30 bg-violet-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-violet-100">
+                {t('onlineLabel')} {profileOnlineExecutors}
+              </span>
+            </div>
           </div>
-
-          {/* LOGOUT — highly visible */}
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="mt-4 w-full px-6 py-2 rounded-full font-black text-sm uppercase tracking-[0.2em] border border-orange-500/50 text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all"
-          >
-            {t('logout')}
-          </button>
-
-          {/* CONTACT INFORMATION */}
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (contactSubmitting) return;
-              setContactSaved(false);
-              console.log('Saving contact info...', { contactEmail, phoneNumber, telegramUsername });
-              try {
-                setContactSubmitting(true);
-                const { data: { session } } = await supabase.auth.getSession();
-                if (!session?.user?.id) {
-                  console.log('No session user found, aborting contact save.');
-                  alert('You must be logged in to save contact info.');
-                  return;
-                }
-                const updates = {
-                  contact_email: contactEmail || null,
-                  phone_number: phoneNumber || null,
-                  telegram_username: telegramUsername || null,
-                };
-                const { error } = await supabase
-                  .from('profiles')
-                  .update(updates)
-                  .eq('id', session.user.id);
-                if (error) {
-                  console.error('Contact info update error:', error);
-                  alert(error.message || 'Failed to save contact information.');
-                  return;
-                }
-                console.log('Contact info saved successfully.');
-                setContactSaved(true);
-                setContactEditMode(false);
-              } catch (err: any) {
-                console.error('Contact info update error (exception):', err);
-                alert(err?.message || 'Failed to save contact information.');
-              } finally {
-                setContactSubmitting(false);
-              }
-            }}
-            className={`mt-4 space-y-4 p-4 ${PROFILE_GLASS_PANEL} !rounded-3xl w-full min-w-0`}
-          >
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-              {t('contactInfo')}
-            </p>
-            <p className="text-[11px] text-slate-500 leading-relaxed">
-              {t('contactInfoHint')}
-            </p>
-            {contactEditMode ? (
-              <div className="flex flex-col gap-4 w-full min-w-0">
-                <div className="w-full min-w-0">
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1.5">
-                    {t('email')}
-                  </label>
-                  <input
-                    type="email"
-                    value={contactEmail}
-                    onChange={(e) => {
-                      setContactEmail(e.target.value);
-                      setContactSaved(false);
-                    }}
-                    className={`w-full min-w-0 ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
-                    placeholder="you@example.com"
-                  />
-                </div>
-                <div className="w-full min-w-0">
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1.5">
-                    {t('phoneWhatsApp')}
-                  </label>
-                  <input
-                    type="tel"
-                    value={phoneNumber}
-                    onChange={(e) => {
-                      setPhoneNumber(e.target.value);
-                      setContactSaved(false);
-                    }}
-                    className={`w-full min-w-0 ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
-                    placeholder="+20 1X XXX XXXX"
-                  />
-                </div>
-                <div className="w-full min-w-0">
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1.5">
-                    {t('telegramUsername')}
-                  </label>
-                  <input
-                    type="text"
-                    value={telegramUsername}
-                    onChange={(e) => {
-                      setTelegramUsername(e.target.value);
-                      setContactSaved(false);
-                    }}
-                    className={`w-full min-w-0 ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
-                    placeholder="@username"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 flex items-start justify-between gap-3 w-full min-w-0">
-                <div className="flex flex-col gap-3 text-xs text-slate-300 w-full min-w-0">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-0.5">{t('email')}</p>
-                    <p className="break-all">{contactEmail || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-0.5">{t('phoneWhatsApp')}</p>
-                    <p className="break-all">{phoneNumber || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-0.5">{t('telegramUsername')}</p>
-                    <p className="break-all">{telegramUsername || '—'}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setContactEditMode(true)}
-                  className="h-8 w-8 shrink-0 rounded-full border border-white/15 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 inline-flex items-center justify-center transition-all active:scale-95"
-                  aria-label="Edit contacts"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            <div className="flex justify-end">
-              {contactEditMode ? (
-                <button
-                  type="submit"
-                  disabled={contactSubmitting}
-                  className={`inline-flex items-center justify-center rounded-full text-[11px] font-black uppercase tracking-[0.18em] transition-all duration-300 ${
-                    contactSaved
-                      ? 'px-3 py-1.5 bg-emerald-500/20 border border-emerald-400/40 text-emerald-300'
-                      : 'px-5 py-2 bg-slate-800 text-slate-100 hover:bg-slate-700'
-                  } disabled:opacity-60 disabled:cursor-wait active:scale-95`}
-                >
-                  {contactSubmitting ? 'Processing...' : contactSaved ? (isRu ? 'Контакты ✓' : 'Saved ✓') : t('saveContact')}
-                </button>
-              ) : (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/20 text-emerald-300 text-[11px] font-black uppercase tracking-[0.18em]">
-                  {isRu ? 'Контакты ✓' : 'Saved ✓'}
-                </span>
-              )}
-            </div>
-          </form>
-
-          {/* CHANGE PASSWORD (works for magic-link users who want a password) */}
-          <form
-            onSubmit={handleChangePassword}
-            className={`mt-4 space-y-3 p-4 ${PROFILE_GLASS_PANEL} !rounded-3xl`}
-          >
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-              {t('changePassword')}
-            </p>
-            <p className="text-[11px] text-slate-500">
-              {t('changePasswordHint')}
-            </p>
-            {passwordEditMode ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                    {t('newPassword')}
-                  </label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => {
-                      setNewPassword(e.target.value);
-                      setPasswordSaved(false);
-                    }}
-                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
-                    placeholder="At least 8 characters"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
-                    {t('confirmPassword')}
-                  </label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => {
-                      setConfirmPassword(e.target.value);
-                      setPasswordSaved(false);
-                    }}
-                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
-                    placeholder="Re-enter password"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 flex items-center justify-between gap-3">
-                <p className="text-xs text-slate-300">{isRu ? 'Пароль сохранен.' : 'Password saved.'}</p>
-                <button
-                  type="button"
-                  onClick={() => setPasswordEditMode(true)}
-                  className="h-8 w-8 rounded-full border border-white/15 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 inline-flex items-center justify-center transition-all active:scale-95"
-                  aria-label="Edit password"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            {passwordError && (
-              <p className="text-[11px] text-red-400 font-medium">{passwordError}</p>
-            )}
-            {passwordSuccess && (
-              <p className="text-[11px] text-emerald-400 font-medium">{passwordSuccess}</p>
-            )}
-            <div className="flex justify-end">
-              {passwordEditMode ? (
-                <button
-                  type="submit"
-                  disabled={passwordSubmitting}
-                  className={`inline-flex items-center justify-center rounded-full text-[11px] font-black uppercase tracking-[0.18em] transition-all duration-300 ${
-                    passwordSaved
-                      ? 'px-3 py-1.5 bg-emerald-500/20 border border-emerald-400/40 text-emerald-300'
-                      : 'px-5 py-2 bg-emerald-500 text-black hover:bg-emerald-400'
-                  } disabled:opacity-60 disabled:cursor-wait active:scale-95`}
-                >
-                  {passwordSubmitting ? 'Processing...' : passwordSaved ? (isRu ? 'Сохранено ✓' : 'Saved ✓') : t('savePassword')}
-                </button>
-              ) : (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/20 text-emerald-300 text-[11px] font-black uppercase tracking-[0.18em]">
-                  {isRu ? 'Сохранено ✓' : 'Saved ✓'}
-                </span>
-              )}
-            </div>
-          </form>
         </header>
 
         {/* MY HOME REQUESTS (from jobs table, excluding finished) */}
@@ -2030,6 +1761,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         <ProfileAccordion
           title={userProfile?.role === 'cleaner' ? t('myLeads') : t('myOrders')}
           icon={<Building2 className="w-5 h-5 shrink-0 text-amber-400/90" aria-hidden />}
+          defaultOpen
         >
           <div className="space-y-4">
             {loading ? (
@@ -2221,7 +1953,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         <ProfileAccordion
           title={t('selectCity')}
           icon={<Globe className="w-5 h-5 shrink-0 text-emerald-400/90" aria-hidden />}
-          defaultOpen
         >
           <div className="text-white pointer-events-auto relative z-10 min-w-0">
           {paymentSyncing && (
@@ -2516,6 +2247,222 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           </ProfileAccordion>
         )}
 
+        <ProfileAccordion
+          title={t('contactInfo')}
+          icon={<Mail className="w-5 h-5 shrink-0 text-cyan-400/90" aria-hidden />}
+        >
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (contactSubmitting) return;
+              setContactSaved(false);
+              try {
+                setContactSubmitting(true);
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session?.user?.id) {
+                  alert('You must be logged in to save contact info.');
+                  return;
+                }
+                const updates = {
+                  contact_email: contactEmail || null,
+                  phone_number: phoneNumber || null,
+                  telegram_username: telegramUsername || null,
+                };
+                const { error } = await supabase
+                  .from('profiles')
+                  .update(updates)
+                  .eq('id', session.user.id);
+                if (error) {
+                  alert(error.message || 'Failed to save contact information.');
+                  return;
+                }
+                setContactSaved(true);
+                setContactEditMode(false);
+              } catch (err: any) {
+                alert(err?.message || 'Failed to save contact information.');
+              } finally {
+                setContactSubmitting(false);
+              }
+            }}
+            className="space-y-3 w-full min-w-0"
+          >
+            <p className="text-[11px] text-slate-500 leading-relaxed">{t('contactInfoHint')}</p>
+            {contactEditMode ? (
+              <div className="flex flex-col gap-3 w-full min-w-0">
+                <div className="w-full min-w-0">
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                    {t('email')}
+                  </label>
+                  <input
+                    type="email"
+                    value={contactEmail}
+                    onChange={(e) => {
+                      setContactEmail(e.target.value);
+                      setContactSaved(false);
+                    }}
+                    className={`w-full min-w-0 ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <div className="w-full min-w-0">
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                    {t('phoneWhatsApp')}
+                  </label>
+                  <input
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => {
+                      setPhoneNumber(e.target.value);
+                      setContactSaved(false);
+                    }}
+                    className={`w-full min-w-0 ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
+                    placeholder="+20 1X XXX XXXX"
+                  />
+                </div>
+                <div className="w-full min-w-0">
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                    {t('telegramUsername')}
+                  </label>
+                  <input
+                    type="text"
+                    value={telegramUsername}
+                    onChange={(e) => {
+                      setTelegramUsername(e.target.value);
+                      setContactSaved(false);
+                    }}
+                    className={`w-full min-w-0 ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
+                    placeholder="@username"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 flex items-start justify-between gap-2 w-full min-w-0">
+                <div className="flex flex-col gap-2 text-xs text-slate-300 w-full min-w-0">
+                  <p className="break-all">
+                    <span className="text-slate-500">{t('email')}: </span>
+                    {contactEmail || '—'}
+                  </p>
+                  <p className="break-all">
+                    <span className="text-slate-500">{t('phoneWhatsApp')}: </span>
+                    {phoneNumber || '—'}
+                  </p>
+                  <p className="break-all">
+                    <span className="text-slate-500">{t('telegramUsername')}: </span>
+                    {telegramUsername || '—'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setContactEditMode(true)}
+                  className="h-7 w-7 shrink-0 rounded-full border border-white/15 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 inline-flex items-center justify-center transition-all active:scale-95"
+                  aria-label="Edit contacts"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+            <div className="flex justify-end">
+              {contactEditMode ? (
+                <button
+                  type="submit"
+                  disabled={contactSubmitting}
+                  className="inline-flex items-center justify-center rounded-full px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] bg-slate-800 text-slate-100 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-wait active:scale-95"
+                >
+                  {contactSubmitting ? t('processing') : t('saveContact')}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setContactEditMode(true)}
+                  className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-400 hover:text-cyan-300"
+                >
+                  {t('edit')}
+                </button>
+              )}
+            </div>
+          </form>
+        </ProfileAccordion>
+
+        <ProfileAccordion
+          title={t('changePassword')}
+          icon={<Lock className="w-5 h-5 shrink-0 text-slate-300/90" aria-hidden />}
+        >
+          <form onSubmit={handleChangePassword} className="space-y-3">
+            <p className="text-[11px] text-slate-500">{t('changePasswordHint')}</p>
+            {passwordEditMode ? (
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                    {t('newPassword')}
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => {
+                      setNewPassword(e.target.value);
+                      setPasswordSaved(false);
+                    }}
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
+                    placeholder="At least 8 characters"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-1">
+                    {t('confirmPassword')}
+                  </label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      setPasswordSaved(false);
+                    }}
+                    className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500`}
+                    placeholder="Re-enter password"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 flex items-center justify-between gap-2">
+                <p className="text-xs text-slate-400">{t('passwordSetHint')}</p>
+                <button
+                  type="button"
+                  onClick={() => setPasswordEditMode(true)}
+                  className="h-7 w-7 shrink-0 rounded-full border border-white/15 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 inline-flex items-center justify-center transition-all active:scale-95"
+                  aria-label="Edit password"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+            {passwordError && (
+              <p className="text-[11px] text-red-400 font-medium">{passwordError}</p>
+            )}
+            {passwordSuccess && (
+              <p className="text-[11px] text-emerald-400 font-medium">{passwordSuccess}</p>
+            )}
+            <div className="flex justify-end">
+              {passwordEditMode ? (
+                <button
+                  type="submit"
+                  disabled={passwordSubmitting}
+                  className="inline-flex items-center justify-center rounded-full px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] bg-emerald-500 text-black hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait active:scale-95"
+                >
+                  {passwordSubmitting ? t('processing') : t('savePassword')}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPasswordEditMode(true)}
+                  className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-400 hover:text-cyan-300"
+                >
+                  {t('edit')}
+                </button>
+              )}
+            </div>
+          </form>
+        </ProfileAccordion>
+
         {/* Admin Panel button — only for admin */}
         {isAdmin && (
           <button
@@ -2526,6 +2473,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             👑 Admin Panel
           </button>
         )}
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mt-2 w-full px-6 py-2.5 rounded-full font-black text-sm uppercase tracking-[0.2em] border border-orange-500/50 text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all"
+        >
+          {t('logout')}
+        </button>
 
         {/* Legal footer (Stripe compliance) */}
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[10px] text-cyan-500/50">
