@@ -9,7 +9,7 @@ import { supabase } from '../services/supabase';
 import { Navigation, Camera, X, User } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import MissionFeedCard from './MissionFeedCard';
-import MissionBriefing from './MissionBriefing';
+import MissionBriefing, { type AssignedWorkerProfile } from './MissionBriefing';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import CreateMission from './CreateMission';
 import {
@@ -1960,6 +1960,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [missionBidsLoading, setMissionBidsLoading] = useState(false);
   const [missionBidsError, setMissionBidsError] = useState<string | null>(null);
   const [briefingBidSubmitting, setBriefingBidSubmitting] = useState(false);
+  const [assignedWorker, setAssignedWorker] = useState<AssignedWorkerProfile | null>(null);
   const [gpsDistanceMeters, setGpsDistanceMeters] = useState<number | null>(null);
   const [gpsDistanceError, setGpsDistanceError] = useState<string | null>(null);
 
@@ -2030,6 +2031,33 @@ const MapPicker: React.FC<MapPickerProps> = ({
       cancelled = true;
     };
   }, [selectedMission?.id, selectedMission?.location_lat, selectedMission?.location_lng, loadMissionBids]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const cleanerId = selectedMission?.cleaner_id;
+    const inProgress = selectedMission?.status === 'in_progress';
+    if (!cleanerId || !inProgress) {
+      setAssignedWorker(null);
+      return;
+    }
+    void (async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url, rating, telegram_username')
+        .eq('id', cleanerId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        console.error('Assigned worker profile fetch:', error);
+        setAssignedWorker(null);
+        return;
+      }
+      setAssignedWorker(data ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMission?.cleaner_id, selectedMission?.status]);
 
   const missionBriefingBooting = false;
 
@@ -2481,48 +2509,45 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
 
       try {
-        const { error: jobErr } = await supabase
-          .from('missions')
-          .update({
-            cleaner_id: bid.cleaner_id,
-            amount_target: bid.bid_amount,
-            status: 'in_progress',
-          })
-          .eq('id', selectedMission.id);
-        if (jobErr) throw jobErr;
+        const { error: rpcErr } = await supabase.rpc('accept_mission_bid', {
+          p_bid_id: bid.id,
+        });
+        if (rpcErr) throw rpcErr;
 
-        await supabase.from('mission_bids').update({ status: 'accepted' }).eq('id', bid.id);
-        await supabase
-          .from('mission_bids')
-          .update({ status: 'rejected' })
-          .eq('mission_id', selectedMission.id)
-          .neq('id', bid.id)
-          .eq('status', 'pending');
+        const budgetEgp = Math.max(1, Math.floor(missionValue));
+        setSelectedMission((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'in_progress',
+                cleaner_id: bid.cleaner_id,
+                expected_price: budgetEgp,
+              }
+            : prev
+        );
+        setAssignedWorker(bid.cleaner ?? null);
+        setMissionBids([]);
 
         toast.success(t('mapToastMissionAcceptedProfile'));
-        await fetchMissions();
-        handleCloseMissionBriefing();
+        void fetchMissions();
       } catch (e: any) {
         console.error('handleBriefingAcceptBid', e);
-        toast.error(t('unexpectedErrorTryAgain'));
+        toast.error(e?.message || t('unexpectedErrorTryAgain'));
       }
     },
-    [fetchMissions, handleCloseMissionBriefing, selectedMission, t, toast]
+    [fetchMissions, selectedMission, t, toast]
   );
 
   const handleBriefingDeclineBid = useCallback(
     async (bidId: string) => {
       try {
-        const { error } = await supabase
-          .from('mission_bids')
-          .update({ status: 'rejected' })
-          .eq('id', bidId);
+        const { error } = await supabase.rpc('reject_mission_bid', { p_bid_id: bidId });
         if (error) throw error;
         await refreshMissionBids();
         void fetchMissions();
       } catch (e: any) {
         console.error('handleBriefingDeclineBid', e);
-        toast.error(t('unexpectedErrorTryAgain'));
+        toast.error(e?.message || t('unexpectedErrorTryAgain'));
       }
     },
     [fetchMissions, refreshMissionBids, t, toast]
@@ -4065,6 +4090,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           onAcceptBid={handleBriefingAcceptBid}
           onDeclineBid={handleBriefingDeclineBid}
           onPlaceBid={handleBriefingPlaceBid}
+          assignedWorker={assignedWorker}
           gpsDistanceMeters={gpsDistanceMeters}
           gpsDistanceError={gpsDistanceError}
           isExecutorViewer={isExecutorViewer}

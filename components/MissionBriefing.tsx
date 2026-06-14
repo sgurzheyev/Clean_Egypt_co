@@ -14,6 +14,13 @@ import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
 import { missionTokenBid, missionWorkBudgetEgp } from '../src/lib/missionBudget';
 import { formatUsdPrice, YEARLY_SUBSCRIPTION } from '../src/lib/tokenPricing';
 import { type MissionBidRow, bidWorkerDisplayName } from '../src/lib/missionBids';
+
+export type AssignedWorkerProfile = {
+  full_name?: string | null;
+  avatar_url?: string | null;
+  rating?: number | null;
+  telegram_username?: string | null;
+};
 import { sanitizeIntegerEgpDigits, parseIntegerEgpFromInput } from '../src/lib/integerEgpInput';
 
 export type MissionBriefingMission = {
@@ -49,6 +56,7 @@ export type MissionBriefingProps = {
   onAcceptBid: (bid: MissionBidRow) => void;
   onDeclineBid: (bidId: string) => void;
   onPlaceBid: (amountEgp: number) => void;
+  assignedWorker?: AssignedWorkerProfile | null;
   gpsDistanceMeters: number | null;
   gpsDistanceError: string | null;
   isExecutorViewer: boolean;
@@ -118,6 +126,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   onAcceptBid,
   onDeclineBid,
   onPlaceBid,
+  assignedWorker,
   gpsDistanceMeters,
   gpsDistanceError,
   isExecutorViewer,
@@ -148,8 +157,17 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const locationSource = missionLocationLine(mission, t);
   const locationTranslation = useMissionTextTranslation(locationSource);
   const budgetValue = formatWorkBudgetEgp(missionWorkBudgetEgp(mission));
-  const isOwnActive =
-    mission.status === 'in_progress' && mission.cleaner_id === currentUserId;
+  const isInProgress = mission.status === 'in_progress';
+  const showBidsSection =
+    !isInProgress &&
+    (isMissionCreator || canPlaceBid || missionBids.length > 0 || bidsLoading);
+  const assignedWorkerName = assignedWorker
+    ? assignedWorker.full_name?.trim() ||
+      (assignedWorker.telegram_username?.trim()
+        ? `@${assignedWorker.telegram_username.trim()}`
+        : 'Eco Hero')
+    : null;
+  const isOwnActive = isInProgress && mission.cleaner_id === currentUserId;
   const statusLabel = String(mission.status || '').replace(/_/g, ' ');
 
   return (
@@ -303,6 +321,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 </section>
               )}
 
+              {showBidsSection && (
               <section className="border-t border-white/5 pt-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
@@ -346,7 +365,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                           )}
                         </div>
                         <p className="shrink-0 text-sm font-black tabular-nums text-orange-300">
-                          {formatEgp(Number(bid.bid_amount))}
+                          {formatWorkBudgetEgp(Number(bid.bid_amount))}
                         </p>
                         {isMissionCreator && bid.status === 'pending' && (
                           <div className="flex shrink-0 items-center gap-1.5">
@@ -409,6 +428,42 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                   </form>
                 )}
               </section>
+              )}
+
+              {isInProgress && assignedWorkerName && (
+                <section className="border-t border-white/5 pt-4">
+                  <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                    {t('assignedWorkerLabel')}
+                  </h3>
+                  <div className="mt-3 flex items-center gap-3 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10">
+                      {assignedWorker?.avatar_url ? (
+                        <img
+                          src={assignedWorker.avatar_url}
+                          alt={assignedWorkerName}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-sm font-bold text-cyan-200">
+                          {assignedWorkerName[0]}
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-white">{assignedWorkerName}</p>
+                      {typeof assignedWorker?.rating === 'number' &&
+                        !Number.isNaN(assignedWorker.rating) && (
+                          <p className="text-[10px] font-medium text-amber-300">
+                            {assignedWorker.rating.toFixed(1)} ⭐
+                          </p>
+                        )}
+                      <p className="mt-1 text-xs text-cyan-100/90">
+                        {t('assignedWorkerInProgress', { name: assignedWorkerName })}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              )}
 
               <section className="border-t border-white/5 pt-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">

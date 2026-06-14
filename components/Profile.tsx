@@ -739,36 +739,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
     if (!window.confirm(t('acceptBidConfirm', { amount: String(Math.floor(Number(bid.bid_amount) || 0)) }))) return;
     try {
-      const { error: jobErr } = await supabase
-        .from('missions')
-        .update({
-          cleaner_id: bid.cleaner_id,
-          amount_target: bid.bid_amount,
-          status: 'in_progress',
-        })
-        .eq('id', job.id);
-      if (jobErr) throw jobErr;
-
-      await supabase.from('mission_bids').update({ status: 'accepted' }).eq('id', bid.id);
-
-      const { data: otherBids } = await supabase
-        .from('mission_bids')
-        .select('id')
-        .eq('mission_id', job.id)
-        .neq('id', bid.id)
-        .eq('status', 'pending');
-      if (otherBids && otherBids.length > 0) {
-        await supabase
-          .from('mission_bids')
-          .update({ status: 'rejected' })
-          .eq('mission_id', job.id)
-          .neq('id', bid.id);
-      }
+      const { error: rpcErr } = await supabase.rpc('accept_mission_bid', {
+        p_bid_id: bid.id,
+      });
+      if (rpcErr) throw rpcErr;
 
       await fetchProfileData();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Failed to accept offer. Please try again.');
+      alert(err?.message || 'Failed to accept offer. Please try again.');
     }
   };
 
