@@ -7,9 +7,9 @@ export function missionWorkBudgetEgp(job: {
   if (Number.isFinite(budget) && budget > 0) {
     return Math.floor(budget);
   }
-  /** Legacy rows before expected_price existed — amount_target may still hold EGP budget. */
+  /** Legacy rows: amount_target held EGP before expected_price existed (typically 100+). */
   const legacy = Number(job.amount_target);
-  if (Number.isFinite(legacy) && legacy > 1) {
+  if (Number.isFinite(legacy) && legacy >= 100) {
     return Math.floor(legacy);
   }
   return 0;

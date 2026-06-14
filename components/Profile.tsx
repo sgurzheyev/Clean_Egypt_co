@@ -26,10 +26,16 @@ import {
 } from '../src/lib/egyptMarketplace';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
-import { missionWorkBudgetEgp } from '../src/lib/missionBudget';
+import { missionWorkBudgetEgp, missionTokenBid } from '../src/lib/missionBudget';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import MissionFeedCard from './MissionFeedCard';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
+
+const MISSION_PROFILE_SELECT =
+  'id, creator_id, cleaner_id, category, amount_target, expected_price, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, ai_confidence_score, ai_verdict';
+
+const MISSION_ACTIVE_SELECT =
+  'id, creator_id, cleaner_id, category, amount_target, expected_price, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -581,7 +587,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: homeJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, ai_confidence_score, ai_verdict')
+        .select(MISSION_PROFILE_SELECT)
         .eq('creator_id', userId)
         .eq('category', 'home')
         .order('created_at', { ascending: false });
@@ -589,7 +595,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: cityJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, ai_confidence_score, ai_verdict')
+        .select(MISSION_PROFILE_SELECT)
         .eq('creator_id', userId)
         .eq('category', 'public')
         .order('created_at', { ascending: false });
@@ -597,7 +603,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data: activeJobsData } = await supabase
         .from('missions')
-        .select('id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason')
+        .select(MISSION_ACTIVE_SELECT)
         .eq('cleaner_id', userId)
         .in('status', ['in_progress', 'review', 'pending_approval', 'completed', 'finished'])
         .order('created_at', { ascending: false });
@@ -618,6 +624,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           cleaner_id,
           category,
           amount_target,
+          expected_price,
           location_lat,
           location_lng,
           status,
@@ -1643,15 +1650,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               )}
             </div>
           </form>
-
-          <div className={`mt-6 p-4 ${PROFILE_GLASS_PANEL}`}>
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
-              SaaS Marketplace
-            </p>
-            <p className="mt-2 text-sm text-slate-300 leading-relaxed">
-              {t('tokenOnlyMarketplaceHint')}
-            </p>
-          </div>
         </header>
 
         {/* MY HOME REQUESTS (from jobs table, excluding finished) */}
@@ -1772,7 +1770,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                               key={bid.id}
                               className={`flex items-center justify-between gap-3 py-2 px-3 ${PROFILE_GLASS_PANEL} !rounded-xl`}
                             >
-                              <span className="text-sm font-black text-amber-400">{formatEgp(Number(bid.bid_amount))}</span>
+                              <span className="text-sm font-black text-amber-400">{formatWorkBudgetEgp(Number(bid.bid_amount))}</span>
                               <div className="rounded-full animated-border-home">
                                 <button
                                   type="button"
@@ -2038,6 +2036,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <p className="text-sm font-bold text-emerald-400 mb-1">
                             {formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
                           </p>
+                          <p className="text-[10px] font-medium text-slate-500 mb-1">
+                            {t('missionTokenBidLabel')}: {formatEgp(missionTokenBid(job))}
+                          </p>
                         </div>
                         {/* VIEW ON MAP */}
                         {hasCoords && onNavigateToJob && (
@@ -2074,7 +2075,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                 key={bid.id}
                                 className={`flex items-center justify-between gap-3 py-2 px-3 ${PROFILE_GLASS_PANEL} !rounded-xl`}
                               >
-                                <span className="text-sm font-black text-emerald-400">{formatEgp(Number(bid.bid_amount))}</span>
+                                <span className="text-sm font-black text-emerald-400">{formatWorkBudgetEgp(Number(bid.bid_amount))}</span>
                                 <div className="rounded-full animated-border-city">
                                   <button
                                     type="button"
@@ -2604,7 +2605,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   Review proof of work
                 </p>
                 <h3 className="text-xl font-black text-white">
-                  {(reviewJob.category || 'UNKNOWN').toUpperCase()} • {formatEgp(Number(reviewJob.amount_target))}
+                  {(reviewJob.category || 'UNKNOWN').toUpperCase()} • {formatWorkBudgetEgp(missionWorkBudgetEgp(reviewJob))}
                 </h3>
               </div>
               <button
@@ -2807,7 +2808,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 Mission
               </p>
               <p className="text-white font-bold">
-                {(proofJob.category || 'UNKNOWN').toUpperCase()} • {formatEgp(Number(proofJob.amount_target))}
+                {(proofJob.category || 'UNKNOWN').toUpperCase()} • {formatWorkBudgetEgp(missionWorkBudgetEgp(proofJob))}
               </p>
               {proofJob.description && (
                 <p className="text-xs text-slate-400 mt-1">{proofJob.description}</p>
