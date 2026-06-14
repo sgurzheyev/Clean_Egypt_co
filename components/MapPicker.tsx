@@ -32,6 +32,8 @@ import {
 } from '../constants';
 import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
 import { missionTokenBid, missionWorkBudgetEgp } from '../src/lib/missionBudget';
+import { isPlatformAdmin } from '../src/lib/platformAdmin';
+import { adminDeleteMission } from '../src/lib/adminMission';
 import { floorEgp, parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '../src/lib/integerEgpInput';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import TokenPackModal from '../src/components/TokenPackModal';
@@ -1655,6 +1657,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return Number.isFinite(exp) && Date.now() < exp;
   }, [viewerProfile?.subscription_expires_at]);
 
+  const isPlatformAdminViewer = useMemo(
+    () =>
+      isPlatformAdmin({
+        email: authEmail,
+        telegramUsername: viewerProfile?.telegram_username,
+        role: viewerProfile?.role,
+      }),
+    [authEmail, viewerProfile?.telegram_username, viewerProfile?.role]
+  );
+
+  const [adminDeleteMissionId, setAdminDeleteMissionId] = useState<string | null>(null);
+
   const profileAvatarInitial = useMemo(() => {
     const name = String(viewerProfile?.full_name ?? '').trim();
     if (name) return name.charAt(0).toUpperCase();
@@ -1839,6 +1853,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
     };
     window.addEventListener('cleanegypt:mission-completed', onMissionCompleted);
     return () => window.removeEventListener('cleanegypt:mission-completed', onMissionCompleted);
+  }, [fetchMissions]);
+
+  useEffect(() => {
+    const onMissionDeleted = (event: Event) => {
+      const missionId = (event as CustomEvent<{ missionId?: string }>).detail?.missionId;
+      if (missionId) {
+        setJobs((prev) => {
+          const next = prev.filter((j) => j.id !== missionId);
+          jobsRef.current = next;
+          return next;
+        });
+        setSelectedMission((prev) => (prev?.id === missionId ? null : prev));
+      }
+      void fetchMissions();
+    };
+    window.addEventListener('cleanegypt:mission-deleted', onMissionDeleted);
+    return () => window.removeEventListener('cleanegypt:mission-deleted', onMissionDeleted);
   }, [fetchMissions]);
 
   useEffect(() => {
@@ -2366,6 +2397,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setUnlockedLeadPhone(null);
     setSelectedRating(0);
   }, []);
+
+  const handleAdminDeleteMission = useCallback(async () => {
+    if (!isPlatformAdminViewer || !selectedMission) return;
+    if (!window.confirm(t('adminDeleteMissionConfirm'))) return;
+    const missionId = selectedMission.id;
+    try {
+      setAdminDeleteMissionId(missionId);
+      await adminDeleteMission(missionId);
+      handleCloseMissionBriefing();
+      toast.success(t('adminDeleteMissionSuccess'));
+    } catch (err: any) {
+      console.error('Admin delete mission error:', err);
+      toast.error(err?.message || t('unexpectedErrorTryAgain'));
+    } finally {
+      setAdminDeleteMissionId(null);
+    }
+  }, [isPlatformAdminViewer, selectedMission, t, toast, handleCloseMissionBriefing]);
 
   const closeCrowdfundConfirm = useCallback(() => {
     setShowCrowdfundConfirm(false);
@@ -4160,6 +4208,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
           onSubscribe={() => setShowWorkerSubscriptionGate(true)}
           onSubmitReview={handleSubmitReview}
           onSelectRating={setSelectedRating}
+          isPlatformAdmin={isPlatformAdminViewer}
+          adminDeleteSubmitting={adminDeleteMissionId === selectedMission.id}
+          onAdminDeleteMission={() => void handleAdminDeleteMission()}
         />
       )}
 

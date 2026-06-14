@@ -3,6 +3,7 @@ import { supabase } from '../../services/supabase';
 import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { runMissionAiAnalysis } from '../lib/openai';
+import { adminDeleteMission } from '../lib/adminMission';
 import { ADMIN_FORCE_RELEASE_PAYMENT_BTN } from '../../constants';
 import { formatEgp } from '../lib/formatMoney';
 import { fetchUsdToEgpRate } from '../lib/platformSettings';
@@ -107,7 +108,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<PendingApprovalRow[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [forcePayLoadingId, setForcePayLoadingId] = useState<string | null>(null);
+  const [adminDeleteLoadingId, setAdminDeleteLoadingId] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState('');
   const [selectedUser, setSelectedUser] = useState<ProfileRow | null>(null);
   const [selectedUserTransactions, setSelectedUserTransactions] = useState<TransactionRow[]>([]);
@@ -614,43 +615,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     }
   };
 
-  const handleForcePay = async (mission: PendingApprovalRow) => {
-    if (!mission.cleaner_id) {
-      alert('No cleaner assigned to this mission.');
-      return;
-    }
-    if (!window.confirm('Are you sure you want to force-release funds to the cleaner?')) return;
-    setForcePayLoadingId(mission.id);
+  const handleAdminDeleteStuckMission = async (mission: PendingApprovalRow) => {
+    if (!window.confirm('Permanently delete this mission from the map? This cannot be undone.')) return;
+    setAdminDeleteLoadingId(mission.id);
     try {
-      const payoutEgp = Math.floor(Math.max(0, Number(mission.amount_target || 0)));
-
-      const { data: workerProfile, error: workerErr } = await supabase
-        .from('profiles')
-        .select('id, wallet_balance')
-        .eq('id', mission.cleaner_id)
-        .maybeSingle();
-      if (workerErr) throw workerErr;
-
-      const currentBalance = (workerProfile?.wallet_balance ?? 0) as number;
-      const { error: balanceErr } = await supabase
-        .from('profiles')
-        .update({ wallet_balance: currentBalance + payoutEgp })
-        .eq('id', mission.cleaner_id);
-      if (balanceErr) throw balanceErr;
-
-      const { error: jobErr } = await supabase
-        .from('missions')
-        .update({ status: 'finished' })
-        .eq('id', mission.id);
-      if (jobErr) throw jobErr;
-
+      await adminDeleteMission(mission.id);
       await fetchPendingApprovals();
-      alert('Payment force-released successfully.');
+      alert('Mission deleted from the map.');
     } catch (err: any) {
-      console.error('Force pay error:', err);
-      alert(err?.message || 'Failed to force-release payment.');
+      console.error('Admin delete mission error:', err);
+      alert(err?.message || 'Failed to delete mission.');
     } finally {
-      setForcePayLoadingId(null);
+      setAdminDeleteLoadingId(null);
     }
   };
 
@@ -818,14 +794,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                     </div>
                     <button
                       type="button"
-                      disabled={forcePayLoadingId === m.id}
-                      onClick={() => handleForcePay(m)}
+                      disabled={adminDeleteLoadingId === m.id}
+                      onClick={() => handleAdminDeleteStuckMission(m)}
                       className={ADMIN_FORCE_RELEASE_PAYMENT_BTN}
                     >
-                      {forcePayLoadingId === m.id && (
+                      {adminDeleteLoadingId === m.id && (
                         <span className="inline-block h-3 w-3 shrink-0 rounded-full border-2 border-red-200/40 border-t-red-100 animate-spin" aria-hidden />
                       )}
-                      <span>{forcePayLoadingId === m.id ? 'Processing...' : 'Force Release Payment'}</span>
+                      <span>{adminDeleteLoadingId === m.id ? 'Processing...' : 'Delete Mission'}</span>
                     </button>
                   </div>
                 ))

@@ -1,5 +1,5 @@
 /**
- * Client-side "Review & Release" / "Approve & Release Payment" CTAs (Profile, review modal).
+ * Client-side "Review & confirm work done" CTAs (Profile, review modal).
  * Single source of truth: base interaction classes must not be dropped when adding loading/disabled.
  */
 export const CLIENT_APPROVE_RELEASE_BTN_CORE =
@@ -22,7 +22,7 @@ export const CLIENT_OPEN_DISPUTE_BTN_MODAL =
   'transition-all duration-200 transition-transform active:scale-95 ' +
   'disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2';
 
-/** Admin "Force Release Payment" — compact inline, same tactile/shadow/loading tokens */
+/** Admin moderation delete — compact inline, same tactile/shadow/loading tokens */
 export const ADMIN_FORCE_RELEASE_PAYMENT_BTN =
   'shrink-0 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ' +
   'bg-red-500/20 border border-red-400/60 text-red-300 hover:bg-red-500/30 hover:border-red-400 ' +

@@ -77,6 +77,9 @@ export type MissionBriefingProps = {
   onSubscribe: () => void;
   onSubmitReview: (rating: number) => void;
   onSelectRating: (rating: number) => void;
+  isPlatformAdmin?: boolean;
+  adminDeleteSubmitting?: boolean;
+  onAdminDeleteMission?: () => void;
 };
 
 function missionLocationLine(
@@ -147,6 +150,9 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   onSubscribe,
   onSubmitReview,
   onSelectRating,
+  isPlatformAdmin = false,
+  adminDeleteSubmitting = false,
+  onAdminDeleteMission,
 }) => {
   const { t } = useTranslation();
   const [bidInput, setBidInput] = React.useState('');
@@ -619,6 +625,19 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
               )}
             </div>
           </>
+        )}
+
+        {isPlatformAdmin && onAdminDeleteMission && (
+          <div className="border-t border-white/5 pt-4">
+            <button
+              type="button"
+              onClick={onAdminDeleteMission}
+              disabled={adminDeleteSubmitting}
+              className="w-full rounded-full border border-red-500/50 bg-red-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {adminDeleteSubmitting ? t('processing') : t('adminDeleteMission')}
+            </button>
+          </div>
         )}
       </div>
     </div>

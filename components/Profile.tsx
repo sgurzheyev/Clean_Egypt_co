@@ -26,6 +26,8 @@ import {
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
 import { missionWorkBudgetEgp, missionTokenBid } from '../src/lib/missionBudget';
+import { isPlatformAdmin, isArchivedMissionStatus } from '../src/lib/platformAdmin';
+import { adminDeleteMission } from '../src/lib/adminMission';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import MissionFeedCard from './MissionFeedCard';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
@@ -193,10 +195,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [marketLoading, setMarketplaceLoading] = useState(true);
   const [marketError, setMarketplaceError] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<ProfileRow | null>(null);
-  const isAdmin =
-    _session?.user?.email?.includes('tg_6618910143') ||
-    userProfile?.telegram_username?.toLowerCase() === 'sergiogurgini';
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const isAdmin = isPlatformAdmin({
+    email: userEmail ?? _session?.user?.email,
+    telegramUsername: userProfile?.telegram_username,
+    role: userProfile?.role,
+  });
+  const [adminDeleteMissionId, setAdminDeleteMissionId] = useState<string | null>(null);
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [paymentSyncing, setPaymentSyncing] = useState(false);
   const [reviewJob, setReviewJob] = useState<Job | null>(null);
@@ -1155,7 +1160,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     }
   };
 
-  const handleConfirmDirectPayment = async (job: Job): Promise<boolean> => {
+  const handleConfirmWorkDone = async (job: Job): Promise<boolean> => {
     if (!job.cleaner_id) {
       toast.error(t('reviewMissionNoContact'));
       return false;
@@ -1163,17 +1168,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     if (releasePaySubmitting) return false;
     try {
       setReleasePaySubmitting(true);
-      const { error: rpcErr } = await supabase.rpc('confirm_mission_direct_payment', {
+      const { error: rpcErr } = await supabase.rpc('confirm_mission_work_done', {
         p_mission_id: job.id,
       });
       if (rpcErr) throw rpcErr;
 
-      setMyCityJobs((prev) =>
-        prev.map((j) => (j.id === job.id ? { ...j, status: 'completed' } : j))
-      );
-      setMyHomeJobs((prev) =>
-        prev.map((j) => (j.id === job.id ? { ...j, status: 'completed' } : j))
-      );
+      setMyCityJobs((prev) => prev.filter((j) => j.id !== job.id));
+      setMyHomeJobs((prev) => prev.filter((j) => j.id !== job.id));
 
       window.dispatchEvent(
         new CustomEvent('cleanegypt:mission-completed', { detail: { missionId: job.id } })
@@ -1183,11 +1184,32 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       toast.success(t('missionCompletedSuccess'));
       return true;
     } catch (err: any) {
-      console.error('Confirm direct payment error:', err);
+      console.error('Confirm work done error:', err);
       toast.error(err?.message || 'Failed to close mission. Please try again.');
       return false;
     } finally {
       setReleasePaySubmitting(false);
+    }
+  };
+
+  const handleAdminDeleteMission = async (missionId: string) => {
+    if (!isAdmin) return;
+    if (!window.confirm(t('adminDeleteMissionConfirm'))) return;
+    try {
+      setAdminDeleteMissionId(missionId);
+      await adminDeleteMission(missionId);
+      setMyCityJobs((prev) => prev.filter((j) => j.id !== missionId));
+      setMyHomeJobs((prev) => prev.filter((j) => j.id !== missionId));
+      setMyActiveJobs((prev) => prev.filter((j) => j.id !== missionId));
+      setMissionHistory((prev) => prev.filter((j) => j.id !== missionId));
+      if (reviewJob?.id === missionId) closeReviewModal();
+      await fetchProfileData();
+      toast.success(t('adminDeleteMissionSuccess'));
+    } catch (err: any) {
+      console.error('Admin delete mission error:', err);
+      toast.error(err?.message || 'Failed to delete mission.');
+    } finally {
+      setAdminDeleteMissionId(null);
     }
   };
 
@@ -1716,11 +1738,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   </div>
                 ))}
               </div>
-            ) : (myHomeJobs || []).filter((job) => job.status !== 'finished').length === 0 ? (
+            ) : (myHomeJobs || []).filter((job) => !isArchivedMissionStatus(job.status)).length === 0 ? (
               <p className="text-slate-500 text-sm italic">You haven't created any home requests yet.</p>
             ) : (
               (myHomeJobs || [])
-                .filter((job) => job.status !== 'finished')
+                .filter((job) => !isArchivedMissionStatus(job.status))
                 .map((job) => {
                 const bids = (jobBidsById[job.id] || []).filter((b) => b.status === 'pending');
                 const isPhantomPayment = job.status === 'pending_payment';
@@ -1902,12 +1924,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           title={t('myActiveMissions')}
           icon={<Target className="w-5 h-5 shrink-0 text-amber-400/90" aria-hidden />}
         >
-          {(myActiveJobs || []).filter((job) => job.status !== 'finished').length === 0 ? (
+          {(myActiveJobs || []).filter((job) => !isArchivedMissionStatus(job.status)).length === 0 ? (
             <p className="text-slate-500 text-sm italic">You haven't taken any missions yet. Pick one from the marketplace and pay the deposit.</p>
           ) : (
             <div className="space-y-4">
               {(myActiveJobs || [])
-                .filter((job) => job.status !== 'finished')
+                .filter((job) => !isArchivedMissionStatus(job.status))
                 .map((job) => {
                 const isHome = job.category === 'home';
                 const icon = isHome ? '🏠' : '🌆';
@@ -2012,7 +2034,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           <div className="space-y-4">
             {loading ? (
               <p className="text-slate-500 text-sm italic">Loading…</p>
-            ) : (myCityJobs || []).filter((job) => job.status !== 'finished').length === 0 ? (
+            ) : (myCityJobs || []).filter((job) => !isArchivedMissionStatus(job.status)).length === 0 ? (
               <p className="text-slate-500 text-sm italic">
                 {userProfile?.role === 'cleaner'
                   ? t('executorNoLeadsEmpty')
@@ -2020,7 +2042,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </p>
             ) : (
               (myCityJobs || [])
-                .filter((job) => job.status !== 'finished')
+                .filter((job) => !isArchivedMissionStatus(job.status))
                 .map((job) => {
                   const displayTitle =
                     job.title && job.title.trim().length > 0 ? job.title : 'Service Request';
@@ -2102,6 +2124,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       <p className="text-xs text-slate-400">
                         Your service request on the map. Providers can pick it up in the marketplace.
                       </p>
+
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => handleAdminDeleteMission(job.id)}
+                          disabled={adminDeleteMissionId === job.id}
+                          className="mt-3 w-full rounded-full border border-red-500/50 bg-red-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                        >
+                          {adminDeleteMissionId === job.id ? t('processing') : t('adminDeleteMission')}
+                        </button>
+                      )}
 
                   {(() => {
                     const bids = (jobBidsById[job.id] || []).filter((b) => b.status === 'pending');
@@ -2320,9 +2353,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   ...(myHomeJobs || []),
                   ...(myCityJobs || []),
                   ...(myActiveJobs || []),
+                  ...(missionHistory || []),
                 ].filter(
                   (job, idx, arr) =>
-                    job.status === 'finished' &&
+                    isArchivedMissionStatus(job.status) &&
                     (job.creator_id === uid || job.cleaner_id === uid) &&
                     arr.findIndex((j) => j.id === job.id) === idx
                 );
@@ -2355,7 +2389,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </span>
                       </div>
                       <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-700/40 text-slate-200 text-[10px] font-bold uppercase tracking-wider mb-3 border border-slate-500/60">
-                        {t('finished')}
+                        {job.status === 'completed' ? 'COMPLETED' : t('finished')}
                       </div>
                       <div className="flex justify-between items-center mb-2">
                         <div className="flex items-center gap-3">
@@ -2631,7 +2665,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         </div>
       )}
 
-      {/* Client review modal: proof photos + direct payment confirmation */}
+      {/* Client review modal: proof photos + work-done confirmation */}
       {reviewJob && (
         <div
           className="fixed inset-0 z-[9999] flex items-end justify-center sm:items-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
@@ -2724,28 +2758,42 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <div className="absolute inset-x-0 bottom-0 border-t border-cyan-500/30 bg-cyan-950/95 px-5 py-4 backdrop-blur-md pb-[max(1rem,env(safe-area-inset-bottom))]">
               {(reviewJob.status === 'completed' || reviewJob.status === 'finished') ? (
                 <p className="w-full rounded-full border border-emerald-500/30 bg-emerald-500/10 py-3 text-center text-sm font-black uppercase tracking-[0.2em] text-emerald-400">
-                  MISSION ACCOMPLISHED & PAID
+                  MISSION ACCOMPLISHED
                 </p>
               ) : (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const ok = await handleConfirmDirectPayment(reviewJob);
-                    if (ok) closeReviewModal();
-                  }}
-                  disabled={releasePaySubmitting}
-                  className={CLIENT_APPROVE_RELEASE_BTN_MODAL}
-                >
-                  {releasePaySubmitting && (
-                    <span
-                      className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-black/30 border-t-black"
-                      aria-hidden
-                    />
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const ok = await handleConfirmWorkDone(reviewJob);
+                      if (ok) closeReviewModal();
+                    }}
+                    disabled={releasePaySubmitting}
+                    className={CLIENT_APPROVE_RELEASE_BTN_MODAL}
+                  >
+                    {releasePaySubmitting && (
+                      <span
+                        className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-black/30 border-t-black"
+                        aria-hidden
+                      />
+                    )}
+                    <span>
+                      {releasePaySubmitting ? t('processing') : t('confirmPaymentCloseMission')}
+                    </span>
+                  </button>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => handleAdminDeleteMission(reviewJob.id)}
+                      disabled={adminDeleteMissionId === reviewJob.id || releasePaySubmitting}
+                      className="w-full rounded-full border border-red-500/50 bg-red-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                    >
+                      {adminDeleteMissionId === reviewJob.id
+                        ? t('processing')
+                        : t('adminDeleteMission')}
+                    </button>
                   )}
-                  <span>
-                    {releasePaySubmitting ? t('processing') : t('confirmPaymentCloseMission')}
-                  </span>
-                </button>
+                </div>
               )}
             </div>
           </div>
@@ -3029,7 +3077,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 <p className="mt-2 text-[10px] text-slate-500 text-center uppercase tracking-wider">
                   {proofPhase === 'before'
                     ? 'After you submit, the mission timer will start.'
-                    : 'After you submit, the client must confirm to release payment.'}
+                    : t('proofAfterSubmitClientReview')}
                 </p>
               </div>
             </form>
