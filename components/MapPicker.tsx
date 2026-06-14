@@ -762,7 +762,7 @@ function ProofUploadModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[150] bg-black/85 backdrop-blur-md pointer-events-auto"
+          className="fixed inset-0 z-[10060] flex flex-col justify-end bg-black/85 backdrop-blur-md pointer-events-auto"
           onClick={onClose}
         >
           <motion.div
@@ -771,70 +771,77 @@ function ProofUploadModal({
             exit={{ y: 20, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 24 }}
             onClick={(e) => e.stopPropagation()}
-            className={`absolute inset-x-3 bottom-3 mx-auto max-w-2xl rounded-3xl p-5 ${PROFILE_GLASS_PANEL}`}
+            className={`relative mx-auto flex w-full max-w-2xl max-h-[min(92dvh,calc(100dvh-env(safe-area-inset-top)-0.5rem))] flex-col overflow-hidden rounded-t-3xl sm:mx-3 sm:mb-3 sm:rounded-3xl ${PROFILE_GLASS_PANEL}`}
           >
-            <div className="flex items-center justify-between">
-              <h3 className="text-2xl sm:text-3xl font-black uppercase tracking-[0.12em] text-orange-300">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+              <h3 className="text-xl font-black uppercase leading-tight tracking-[0.12em] text-orange-300 sm:text-2xl">
                 {t('missionAccomplishedPrompt')}
               </h3>
               <button
                 type="button"
                 onClick={onClose}
-                className="h-8 w-8 rounded-full border border-white/20 text-slate-300 hover:text-white"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/20 text-slate-300 hover:text-white"
+                aria-label={t('close')}
               >
                 ✕
               </button>
             </div>
 
-            <label className="mt-4 block w-full cursor-pointer rounded-2xl border-2 border-dashed border-cyan-400/65 bg-cyan-500/5 p-8 text-center hover:bg-cyan-500/10 transition-all">
-              <div className="mx-auto mb-3 inline-flex h-14 w-14 items-center justify-center rounded-full border border-cyan-400/60 bg-black/50 text-cyan-300">
-                <Camera className="h-6 w-6" />
-              </div>
-              <p className="text-sm font-bold text-cyan-200">Tap to capture/upload AFTER photos</p>
-              <p className="mt-1 text-xs text-slate-400">Drag & drop supported, up to 9 photos</p>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                multiple
-                onChange={onFilesChange}
-                disabled={submitting}
-                className="hidden"
-              />
-            </label>
-
-            {files.length > 0 && (
-              <>
-                <p className="mt-3 text-xs text-emerald-300 font-semibold">{files.length} photo(s) selected</p>
-                <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {previewUrls.map((url, idx) => (
-                    <div
-                      key={`${url}-${idx}`}
-                      className="relative overflow-hidden rounded-xl border border-cyan-500/35 bg-black/50 shadow-[0_0_12px_rgba(34,211,238,0.15)]"
-                    >
-                      <img src={url} alt={`Proof ${idx + 1}`} className="h-28 w-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => removeFileAt(idx)}
-                        className="absolute top-1.5 right-1.5 inline-flex h-7 w-7 items-center justify-center rounded-full border border-red-400/70 bg-red-500/25 text-red-100 hover:bg-red-500/35 hover:shadow-[0_0_12px_rgba(248,113,113,0.55)] transition-all"
-                        aria-label="Remove image"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 py-4 pb-36 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <label className="block w-full cursor-pointer rounded-2xl border-2 border-dashed border-cyan-400/65 bg-cyan-500/5 p-8 text-center hover:bg-cyan-500/10 transition-all">
+                <div className="mx-auto mb-3 inline-flex h-14 w-14 items-center justify-center rounded-full border border-cyan-400/60 bg-black/50 text-cyan-300">
+                  <Camera className="h-6 w-6" />
                 </div>
-              </>
-            )}
+                <p className="text-sm font-bold text-cyan-200">Tap to capture/upload AFTER photos</p>
+                <p className="mt-1 text-xs text-slate-400">Drag & drop supported, up to 9 photos</p>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  multiple
+                  onChange={onFilesChange}
+                  disabled={submitting}
+                  className="hidden"
+                />
+              </label>
 
-            <button
-              type="button"
-              onClick={submitProof}
-              disabled={submitting || files.length === 0}
-              className="mt-5 w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.2em] text-orange-100 border border-orange-500/70 bg-orange-500/20 hover:bg-orange-500/30 hover:shadow-[0_0_24px_rgba(249,115,22,0.45)] disabled:opacity-60"
-            >
-              {submitting ? 'SUBMITTING...' : 'SUBMIT PROOF & GET PAID'}
-            </button>
+              {files.length > 0 && (
+                <>
+                  <p className="mt-3 text-xs font-semibold text-emerald-300">
+                    {files.length} photo(s) selected
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {previewUrls.map((url, idx) => (
+                      <div
+                        key={`${url}-${idx}`}
+                        className="relative overflow-hidden rounded-xl border border-cyan-500/35 bg-black/50 shadow-[0_0_12px_rgba(34,211,238,0.15)]"
+                      >
+                        <img src={url} alt={`Proof ${idx + 1}`} className="h-28 w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeFileAt(idx)}
+                          className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-full border border-red-400/70 bg-red-500/25 text-red-100 hover:bg-red-500/35 hover:shadow-[0_0_12px_rgba(248,113,113,0.55)] transition-all"
+                          aria-label="Remove image"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 border-t border-white/10 bg-slate-950/95 px-5 py-4 backdrop-blur-md pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <button
+                type="button"
+                onClick={submitProof}
+                disabled={submitting || files.length === 0}
+                className="w-full rounded-full border border-orange-500/70 bg-orange-500/20 px-6 py-3.5 text-sm font-black uppercase tracking-[0.2em] text-orange-100 hover:bg-orange-500/30 hover:shadow-[0_0_24px_rgba(249,115,22,0.45)] disabled:opacity-60"
+              >
+                {submitting ? 'SUBMITTING...' : 'SUBMIT PROOF & GET PAID'}
+              </button>
+            </div>
           </motion.div>
         </motion.div>
       )}
@@ -3126,7 +3133,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
       );
   }, [jobs, currentUserId]);
 
-  const showWorkerMissionBar = !taskTypeSelected && !!activeWorkerMission;
+  const showWorkerMissionBar =
+    !taskTypeSelected && !!activeWorkerMission && !proofUploadMission;
   const showDraftPinAvatarHub = !!mapDraftPin && !taskTypeSelected;
 
   /** Native Mapbox draft dot — only while mission form is open (avatar hub replaces it on the map). */
@@ -3721,7 +3729,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
-      {!taskTypeSelected && !selectedMission && (
+      {!taskTypeSelected && !selectedMission && !proofUploadMission && (
         <div className="fixed inset-x-0 bottom-0 z-[10020] flex justify-center pointer-events-none pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))]">
           <button
             type="button"

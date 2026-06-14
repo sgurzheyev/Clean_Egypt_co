@@ -1837,13 +1837,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         >
                           Review & Release Pay
                         </button>
-                        <p className="mt-2 text-[10px] text-emerald-200/90 text-center font-bold">
-                          {t('releaseWorkerReceives', {
-                            amount: formatEgp(
-                              Number(job.current_funding ?? job.amount_target ?? 0),
-                            ),
-                          })}
-                        </p>
                         <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
                           Worker submitted completion photos. Review before confirming or disputing.
                         </p>
@@ -2117,13 +2110,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           >
                             Review & Release Payment
                           </button>
-                          <p className="mt-2 text-[10px] text-emerald-200/90 text-center font-bold">
-                            {t('releaseWorkerReceives', {
-                              amount: formatEgp(
-                                Number(job.current_funding ?? job.amount_target ?? 0),
-                              ),
-                            })}
-                          </p>
                         </div>
                       )}
                       {job.status === 'pending_approval' && job.cleaner_id && (
@@ -2136,13 +2122,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           >
                             Review & Release Pay
                           </button>
-                          <p className="mt-2 text-[10px] text-emerald-200/90 text-center font-bold">
-                            {t('releaseWorkerReceives', {
-                              amount: formatEgp(
-                                Number(job.current_funding ?? job.amount_target ?? 0),
-                              ),
-                            })}
-                          </p>
                           <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
                             Worker marked job completed. Review before confirming or disputing.
                           </p>
@@ -2713,13 +2692,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     {isRu
                       ? 'Пожалуйста, проверьте фото. Если работа выполнена, подтвердите выплату уборщику.'
                       : 'Please review the photos. If the job is done, release the funds to the cleaner.'}
-                  </p>
-                  <p className="text-[11px] text-emerald-200/95 text-center font-bold px-2">
-                    {t('releaseWorkerReceives', {
-                      amount: formatEgp(
-                        Number(reviewJob.current_funding ?? reviewJob.amount_target ?? 0),
-                      ),
-                    })}
                   </p>
                   <div className="flex flex-col gap-3 w-full min-w-0 sm:flex-row sm:items-stretch">
                     <button
