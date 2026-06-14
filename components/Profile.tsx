@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
-import { Pencil, Target, Globe, Building2, Clock, Info, Mail, Lock } from 'lucide-react';
+import { Pencil, Target, Globe, Building2, Clock, Info, Mail, Lock, Coins } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import AdminDashboard from '../src/components/AdminDashboard';
@@ -128,11 +128,13 @@ function ProfileAccordion({
   icon,
   children,
   defaultOpen = false,
+  closedSummary,
 }: {
   title: string;
   icon: React.ReactNode;
   children: React.ReactNode;
   defaultOpen?: boolean;
+  closedSummary?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -140,13 +142,20 @@ function ProfileAccordion({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full min-w-0 items-center justify-between gap-3 px-4 py-3 text-left text-white transition-colors hover:bg-white/5"
+        className="flex w-full min-w-0 items-center justify-between gap-2 px-4 py-3 text-left text-white transition-colors hover:bg-white/5"
       >
-        <span className="flex min-w-0 items-center gap-2 text-sm font-bold uppercase tracking-[0.16em]">
+        <span className="flex min-w-0 flex-1 items-center gap-2 text-sm font-bold uppercase tracking-[0.16em]">
           {icon}
           <span className="truncate">{title}</span>
         </span>
-        <span className="shrink-0 text-slate-400">{open ? '▾' : '▸'}</span>
+        <span className="flex shrink-0 items-center gap-2">
+          {!open && closedSummary ? (
+            <span className="max-w-[9rem] truncate text-[10px] font-bold normal-case tracking-normal text-slate-400 sm:max-w-[12rem]">
+              {closedSummary}
+            </span>
+          ) : null}
+          <span className="text-slate-400">{open ? '▾' : '▸'}</span>
+        </span>
       </button>
       {open && <div className="border-t border-white/10 px-4 pb-4 pt-3 max-w-full overflow-x-hidden">{children}</div>}
     </div>
@@ -296,6 +305,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       : 0;
     return Number.isFinite(exp) && exp > Date.now();
   }, [userProfile?.subscription_expires_at]);
+
+  const profileInfoClosedSummary = useMemo(
+    () =>
+      `${tokenBalance} ${t('tokens')} · ${
+        subscriptionIsActive ? t('subscriptionActive') : t('subscriptionExpired')
+      } · ${t('profileLeadsShort')}: ${openMarketplaceJobs.length}`,
+    [tokenBalance, subscriptionIsActive, openMarketplaceJobs.length, t]
+  );
 
   useEffect(() => {
     const tick = () =>
@@ -1307,8 +1324,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           <>
         {/* HEADER: Avatar + Welcome + Wallet */}
         <header className="mb-2 text-white">
-          <div className="flex items-center gap-4">
-            <label className="relative inline-flex items-center justify-center h-14 w-14 rounded-full bg-gradient-to-br from-emerald-500/40 to-cyan-500/20 border border-white/20 shadow-[0_0_20px_rgba(16,185,129,0.4)] cursor-pointer overflow-hidden group">
+          <div className="flex items-center gap-4 min-w-0">
+            <label className="relative inline-flex shrink-0 items-center justify-center h-14 w-14 rounded-full bg-gradient-to-br from-emerald-500/40 to-cyan-500/20 border border-white/20 shadow-[0_0_20px_rgba(16,185,129,0.4)] cursor-pointer overflow-hidden group">
               {avatarUploading ? (
                 <div className="h-6 w-6 border-2 border-emerald-400/40 border-t-emerald-400 rounded-full animate-spin" />
               ) : userProfile?.avatar_url ? (
@@ -1332,8 +1349,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 Change
               </div>
             </label>
-            <div className="flex-1">
-              <p className="text-sm text-slate-400 uppercase tracking-[0.2em]">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-slate-400 uppercase tracking-[0.2em] truncate">
                 {t('welcome')} {userProfile?.full_name || userEmail || t('coworker')}!
               </p>
               {userEmail && (
@@ -1359,9 +1376,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
           </div>
 
-          {/* Language — compact globe + dropdown */}
-          <div className="mt-2 flex justify-end" ref={langMenuRef}>
-            <div className="relative">
+          {/* Top up + language — always visible header actions */}
+          <div className="mt-2 flex flex-wrap items-center justify-end gap-2" ref={langMenuRef}>
+            <button
+              type="button"
+              onClick={() => setShowTokenPackModal(true)}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-lime-400/45 bg-lime-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-lime-200 shadow-[0_0_12px_rgba(132,204,22,0.2)] hover:bg-lime-500/25 hover:border-lime-300/55 transition-all"
+            >
+              <Coins className="h-3.5 w-3.5 shrink-0 text-lime-300" aria-hidden />
+              {t('topUpShort')}
+            </button>
+            <div className="relative shrink-0">
               <button
                 type="button"
                 onClick={() => setLangMenuOpen((o) => !o)}
@@ -1408,45 +1433,35 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               )}
             </div>
           </div>
-
-          {/* Compact account overview */}
-          <div className={`mt-3 p-3 ${PROFILE_GLASS_PANEL}`}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
-                <Info className="h-3.5 w-3.5 shrink-0 text-cyan-400" aria-hidden />
-                {t('profileInfoOverview')}
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowTokenPackModal(true)}
-                className="shrink-0 rounded-full border border-lime-400/40 bg-lime-500/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-lime-200 hover:bg-lime-500/25 transition-all"
-              >
-                {t('topUpShort')}
-              </button>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <span className="inline-flex items-center rounded-full border border-lime-400/35 bg-lime-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-lime-200">
-                {tokenBalance} {t('tokens')}
-              </span>
-              <span
-                className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold ${
-                  subscriptionIsActive
-                    ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-200'
-                    : 'border-amber-400/35 bg-amber-500/10 text-amber-200'
-                }`}
-              >
-                {t('subscriptionStatus')}:{' '}
-                {subscriptionIsActive ? t('subscriptionActive') : t('subscriptionExpired')}
-              </span>
-              <span className="inline-flex items-center rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-cyan-100">
-                {t('profileLeadsShort')}: {openMarketplaceJobs.length}
-              </span>
-              <span className="inline-flex items-center rounded-full border border-violet-400/30 bg-violet-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-violet-100">
-                {t('onlineLabel')} {profileOnlineExecutors}
-              </span>
-            </div>
-          </div>
         </header>
+
+        <ProfileAccordion
+          title={t('profileInfoOverview')}
+          icon={<Info className="w-5 h-5 shrink-0 text-cyan-400/90" aria-hidden />}
+          closedSummary={profileInfoClosedSummary}
+        >
+          <div className="flex flex-wrap gap-1.5">
+            <span className="inline-flex items-center rounded-full border border-lime-400/35 bg-lime-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-lime-200">
+              {tokenBalance} {t('tokens')}
+            </span>
+            <span
+              className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold ${
+                subscriptionIsActive
+                  ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-200'
+                  : 'border-amber-400/35 bg-amber-500/10 text-amber-200'
+              }`}
+            >
+              {t('subscriptionStatus')}:{' '}
+              {subscriptionIsActive ? t('subscriptionActive') : t('subscriptionExpired')}
+            </span>
+            <span className="inline-flex items-center rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-cyan-100">
+              {t('profileLeadsShort')}: {openMarketplaceJobs.length}
+            </span>
+            <span className="inline-flex items-center rounded-full border border-violet-400/30 bg-violet-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-violet-100">
+              {t('onlineLabel')} {profileOnlineExecutors}
+            </span>
+          </div>
+        </ProfileAccordion>
 
         {/* MY HOME REQUESTS (from jobs table, excluding finished) */}
         {false && <section className="mb-10 text-white">
