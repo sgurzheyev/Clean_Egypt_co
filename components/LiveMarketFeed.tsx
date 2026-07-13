@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabase';
 import { formatWorkBudgetEgp } from '../src/lib/formatMoney';
 import { missionWorkBudgetEgp } from '../src/lib/missionBudget';
-import { missionPinIcon } from '../src/lib/serviceSectors';
+import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
@@ -13,6 +13,7 @@ import MissionFeedCard from './MissionFeedCard';
 export interface LiveMarketMission {
   id: string;
   category: 'public' | 'home' | 'office' | string;
+  service_type?: string | null;
   amount_target: number;
   expected_price?: number | null;
   current_funding?: number | null;
@@ -79,6 +80,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
         .select(`
           id,
           category,
+          service_type,
           amount_target,
           expected_price,
           current_funding,
@@ -168,7 +170,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                     const budget = missionWorkBudgetEgp(mission);
                     const isOwnTask =
                       !!currentUserId && mission.creator_id === currentUserId;
-                    const isHome = mission.category === 'home';
+                    const isHome = missionSector(mission.service_type, mission.category) === 'home';
                     const statusLabel =
                       mission.status === 'in_progress' ? t('accepted') : mission.status;
 
@@ -177,7 +179,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                         key={mission.id}
                         photoUrl={mission.photo_urls?.[0] ?? null}
                         placeholderVariant={isHome ? 'home' : 'city'}
-                        placeholderIcon={missionPinIcon(mission.category)}
+                        placeholderIcon={missionPinIcon(mission.service_type, mission.category)}
                         budgetValue={formatWorkBudgetEgp(budget)}
                         locationLine={missionLocationLine(mission, t)}
                         description={extractMissionFeedDescription(mission.description)}

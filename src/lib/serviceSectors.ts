@@ -62,10 +62,43 @@ export function taskTypeForTrigger(trigger: FormTrigger): 'home' | 'city' {
   return trigger === 'sponge' ? 'home' : 'city';
 }
 
-/** Map pin + list icon: sponge = home/office, mop = street/city/beach. */
-export function missionPinIcon(category: string | null | undefined): string {
+const PRIVATE_SERVICE_ID_SET = new Set<string>(PRIVATE_SECTOR_SERVICES.map((s) => s.id));
+
+/**
+ * Sector of a persisted mission. `service_type` is authoritative (it records which
+ * form created the mission); `category` is a legacy fallback because older RPCs
+ * stored 'public' for every mission regardless of sector.
+ */
+export function missionSector(
+  serviceType: string | null | undefined,
+  category?: string | null
+): 'home' | 'city' {
+  if (serviceType) {
+    return PRIVATE_SERVICE_ID_SET.has(serviceType) ? 'home' : 'city';
+  }
   const c = String(category ?? '').toLowerCase();
-  return c === 'home' || c === 'office' ? '🧽' : '🧹';
+  return c === 'home' || c === 'office' ? 'home' : 'city';
+}
+
+/** Map pin + list icon: sponge = home/office, mop = street/city/beach. */
+export function missionPinIcon(
+  serviceType: string | null | undefined,
+  category?: string | null
+): string {
+  return missionSector(serviceType, category) === 'home' ? '🧽' : '🧹';
+}
+
+/** Mapbox image ids for emoji pin icons (registered via canvas at map load). */
+export const PIN_ICON_IMAGE_SPONGE = 'pin-icon-sponge';
+export const PIN_ICON_IMAGE_MOP = 'pin-icon-mop';
+
+export function missionPinIconImage(
+  serviceType: string | null | undefined,
+  category?: string | null
+): string {
+  return missionSector(serviceType, category) === 'home'
+    ? PIN_ICON_IMAGE_SPONGE
+    : PIN_ICON_IMAGE_MOP;
 }
 
 export function findServiceOption(id: string | null | undefined): ServiceOption | undefined {

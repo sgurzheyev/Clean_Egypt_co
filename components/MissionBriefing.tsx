@@ -12,7 +12,7 @@ import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
 import { missionTokenBid, missionWorkBudgetEgp } from '../src/lib/missionBudget';
-import { missionPinIcon } from '../src/lib/serviceSectors';
+import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
 import { formatUsdPrice, YEARLY_SUBSCRIPTION } from '../src/lib/tokenPricing';
 import { type MissionBidRow, bidWorkerDisplayName } from '../src/lib/missionBids';
 
@@ -101,7 +101,7 @@ function missionLocationLine(
 }
 
 function placeholderVariantFor(mission: MissionBriefingMission): MissionFeedPlaceholderVariant {
-  return mission.category === 'home' || mission.category === 'office' ? 'home' : 'city';
+  return missionSector(mission.service_type, mission.category) === 'home' ? 'home' : 'city';
 }
 
 function statusBadgeClass(status: string): string {
@@ -159,7 +159,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const [bidInput, setBidInput] = React.useState('');
   const photos = mission.photo_urls?.filter(Boolean) ?? [];
   const placeholderVariant = placeholderVariantFor(mission);
-  const placeholderIcon = missionPinIcon(placeholderVariant === 'home' ? 'home' : 'public');
+  const placeholderIcon = missionPinIcon(mission.service_type, mission.category);
   const feedDescription = extractMissionFeedDescription(mission.description);
   const locationSource = missionLocationLine(mission, t);
   const locationTranslation = useMissionTextTranslation(locationSource);

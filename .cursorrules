@@ -1,21 +1,36 @@
-# CleanEgypt / Project Rules & Guidelines
+# CleanEgypt.co — Project Rules & Architecture Context
 
-## 1. Core Business Logic & Economy (STRICT)
-- **TOKEN-ONLY SYSTEM:** The internal wallet and database `balance` represent TOKENS ONLY. 
-- **NO FIAT IN WALLET:** Never use "EGP", "USD", or any other fiat currency symbols when displaying the user's internal balance.
-- **STRIPE CHARGES:** Stripe strictly charges in USD (e.g., "$5 for 50 Tokens"). Do not calculate or display exchange rates.
-- **USER ROLES:** - Clients: Buy Tokens to boost or post tasks.
-  - Workers (Executors): Buy Subscriptions to unlock and view client phone numbers.
+You are an expert Senior Full-Stack Engineer and UI/UX Designer specializing in Cyberpunk/Cyber-neon aesthetics, React, Supabase, and Mapbox.
 
-## 2. Backend (Supabase Edge Functions & Deno)
-- **DENO ENVIRONMENT:** All Supabase Edge Functions must use Deno standards.
-- **ESM IMPORTS ONLY:** Strictly use `https://esm.sh/` for external packages. DO NOT use `npm:` or Node.js style imports.
-- **STRIPE HTTP CLIENT:** When initializing Stripe in Edge Functions, you MUST include: `httpClient: Stripe.createFetchHttpClient()`.
-- **CORS IS MANDATORY:** Every function must handle `OPTIONS` requests and return headers: `Access-Control-Allow-Origin: *` and `Access-Control-Allow-Methods: POST, OPTIONS`. (Crucial for mobile browsers).
-- **ZERO-TRUST SECURITY:** Always verify the `Authorization` header. Fetch the user via Supabase Auth and verify their `user.id` matches the request before creating any Stripe Intents.
-- **ERROR HANDLING:** Use `catch (error: any)` in Edge Functions to prevent TypeScript build errors.
+## 1. Core Business Model (Strict Strategy)
+- CleanEgypt.co is a marketplace/SaaS terminal for garbage cleaning and municipal tasks.
+- NO INTERNAL FIAT ESCROW PAYMENTS: The platform does not hold, split (no 90% fee splits), or release customer money.
+- DIRECT P2P PAYMENTS: Customers and workers pay each other directly (Cash, Vodafone Cash, InstaPay, etc.).
+- TOKENS MODEL: App operates on a token system for posting, boosting, and top-ups.
 
-## 3. Frontend (React / Vite / Tailwind)
-- **MOBILE-FIRST UI:** Never hide critical action buttons (e.g., "Top Up", "Add Money", "Subscribe") on mobile devices using classes like `hidden sm:flex` or `hidden md:block`. Critical UI must be visible on all screen sizes.
-- **STRIPE GUARDS:** Always verify that `VITE_STRIPE_PUBLISHABLE_KEY` exists before attempting to render Stripe `<Elements />`. Log an error to the console if it is missing.
-- **CLEAN CODE:** Avoid nested ternary operators in JSX. Keep components modular.
+## 2. Critical UI/UX Rules (Cyberpunk / Neon Minimalism)
+- PROFILE SIDEBAR: Keep it compact and dense to prevent vertical scrolling.
+  - Top Section (INFO Card): Must combine all stats inline with neon badges (e.g., "128 Tokens", "Subscription: Active", "Leads", "Online").
+  - "Top Up / Пополнить" button must live in the INFO card header.
+  - Forms ("КОНТАКТНАЯ ИНФОРМАЦИЯ", "ИЗМЕНИТЬ ПАРОЛЬ") MUST be hidden inside accordions (`ProfileAccordion`) by default.
+- MAP INTERFACE:
+  - Task pins are minimalist "broom" (home tasks) and "bubble" (city tasks) icons. Do NOT use 3D pyramids.
+  - Profiles and navigation elements must strictly NOT overlap with other control buttons on mobile viewports.
+
+## 3. Mission Status Flow (P2P State Machine)
+- Active statuses: `active` -> `pending` -> `review` (when worker uploads proof of work).
+- Closing a mission: When the owner confirms the job is done, call the `confirm_mission_work_done` RPC. This instantly moves status to `completed`, removes the pin from the active map feed, and moves the order card to the "ИСТОРИЯ" (History) section.
+- NO ADMIN APPROVAL FOR PAYMENTS: The owner clears the worker instantly. Admin verification steps at execution are forbidden.
+
+## 4. Admin Powers & Moderation
+- Admins do NOT verify regular payouts.
+- Admins exist strictly for CONTENT MODERATION (anti-spam / anti-scam protection).
+- Admins have a global override button to call `admin_delete_mission` RPC, which instantly terminates and archives any illegal or broken task directly from the briefing layout, active lists, or map layer.
+- **PROFILE SIDEBAR:** Keep it exceptionally dense and unified.
+    - Top Header: The "Top Up / Пополнить / Add Money" button must live in the top header, positioned statically right next to the "Language" (`RU`/`EN`) switcher button for instant checkout access.
+    - Collapsable UI Layout: EVERY major section—including the "INFO" dashboard overview, "МОИ ЗАКАЗЫ", "ГОРОД", and "ИСТОРИЯ"—MUST be closed/collapsable by default inside an accordion layer to ensure zero unnecessary vertical scrolling.
+## 5. Technology Stack & Fallbacks
+- Frontend: React with Tailwind CSS (Neon green, glassmorphism card designs).
+- Backend: Supabase (PostgreSQL with RLS policies, custom RPC functions).
+- Language: Strictly provide and handle copy in Russian (RU) and English (EN) with explicit i18n support.
+- Safety Fallback: In currency formatting, fallback to token count rendering only applies if the value is >= 100 to safeguard against misrepresenting low token boosts as fiat amounts.

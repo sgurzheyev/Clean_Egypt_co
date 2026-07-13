@@ -46,7 +46,11 @@ import {
   findServiceOption,
   servicesForTrigger,
   taskTypeForTrigger,
+  missionSector,
   missionPinIcon,
+  missionPinIconImage,
+  PIN_ICON_IMAGE_SPONGE,
+  PIN_ICON_IMAGE_MOP,
 } from '../src/lib/serviceSectors';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import {
@@ -176,21 +180,50 @@ const MISSION_PIN_HOVER_STROKE_WIDTH: mapboxgl.Expression = [
   2,
 ];
 
+/** icon-size is a scale factor: emoji images are 64px @ pixelRatio 2 → 32 CSS px at 1.0. */
 const MISSION_PIN_ICON_SIZE: mapboxgl.Expression = [
   'interpolate',
   ['linear'],
   ['zoom'],
   8,
-  11,
+  0.34,
   12,
-  13,
+  0.42,
   15,
-  15,
+  0.48,
   18,
-  17,
+  0.55,
   22,
-  17,
+  0.55,
 ];
+
+/**
+ * Mapbox glyph PBFs are monochrome SDFs (Open Sans / Arial Unicode) and contain no emoji,
+ * so 🧽/🧹 in a `text-field` never render. Rasterize the emoji onto a canvas and register
+ * them as style images for an `icon-image` symbol layer instead.
+ */
+function registerEmojiPinImages(map: any) {
+  const addEmojiImage = (id: string, emoji: string) => {
+    try {
+      if (map.hasImage?.(id)) return;
+      const size = 64;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `${Math.round(size * 0.8)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+      ctx.fillText(emoji, size / 2, size / 2 + size * 0.04);
+      map.addImage(id, ctx.getImageData(0, 0, size, size), { pixelRatio: 2 });
+    } catch {
+      /* canvas/image registration is best-effort; circles still render */
+    }
+  };
+  addEmojiImage(PIN_ICON_IMAGE_SPONGE, '🧽');
+  addEmojiImage(PIN_ICON_IMAGE_MOP, '🧹');
+}
 
 type TaskType = 'city' | 'home';
 
@@ -268,7 +301,7 @@ function buildOptimisticLeadMission(
 ): JobOnMap {
   return {
     id: String(missionId),
-    category: 'public',
+    category: missionSector(serviceType, null) === 'home' ? 'home' : 'public',
     service_type: serviceType,
     amount_target: Math.max(1, tokenBid),
     expected_price: Math.max(1, expectedPrice),
@@ -635,7 +668,7 @@ function MyOrdersPanel({
                       key={mission.id}
                       photoUrl={mission.photo_urls?.[0] ?? null}
                       placeholderVariant={isHome ? 'home' : 'city'}
-                      placeholderIcon={missionPinIcon(mission.category)}
+                      placeholderIcon={missionPinIcon(mission.service_type, mission.category)}
                       budgetValue={formatWorkBudgetEgp(missionWorkBudgetEgp(mission))}
                       metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
                       locationLine={mission.description?.split('\n')[0]?.trim() || undefined}
@@ -2266,11 +2299,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
       if (Date.now() < pinPlacementCooldownRef.current) return;
       if (orderSubmitting) return;
 
-      // 1. FORGIVING HITBOX DETECTION (15px bbox)
-      const job = findMissionPinAtPoint(event?.point, 15);
-      if (job) {
-        handleMarkerClick(job);
-        return;
+      // 1. FORGIVING HITBOX DETECTION (15px bbox).
+      // Skipped while the creation form is open: the briefing sheet (z-10030) renders
+      // BELOW the form overlay (z-10050), so opening it there would be invisible.
+      // Taps then reposition the draft pin instead.
+      if (!taskTypeSelected) {
+        const job = findMissionPinAtPoint(event?.point, 15);
+        if (job) {
+          handleMarkerClick(job);
+          return;
+        }
       }
 
       // 2. Map tap — draft pin first; move pin while creation form is open
@@ -3187,7 +3225,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           status: j.status,
           service_type: serviceTypeForMission(j),
           category: j.category,
-          pin_icon: missionPinIcon(j.category),
+          pin_icon_image: missionPinIconImage(serviceTypeForMission(j), j.category),
         },
       }));
     return { type: 'FeatureCollection' as const, features };
@@ -3405,6 +3443,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
           if (!map) return;
           mapInstanceRef.current = map;
           setMapReady(true);
+
+          // Emoji pin icons must exist as style images before the symbol layer draws.
+          registerEmojiPinImages(map);
+          map.on('styleimagemissing', () => registerEmojiPinImages(map));
 
           // 3D Terrain + Mountains + realistic horizon.
           // DEM source must exist before `setTerrain`.
@@ -3626,14 +3668,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
             id="mission-pins-icon"
             type="symbol"
             layout={{
-              'text-field': ['get', 'pin_icon'],
-              'text-size': MISSION_PIN_ICON_SIZE,
-              'text-allow-overlap': true,
-              'text-ignore-placement': true,
-              'text-anchor': 'center',
+              'icon-image': ['get', 'pin_icon_image'],
+              'icon-size': MISSION_PIN_ICON_SIZE,
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+              'icon-anchor': 'center',
             }}
             paint={{
-              'text-opacity': mapMarkerLayerSuppressed ? 0 : 1,
+              'icon-opacity': mapMarkerLayerSuppressed ? 0 : 1,
             }}
           />
         </Source>
