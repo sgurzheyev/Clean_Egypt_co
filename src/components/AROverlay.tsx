@@ -56,6 +56,67 @@ type ARStoreController = {
 };
 
 /**
+ * three.js WebXRManager prefers XRWebGLBinding + XRProjectionLayer whenever
+ * `createProjectionLayer` exists on the prototype. That constructor throws
+ * InvalidStateError for mode:"inline" (and camera-access bindings are
+ * immersive-only). Patch the manager so:
+ *   - immersive-ar → allow XRWebGLBinding (three.js default path)
+ *   - inline (or anything else) → force the classic XRWebGLLayer / baseLayer path
+ */
+function patchManagerForInlineSafeLayers(manager: THREE.WebXRManager) {
+  const originalSetSession = manager.setSession.bind(manager);
+  const originalGetBinding = manager.getBinding.bind(manager);
+
+  manager.getBinding = () => {
+    const session = manager.getSession();
+    if (!session || session.mode !== 'immersive-ar') {
+      console.log(
+        '[AROverlay] XRWebGLBinding skipped — only initialized for immersive-ar (mode:',
+        session?.mode ?? 'none',
+        ')'
+      );
+      return null as unknown as ReturnType<THREE.WebXRManager['getBinding']>;
+    }
+    return originalGetBinding();
+  };
+
+  manager.setSession = async (session: XRSession | null) => {
+    if (!session || session.mode === 'immersive-ar') {
+      console.log('[AROverlay] setSession immersive-ar — XRWebGLBinding allowed');
+      return originalSetSession(session);
+    }
+
+    // Force three.js onto the XRWebGLLayer branch: it gates on
+    //   supportsGlBinding && ('createProjectionLayer' in XRWebGLBinding.prototype)
+    // supportsGlBinding is closed over at manager construction, so we temporarily
+    // replace the global with a stub that has no createProjectionLayer.
+    const g = globalThis as typeof globalThis & { XRWebGLBinding?: unknown };
+    const RealBinding = g.XRWebGLBinding;
+    console.log(
+      '[AROverlay] setSession',
+      session.mode,
+      '— forcing XRWebGLLayer (no XRWebGLBinding / camera binding)'
+    );
+
+    try {
+      if (RealBinding) {
+        g.XRWebGLBinding = class XRWebGLBindingInlineGuard {
+          constructor() {
+            throw new Error(
+              'XRWebGLBinding is only valid for immersive-ar; inline uses XRWebGLLayer'
+            );
+          }
+        };
+      }
+      return await originalSetSession(session);
+    } finally {
+      if (RealBinding !== undefined) g.XRWebGLBinding = RealBinding;
+      else delete g.XRWebGLBinding;
+    }
+  };
+}
+
+/**
  * Fresh store per overlay mount — no module singleton, so a stale instance
  * created with old options can never leak into a new attempt.
  * customSessionInit short-circuits the library's buildXRSessionInit entirely
@@ -70,6 +131,8 @@ function createAROnlyStore(): ARStoreController {
     hand: false,
     gaze: false,
     // Kill every library default that adds session features.
+    // layers:false → never request the WebXR "layers" feature (projection
+    // layers / XRWebGLBinding path is gated separately per session mode).
     anchors: false,
     layers: false,
     meshDetection: false,
@@ -101,6 +164,7 @@ function createAROnlyStore(): ARStoreController {
   store.setWebXRManager = (m: THREE.WebXRManager) => {
     originalSetManager(m);
     manager = m;
+    patchManagerForInlineSafeLayers(m);
     applyReferenceSpace();
   };
 
@@ -429,41 +493,58 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
     console.log('[AROverlay] navigator.xr present:', !!xr);
     try {
       const arOk = await xr?.isSessionSupported('immersive-ar');
+      const inlineOk = await xr?.isSessionSupported('inline');
       console.log('[AROverlay] isSessionSupported(immersive-ar):', arOk);
+      console.log('[AROverlay] isSessionSupported(inline):', inlineOk);
     } catch (e) {
-      console.warn('[AROverlay] isSessionSupported(immersive-ar) threw:', e);
+      console.warn('[AROverlay] isSessionSupported threw:', e);
     }
 
     closedRef.current = true; // once a session ends after this, close the overlay
 
-    // ---- Attempt 1: immersive-ar with required hit-test + local ----
+    // ---- Attempt 1: immersive-ar (camera passthrough + XRWebGLBinding allowed) ----
     try {
       controller.useARConfig();
       const session = await store.enterAR();
       setSessionMode('immersive-ar');
       console.log('[AROverlay] immersive-ar session started:', {
+        mode: (session as XRSession | undefined)?.mode,
         environmentBlendMode: (session as XRSession | undefined)?.environmentBlendMode,
         visibilityState: (session as XRSession | undefined)?.visibilityState,
+        enabledFeatures: (session as XRSession | undefined)?.enabledFeatures,
       });
       return;
     } catch (e: unknown) {
       const err = e as { name?: string; message?: string };
-      console.error('[AROverlay] immersive-ar failed:', err?.name, err?.message, e);
+      console.warn(
+        '[AROverlay] immersive-ar rejected — falling back to inline (XRWebGLLayer only, no camera binding):',
+        err?.name,
+        err?.message
+      );
+      // End any half-started session the store may still hold.
+      try {
+        await store.getState().session?.end();
+      } catch {
+        /* ignore */
+      }
     }
 
-    // ---- Attempt 2: inline fallback, bound to the same renderer/store ----
-    console.log('[AROverlay] falling back to inline. XRSessionInit →',
-      JSON.stringify(INLINE_SESSION_INIT, null, 2));
+    // ---- Attempt 2: inline — XRWebGLLayer only, never XRWebGLBinding / camera ----
+    console.log(
+      '[AROverlay] falling back to inline. XRSessionInit →',
+      JSON.stringify(INLINE_SESSION_INIT, null, 2)
+    );
     try {
       controller.useInlineConfig();
       const inlineSession = await store.enterXR('inline');
       setSessionMode('inline');
-      console.log('[AROverlay] inline session started:', {
+      console.log('[AROverlay] inline session started (XRWebGLLayer, no camera binding):', {
+        mode: (inlineSession as XRSession | undefined)?.mode,
         environmentBlendMode: (inlineSession as XRSession | undefined)?.environmentBlendMode,
         visibilityState: (inlineSession as XRSession | undefined)?.visibilityState,
       });
       setNotice(
-        'Running in inline mode (no camera passthrough). Ensure your browser has camera ' +
+        'Running in inline preview (no camera passthrough). Ensure your browser has camera ' +
           'permissions enabled and try starting the session again.'
       );
     } catch (inlineErr: unknown) {
@@ -562,7 +643,7 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
         </button>
       )}
 
-      {/* Inline mode: no camera passthrough — explain and hint at the fix */}
+      {/* Inline mode: no camera passthrough / no XRWebGLBinding */}
       {inSession && sessionMode === 'inline' && (
         <div
           className={`${GLASS_PANEL} absolute inset-x-4 bottom-6 z-10 px-4 py-3 text-center`}
