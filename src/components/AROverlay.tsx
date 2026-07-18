@@ -32,10 +32,39 @@ let xrStore: ReturnType<typeof createXRStore> | null = null;
 function getXRStore() {
   if (!xrStore) {
     xrStore = createXRStore({
-      // AR only — no VR controllers/hands needed for a marker viewer.
+      // Handheld AR: no controllers / hands.
       controller: false,
       hand: false,
+      gaze: false,
+      // Disable the library defaults that pull in local-floor + plane/mesh/anchors.
+      // Those cause "session configuration is not supported" on many mobile browsers.
+      anchors: false,
+      layers: false,
+      meshDetection: false,
+      planeDetection: false,
+      handTracking: false,
+      depthSensing: false,
+      bodyTracking: false,
+      /**
+       * Override sessionInit entirely. Do NOT require local-floor.
+       * hit-test stays optional so devices without it can still enter AR.
+       */
+      customSessionInit: {
+        requiredFeatures: [],
+        optionalFeatures: ['hit-test', 'local', 'dom-overlay'],
+      },
     });
+
+    // @pmndrs/xr always sets referenceSpaceType to local-floor; prefer local for mobile AR.
+    const originalSetManager = xrStore.setWebXRManager.bind(xrStore);
+    xrStore.setWebXRManager = (manager) => {
+      originalSetManager(manager);
+      try {
+        manager.setReferenceSpaceType('local');
+      } catch {
+        /* ignore — browser will fall back if needed */
+      }
+    };
   }
   return xrStore;
 }
