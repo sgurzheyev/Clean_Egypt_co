@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { XR, createXRStore } from '@react-three/xr';
-import { Billboard, Grid, Text } from '@react-three/drei';
+import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { supabase } from '../../services/supabase';
 
@@ -28,8 +28,8 @@ type ARMission = {
 };
 
 /**
- * XRSessionInit for the primary immersive-ar attempt.
- * hit-test + local are required per product spec; dom-overlay stays optional.
+ * XRSessionInit for immersive-ar.
+ * hit-test + local are required; dom-overlay stays optional.
  * (local-floor — the library default — is never requested.)
  */
 const AR_SESSION_INIT: XRSessionInit = {
@@ -38,35 +38,12 @@ const AR_SESSION_INIT: XRSessionInit = {
 };
 
 /**
- * XRSessionInit for the inline fallback. Inline sessions only guarantee the
- * 'viewer' reference space, so nothing is required — 'local' and 'hit-test'
- * are requested optionally and used if the browser grants them.
+ * three.js WebXRManager may create XRWebGLBinding whenever the API exists.
+ * That constructor is immersive-only — guard getBinding so we never attach
+ * a binding outside an immersive-ar session.
  */
-const INLINE_SESSION_INIT: XRSessionInit = {
-  requiredFeatures: [],
-  optionalFeatures: ['local', 'hit-test'],
-};
-
-type ARStoreController = {
-  store: ReturnType<typeof createXRStore>;
-  /** Point the store at the immersive-ar config ('local' reference space). */
-  useARConfig: () => void;
-  /** Point the store at the inline config ('viewer' reference space). */
-  useInlineConfig: () => void;
-};
-
-/**
- * three.js WebXRManager prefers XRWebGLBinding + XRProjectionLayer whenever
- * `createProjectionLayer` exists on the prototype. That constructor throws
- * InvalidStateError for mode:"inline" (and camera-access bindings are
- * immersive-only). Patch the manager so:
- *   - immersive-ar → allow XRWebGLBinding (three.js default path)
- *   - inline (or anything else) → force the classic XRWebGLLayer / baseLayer path
- */
-function patchManagerForInlineSafeLayers(manager: THREE.WebXRManager) {
-  const originalSetSession = manager.setSession.bind(manager);
+function patchManagerForImmersiveAR(manager: THREE.WebXRManager) {
   const originalGetBinding = manager.getBinding.bind(manager);
-
   manager.getBinding = () => {
     const session = manager.getSession();
     if (!session || session.mode !== 'immersive-ar') {
@@ -79,60 +56,21 @@ function patchManagerForInlineSafeLayers(manager: THREE.WebXRManager) {
     }
     return originalGetBinding();
   };
-
-  manager.setSession = async (session: XRSession | null) => {
-    if (!session || session.mode === 'immersive-ar') {
-      console.log('[AROverlay] setSession immersive-ar — XRWebGLBinding allowed');
-      return originalSetSession(session);
-    }
-
-    // Force three.js onto the XRWebGLLayer branch: it gates on
-    //   supportsGlBinding && ('createProjectionLayer' in XRWebGLBinding.prototype)
-    // supportsGlBinding is closed over at manager construction, so we temporarily
-    // replace the global with a stub that has no createProjectionLayer.
-    const g = globalThis as typeof globalThis & { XRWebGLBinding?: unknown };
-    const RealBinding = g.XRWebGLBinding;
-    console.log(
-      '[AROverlay] setSession',
-      session.mode,
-      '— forcing XRWebGLLayer (no XRWebGLBinding / camera binding)'
-    );
-
-    try {
-      if (RealBinding) {
-        g.XRWebGLBinding = class XRWebGLBindingInlineGuard {
-          constructor() {
-            throw new Error(
-              'XRWebGLBinding is only valid for immersive-ar; inline uses XRWebGLLayer'
-            );
-          }
-        };
-      }
-      return await originalSetSession(session);
-    } finally {
-      if (RealBinding !== undefined) g.XRWebGLBinding = RealBinding;
-      else delete g.XRWebGLBinding;
-    }
-  };
 }
 
 /**
  * Fresh store per overlay mount — no module singleton, so a stale instance
  * created with old options can never leak into a new attempt.
  * customSessionInit short-circuits the library's buildXRSessionInit entirely
- * (its default injects requiredFeatures: ['local-floor']). The options object
- * is kept mutable so the inline fallback can swap the sessionInit before
- * store.enterXR('inline') — the library closes over this same object.
+ * (its default injects requiredFeatures: ['local-floor']).
  */
-function createAROnlyStore(): ARStoreController {
-  const options: Parameters<typeof createXRStore>[0] = {
+function createAROnlyStore() {
+  const store = createXRStore({
     // Handheld AR: no controllers / hands / gaze.
     controller: false,
     hand: false,
     gaze: false,
     // Kill every library default that adds session features.
-    // layers:false → never request the WebXR "layers" feature (projection
-    // layers / XRWebGLBinding path is gated separately per session mode).
     anchors: false,
     layers: false,
     meshDetection: false,
@@ -144,44 +82,24 @@ function createAROnlyStore(): ARStoreController {
     emulate: false,
     // Verbatim override — bypasses buildXRSessionInit defaults completely.
     customSessionInit: AR_SESSION_INIT,
-  };
-  const store = createXRStore(options);
+  });
 
   // @pmndrs/xr hardcodes referenceSpaceType 'local-floor' on the three.js
-  // WebXRManager; keep a handle so each config can set the right space.
-  let manager: THREE.WebXRManager | null = null;
-  let referenceSpaceType: XRReferenceSpaceType = 'local';
-  const applyReferenceSpace = () => {
+  // WebXRManager; without the local-floor feature the session would then fail
+  // at requestReferenceSpace. Force plain 'local' (always granted in AR).
+  const originalSetManager = store.setWebXRManager.bind(store);
+  store.setWebXRManager = (manager: THREE.WebXRManager) => {
+    originalSetManager(manager);
+    patchManagerForImmersiveAR(manager);
     try {
-      manager?.setReferenceSpaceType(referenceSpaceType);
-      console.log(`[AROverlay] three.js referenceSpaceType set to "${referenceSpaceType}"`);
+      manager.setReferenceSpaceType('local');
+      console.log('[AROverlay] three.js referenceSpaceType forced to "local"');
     } catch (e) {
       console.warn('[AROverlay] could not set referenceSpaceType:', e);
     }
   };
 
-  const originalSetManager = store.setWebXRManager.bind(store);
-  store.setWebXRManager = (m: THREE.WebXRManager) => {
-    originalSetManager(m);
-    manager = m;
-    patchManagerForInlineSafeLayers(m);
-    applyReferenceSpace();
-  };
-
-  return {
-    store,
-    useARConfig() {
-      options.customSessionInit = AR_SESSION_INIT;
-      referenceSpaceType = 'local';
-      applyReferenceSpace();
-    },
-    useInlineConfig() {
-      options.customSessionInit = INLINE_SESSION_INIT;
-      // 'viewer' is the only space inline sessions must support.
-      referenceSpaceType = 'viewer';
-      applyReferenceSpace();
-    },
-  };
+  return store;
 }
 
 const EARTH_METERS_PER_DEG_LAT = 111_320;
@@ -346,72 +264,12 @@ function MissionMarker3D({
   );
 }
 
-/**
- * Visible proof that the WebGL/XR scene is drawing while stuck in inline
- * preview (no camera passthrough). Sits ~2 m in front of the viewer origin
- * so it lands in the center of the screen under the `viewer` reference space.
- */
-function InlineDebugAnchor() {
-  const boxRef = useRef<THREE.Mesh>(null);
-
-  useFrame((_, delta) => {
-    if (boxRef.current) {
-      boxRef.current.rotation.x += delta * 0.6;
-      boxRef.current.rotation.y += delta * 0.9;
-    }
-  });
-
-  return (
-    <group position={[0, 0, -2]}>
-      {/* Floor grid under the marker */}
-      <Grid
-        position={[0, -1.2, 0]}
-        args={[10, 10]}
-        cellSize={0.5}
-        cellThickness={0.6}
-        cellColor="#164e63"
-        sectionSize={2}
-        sectionThickness={1.2}
-        sectionColor={NEON_CYAN}
-        fadeDistance={8}
-        fadeStrength={1}
-        infiniteGrid
-      />
-
-      {/* Spinning cube — motion confirms the animation loop is alive */}
-      <mesh ref={boxRef} position={[0, 0, 0]}>
-        <boxGeometry args={[0.45, 0.45, 0.45]} />
-        <meshStandardMaterial
-          color={NEON_CYAN}
-          emissive={NEON_CYAN}
-          emissiveIntensity={1.2}
-          transparent
-          opacity={0.9}
-        />
-      </mesh>
-      {/* Wireframe outline for extra contrast on dark backdrop */}
-      <mesh position={[0, 0, 0]}>
-        <boxGeometry args={[0.46, 0.46, 0.46]} />
-        <meshBasicMaterial color="#ecfeff" wireframe transparent opacity={0.7} />
-      </mesh>
-
-      <Billboard position={[0, 0.7, 0]}>
-        <Text fontSize={0.12} color={NEON_CYAN} anchorX="center" anchorY="middle">
-          3D RENDER OK · INLINE
-        </Text>
-      </Billboard>
-    </group>
-  );
-}
-
 function ARScene({
   missions,
   origin,
-  showInlineDebug,
 }: {
   missions: ARMission[];
   origin: { lat: number; lng: number };
-  showInlineDebug: boolean;
 }) {
   const placed = useMemo(() => {
     return missions
@@ -439,7 +297,6 @@ function ARScene({
     <>
       <ambientLight intensity={1.2} />
       <directionalLight position={[2, 6, 3]} intensity={1.5} />
-      {showInlineDebug && <InlineDebugAnchor />}
       {placed.map((p) => (
         <MissionMarker3D
           key={p.mission.id}
@@ -457,41 +314,58 @@ const GLASS_PANEL =
 
 export default function AROverlay({ onClose }: { onClose: () => void }) {
   // Fresh store per mount — never reuses a singleton with stale session config.
-  const controller = useMemo(() => createAROnlyStore(), []);
-  const store = controller.store;
+  const store = useMemo(() => createAROnlyStore(), []);
   const [missions, setMissions] = useState<ARMission[]>([]);
   const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [xrSupported, setXrSupported] = useState<boolean | null>(null);
   const [inSession, setInSession] = useState(false);
-  const [sessionMode, setSessionMode] = useState<'immersive-ar' | 'inline' | null>(null);
   const closedRef = useRef(false);
 
-  // 1) Capability check — inline counts as supported (fallback path)
+  // 1) Capability check — immersive-ar only
   useEffect(() => {
+    let cancelled = false;
     const xr = (navigator as any).xr;
     if (!xr?.isSessionSupported) {
       setXrSupported(false);
       return;
     }
-    Promise.all([
-      xr.isSessionSupported('immersive-ar').catch(() => false),
-      xr.isSessionSupported('inline').catch(() => false),
-    ]).then(([ar, inline]: boolean[]) => {
-      console.log('[AROverlay] supported — immersive-ar:', ar, '| inline:', inline);
-      setXrSupported(ar || inline);
-    });
+    xr.isSessionSupported('immersive-ar')
+      .then((ok: boolean) => {
+        if (cancelled) return;
+        console.log('[AROverlay] isSessionSupported(immersive-ar):', ok);
+        setXrSupported(ok);
+      })
+      .catch(() => {
+        if (!cancelled) setXrSupported(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // 2) Geolocation (origin for GPS→AR mapping)
+  // 2) Geolocation (origin for GPS→AR mapping).
+  // High-accuracy GPS can tick every second; each new origin object re-renders
+  // the whole overlay + Canvas tree. Only commit fixes that moved > ~3 m —
+  // marker positions are compressed to a 3–28 m band, so sub-3 m drift is
+  // visually irrelevant.
   useEffect(() => {
     if (!navigator.geolocation) {
       setError('Geolocation is not available on this device.');
       return;
     }
+    let last: { lat: number; lng: number } | null = null;
+    const MIN_MOVE_METERS = 3;
     const watchId = navigator.geolocation.watchPosition(
-      (pos) => setOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (pos) => {
+        const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        if (last) {
+          const { distance } = gpsToLocal(next.lat, next.lng, last.lat, last.lng);
+          if (distance < MIN_MOVE_METERS) return;
+        }
+        last = next;
+        setOrigin(next);
+      },
       (err) => setError(err.message || 'Location permission denied.'),
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
@@ -528,7 +402,6 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
     const unsub = store.subscribe((state) => {
       const active = !!state.session;
       setInSession(active);
-      if (!active) setSessionMode(null);
       if (!active && closedRef.current) onClose();
     });
     return unsub;
@@ -546,28 +419,21 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
   const handleEnterAR = useCallback(async () => {
     const xr = (navigator as any).xr as XRSystem | undefined;
     setError(null);
-    setNotice(null);
 
-    // ---- Diagnostics: log exactly what will be sent to requestSession ----
     console.log('[AROverlay] Enter AR clicked');
-    console.log('[AROverlay] immersive-ar XRSessionInit →', JSON.stringify(AR_SESSION_INIT, null, 2));
+    console.log('[AROverlay] XRSessionInit →', JSON.stringify(AR_SESSION_INIT, null, 2));
     console.log('[AROverlay] navigator.xr present:', !!xr);
     try {
       const arOk = await xr?.isSessionSupported('immersive-ar');
-      const inlineOk = await xr?.isSessionSupported('inline');
       console.log('[AROverlay] isSessionSupported(immersive-ar):', arOk);
-      console.log('[AROverlay] isSessionSupported(inline):', inlineOk);
     } catch (e) {
-      console.warn('[AROverlay] isSessionSupported threw:', e);
+      console.warn('[AROverlay] isSessionSupported(immersive-ar) threw:', e);
     }
 
     closedRef.current = true; // once a session ends after this, close the overlay
 
-    // ---- immersive-ar only: no automatic inline fallback, surface the real error ----
     try {
-      controller.useARConfig();
       const session = await store.enterAR();
-      setSessionMode('immersive-ar');
       console.log('[AROverlay] immersive-ar session started:', {
         mode: (session as XRSession | undefined)?.mode,
         environmentBlendMode: (session as XRSession | undefined)?.environmentBlendMode,
@@ -577,9 +443,7 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
     } catch (e: unknown) {
       closedRef.current = false;
       const err = e as { name?: string; message?: string };
-      // Full raw error in the console — this is the real diagnostic signal.
       console.error('[AROverlay] immersive-ar failed:', err?.name, err?.message, e);
-      // End any half-started session the store may still hold.
       try {
         await store.getState().session?.end();
       } catch {
@@ -589,7 +453,7 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
         'AR Camera mode failed to initialize. Please check permissions or try Chrome Canary.'
       );
     }
-  }, [controller, store]);
+  }, [store]);
 
   const handleExit = useCallback(() => {
     closedRef.current = false;
@@ -612,11 +476,7 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
           camera={{ position: [0, 1.6, 0], fov: 70 }}
         >
           <XR store={store}>
-            <ARScene
-              missions={missions}
-              origin={origin}
-              showInlineDebug={sessionMode === 'inline'}
-            />
+            <ARScene missions={missions} origin={origin} />
           </XR>
         </Canvas>
       )}
@@ -636,7 +496,6 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
             </p>
 
             {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
-            {notice && <p className="mt-3 text-xs text-amber-300/90">{notice}</p>}
             {!origin && !error && (
               <p className="mt-3 text-xs text-slate-500 animate-pulse">Acquiring GPS…</p>
             )}
@@ -677,21 +536,6 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
         >
           Exit AR
         </button>
-      )}
-
-      {/* Inline mode: no camera passthrough / no XRWebGLBinding */}
-      {inSession && sessionMode === 'inline' && (
-        <div
-          className={`${GLASS_PANEL} absolute inset-x-4 bottom-6 z-10 px-4 py-3 text-center`}
-        >
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">
-            Inline preview mode
-          </p>
-          <p className="mt-1 text-xs text-slate-300">
-            Ensure your browser has camera permissions enabled and try starting the
-            session again for full AR passthrough.
-          </p>
-        </div>
       )}
     </div>
   );
