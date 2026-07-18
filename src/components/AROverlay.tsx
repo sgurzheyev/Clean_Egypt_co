@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { XR, createXRStore } from '@react-three/xr';
-import { Billboard, Text } from '@react-three/drei';
+import { Billboard, Grid, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { supabase } from '../../services/supabase';
 
@@ -346,12 +346,72 @@ function MissionMarker3D({
   );
 }
 
+/**
+ * Visible proof that the WebGL/XR scene is drawing while stuck in inline
+ * preview (no camera passthrough). Sits ~2 m in front of the viewer origin
+ * so it lands in the center of the screen under the `viewer` reference space.
+ */
+function InlineDebugAnchor() {
+  const boxRef = useRef<THREE.Mesh>(null);
+
+  useFrame((_, delta) => {
+    if (boxRef.current) {
+      boxRef.current.rotation.x += delta * 0.6;
+      boxRef.current.rotation.y += delta * 0.9;
+    }
+  });
+
+  return (
+    <group position={[0, 0, -2]}>
+      {/* Floor grid under the marker */}
+      <Grid
+        position={[0, -1.2, 0]}
+        args={[10, 10]}
+        cellSize={0.5}
+        cellThickness={0.6}
+        cellColor="#164e63"
+        sectionSize={2}
+        sectionThickness={1.2}
+        sectionColor={NEON_CYAN}
+        fadeDistance={8}
+        fadeStrength={1}
+        infiniteGrid
+      />
+
+      {/* Spinning cube — motion confirms the animation loop is alive */}
+      <mesh ref={boxRef} position={[0, 0, 0]}>
+        <boxGeometry args={[0.45, 0.45, 0.45]} />
+        <meshStandardMaterial
+          color={NEON_CYAN}
+          emissive={NEON_CYAN}
+          emissiveIntensity={1.2}
+          transparent
+          opacity={0.9}
+        />
+      </mesh>
+      {/* Wireframe outline for extra contrast on dark backdrop */}
+      <mesh position={[0, 0, 0]}>
+        <boxGeometry args={[0.46, 0.46, 0.46]} />
+        <meshBasicMaterial color="#ecfeff" wireframe transparent opacity={0.7} />
+      </mesh>
+
+      <Billboard position={[0, 0.7, 0]}>
+        <Text fontSize={0.12} color={NEON_CYAN} anchorX="center" anchorY="middle">
+          3D RENDER OK · INLINE
+        </Text>
+      </Billboard>
+    </group>
+  );
+}
+
 function ARScene({
   missions,
   origin,
+  showInlineDebug,
 }: {
   missions: ARMission[];
   origin: { lat: number; lng: number };
+  showInlineDebug: boolean;
 }) {
   const placed = useMemo(() => {
     return missions
@@ -379,6 +439,7 @@ function ARScene({
     <>
       <ambientLight intensity={1.2} />
       <directionalLight position={[2, 6, 3]} intensity={1.5} />
+      {showInlineDebug && <InlineDebugAnchor />}
       {placed.map((p) => (
         <MissionMarker3D
           key={p.mission.id}
@@ -580,7 +641,11 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
           camera={{ position: [0, 1.6, 0], fov: 70 }}
         >
           <XR store={store}>
-            <ARScene missions={missions} origin={origin} />
+            <ARScene
+              missions={missions}
+              origin={origin}
+              showInlineDebug={sessionMode === 'inline'}
+            />
           </XR>
         </Canvas>
       )}
