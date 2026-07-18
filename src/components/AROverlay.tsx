@@ -563,7 +563,7 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
 
     closedRef.current = true; // once a session ends after this, close the overlay
 
-    // ---- Attempt 1: immersive-ar (camera passthrough + XRWebGLBinding allowed) ----
+    // ---- immersive-ar only: no automatic inline fallback, surface the real error ----
     try {
       controller.useARConfig();
       const session = await store.enterAR();
@@ -574,48 +574,19 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
         visibilityState: (session as XRSession | undefined)?.visibilityState,
         enabledFeatures: (session as XRSession | undefined)?.enabledFeatures,
       });
-      return;
     } catch (e: unknown) {
+      closedRef.current = false;
       const err = e as { name?: string; message?: string };
-      console.warn(
-        '[AROverlay] immersive-ar rejected — falling back to inline (XRWebGLLayer only, no camera binding):',
-        err?.name,
-        err?.message
-      );
+      // Full raw error in the console — this is the real diagnostic signal.
+      console.error('[AROverlay] immersive-ar failed:', err?.name, err?.message, e);
       // End any half-started session the store may still hold.
       try {
         await store.getState().session?.end();
       } catch {
         /* ignore */
       }
-    }
-
-    // ---- Attempt 2: inline — XRWebGLLayer only, never XRWebGLBinding / camera ----
-    console.log(
-      '[AROverlay] falling back to inline. XRSessionInit →',
-      JSON.stringify(INLINE_SESSION_INIT, null, 2)
-    );
-    try {
-      controller.useInlineConfig();
-      const inlineSession = await store.enterXR('inline');
-      setSessionMode('inline');
-      console.log('[AROverlay] inline session started (XRWebGLLayer, no camera binding):', {
-        mode: (inlineSession as XRSession | undefined)?.mode,
-        environmentBlendMode: (inlineSession as XRSession | undefined)?.environmentBlendMode,
-        visibilityState: (inlineSession as XRSession | undefined)?.visibilityState,
-      });
-      setNotice(
-        'Running in inline preview (no camera passthrough). Ensure your browser has camera ' +
-          'permissions enabled and try starting the session again.'
-      );
-    } catch (inlineErr: unknown) {
-      closedRef.current = false;
-      controller.useARConfig(); // restore for the next attempt
-      const ierr = inlineErr as { name?: string; message?: string };
-      console.error('[AROverlay] inline session ALSO failed:', ierr?.name, ierr?.message, inlineErr);
       setError(
-        `Both immersive-ar and inline sessions failed (${ierr?.name ?? 'Error'}: ` +
-          `${ierr?.message ?? 'unknown'}). See console for the exact XRSessionInit objects sent.`
+        'AR Camera mode failed to initialize. Please check permissions or try Chrome Canary.'
       );
     }
   }, [controller, store]);
