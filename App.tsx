@@ -101,16 +101,8 @@ const App: React.FC = () => {
         />
       </div>
 
-      {/* Toggle AR — overlay state only, no route change, map stays mounted */}
-      <button
-        type="button"
-        onClick={() => setShowAROverlay(true)}
-        className="fixed bottom-24 right-4 z-[140] rounded-full border border-cyan-400/50 bg-cyan-500/10 backdrop-blur-md px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.25)] transition-all hover:bg-cyan-500/20 active:scale-95"
-      >
-        AR View
-      </button>
-
-      {/* AR overlay — sibling of the map, unmount fully ends the XR session */}
+      {/* AR overlay — sibling of the map, unmount fully ends the XR session.
+          Toggled from Profile (state lifted here); no floating map button. */}
       {showAROverlay && (
         <Suspense fallback={null}>
           <AROverlay onClose={() => setShowAROverlay(false)} />
@@ -125,6 +117,10 @@ const App: React.FC = () => {
         onNavigateToJob={(lat, lng) => {
           setFlyToTarget({ lat, lng });
           handleCloseProfile();
+        }}
+        onOpenAR={() => {
+          handleCloseProfile();
+          setShowAROverlay(true);
         }}
       />
 

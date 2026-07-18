@@ -27,46 +27,57 @@ type ARMission = {
   crowdfunding_mode: boolean | null;
 };
 
-/** One XR store per app; created lazily so importing this module is side-effect cheap. */
-let xrStore: ReturnType<typeof createXRStore> | null = null;
-function getXRStore() {
-  if (!xrStore) {
-    xrStore = createXRStore({
-      // Handheld AR: no controllers / hands.
-      controller: false,
-      hand: false,
-      gaze: false,
-      // Disable the library defaults that pull in local-floor + plane/mesh/anchors.
-      // Those cause "session configuration is not supported" on many mobile browsers.
-      anchors: false,
-      layers: false,
-      meshDetection: false,
-      planeDetection: false,
-      handTracking: false,
-      depthSensing: false,
-      bodyTracking: false,
-      /**
-       * Override sessionInit entirely. Do NOT require local-floor.
-       * hit-test stays optional so devices without it can still enter AR.
-       */
-      customSessionInit: {
-        requiredFeatures: [],
-        optionalFeatures: ['hit-test', 'local', 'dom-overlay'],
-      },
-    });
+/**
+ * The exact XRSessionInit sent to navigator.xr.requestSession.
+ * requiredFeatures MUST stay empty: 'local-floor' (the library default)
+ * triggers "The specified session configuration is not supported" on many
+ * mobile AR browsers. Everything useful is requested as optional only.
+ */
+const AR_SESSION_INIT: XRSessionInit = {
+  requiredFeatures: [],
+  optionalFeatures: ['hit-test', 'dom-overlay'],
+};
 
-    // @pmndrs/xr always sets referenceSpaceType to local-floor; prefer local for mobile AR.
-    const originalSetManager = xrStore.setWebXRManager.bind(xrStore);
-    xrStore.setWebXRManager = (manager) => {
-      originalSetManager(manager);
-      try {
-        manager.setReferenceSpaceType('local');
-      } catch {
-        /* ignore — browser will fall back if needed */
-      }
-    };
-  }
-  return xrStore;
+/**
+ * Fresh store per overlay mount — no module singleton, so a stale instance
+ * created with old options can never leak into a new AR attempt.
+ * customSessionInit short-circuits the library's buildXRSessionInit entirely
+ * (its default injects requiredFeatures: ['local-floor']).
+ */
+function createAROnlyStore() {
+  const store = createXRStore({
+    // Handheld AR: no controllers / hands / gaze.
+    controller: false,
+    hand: false,
+    gaze: false,
+    // Kill every library default that adds session features.
+    anchors: false,
+    layers: false,
+    meshDetection: false,
+    planeDetection: false,
+    handTracking: false,
+    depthSensing: false,
+    bodyTracking: false,
+    // The emulator injection on localhost can also alter session behavior.
+    emulate: false,
+    // Verbatim override — bypasses buildXRSessionInit defaults completely.
+    customSessionInit: AR_SESSION_INIT,
+  });
+
+  // @pmndrs/xr hardcodes referenceSpaceType 'local-floor' on the three.js
+  // WebXRManager; without the local-floor feature the session would then fail
+  // at requestReferenceSpace. Force plain 'local' (always granted in AR).
+  const originalSetManager = store.setWebXRManager.bind(store);
+  store.setWebXRManager = (manager: THREE.WebXRManager) => {
+    originalSetManager(manager);
+    try {
+      manager.setReferenceSpaceType('local');
+      console.log('[AROverlay] three.js referenceSpaceType forced to "local"');
+    } catch (e) {
+      console.warn('[AROverlay] could not set referenceSpaceType:', e);
+    }
+  };
+  return store;
 }
 
 const EARTH_METERS_PER_DEG_LAT = 111_320;
@@ -280,7 +291,8 @@ const GLASS_PANEL =
   'backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl';
 
 export default function AROverlay({ onClose }: { onClose: () => void }) {
-  const store = getXRStore();
+  // Fresh store per mount — never reuses a singleton with stale session config.
+  const store = useMemo(() => createAROnlyStore(), []);
   const [missions, setMissions] = useState<ARMission[]>([]);
   const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -349,20 +361,68 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
     return unsub;
   }, [store, onClose]);
 
-  // 5) Cleanup: always end the XR session on unmount
+  // 5) Cleanup: end the XR session and destroy this mount's store on unmount
   useEffect(() => {
     return () => {
       const session = store.getState().session;
       if (session) session.end().catch(() => {});
+      store.destroy();
     };
   }, [store]);
 
-  const handleEnterAR = useCallback(() => {
+  const handleEnterAR = useCallback(async () => {
+    const xr = (navigator as any).xr as XRSystem | undefined;
+
+    // ---- Diagnostics: log exactly what will be sent to requestSession ----
+    console.log('[AROverlay] Enter AR clicked');
+    console.log('[AROverlay] XRSessionInit →', JSON.stringify(AR_SESSION_INIT, null, 2));
+    console.log('[AROverlay] navigator.xr present:', !!xr);
+    try {
+      const arOk = await xr?.isSessionSupported('immersive-ar');
+      console.log('[AROverlay] isSessionSupported(immersive-ar):', arOk);
+    } catch (e) {
+      console.warn('[AROverlay] isSessionSupported(immersive-ar) threw:', e);
+    }
+
     closedRef.current = true; // once a session ends after this, close the overlay
-    store.enterAR().catch((e: unknown) => {
-      setError(e instanceof Error ? e.message : 'Failed to start AR session.');
+    try {
+      // store.enterAR() passes customSessionInit (= AR_SESSION_INIT) verbatim.
+      const session = await store.enterAR();
+      console.log('[AROverlay] immersive-ar session started:', {
+        environmentBlendMode: (session as XRSession | undefined)?.environmentBlendMode,
+        visibilityState: (session as XRSession | undefined)?.visibilityState,
+      });
+    } catch (e: unknown) {
       closedRef.current = false;
-    });
+      const err = e as { name?: string; message?: string };
+      console.error('[AROverlay] immersive-ar failed:', err?.name, err?.message, e);
+      setError(
+        `AR failed (${err?.name ?? 'Error'}): ${err?.message ?? 'unknown'}. Trying inline diagnostic…`
+      );
+
+      // ---- Fallback diagnostic: does ANY XR session initialize? ----
+      if (!xr) {
+        setError('WebXR is not available in this browser (navigator.xr missing).');
+        return;
+      }
+      try {
+        const inlineOk = await xr.isSessionSupported('inline');
+        console.log('[AROverlay] isSessionSupported(inline):', inlineOk);
+        const inlineSession = await xr.requestSession('inline');
+        console.log('[AROverlay] inline session STARTED — XR stack works. ' +
+          'immersive-ar rejection is feature/device specific.', inlineSession);
+        setError(
+          `immersive-ar rejected (${err?.name ?? 'Error'}: ${err?.message ?? '?'}), ` +
+            'but an inline XR session works — check console for the exact XRSessionInit sent.'
+        );
+        await inlineSession.end().catch(() => {});
+      } catch (inlineErr) {
+        console.error('[AROverlay] inline session ALSO failed:', inlineErr);
+        setError(
+          'Both immersive-ar and inline sessions failed — WebXR appears unusable in this browser. See console.'
+        );
+      }
+    }
   }, [store]);
 
   const handleExit = useCallback(() => {
