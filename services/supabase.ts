@@ -1,3 +1,7 @@
+/**
+ * [[Architecture_Overview.md]]
+ * Canonical Supabase browser client (`createClient` lives here only).
+ */
 import { createClient } from '@supabase/supabase-js';
 
 // Эти ключи должны быть в твоем файле .env или возьми их из дашборда Supabase

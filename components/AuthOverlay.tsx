@@ -1,3 +1,7 @@
+/**
+ * [[Architecture_Overview.md]]
+ * Auth modal overlay (sign-in / sign-up) above the map shell.
+ */
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { useTelegram } from '../src/hooks/useTelegram';

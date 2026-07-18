@@ -1,3 +1,7 @@
+/**
+ * [[Architecture_Overview.md]]
+ * Primary Mapbox UI — mission pins, create flow, bids, crowdfunding.
+ */
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import MapGL, { NavigationControl, GeolocateControl, MapRef, Source, Layer, Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';

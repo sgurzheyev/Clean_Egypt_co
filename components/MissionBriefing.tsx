@@ -1,3 +1,7 @@
+/**
+ * [[Architecture_Overview.md]]
+ * Mission detail panel — bids, crowdfunding progress + Stripe contribute.
+ */
 import React from 'react';
 import { MapPin, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';

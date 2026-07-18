@@ -1,3 +1,7 @@
+/**
+ * [[Architecture_Overview.md]]
+ * Admin moderation dashboard — content review, delete mission, finance view.
+ */
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import Map, { Marker } from 'react-map-gl';

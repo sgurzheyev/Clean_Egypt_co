@@ -1,6 +1,13 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * [[Architecture_Overview.md]]
+ * App shell: Mapbox map layer, Profile/Auth overlays, lazy AR toggle.
+ */
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useLocation, Routes, Route } from 'react-router-dom';
 import MapPicker from './components/MapPicker';
+
+// Lazy: keeps three.js/WebXR out of the initial bundle until AR is opened.
+const AROverlay = lazy(() => import('./src/components/AROverlay'));
 import Profile from './components/Profile';
 import AuthOverlay from './components/AuthOverlay';
 import VerificationPage from './components/VerificationPage';
@@ -19,6 +26,7 @@ const App: React.FC = () => {
   const [flyToTarget, setFlyToTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [showAuthOverlay, setShowAuthOverlay] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showAROverlay, setShowAROverlay] = useState(false);
   const [paymentSuccessType, setPaymentSuccessType] = useState<'pin' | 'tokens' | 'subscription'>('pin');
 
   useEffect(() => {
@@ -92,6 +100,22 @@ const App: React.FC = () => {
           onFlyToComplete={() => setFlyToTarget(null)}
         />
       </div>
+
+      {/* Toggle AR — overlay state only, no route change, map stays mounted */}
+      <button
+        type="button"
+        onClick={() => setShowAROverlay(true)}
+        className="fixed bottom-24 right-4 z-[140] rounded-full border border-cyan-400/50 bg-cyan-500/10 backdrop-blur-md px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.25)] transition-all hover:bg-cyan-500/20 active:scale-95"
+      >
+        AR View
+      </button>
+
+      {/* AR overlay — sibling of the map, unmount fully ends the XR session */}
+      {showAROverlay && (
+        <Suspense fallback={null}>
+          <AROverlay onClose={() => setShowAROverlay(false)} />
+        </Suspense>
+      )}
 
       {/* Profile as sliding overlay */}
       <Profile

@@ -1,3 +1,7 @@
+/**
+ * [[Architecture_Overview.md]]
+ * Live market feed of active missions (USD work budgets).
+ */
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';

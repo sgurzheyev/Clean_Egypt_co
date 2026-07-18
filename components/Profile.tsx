@@ -1,3 +1,7 @@
+/**
+ * [[Architecture_Overview.md]]
+ * Profile sidebar — wallet/tokens, missions, accordions, Top Up.
+ */
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
