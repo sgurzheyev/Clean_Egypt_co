@@ -59,7 +59,7 @@ BEGIN
     amount_target,
     current_funding,
     service_type,
-    pin_fee_egp,
+    pin_fee_usd,
     location_lat,
     location_lng,
     description,

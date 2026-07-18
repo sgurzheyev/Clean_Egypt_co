@@ -2,35 +2,32 @@
 
 You are an expert Senior Full-Stack Engineer and UI/UX Designer specializing in Cyberpunk/Cyber-neon aesthetics, React, Supabase, and Mapbox.
 
-## 1. Core Business Model (Strict Strategy)
+## 1. Core Business Model & Crowdfunding
 - CleanEgypt.co is a marketplace/SaaS terminal for garbage cleaning and municipal tasks.
-- NO INTERNAL FIAT ESCROW PAYMENTS: The platform does not hold, split (no 90% fee splits), or release customer money.
-- DIRECT P2P PAYMENTS: Customers and workers pay each other directly (Cash, Vodafone Cash, InstaPay, etc.).
-- TOKENS MODEL: App operates on a token system for posting, boosting, and top-ups.
+- NO INTERNAL FIAT ESCROW PAYMENTS: Direct P2P for standard services.
+- CROWDFUNDING FOR GARBAGE: For "Garbage Removal" tasks, users can contribute partial amounts via Stripe. These funds are held by the platform until the target is met.
+- TOKENS MODEL: Tokens are used for posting, boosting, and platform interactions.
+- CITY NOTIFICATION FALLBACK: If a crowdfunding task expires, funds are NOT refunded to cards. The system generates a PDF report and notifies local municipal authorities; funds are retained as a processing fee.
 
 ## 2. Critical UI/UX Rules (Cyberpunk / Neon Minimalism)
-- PROFILE SIDEBAR: Keep it compact and dense to prevent vertical scrolling.
-  - Top Section (INFO Card): Must combine all stats inline with neon badges (e.g., "128 Tokens", "Subscription: Active", "Leads", "Online").
-  - "Top Up / Пополнить" button must live in the INFO card header.
-  - Forms ("КОНТАКТНАЯ ИНФОРМАЦИЯ", "ИЗМЕНИТЬ ПАРОЛЬ") MUST be hidden inside accordions (`ProfileAccordion`) by default.
+- PROFILE SIDEBAR: Keep it compact and dense.
+  - Top Header: "Top Up" button must live next to the Language switcher.
+  - Collapsable UI: All sections (INFO, ORDERS, CITY, HISTORY) MUST be inside accordions, closed by default.
 - MAP INTERFACE:
-  - Task pins are minimalist "broom" (home tasks) and "bubble" (city tasks) icons. Do NOT use 3D pyramids.
-  - Profiles and navigation elements must strictly NOT overlap with other control buttons on mobile viewports.
+  - Task pins: Minimalist "broom" (standard) and "target" (crowdfunding) icons.
+  - Crowdfunding UI: If `crowdfunding_mode` is true, show progress bar and "Contribute" button instead of bid.
 
-## 3. Mission Status Flow (P2P State Machine)
-- Active statuses: `active` -> `pending` -> `review` (when worker uploads proof of work).
-- Closing a mission: When the owner confirms the job is done, call the `confirm_mission_work_done` RPC. This instantly moves status to `completed`, removes the pin from the active map feed, and moves the order card to the "ИСТОРИЯ" (History) section.
-- NO ADMIN APPROVAL FOR PAYMENTS: The owner clears the worker instantly. Admin verification steps at execution are forbidden.
+## 3. Mission Status Flow (State Machine)
+- STANDARD FLOW: `active` -> `pending` -> `review` -> `completed` (P2P verified).
+- CROWDFUNDING FLOW: `crowdfunding` (collecting funds) -> `funded` (target met) -> `active` (available for worker) -> `completed`.
+- CITY NOTIFICATION FLOW: If `crowdfunding` task expires -> `city_notified` (Archived with PDF report).
 
 ## 4. Admin Powers & Moderation
-- Admins do NOT verify regular payouts.
-- Admins exist strictly for CONTENT MODERATION (anti-spam / anti-scam protection).
-- Admins have a global override button to call `admin_delete_mission` RPC, which instantly terminates and archives any illegal or broken task directly from the briefing layout, active lists, or map layer.
-- **PROFILE SIDEBAR:** Keep it exceptionally dense and unified.
-    - Top Header: The "Top Up / Пополнить / Add Money" button must live in the top header, positioned statically right next to the "Language" (`RU`/`EN`) switcher button for instant checkout access.
-    - Collapsable UI Layout: EVERY major section—including the "INFO" dashboard overview, "МОИ ЗАКАЗЫ", "ГОРОД", and "ИСТОРИЯ"—MUST be closed/collapsable by default inside an accordion layer to ensure zero unnecessary vertical scrolling.
+- Admins exist strictly for CONTENT MODERATION and manual `admin_delete_mission` RPC triggers.
+- NO manual payout verification.
+
 ## 5. Technology Stack & Fallbacks
-- Frontend: React with Tailwind CSS (Neon green, glassmorphism card designs).
-- Backend: Supabase (PostgreSQL with RLS policies, custom RPC functions).
-- Language: Strictly provide and handle copy in Russian (RU) and English (EN) with explicit i18n support.
-- Safety Fallback: In currency formatting, fallback to token count rendering only applies if the value is >= 100 to safeguard against misrepresenting low token boosts as fiat amounts.
+- Frontend: React + Tailwind CSS (Neon green, glassmorphism).
+- Backend: Supabase (PostgreSQL with RLS, custom RPCs).
+- Language: Strictly RU and EN.
+- Safety Fallback: Use token rendering for values < 100 to avoid fiat confusion.

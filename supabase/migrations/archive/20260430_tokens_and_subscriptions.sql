@@ -12,7 +12,7 @@ ALTER TABLE public.missions
 ADD COLUMN IF NOT EXISTS service_type text NULL;
 
 ALTER TABLE public.missions
-ADD COLUMN IF NOT EXISTS pin_fee_egp integer NULL;
+ADD COLUMN IF NOT EXISTS pin_fee_usd integer NULL;
 
 ALTER TABLE public.missions
 ADD COLUMN IF NOT EXISTS building_id text NULL;
@@ -112,7 +112,7 @@ BEGIN
     creator_id,
     status,
     service_type,
-    pin_fee_egp,
+    pin_fee_usd,
     location_lat,
     location_lng,
     description,

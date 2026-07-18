@@ -10,9 +10,10 @@ import {
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
-import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
-import { missionTokenBid, missionWorkBudgetEgp } from '../src/lib/missionBudget';
+import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
+import { missionTokenBid, missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
+import { isCrowdfundingOpen } from '../src/lib/crowdfunding';
 import { formatUsdPrice, YEARLY_SUBSCRIPTION } from '../src/lib/tokenPricing';
 import { type MissionBidRow, bidWorkerDisplayName } from '../src/lib/missionBids';
 
@@ -22,7 +23,7 @@ export type AssignedWorkerProfile = {
   rating?: number | null;
   telegram_username?: string | null;
 };
-import { sanitizeIntegerEgpDigits, parseIntegerEgpFromInput } from '../src/lib/integerEgpInput';
+import { sanitizeIntegerUsdDigits, parseIntegerUsdFromInput } from '../src/lib/integerUsdInput';
 
 export type MissionBriefingMission = {
   id: string;
@@ -31,6 +32,7 @@ export type MissionBriefingMission = {
   amount_target: number;
   expected_price?: number | null;
   current_funding?: number | null;
+  crowdfunding_mode?: boolean | null;
   location_lat: number;
   location_lng: number;
   status: string;
@@ -56,7 +58,11 @@ export type MissionBriefingProps = {
   bidSubmitting: boolean;
   onAcceptBid: (bid: MissionBidRow) => void;
   onDeclineBid: (bidId: string) => void;
-  onPlaceBid: (amountEgp: number) => void;
+  onPlaceBid: (amountUsd: number) => void;
+  /** Crowdfunding contribution (Garbage Removal only). */
+  canContribute?: boolean;
+  contributeSubmitting?: boolean;
+  onContribute?: (amountUsd: number) => void;
   assignedWorker?: AssignedWorkerProfile | null;
   gpsDistanceMeters: number | null;
   gpsDistanceError: string | null;
@@ -130,6 +136,9 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   onAcceptBid,
   onDeclineBid,
   onPlaceBid,
+  canContribute = false,
+  contributeSubmitting = false,
+  onContribute,
   assignedWorker,
   gpsDistanceMeters,
   gpsDistanceError,
@@ -163,11 +172,17 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const feedDescription = extractMissionFeedDescription(mission.description);
   const locationSource = missionLocationLine(mission, t);
   const locationTranslation = useMissionTextTranslation(locationSource);
-  const budgetValue = formatWorkBudgetEgp(missionWorkBudgetEgp(mission));
+  const budgetValue = formatWorkBudgetUsd(missionWorkBudgetUsd(mission));
   const isInProgress = mission.status === 'in_progress';
   const showBidsSection =
     !isInProgress &&
+    !isCrowdfundingOpen(mission) &&
     (isMissionCreator || canPlaceBid || missionBids.length > 0 || bidsLoading);
+  const crowdfundingOpen = isCrowdfundingOpen(mission);
+  const fundedUsd = Math.max(0, Math.floor(Number(mission.current_funding ?? 0)));
+  const targetUsd = Math.max(0, Math.floor(Number(mission.expected_price ?? 0)));
+  const fundingPct =
+    targetUsd > 0 ? Math.min(100, Math.round((fundedUsd / targetUsd) * 100)) : 0;
   const assignedWorkerName = assignedWorker
     ? assignedWorker.full_name?.trim() ||
       (assignedWorker.telegram_username?.trim()
@@ -307,7 +322,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                   {t('status')}: {statusLabel}
                 </span>
                 <span className="text-[10px] font-medium text-slate-400">
-                  {t('missionTokenBidLabel')}: {formatEgp(missionTokenBid(mission))}
+                  {t('missionTokenBidLabel')}: {formatTokens(missionTokenBid(mission))}
                 </span>
                 {activeBidCount > 0 && (
                   <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-400">
@@ -325,6 +340,65 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     clampClassName=""
                     className="text-sm font-medium leading-relaxed text-slate-200"
                   />
+                </section>
+              )}
+
+              {crowdfundingOpen && (
+                <section className="border-t border-white/5 pt-4">
+                  <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400/90">
+                    {t('crowdfundingCampaign')}
+                  </h3>
+                  <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+                    {t('crowdfundingProgressHint', {
+                      raised: formatWorkBudgetUsd(fundedUsd),
+                      target: formatWorkBudgetUsd(targetUsd),
+                    })}
+                  </p>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-amber-400/80 transition-all"
+                      style={{ width: `${fundingPct}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-[10px] font-bold tabular-nums text-amber-200/90">
+                    {fundingPct}%
+                  </p>
+                  {canContribute && onContribute && (
+                    <form
+                      className="mt-4 flex gap-2"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const amount = parseIntegerUsdFromInput(bidInput);
+                        if (amount <= 0) return;
+                        onContribute(amount);
+                        setBidInput('');
+                      }}
+                    >
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        pattern="\d*"
+                        value={bidInput}
+                        onChange={(e) => setBidInput(sanitizeIntegerUsdDigits(e.target.value))}
+                        placeholder={t('contributionAmountLabel')}
+                        className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-amber-400/40 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
+                      />
+                      <button
+                        type="submit"
+                        disabled={contributeSubmitting || parseIntegerUsdFromInput(bidInput) <= 0}
+                        className="shrink-0 rounded-xl border border-amber-400/40 bg-amber-500/90 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-black transition-all hover:bg-amber-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {contributeSubmitting ? t('processing') : t('contributeWithStripe')}
+                      </button>
+                    </form>
+                  )}
+                  {!canContribute && !isMissionCreator && (
+                    <p className="mt-3 text-xs italic text-slate-500">{t('signInToContribute')}</p>
+                  )}
+                  {isMissionCreator && (
+                    <p className="mt-3 text-xs text-slate-500">{t('crowdfundingOwnerWait')}</p>
+                  )}
                 </section>
               )}
 
@@ -372,7 +446,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                           )}
                         </div>
                         <p className="shrink-0 text-sm font-black tabular-nums text-orange-300">
-                          {formatWorkBudgetEgp(Number(bid.bid_amount))}
+                          {formatWorkBudgetUsd(Number(bid.bid_amount))}
                         </p>
                         {isMissionCreator && bid.status === 'pending' && (
                           <div className="flex shrink-0 items-center gap-1.5">
@@ -409,7 +483,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     className="mt-4 flex gap-2"
                     onSubmit={(e) => {
                       e.preventDefault();
-                      const amount = parseIntegerEgpFromInput(bidInput);
+                      const amount = parseIntegerUsdFromInput(bidInput);
                       if (amount <= 0) return;
                       onPlaceBid(amount);
                       setBidInput('');
@@ -421,13 +495,13 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       autoComplete="off"
                       pattern="\d*"
                       value={bidInput}
-                      onChange={(e) => setBidInput(sanitizeIntegerEgpDigits(e.target.value))}
-                      placeholder={t('bidAmountLabelEgp')}
+                      onChange={(e) => setBidInput(sanitizeIntegerUsdDigits(e.target.value))}
+                      placeholder={t('bidAmountLabelUsd')}
                       className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400/40 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
                     />
                     <button
                       type="submit"
-                      disabled={bidSubmitting || parseIntegerEgpFromInput(bidInput) <= 0}
+                      disabled={bidSubmitting || parseIntegerUsdFromInput(bidInput) <= 0}
                       className="shrink-0 rounded-xl border border-cyan-400/35 bg-cyan-600/90 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-all hover:bg-cyan-500/95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {bidSubmitting ? t('processing') : t('placeBid')}

@@ -7,9 +7,8 @@ const corsHeaders = {
 };
 
 /**
- * After client-side Stripe confirmation, credits EGP using:
- * floor(verified_usd_charged * get_usd_to_egp_rate() * 0.97) via RPC (service_role).
- * Never trusts client-supplied EGP amounts.
+ * After Stripe confirmation, credits wallet in USD via:
+ * floor(verified_usd_charged * 0.97) — no FX rate.
  */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -96,7 +95,7 @@ Deno.serve(async (req) => {
     }
 
     const supabaseService = createClient(supabaseUrl, serviceKey);
-    const { data: egpCredited, error: rpcErr } = await supabaseService.rpc('credit_wallet_topup_stripe', {
+    const { data: usdCredited, error: rpcErr } = await supabaseService.rpc('credit_wallet_topup_stripe', {
       p_user_id: user.id,
       p_usd_charged: amountUsd,
       p_payment_intent_id: paymentIntentId,
@@ -110,7 +109,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ egp_credited: egpCredited }), {
+    return new Response(JSON.stringify({ usd_credited: usdCredited }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

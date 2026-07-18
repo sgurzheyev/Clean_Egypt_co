@@ -1,4 +1,4 @@
-/** Token amounts only — whole integers in UI. */
+/** Whole-integer amounts in UI. */
 function roundWhole(amount: number): number {
   const n = Number(amount);
   if (!Number.isFinite(n)) return 0;
@@ -13,27 +13,29 @@ function formatNumber(amount: number): string {
   }).format(n);
 }
 
-/** Numeric part only (no “Tokens”). */
-export function formatEgpDigits(amount: number): string {
+/** Numeric part only (no currency suffix). */
+export function formatUsdDigits(amount: number): string {
   return formatNumber(amount);
 }
 
-/**
- * Token-only UI: the app displays all internal balances as tokens.
- * We keep the legacy function names to avoid a huge refactor.
- */
-export function formatEgp(amount: number): string {
+/** Platform token balances / token bids (amount_target). */
+export function formatTokens(amount: number): string {
   return `${formatNumber(amount)} Tokens`;
 }
 
-/** Client-offered work budget for workers (EGP, not platform tokens). */
-export function formatWorkBudgetEgp(amount: number): string {
+/** Client-offered work budget / bids / crowdfunding (USD). */
+export function formatWorkBudgetUsd(amount: number): string {
   const n = roundWhole(amount);
   if (n <= 0) return '—';
-  return `${formatNumber(n)} EGP`;
+  return `$${formatNumber(n)}`;
 }
 
-/** Same as formatEgp (legacy alias). */
+/** Alias for USD work budgets. */
+export function formatUsd(amount: number): string {
+  return formatWorkBudgetUsd(amount);
+}
+
+/** Legacy alias for formatTokens. */
 export function formatLe(amount: number): string {
-  return `${formatNumber(amount)} Tokens`;
+  return formatTokens(amount);
 }

@@ -1,4 +1,5 @@
--- Pay for a mission from creator wallet (Phantom Pin / deferred Paymob checkout). Sets mission to 'available'. No Paymob.
+-- Pay for a mission from creator wallet (Phantom Pin / deferred checkout). Sets mission to 'available'.
+-- Legacy Paymob checkout removed — platform payments are Stripe-only.
 
 create or replace function public.pay_mission_from_wallet(p_mission_id uuid)
 returns void

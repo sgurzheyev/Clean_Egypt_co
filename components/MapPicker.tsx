@@ -28,13 +28,13 @@ import {
   HOME_MAX_PRICE,
   CITY_MIN_PRICE,
   CITY_MAX_PRICE,
-  SCOUT_STAKE_FEE_EGP,
+  SCOUT_STAKE_FEE_USD,
 } from '../constants';
-import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
-import { missionTokenBid, missionWorkBudgetEgp } from '../src/lib/missionBudget';
+import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
+import { missionTokenBid, missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { isPlatformAdmin } from '../src/lib/platformAdmin';
 import { adminDeleteMission } from '../src/lib/adminMission';
-import { floorEgp, parseIntegerEgpFromInput, sanitizeIntegerEgpDigits } from '../src/lib/integerEgpInput';
+import { floorUsd, parseIntegerUsdFromInput, sanitizeIntegerUsdDigits } from '../src/lib/integerUsdInput';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import TokenPackModal from '../src/components/TokenPackModal';
 import SubscriptionModal from '../src/components/SubscriptionModal';
@@ -52,6 +52,8 @@ import {
   PIN_ICON_IMAGE_SPONGE,
   PIN_ICON_IMAGE_MOP,
 } from '../src/lib/serviceSectors';
+import { isCrowdfundingOpen, isGarbageRemovalService } from '../src/lib/crowdfunding';
+import { confirmContributionCheckout, startContributionCheckout } from '../src/lib/contributions';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import {
   type PinLocationContext,
@@ -234,6 +236,7 @@ interface JobOnMap {
   amount_target: number;
   expected_price?: number | null;
   current_funding?: number | null;
+  crowdfunding_mode?: boolean | null;
   location_lat: number;
   location_lng: number;
   status: string;
@@ -297,8 +300,11 @@ function buildOptimisticLeadMission(
   creatorPhotoUrls: string[] | undefined,
   viewerProfile: any,
   tokenBid: number,
-  expectedPrice: number
+  expectedPrice: number,
+  crowdfundingMode = false
 ): JobOnMap {
+  const isCrowdfund =
+    crowdfundingMode && isGarbageRemovalService(serviceType);
   return {
     id: String(missionId),
     category: missionSector(serviceType, null) === 'home' ? 'home' : 'public',
@@ -306,9 +312,10 @@ function buildOptimisticLeadMission(
     amount_target: Math.max(1, tokenBid),
     expected_price: Math.max(1, expectedPrice),
     current_funding: 0,
+    crowdfunding_mode: isCrowdfund,
     location_lat: Number(location.lat),
     location_lng: Number(location.lng),
-    status: 'available',
+    status: isCrowdfund ? 'funding' : 'available',
     building_id: null,
     cleaner_id: null,
     creator_id: sessionUserId,
@@ -330,7 +337,8 @@ function buildOptimisticLeadMission(
   };
 }
 
-const OPEN_BID_MISSION_STATUSES = new Set(['pending', 'funding', 'available']);
+const OPEN_BID_MISSION_STATUSES = new Set(['pending', 'available']);
+/** Legacy public funding pins may still use status=funding without crowdfunding_mode. */
 
 function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const R = 6371000;
@@ -442,7 +450,7 @@ function ActiveMissionWidget({
     >
       <div className="flex items-center justify-between gap-3">
         <p className="text-lg font-black text-orange-300 tabular-nums">
-          {formatWorkBudgetEgp(missionWorkBudgetEgp(mission))}
+          {formatWorkBudgetUsd(missionWorkBudgetUsd(mission))}
         </p>
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-300 tabular-nums">
           {`${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`}
@@ -669,7 +677,7 @@ function MyOrdersPanel({
                       photoUrl={mission.photo_urls?.[0] ?? null}
                       placeholderVariant={isHome ? 'home' : 'city'}
                       placeholderIcon={missionPinIcon(mission.service_type, mission.category)}
-                      budgetValue={formatWorkBudgetEgp(missionWorkBudgetEgp(mission))}
+                      budgetValue={formatWorkBudgetUsd(missionWorkBudgetUsd(mission))}
                       metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
                       locationLine={mission.description?.split('\n')[0]?.trim() || undefined}
                       description={extractMissionFeedDescription(mission.description)}
@@ -1528,6 +1536,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [proofUploadMission, setProofUploadMission] = useState<JobOnMap | null>(null);
   const [taskType, setTaskType] = useState<TaskType>('city');
   const [serviceType, setServiceType] = useState<ServiceType>('home_office');
+  const [crowdfundingMode, setCrowdfundingMode] = useState(false);
   const [tokenBid, setTokenBid] = useState(1);
   const [workBudget, setWorkBudget] = useState<number | ''>('');
   const [orderDescription, setOrderDescription] = useState('');
@@ -1567,6 +1576,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setTokenBid(1);
     setWorkBudget('');
     setActiveFormTrigger(null);
+    setCrowdfundingMode(false);
     setPinLocationContext(null);
     setPinLocationLoading(false);
     setOrderDescription('');
@@ -1808,6 +1818,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         amount_target,
         expected_price,
         current_funding,
+        crowdfunding_mode,
         location_lat,
         location_lng,
         status,
@@ -2220,7 +2231,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         lng: job.location_lng,
         title: missionHoverTitle(job),
         status: job.status,
-        priceLabel: formatWorkBudgetEgp(missionWorkBudgetEgp(job)),
+        priceLabel: formatWorkBudgetUsd(missionWorkBudgetUsd(job)),
       });
     },
     [missionHoverTitle]
@@ -2480,7 +2491,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     async (missionId: string, bidAmount: number) => {
       const { error } = await supabase.rpc('co_fund_and_accept_mission', {
         p_mission_id: missionId,
-        p_bid_amount: floorEgp(bidAmount),
+        p_bid_amount: floorUsd(bidAmount),
       });
       if (error) throw error;
     },
@@ -2492,7 +2503,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       if (!selectedMission) return;
       const value = Math.floor(Number(amount));
       if (!Number.isFinite(value) || value <= 0) {
-        toast.error(t('enterPositiveEgpAmount'));
+        toast.error(t('enterPositiveUsdAmount'));
         return;
       }
       try {
@@ -2589,7 +2600,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const { error } = await supabase.from('mission_bids').insert({
         mission_id: missionId,
         cleaner_id: user.id,
-        bid_amount: floorEgp(bidAmount),
+        bid_amount: floorUsd(bidAmount),
         status: 'pending',
       });
       if (error) {
@@ -2641,14 +2652,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
         });
         if (rpcErr) throw rpcErr;
 
-        const budgetEgp = Math.max(1, Math.floor(missionValue));
+        const budgetUsd = Math.max(1, Math.floor(missionValue));
         setSelectedMission((prev) =>
           prev
             ? {
                 ...prev,
                 status: 'in_progress',
                 cleaner_id: bid.cleaner_id,
-                expected_price: budgetEgp,
+                expected_price: budgetUsd,
               }
             : prev
         );
@@ -2680,8 +2691,104 @@ const MapPicker: React.FC<MapPickerProps> = ({
     [fetchMissions, refreshMissionBids, t, toast]
   );
 
+  const handleBriefingContribute = useCallback(
+    async (amountUsd: number) => {
+      if (!selectedMission) return;
+      setBriefingBidSubmitting(true);
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session?.user?.id) {
+          onRequestAuth?.();
+          return;
+        }
+        const returnUrl = `${window.location.origin}${window.location.pathname}`;
+        const { url } = await startContributionCheckout({
+          missionId: selectedMission.id,
+          amountUsd,
+          successUrl: returnUrl,
+          cancelUrl: returnUrl,
+        });
+        window.location.assign(url);
+      } catch (e: any) {
+        console.error('handleBriefingContribute', e);
+        toast.error(e?.message || t('stripeTopUpError') || t('unexpectedErrorTryAgain'));
+        setBriefingBidSubmitting(false);
+      }
+    },
+    [onRequestAuth, selectedMission, t, toast]
+  );
+
+  /** After Stripe Checkout redirect: verify payment and apply contribution. */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('cf_contribution') !== '1') return;
+    const sessionId = params.get('session_id');
+    if (!sessionId) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        setBriefingBidSubmitting(true);
+        const result = await confirmContributionCheckout(sessionId);
+        if (cancelled) return;
+
+        // Re-select mission so briefing shows updated funding immediately.
+        const { data: missionRow } = await supabase
+          .from('missions')
+          .select(
+            'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls'
+          )
+          .eq('id', result.mission_id)
+          .maybeSingle();
+
+        if (!cancelled && missionRow) {
+          const updated: JobOnMap = {
+            ...(missionRow as JobOnMap),
+            current_funding: result.current_funding,
+            status: result.opened_for_bidding
+              ? 'available'
+              : String((missionRow as JobOnMap).status || 'funding'),
+          };
+          setSelectedMission(updated);
+          setJobs((prev) => {
+            const next = (prev || []).map((j) =>
+              j.id === updated.id ? { ...j, ...updated } : j
+            );
+            const exists = next.some((j) => j.id === updated.id);
+            const withMission = exists ? next : [updated, ...next];
+            jobsRef.current = withMission;
+            return withMission;
+          });
+        }
+
+        toast.success(
+          result.opened_for_bidding
+            ? t('crowdfundingTargetReached')
+            : t('contributionThanks')
+        );
+        await fetchMissions();
+      } catch (e: any) {
+        console.error('confirmContributionCheckout', e);
+        toast.error(e?.message || t('stripeTopUpError') || t('unexpectedErrorTryAgain'));
+      } finally {
+        if (!cancelled) setBriefingBidSubmitting(false);
+        // Clear query params so refresh does not re-trigger.
+        const url = new URL(window.location.href);
+        url.searchParams.delete('cf_contribution');
+        url.searchParams.delete('session_id');
+        window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchMissions, t, toast]);
+
   const handleBriefingPlaceBid = useCallback(
-    async (amountEgp: number) => {
+    async (amountUsd: number) => {
       if (!selectedMission) return;
       setBriefingBidSubmitting(true);
       try {
@@ -2716,7 +2823,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           }
         }
 
-        await placePendingBid(selectedMission.id, amountEgp);
+        await placePendingBid(selectedMission.id, amountUsd);
         toast.success(t('placeBid'));
         await refreshMissionBids();
         void fetchMissions();
@@ -2739,10 +2846,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
   );
 
   /** Wallet debit + assign cleaner + in_progress when funding reaches goal (RPC). */
-  const completeFundingAndAssign = useCallback(async (missionId: string, bidAmountEgp: number) => {
+  const completeFundingAndAssign = useCallback(async (missionId: string, bidAmountUsd: number) => {
     const { error } = await supabase.rpc('complete_funding_and_assign', {
       p_mission_id: missionId,
-      p_bid_amount: floorEgp(bidAmountEgp),
+      p_bid_amount: floorUsd(bidAmountUsd),
     });
     if (error) throw error;
   }, []);
@@ -2822,9 +2929,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
         toast.error(t('mapToastCannotBidOwnMission'));
         return;
       }
-      const amtEgp = parseIntegerEgpFromInput(String(missionBidAmount || ''));
-      if (amtEgp <= 0) {
-        toast.error(t('enterPositiveEgpAmount'));
+      const amtUsd = parseIntegerUsdFromInput(String(missionBidAmount || ''));
+      if (amtUsd <= 0) {
+        toast.error(t('enterPositiveUsdAmount'));
         return;
       }
 
@@ -2853,13 +2960,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       const funded = Number(selectedMission.current_funding ?? 0);
       const goal = Number(selectedMission.amount_target ?? 0);
-      const totalAfterBid = funded + amtEgp;
+      const totalAfterBid = funded + amtUsd;
       const closesAtGoal = goal > 0 && totalAfterBid + 0.01 >= goal;
 
       if (closesAtGoal) {
-        await completeFundingAndAssign(selectedMission.id, amtEgp);
+        await completeFundingAndAssign(selectedMission.id, amtUsd);
       } else {
-        await placePendingBid(selectedMission.id, amtEgp);
+        await placePendingBid(selectedMission.id, amtUsd);
       }
 
       handleCloseMissionBriefing();
@@ -2897,9 +3004,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setBidError(null);
     setBidSuccess(null);
 
-    const bidEgp = parseIntegerEgpFromInput(bidAmount);
-    if (bidEgp <= 0) {
-      setBidError(t('enterPositiveEgpAmount'));
+    const bidUsd = parseIntegerUsdFromInput(bidAmount);
+    if (bidUsd <= 0) {
+      setBidError(t('enterPositiveUsdAmount'));
       return;
     }
 
@@ -2938,13 +3045,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       const funded = Number(bidJob.current_funding ?? 0);
       const goal = Number(bidJob.amount_target ?? 0);
-      const totalAfterBid = funded + bidEgp;
+      const totalAfterBid = funded + bidUsd;
       const closesAtGoal = goal > 0 && totalAfterBid + 0.01 >= goal;
 
       if (closesAtGoal) {
-        await completeFundingAndAssign(bidJob.id, bidEgp);
+        await completeFundingAndAssign(bidJob.id, bidUsd);
       } else {
-        await placePendingBid(bidJob.id, bidEgp);
+        await placePendingBid(bidJob.id, bidUsd);
       }
 
       setBidAmount('');
@@ -2971,16 +3078,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
     if (!Number.isFinite(budgetRaw) || budgetRaw < minBudget) {
       setOrderError(
         taskType === 'home'
-          ? t('homePriceRangeEgp', { min: minBudget, max: maxBudget })
-          : t('cityPriceRangeEgp', { min: minBudget, max: maxBudget }),
+          ? t('homePriceRangeUsd', { min: minBudget, max: maxBudget })
+          : t('cityPriceRangeUsd', { min: minBudget, max: maxBudget }),
       );
       return;
     }
     if (budgetRaw > maxBudget) {
       setOrderError(
         taskType === 'home'
-          ? t('homePriceRangeEgp', { min: minBudget, max: maxBudget })
-          : t('cityPriceRangeEgp', { min: minBudget, max: maxBudget }),
+          ? t('homePriceRangeUsd', { min: minBudget, max: maxBudget })
+          : t('cityPriceRangeUsd', { min: minBudget, max: maxBudget }),
       );
       return;
     }
@@ -3110,7 +3217,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         creatorPhotoUrls,
         viewerProfile,
         placementTokens,
-        budgetRaw
+        budgetRaw,
+        crowdfundingMode
       );
 
       setJobs((prev) => {
@@ -3129,6 +3237,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         p_building_height_m: null,
         p_token_bid: placementTokens,
         p_expected_price: budgetRaw,
+        p_crowdfunding_mode:
+          crowdfundingMode && isGarbageRemovalService(serviceType),
       });
       if (leadErr) {
         setJobs((prev) => {
@@ -3971,7 +4081,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   </label>
                   <select
                     value={serviceType}
-                    onChange={(e) => setServiceType(e.target.value as ServiceType)}
+                    onChange={(e) => {
+                      const next = e.target.value as ServiceType;
+                      setServiceType(next);
+                      if (!isGarbageRemovalService(next)) setCrowdfundingMode(false);
+                    }}
                     className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-2.5 text-sm text-white bg-black/20 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500`}
                   >
                     {formSectorServices.map((s) => (
@@ -3983,6 +4097,24 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   <p className="mt-2 text-[10px] text-slate-500 leading-relaxed">
                     {t('pinPlacementBaseRule')}
                   </p>
+                  {isGarbageRemovalService(serviceType) && (
+                    <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2.5">
+                      <input
+                        type="checkbox"
+                        checked={crowdfundingMode}
+                        onChange={(e) => setCrowdfundingMode(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-amber-400/50 bg-black/40 text-amber-400 focus:ring-amber-500/40"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-amber-200">
+                          {t('crowdfundingModeLabel')}
+                        </span>
+                        <span className="mt-1 block text-[11px] leading-snug text-slate-400">
+                          {t('crowdfundingModeHint')}
+                        </span>
+                      </span>
+                    </label>
+                  )}
                 </div>
 
                 <div>
@@ -4155,7 +4287,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   Target amount
                 </p>
                 <p className="text-xl font-black text-amber-400">
-                  {formatEgp(Number(bidJob.amount_target))}
+                  {formatTokens(Number(bidJob.amount_target))}
                 </p>
               </div>
               {bidJob.description && (
@@ -4173,7 +4305,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             <form onSubmit={handlePlaceBid} className="space-y-4">
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                  {t('bidAmountLabelEgp')}
+                  {t('bidAmountLabelUsd')}
                 </label>
                 <input
                   type="text"
@@ -4181,13 +4313,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   autoComplete="off"
                   pattern="\d*"
                   value={bidAmount}
-                  onChange={(e) => setBidAmount(sanitizeIntegerEgpDigits(e.target.value))}
+                  onChange={(e) => setBidAmount(sanitizeIntegerUsdDigits(e.target.value))}
                   placeholder="Enter your bid amount"
                   className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 tabular-nums`}
                 />
                 {bidModalFundingGapPreview && (
                   <p className="mt-2 text-[11px] text-cyan-200/95 font-semibold tabular-nums">
-                    {t('goalMinusFundedMinusBid')}: {formatEgp(bidModalFundingGapPreview.remainder)}
+                    {t('goalMinusFundedMinusBid')}: {formatTokens(bidModalFundingGapPreview.remainder)}
                     {bidModalFundingGapPreview.remainder <= 0
                       ? ` — ${t('goalMetOrExceededShort')}`
                       : ''}
@@ -4207,16 +4339,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   type="submit"
                   disabled={
                     bidSubmitting ||
-                    parseIntegerEgpFromInput(bidAmount) <= 0
+                    parseIntegerUsdFromInput(bidAmount) <= 0
                   }
                   className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all disabled:cursor-not-allowed disabled:opacity-60 active:scale-95"
                 >
                   {bidSubmitting
                     ? 'Placing bid...'
                     : (() => {
-                        const tokens = parseIntegerEgpFromInput(bidAmount);
+                        const tokens = parseIntegerUsdFromInput(bidAmount);
                         return tokens > 0
-                          ? `Place bid ${formatEgp(tokens)}`
+                          ? `Place bid ${formatTokens(tokens)}`
                           : 'Place bid';
                       })()}
                 </button>
@@ -4244,12 +4376,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
           canPlaceBid={
             !!currentUserId &&
             currentUserId !== selectedMission.creator_id &&
+            !isCrowdfundingOpen(selectedMission) &&
             OPEN_BID_MISSION_STATUSES.has(String(selectedMission.status || ''))
           }
           bidSubmitting={briefingBidSubmitting}
           onAcceptBid={handleBriefingAcceptBid}
           onDeclineBid={handleBriefingDeclineBid}
           onPlaceBid={handleBriefingPlaceBid}
+          canContribute={
+            !!currentUserId &&
+            currentUserId !== selectedMission.creator_id &&
+            isCrowdfundingOpen(selectedMission)
+          }
+          contributeSubmitting={briefingBidSubmitting}
+          onContribute={handleBriefingContribute}
           assignedWorker={assignedWorker}
           gpsDistanceMeters={gpsDistanceMeters}
           gpsDistanceError={gpsDistanceError}
@@ -4335,19 +4475,22 @@ const MapPicker: React.FC<MapPickerProps> = ({
             {(() => {
               const bid = Number(crowdfundBidAmount ?? 0);
               const funded = Math.max(0, Number(selectedMission.current_funding ?? 0));
-              const targetEgp = Math.max(0, Number(selectedMission.amount_target ?? 0));
-              const gapToCloseEgp = Math.max(0, Math.floor(targetEgp - funded));
+              const targetUsd = Math.max(
+                0,
+                Number(selectedMission.expected_price ?? selectedMission.amount_target ?? 0)
+              );
+              const gapToCloseUsd = Math.max(0, Math.floor(targetUsd - funded));
               return (
                 <>
                   <p className="text-sm text-slate-300">
                     {t('yourBidIs')}{' '}
-                    <span className="font-black text-amber-300">{formatEgp(bid)}</span>. {t('currentFundingIs')}{' '}
-                    <span className="font-black text-emerald-300">{formatEgp(funded)}</span>.
+                    <span className="font-black text-amber-300">{formatTokens(bid)}</span>. {t('currentFundingIs')}{' '}
+                    <span className="font-black text-emerald-300">{formatWorkBudgetUsd(funded)}</span>.
                   </p>
                   <p className="mt-1 text-xs text-slate-400">
                     {t('gapToGoalHint', {
-                      goal: formatEgp(targetEgp),
-                      gap: formatEgp(gapToCloseEgp),
+                      goal: formatWorkBudgetUsd(targetUsd),
+                      gap: formatWorkBudgetUsd(gapToCloseUsd),
                     })}
                   </p>
                   <p className="mt-2 text-[11px] text-slate-500">
@@ -4357,7 +4500,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   <div className="mt-5 grid grid-cols-1 gap-3">
                     <div className={`space-y-2 border border-amber-500/20 rounded-xl px-3 py-3 ${PROFILE_GLASS_PANEL}`}>
                       <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                        {t('bidAmountLabelEgp')} ({t('coFundCustomHint') || 'any amount'})
+                        {t('bidAmountLabelUsd')} ({t('coFundCustomHint') || 'any amount'})
                       </label>
                       <input
                         type="text"
@@ -4365,19 +4508,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
                         autoComplete="off"
                         pattern="\d*"
                         value={crowdfundCoFundInput}
-                        onChange={(e) => setCrowdfundCoFundInput(sanitizeIntegerEgpDigits(e.target.value))}
-                        placeholder={gapToCloseEgp > 0 ? String(gapToCloseEgp) : '10'}
+                        onChange={(e) => setCrowdfundCoFundInput(sanitizeIntegerUsdDigits(e.target.value))}
+                        placeholder={gapToCloseUsd > 0 ? String(gapToCloseUsd) : '10'}
                         className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white tabular-nums`}
                       />
                     </div>
                     <button
                       type="button"
-                      disabled={isAccepting || parseIntegerEgpFromInput(crowdfundCoFundInput) <= 0}
+                      disabled={isAccepting || parseIntegerUsdFromInput(crowdfundCoFundInput) <= 0}
                       onClick={async () => {
                         if (!selectedMission) return;
-                        const coFundEgp = parseIntegerEgpFromInput(crowdfundCoFundInput);
-                        if (coFundEgp <= 0) {
-                          toast.error(t('enterPositiveEgpAmount'));
+                        const coFundUsd = parseIntegerUsdFromInput(crowdfundCoFundInput);
+                        if (coFundUsd <= 0) {
+                          toast.error(t('enterPositiveUsdAmount'));
                           return;
                         }
                         try {
@@ -4389,7 +4532,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                             return;
                           }
                           setIsAccepting(true);
-                          await handleCoFundMission(selectedMission.id, floorEgp(coFundEgp));
+                          await handleCoFundMission(selectedMission.id, floorUsd(coFundUsd));
                           toast.success(t('mapToastCoFundSuccess'));
                           await fetchMissions();
                           closeCrowdfundConfirm();
@@ -4415,7 +4558,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       disabled={isAccepting || !(Number(crowdfundBidAmount ?? 0) > 0)}
                       onClick={async () => {
                         if (!selectedMission) return;
-                        const amt = floorEgp(crowdfundBidAmount ?? 0);
+                        const amt = floorUsd(crowdfundBidAmount ?? 0);
                         if (!(amt > 0)) return;
                         try {
                           const {

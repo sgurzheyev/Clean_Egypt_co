@@ -1,4 +1,5 @@
--- Creator-only: delete unpaid Paymob draft missions (Phantom Pins).
+-- Creator-only: delete unpaid draft missions (Phantom Pins / deferred checkout).
+-- Legacy Paymob checkout removed — platform payments are Stripe-only.
 
 create or replace function public.cancel_pending_payment_mission(p_mission_id uuid)
 returns void

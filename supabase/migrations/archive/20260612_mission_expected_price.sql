@@ -1,28 +1,11 @@
--- Fix: create_lead_mission_with_token hard-coded category='public' for every mission,
--- so home/office (sponge form) missions were stored as street missions. This broke:
---   * sponge/mop pin icons (derived from category),
---   * Profile "home" sections (.eq('category','home')),
---   * home-mission ID-verification gating (checkHomeMissionWorkerVerification).
--- Derive category from service_type (sponge sector = home, mop sector = public) and backfill.
+-- Separate worker work budget (USD) from platform token bid (amount_target).
 
-CREATE OR REPLACE FUNCTION public.mission_category_for_service(p_service_type text)
-RETURNS text
-LANGUAGE sql
-IMMUTABLE
-AS $$
-  SELECT CASE
-    WHEN p_service_type IN (
-      'home_office',
-      'laundry_ironing',
-      'windows_facades',
-      'carpets_mattresses',
-      'kitchen_hoods_grease',
-      'ac_cleaning',
-      'pest_control'
-    ) THEN 'home'
-    ELSE 'public'
-  END;
-$$;
+ALTER TABLE public.missions
+ADD COLUMN IF NOT EXISTS expected_price integer NULL
+  CHECK (expected_price IS NULL OR expected_price >= 0);
+
+COMMENT ON COLUMN public.missions.expected_price IS
+  'Client-offered work budget in USD (what the worker earns). amount_target stores token bid for listing rank.';
 
 CREATE OR REPLACE FUNCTION public.create_lead_mission_with_token(
   p_service_type text,
@@ -88,7 +71,7 @@ BEGIN
     expected_price,
     current_funding,
     service_type,
-    pin_fee_egp,
+    pin_fee_usd,
     location_lat,
     location_lng,
     description,
@@ -99,7 +82,7 @@ BEGIN
   VALUES (
     v_uid,
     'available',
-    public.mission_category_for_service(p_service_type),
+    'public',
     v_bid,
     v_budget,
     0,
@@ -129,9 +112,3 @@ GRANT EXECUTE ON FUNCTION public.create_lead_mission_with_token(
 GRANT EXECUTE ON FUNCTION public.create_lead_mission_with_token(
   text, double precision, double precision, text, text[], text, double precision, integer, integer
 ) TO service_role;
-
--- Backfill: correct sector for existing rows that carry a service_type.
-UPDATE public.missions
-SET category = public.mission_category_for_service(service_type)
-WHERE service_type IS NOT NULL
-  AND category IS DISTINCT FROM public.mission_category_for_service(service_type);

@@ -24,8 +24,8 @@ import {
   isValidMarketCityId,
 } from '../src/lib/egyptMarketplace';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
-import { formatEgp, formatWorkBudgetEgp } from '../src/lib/formatMoney';
-import { missionWorkBudgetEgp, missionTokenBid } from '../src/lib/missionBudget';
+import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
+import { missionWorkBudgetUsd, missionTokenBid } from '../src/lib/missionBudget';
 import { isPlatformAdmin, isArchivedMissionStatus } from '../src/lib/platformAdmin';
 import { adminDeleteMission } from '../src/lib/adminMission';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
@@ -1509,7 +1509,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </div>
                       </div>
                       <p className="text-sm text-slate-300 mb-2">
-                        <span className="text-amber-400 font-bold">{formatWorkBudgetEgp(missionWorkBudgetEgp(job))}</span>
+                        <span className="text-amber-400 font-bold">{formatWorkBudgetUsd(missionWorkBudgetUsd(job))}</span>
                         {job.description && (
                           <span className="ml-2 text-slate-400">— {job.description}</span>
                         )}
@@ -1555,7 +1555,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     </div>
 
                     <p className="text-sm text-slate-300 mb-1">
-                      <span className="text-amber-400 font-bold">{formatWorkBudgetEgp(missionWorkBudgetEgp(job))}</span>
+                      <span className="text-amber-400 font-bold">{formatWorkBudgetUsd(missionWorkBudgetUsd(job))}</span>
                       {job.description && (
                         <span className="ml-2 text-slate-400">— {job.description}</span>
                       )}
@@ -1581,7 +1581,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                               key={bid.id}
                               className={`flex items-center justify-between gap-3 py-2 px-3 ${PROFILE_GLASS_PANEL} !rounded-xl`}
                             >
-                              <span className="text-sm font-black text-amber-400">{formatWorkBudgetEgp(Number(bid.bid_amount))}</span>
+                              <span className="text-sm font-black text-amber-400">{formatWorkBudgetUsd(Number(bid.bid_amount))}</span>
                               <div className="rounded-full animated-border-home">
                                 <button
                                   type="button"
@@ -1713,7 +1713,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           <p className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full border ${badgeColor}`}>
                             {(job.category || 'UNKNOWN').toUpperCase()} Mission
                           </p>
-                          <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>{formatWorkBudgetEgp(missionWorkBudgetEgp(job))}</p>
+                          <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>{formatWorkBudgetUsd(missionWorkBudgetUsd(job))}</p>
                         </div>
                       </div>
                       {job.started_at && (
@@ -1814,7 +1814,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           {displayTitle}
                         </p>
                         <p className="text-sm font-bold text-emerald-400 mb-2">
-                          {formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
+                          {formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
                         </p>
                         {job.description && (
                           <p className="text-xs text-slate-400 mb-2">{job.description}</p>
@@ -1846,10 +1846,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             {displayTitle}
                           </p>
                           <p className="text-sm font-bold text-emerald-400 mb-1">
-                            {formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
+                            {formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
                           </p>
                           <p className="text-[10px] font-medium text-slate-500 mb-1">
-                            {t('missionTokenBidLabel')}: {formatEgp(missionTokenBid(job))}
+                            {t('missionTokenBidLabel')}: {formatTokens(missionTokenBid(job))}
                           </p>
                         </div>
                         {/* VIEW ON MAP */}
@@ -1898,7 +1898,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                 key={bid.id}
                                 className={`flex items-center justify-between gap-3 py-2 px-3 ${PROFILE_GLASS_PANEL} !rounded-xl`}
                               >
-                                <span className="text-sm font-black text-emerald-400">{formatWorkBudgetEgp(Number(bid.bid_amount))}</span>
+                                <span className="text-sm font-black text-emerald-400">{formatWorkBudgetUsd(Number(bid.bid_amount))}</span>
                                 <div className="rounded-full animated-border-city">
                                   <button
                                     type="button"
@@ -2046,7 +2046,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     }
                     placeholderVariant={isHome ? 'home' : 'city'}
                     placeholderIcon={icon}
-                    budgetValue={formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
+                    budgetValue={formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
                     metaLine={`#${shortId(job.id)} · ${new Date(job.created_at).toLocaleDateString()}`}
                     locationLine={(() => {
                       const first = String(job.description ?? '').split('\n')[0]?.trim();
@@ -2145,7 +2145,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                               {(job.category || 'UNKNOWN').toUpperCase()} Mission
                             </p>
                             <p className={`text-xl font-black mt-1 ${isHome ? 'text-amber-400' : 'text-emerald-400'}`}>
-                              {formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
+                              {formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
                             </p>
                           </div>
                         </div>
@@ -2210,7 +2210,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       }
                       placeholderVariant={isHome ? 'home' : 'city'}
                       placeholderIcon={icon}
-                      budgetValue={formatWorkBudgetEgp(missionWorkBudgetEgp(job))}
+                      budgetValue={formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
                       metaLine={`#${shortId(job.id)} · ${new Date(job.created_at).toLocaleDateString()}`}
                       locationLine={displayTitle}
                       description={extractMissionFeedDescription(job.description)}
@@ -2652,7 +2652,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 </p>
                 <h3 className="text-xl font-black text-white">
                   {(reviewJob.category || 'UNKNOWN').toUpperCase()} •{' '}
-                  {formatWorkBudgetEgp(missionWorkBudgetEgp(reviewJob))}
+                  {formatWorkBudgetUsd(missionWorkBudgetUsd(reviewJob))}
                 </h3>
               </div>
               <button
@@ -2670,7 +2670,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3">
                 <p className="text-sm font-semibold leading-relaxed text-amber-100">
                   {t('reviewMissionWorkerDone', {
-                    amount: formatWorkBudgetEgp(missionWorkBudgetEgp(reviewJob)),
+                    amount: formatWorkBudgetUsd(missionWorkBudgetUsd(reviewJob)),
                   })}
                 </p>
                 <p className="mt-2 text-xs leading-relaxed text-amber-100/85">
@@ -2800,7 +2800,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 Mission
               </p>
               <p className="text-white font-bold">
-                {(proofJob.category || 'UNKNOWN').toUpperCase()} • {formatWorkBudgetEgp(missionWorkBudgetEgp(proofJob))}
+                {(proofJob.category || 'UNKNOWN').toUpperCase()} • {formatWorkBudgetUsd(missionWorkBudgetUsd(proofJob))}
               </p>
               {proofJob.description && (
                 <p className="text-xs text-slate-400 mt-1">{proofJob.description}</p>

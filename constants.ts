@@ -37,35 +37,29 @@ export const PROFILE_GLASS_PANEL =
 
 /**
  * All wallet balances, mission prices, bids, donations, scout rewards, and RPC amounts
- * are stored and displayed in this currency unless explicitly noted (e.g. Stripe card auth in USD).
+ * are stored and displayed in USD (work budgets / crowdfunding) or Tokens (platform bids).
  */
-export const INTERNAL_CURRENCY = 'EGP' as const;
+export const INTERNAL_CURRENCY = 'USD' as const;
+
+/** City pin / Scout Stake fee (USD, integer) — must match create_public_mission_with_fee and wallet debits. */
+export const SCOUT_STAKE_FEE_USD = 49;
+
+/** Anti-fraud: repeated micro-tx at or below this USD amount. */
+export const SMALL_CARDING_USD_MAX = 100;
 
 /**
- * Fallback when `platform_settings.usd_to_egp_rate` cannot be read.
- * Live rate is stored in DB and editable in Admin → Financial Analytics.
- */
-export const DEFAULT_USD_TO_EGP_RATE = 55;
-
-/** City pin / Scout Stake fee (EGP, integer) — must match `create_public_mission_with_fee` and wallet debits. */
-export const SCOUT_STAKE_FEE_EGP = 49;
-
-/** Anti-fraud: repeated micro-tx at or below this EGP amount (wallet is EGP). */
-export const SMALL_CARDING_EGP_MAX = 100;
-
-/**
- * Applied to USD card settlements when crediting EGP wallet (currency risk buffer).
- * Credit EGP = USD_charged × usd_to_egp_rate × CURRENCY_RISK_BUFFER_FACTOR
+ * Applied to USD card settlements when crediting the wallet (currency risk buffer).
+ * Credit USD = USD_charged × CURRENCY_RISK_BUFFER_FACTOR
  */
 export const CURRENCY_RISK_BUFFER_FACTOR = 0.97;
 
-/** Display suffix for amounts in UI (Egyptian Pound). */
-export const DISPLAY_CURRENCY_SUFFIX = 'EGP';
+/** Display suffix for fiat amounts in UI. */
+export const DISPLAY_CURRENCY_SUFFIX = 'USD';
 
-/** Min/max mission prices in EGP. */
+/** Min/max mission work budgets in USD. */
 export const HOME_MIN_PRICE = 250;
 export const HOME_MAX_PRICE = 25000;
-/** Minimum crowdfunding goal for city missions (EGP), separate from {@link SCOUT_STAKE_FEE_EGP}. */
+/** Minimum crowdfunding goal for city missions (USD), separate from {@link SCOUT_STAKE_FEE_USD}. */
 export const CITY_MIN_PRICE = 50;
 export const CITY_MAX_PRICE = 5000;
 

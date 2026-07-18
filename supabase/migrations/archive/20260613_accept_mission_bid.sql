@@ -1,4 +1,4 @@
--- Creator accepts a pending worker bid: assign cleaner, set work budget (EGP), move to in_progress.
+-- Creator accepts a pending worker bid: assign cleaner, set work budget (USD), move to in_progress.
 -- SECURITY DEFINER so RLS cannot block the atomic assignment.
 
 CREATE OR REPLACE FUNCTION public.accept_mission_bid(p_bid_id uuid)

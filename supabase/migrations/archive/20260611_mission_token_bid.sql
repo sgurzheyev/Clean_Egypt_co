@@ -1,11 +1,5 @@
--- Separate worker work budget (EGP) from platform token bid (amount_target).
-
-ALTER TABLE public.missions
-ADD COLUMN IF NOT EXISTS expected_price integer NULL
-  CHECK (expected_price IS NULL OR expected_price >= 0);
-
-COMMENT ON COLUMN public.missions.expected_price IS
-  'Client-offered work budget in EGP (what the worker earns). amount_target stores token bid for listing rank.';
+-- Allow customers to stake more than 1 token when placing a lead pin (ad boost).
+-- amount_target stores the token bid for marketplace ranking.
 
 CREATE OR REPLACE FUNCTION public.create_lead_mission_with_token(
   p_service_type text,
@@ -15,8 +9,7 @@ CREATE OR REPLACE FUNCTION public.create_lead_mission_with_token(
   p_photo_urls text[],
   p_building_id text DEFAULT NULL,
   p_building_height_m double precision DEFAULT NULL,
-  p_token_bid integer DEFAULT 1,
-  p_expected_price integer DEFAULT NULL
+  p_token_bid integer DEFAULT 1
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -27,7 +20,6 @@ DECLARE
   v_uid uuid := auth.uid();
   v_balance integer;
   v_bid integer;
-  v_budget integer;
   v_mid uuid;
 BEGIN
   IF v_uid IS NULL THEN
@@ -39,11 +31,6 @@ BEGIN
   END IF;
 
   v_bid := greatest(1, floor(coalesce(p_token_bid, 1)));
-  v_budget := floor(coalesce(p_expected_price, 0));
-
-  IF v_budget < 1 THEN
-    RAISE EXCEPTION 'Work budget required';
-  END IF;
 
   SELECT token_balance
   INTO v_balance
@@ -68,10 +55,9 @@ BEGIN
     status,
     category,
     amount_target,
-    expected_price,
     current_funding,
     service_type,
-    pin_fee_egp,
+    pin_fee_usd,
     location_lat,
     location_lng,
     description,
@@ -84,7 +70,6 @@ BEGIN
     'available',
     'public',
     v_bid,
-    v_budget,
     0,
     p_service_type,
     NULL,
@@ -102,13 +87,13 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.create_lead_mission_with_token(
-  text, double precision, double precision, text, text[], text, double precision, integer, integer
+  text, double precision, double precision, text, text[], text, double precision, integer
 ) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.create_lead_mission_with_token(
-  text, double precision, double precision, text, text[], text, double precision, integer, integer
+  text, double precision, double precision, text, text[], text, double precision, integer
 ) TO authenticated;
 
 GRANT EXECUTE ON FUNCTION public.create_lead_mission_with_token(
-  text, double precision, double precision, text, text[], text, double precision, integer, integer
+  text, double precision, double precision, text, text[], text, double precision, integer
 ) TO service_role;

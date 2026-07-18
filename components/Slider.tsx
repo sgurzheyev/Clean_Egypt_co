@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatEgp } from '../src/lib/formatMoney';
+import { formatTokens } from '../src/lib/formatMoney';
 
 interface SliderProps {
   amount: number;
@@ -20,7 +20,7 @@ const Slider: React.FC<SliderProps> = ({ amount, setAmount, type }) => {
             {type === 'home' ? 'Private Bidding' : 'Community Donation'}
           </p>
           <h3 className="text-white text-3xl font-black italic tracking-tighter">
-            <span className="text-cyan-400">{formatEgp(amount)}</span>
+            <span className="text-cyan-400">{formatTokens(amount)}</span>
           </h3>
         </div>
         

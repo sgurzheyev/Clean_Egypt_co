@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { formatEgp } from '../src/lib/formatMoney';
+import { formatTokens } from '../src/lib/formatMoney';
 
 interface BidsTerminalProps {
   onclose?: () => void;
@@ -163,7 +163,7 @@ const BidsTerminal: React.FC<BidsTerminalProps> = ({ onclose, onShowTryFree }) =
                 <div className="text-[9px] text-zinc-500 font-mono mt-1">{m.location}</div>
               </div>
               <div className="text-[#00f2ff] font-black text-sm">
-                {formatEgp(Number(m.price))}
+                {formatTokens(Number(m.price))}
               </div>
             </div>
           ))}

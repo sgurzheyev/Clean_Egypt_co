@@ -1,5 +1,5 @@
-/** Worker-facing work budget in EGP (separate from token bid in amount_target). */
-export function missionWorkBudgetEgp(job: {
+/** Worker-facing work budget in USD (separate from token bid in amount_target). */
+export function missionWorkBudgetUsd(job: {
   expected_price?: number | null;
   amount_target?: number | null;
 }): number {
@@ -7,7 +7,7 @@ export function missionWorkBudgetEgp(job: {
   if (Number.isFinite(budget) && budget > 0) {
     return Math.floor(budget);
   }
-  /** Legacy rows: amount_target held EGP before expected_price existed (typically 100+). */
+  /** Legacy rows: amount_target held fiat before expected_price existed (typically 100+). */
   const legacy = Number(job.amount_target);
   if (Number.isFinite(legacy) && legacy >= 100) {
     return Math.floor(legacy);

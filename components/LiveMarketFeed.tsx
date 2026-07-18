@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabase';
-import { formatWorkBudgetEgp } from '../src/lib/formatMoney';
-import { missionWorkBudgetEgp } from '../src/lib/missionBudget';
+import { formatWorkBudgetUsd } from '../src/lib/formatMoney';
+import { missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
@@ -167,7 +167,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                 {!loading &&
                   !loadError &&
                   missions.map((mission) => {
-                    const budget = missionWorkBudgetEgp(mission);
+                    const budget = missionWorkBudgetUsd(mission);
                     const isOwnTask =
                       !!currentUserId && mission.creator_id === currentUserId;
                     const isHome = missionSector(mission.service_type, mission.category) === 'home';
@@ -180,7 +180,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                         photoUrl={mission.photo_urls?.[0] ?? null}
                         placeholderVariant={isHome ? 'home' : 'city'}
                         placeholderIcon={missionPinIcon(mission.service_type, mission.category)}
-                        budgetValue={formatWorkBudgetEgp(budget)}
+                        budgetValue={formatWorkBudgetUsd(budget)}
                         locationLine={missionLocationLine(mission, t)}
                         description={extractMissionFeedDescription(mission.description)}
                         metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}

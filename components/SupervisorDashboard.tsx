@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
-import { formatEgp } from '../src/lib/formatMoney';
-import { SMALL_CARDING_EGP_MAX } from '../constants';
+import { formatTokens } from '../src/lib/formatMoney';
+import { SMALL_CARDING_USD_MAX } from '../constants';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 
 interface MissionTransactionRow {
@@ -225,7 +225,7 @@ const SupervisorDashboard: React.FC = () => {
               const tx = txByMissionId[mission.id] || [];
               const txError = txErrorByMissionId[mission.id] || null;
               const potentialCardingUserIds = (() => {
-                const SMALL_EGP_MAX = SMALL_CARDING_EGP_MAX;
+                const SMALL_USD_MAX = SMALL_CARDING_USD_MAX;
                 const WINDOW_MS = 10 * 60 * 1000;
                 const MIN_COUNT = 4;
                 const now = Date.now();
@@ -238,7 +238,7 @@ const SupervisorDashboard: React.FC = () => {
                   const uid = row.user_id || '';
                   if (!uid) continue;
                   const amt = Number(row.amount);
-                  if (!Number.isFinite(amt) || amt <= 0 || amt > SMALL_EGP_MAX) continue;
+                  if (!Number.isFinite(amt) || amt <= 0 || amt > SMALL_USD_MAX) continue;
                   counts[uid] = (counts[uid] || 0) + 1;
                 }
                 return new Set(Object.entries(counts).filter(([, c]) => c >= MIN_COUNT).map(([uid]) => uid));
@@ -388,7 +388,7 @@ const SupervisorDashboard: React.FC = () => {
                               ].join(' ')}
                               title={isCarding ? 'Potential carding: repeated micro-payments by same user' : undefined}
                             >
-                              {formatEgp(Number(row.amount))}
+                              {formatTokens(Number(row.amount))}
                             </p>
                           </div>
                         );

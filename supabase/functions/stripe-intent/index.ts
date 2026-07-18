@@ -8,8 +8,7 @@ const corsHeaders = {
 
 /**
  * Creates a Stripe PaymentIntent for wallet top-up.
- * Accepts integer EGP only; computes USD charge server-side using platform_settings.usd_to_egp_rate (fallback 55).
- * Client must not send trusted USD or final EGP credit.
+ * Accepts integer USD; charges that amount in currency: 'usd' (no FX).
  */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -24,9 +23,8 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    if (!supabaseUrl || !anonKey || !serviceKey) {
-      throw new Error('Missing SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !anonKey) {
+      throw new Error('Missing SUPABASE_URL / SUPABASE_ANON_KEY');
     }
 
     const authHeader = req.headers.get('Authorization');
@@ -37,7 +35,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body = (await req.json()) as { amount_egp?: unknown; user_id?: unknown };
+    const body = (await req.json()) as { amount_usd?: unknown; user_id?: unknown };
     const userId = typeof body.user_id === 'string' ? body.user_id : '';
     if (!userId) {
       return new Response(JSON.stringify({ error: 'Missing user_id' }), {
@@ -46,8 +44,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (body.amount_egp === undefined || body.amount_egp === null) {
-      return new Response(JSON.stringify({ error: 'Missing amount_egp' }), {
+    if (body.amount_usd === undefined || body.amount_usd === null) {
+      return new Response(JSON.stringify({ error: 'Missing amount_usd' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -67,41 +65,21 @@ Deno.serve(async (req) => {
       });
     }
 
-    const rawEgp = Number(body.amount_egp);
-    const amountEgp = Math.floor(Math.max(0, rawEgp));
-    if (!Number.isFinite(amountEgp) || amountEgp <= 0) {
-      return new Response(JSON.stringify({ error: 'Invalid amount_egp' }), {
+    const amountUsd = Math.floor(Math.max(0, Number(body.amount_usd)));
+    if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
+      return new Response(JSON.stringify({ error: 'Invalid amount_usd' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    if (amountEgp > 2_500_000) {
+    if (amountUsd > 2_500_000) {
       return new Response(JSON.stringify({ error: 'Amount too large' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const supabaseService = createClient(supabaseUrl, serviceKey);
-    const { data: rateRow } = await supabaseService
-      .from('platform_settings')
-      .select('usd_to_egp_rate')
-      .eq('id', 1)
-      .maybeSingle();
-
-    let rate = Number(rateRow?.usd_to_egp_rate);
-    if (!Number.isFinite(rate) || rate <= 0 || rate > 1000) {
-      rate = 55;
-    }
-
-    const chargeUsd = Math.round((amountEgp / rate) * 10000) / 10000;
-    const cents = Math.round(chargeUsd * 100);
-    if (cents < 50) {
-      return new Response(JSON.stringify({ error: 'Minimum charge is $0.50' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const cents = Math.max(50, amountUsd * 100);
 
     const stripe = new Stripe(stripeKey, {
       apiVersion: '2023-10-16',
@@ -114,13 +92,13 @@ Deno.serve(async (req) => {
       metadata: {
         user_id: userId,
         purpose: 'wallet_top_up',
-        amount_egp_intent: String(amountEgp),
+        amount_usd_intent: String(amountUsd),
       },
       automatic_payment_methods: { enabled: true },
     });
 
     return new Response(
-      JSON.stringify({ clientSecret: paymentIntent.client_secret }),
+      JSON.stringify({ clientSecret: paymentIntent.client_secret, amountUsd }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
