@@ -450,7 +450,7 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
         /* ignore */
       }
       setError(
-        'AR Camera mode failed to initialize. Please check permissions or try Chrome Canary.'
+        `AR Error: ${err?.name ?? 'Error'} - ${err?.message ?? String(e) ?? 'unknown'}`
       );
     }
   }, [store]);
