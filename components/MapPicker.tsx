@@ -2455,10 +2455,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleCloseMissionBriefing = useCallback(() => {
     setSelectedMission(null);
-    setTranslatedText(null);
-    setIsTranslationLoading(false);
-    setTranslationError(null);
-    setShowTranslateAction(false);
     setShowBidInput(false);
     setMissionBidAmount('');
     setShowDonate(false);
