@@ -61,8 +61,8 @@ const resources = {
       frozen: 'Frozen',
       amountInUsd: 'Amount (Tokens)',
       enterPositiveUsdAmount: 'Enter a positive token amount.',
-      homePriceRangeUsd: 'Amount must be between {{min}} and {{max}} tokens.',
-      cityPriceRangeUsd: 'Amount must be between {{min}} and {{max}} tokens.',
+      homePriceRangeUsd: 'Work budget must be between ${{min}} and ${{max}} USD.',
+      cityPriceRangeUsd: 'Work budget must be between ${{min}} and ${{max}} USD.',
       cityPinScoutStakeConfirm:
         'Placing a City Pin costs {{amount}} (Scout Stake). Reward Split: 90% Cleaner / 5.1% Scout / 4.9% Platform. Proceed?',
       cityMissionWalletHint:
@@ -191,7 +191,7 @@ const resources = {
       stripeMinimumCharge: 'Minimum card charge applies. Increase the amount.',
       depositCurrencyUsd: 'TOKENS',
       amountUsd: 'Amount (Tokens)',
-      orderFormAmountHintUsd: 'All amounts are in tokens.',
+      orderFormAmountHintUsd: 'Minimum work budget is $5 USD. All amounts are in USD.',
       paymentsUsdOnlyNote: 'Payments are token-based.',
       frozenDepositInfoTitle: 'About frozen deposit',
       frozenDepositInfoBody:
@@ -948,8 +948,8 @@ const resources = {
       frozen: 'Заморожено',
       amountInUsd: 'Сумма (токены)',
       enterPositiveUsdAmount: 'Введите положительное количество токенов.',
-      homePriceRangeUsd: 'Сумма должна быть от {{min}} до {{max}} токенов.',
-      cityPriceRangeUsd: 'Сумма должна быть от {{min}} до {{max}} токенов.',
+      homePriceRangeUsd: 'Бюджет работы должен быть от {{min}} до {{max}} USD.',
+      cityPriceRangeUsd: 'Бюджет работы должен быть от {{min}} до {{max}} USD.',
       cityPinScoutStakeConfirm:
         'Городской пин стоит {{amount}} (Scout Stake). Разделение: 90% уборщик / 5.1% скаут / 4.9% платформа. Продолжить?',
       cityMissionWalletHint: 'Не удалось создать городскую миссию. Нужно минимум {{amount}} на кошельке.',
@@ -1077,7 +1077,7 @@ const resources = {
       depositCurrencyUsd: 'USD',
       amountUsd: 'Сумма (USD)',
       orderFormAmountHintUsd:
-        'Город: диапазон по правилам. Дом: от 250 USD. Все суммы только в USD.',
+        'Минимальный бюджет работы — 5 USD. Все суммы только в USD.',
       paymentsUsdOnlyNote: 'Оплата миссий в этой форме — в USD, без шага конвертации валют.',
       frozenDepositInfoTitle: 'О замороженном залоге',
       frozenDepositInfoBody:

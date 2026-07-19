@@ -57,10 +57,10 @@ export const CURRENCY_RISK_BUFFER_FACTOR = 0.97;
 export const DISPLAY_CURRENCY_SUFFIX = 'USD';
 
 /** Min/max mission work budgets in USD. */
-export const HOME_MIN_PRICE = 250;
+export const HOME_MIN_PRICE = 5;
 export const HOME_MAX_PRICE = 25000;
-/** Minimum crowdfunding goal for city missions (USD), separate from {@link SCOUT_STAKE_FEE_USD}. */
-export const CITY_MIN_PRICE = 50;
+/** Minimum work budget / crowdfunding goal for city missions (USD). */
+export const CITY_MIN_PRICE = 5;
 export const CITY_MAX_PRICE = 5000;
 
 export const MIN_SIZE = 10;

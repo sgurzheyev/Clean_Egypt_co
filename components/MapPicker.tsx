@@ -3061,7 +3061,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           jobsRef.current = next;
           return next;
         });
-        throw leadErr;
+        console.error('[create_lead_mission_with_token]', leadErr);
+        throw new Error(leadErr.message || leadErr.details || 'Mission create failed');
       }
 
       const missionId = mid != null && String(mid).length > 0 ? String(mid) : pendingMissionId;
