@@ -74,22 +74,12 @@ export async function confirmContributionCheckout(
   };
 }
 
-/** Direct RPC path (no Stripe) — kept for admin/tools; UI uses Checkout. */
+/** Direct RPC path removed — crowdfunding must go through Stripe Checkout. */
 export async function contributeToMission(
-  missionId: string,
-  amountUsd: number
+  _missionId: string,
+  _amountUsd: number
 ): Promise<ContributionResult> {
-  const { data, error } = await supabase.rpc('contribute_to_mission', {
-    p_mission_id: missionId,
-    p_amount_usd: Math.floor(amountUsd),
-  });
-  if (error) throw error;
-  const row = (data || {}) as ContributionResult;
-  return {
-    mission_id: String(row.mission_id ?? missionId),
-    amount_usd: Number(row.amount_usd ?? amountUsd),
-    current_funding: Number(row.current_funding ?? 0),
-    target_budget: Number(row.target_budget ?? 0),
-    opened_for_bidding: !!row.opened_for_bidding,
-  };
+  throw new Error(
+    'Direct contribute_to_mission is disabled. Use startContributionCheckout / confirmContributionCheckout.'
+  );
 }

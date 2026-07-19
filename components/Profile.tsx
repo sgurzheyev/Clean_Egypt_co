@@ -202,9 +202,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [missionHistory, setMissionHistory] = useState<Job[]>([]);
   const [jobBidsById, setJobBidsById] = useState<Record<string, Bid[]>>({});
   const [marketplaceJobs, setMarketplaceJobs] = useState<Job[]>([]);
-  const [profileOnlineExecutors, setProfileOnlineExecutors] = useState<number>(() =>
-    Math.floor(12 + Math.random() * (48 - 12 + 1))
-  );
   const [marketCityId, setMarketCityId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [marketLoading, setMarketplaceLoading] = useState(true);
@@ -316,16 +313,34 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     () =>
       `${tokenBalance} ${t('tokens')} · ${
         subscriptionIsActive ? t('subscriptionActive') : t('subscriptionExpired')
-      } · ${t('profileLeadsShort')}: ${openMarketplaceJobs.length}`,
-    [tokenBalance, subscriptionIsActive, openMarketplaceJobs.length, t]
+      }`,
+    [tokenBalance, subscriptionIsActive, t]
   );
 
-  useEffect(() => {
-    const tick = () =>
-      setProfileOnlineExecutors(Math.floor(12 + Math.random() * (48 - 12 + 1)));
-    const id = window.setInterval(tick, 5 * 60 * 1000);
-    return () => window.clearInterval(id);
-  }, []);
+  const ownedOpenMissions = useMemo(() => {
+    const merged = [...(myHomeJobs || []), ...(myCityJobs || [])];
+    const seen = new Set<string>();
+    return merged.filter((job) => {
+      if (isArchivedMissionStatus(job.status)) return false;
+      if (seen.has(job.id)) return false;
+      seen.add(job.id);
+      return true;
+    });
+  }, [myHomeJobs, myCityJobs]);
+
+  const activeWorkJobs = useMemo(
+    () =>
+      (myActiveJobs || []).filter((job) =>
+        ['in_progress', 'review', 'pending_approval'].includes(String(job.status || '').toLowerCase())
+      ),
+    [myActiveJobs]
+  );
+
+  const profileOrdersClosedSummary = useMemo(() => {
+    const openOwned = ownedOpenMissions.length;
+    const activeWork = activeWorkJobs.length;
+    return `${t('profileOwnedShort')}: ${openOwned} · ${t('profileActiveWorkShort')}: ${activeWork}`;
+  }, [ownedOpenMissions.length, activeWorkJobs.length, t]);
 
   useEffect(() => {
     if (!marketCityId) return;
@@ -712,15 +727,19 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           )
         `
         )
-        .eq('status', 'completed')
+        .in('status', ['completed', 'finished'])
         .or(`creator_id.eq.${userId},cleaner_id.eq.${userId}`)
         .order('created_at', { ascending: false })
         .limit(100);
       setMissionHistory((historyData || []) as unknown as Job[]);
 
       const pendingJobIds = [
-        ...(((homeJobsData || []) as unknown as Job[]).filter((j) => j.status === 'pending').map((j) => j.id)),
-        ...(((cityJobsData || []) as unknown as Job[]).filter((j) => j.status === 'pending').map((j) => j.id)),
+        ...(((homeJobsData || []) as unknown as Job[])
+          .filter((j) => ['pending', 'available'].includes(String(j.status || '').toLowerCase()))
+          .map((j) => j.id)),
+        ...(((cityJobsData || []) as unknown as Job[])
+          .filter((j) => ['pending', 'available'].includes(String(j.status || '').toLowerCase()))
+          .map((j) => j.id)),
       ];
       if (pendingJobIds.length > 0) {
         const { data: bidsData } = await supabase
@@ -1457,26 +1476,25 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           icon={<Info className="w-5 h-5 shrink-0 text-cyan-400/90" aria-hidden />}
           closedSummary={profileInfoClosedSummary}
         >
-          <div className="flex flex-wrap gap-1.5">
-            <span className="inline-flex items-center rounded-full border border-lime-400/35 bg-lime-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-lime-200">
-              {tokenBalance} {t('tokens')}
-            </span>
-            <span
-              className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold ${
-                subscriptionIsActive
-                  ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-200'
-                  : 'border-amber-400/35 bg-amber-500/10 text-amber-200'
-              }`}
-            >
-              {t('subscriptionStatus')}:{' '}
-              {subscriptionIsActive ? t('subscriptionActive') : t('subscriptionExpired')}
-            </span>
-            <span className="inline-flex items-center rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-cyan-100">
-              {t('profileLeadsShort')}: {openMarketplaceJobs.length}
-            </span>
-            <span className="inline-flex items-center rounded-full border border-violet-400/30 bg-violet-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-violet-100">
-              {t('onlineLabel')} {profileOnlineExecutors}
-            </span>
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-1.5">
+              <span className="inline-flex items-center rounded-full border border-lime-400/35 bg-lime-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-lime-200">
+                {tokenBalance} {t('tokens')}
+              </span>
+              <span
+                className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold ${
+                  subscriptionIsActive
+                    ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-200'
+                    : 'border-amber-400/35 bg-amber-500/10 text-amber-200'
+                }`}
+              >
+                {t('subscriptionStatus')}:{' '}
+                {subscriptionIsActive ? t('subscriptionActive') : t('subscriptionExpired')}
+              </span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-slate-400">
+              {t('profileEconomyHint')}
+            </p>
           </div>
         </ProfileAccordion>
 
@@ -1789,27 +1807,25 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           )}
         </ProfileAccordion>}
 
-        {/* MY ORDERS / MY LEADS (role-based, from missions table, excluding finished) */}
+        {/* MY ORDERS — owned pins (home + public) + active worker jobs */}
         <ProfileAccordion
-          title={userProfile?.role === 'cleaner' ? t('myLeads') : t('myOrders')}
+          title={t('myOrders')}
           icon={<Building2 className="w-5 h-5 shrink-0 text-amber-400/90" aria-hidden />}
-          defaultOpen
+          closedSummary={profileOrdersClosedSummary}
         >
-          <div className="space-y-4">
-            {loading ? (
-              <p className="text-slate-500 text-sm italic">Loading…</p>
-            ) : (myCityJobs || []).filter((job) => !isArchivedMissionStatus(job.status)).length === 0 ? (
-              <p className="text-slate-500 text-sm italic">
-                {userProfile?.role === 'cleaner'
-                  ? t('executorNoLeadsEmpty')
-                  : t('customerNoOrdersEmpty')}
+          <div className="space-y-5">
+            <div className="space-y-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                {t('profileOwnedMissions')}
               </p>
-            ) : (
-              (myCityJobs || [])
-                .filter((job) => !isArchivedMissionStatus(job.status))
-                .map((job) => {
+              {loading ? (
+                <p className="text-slate-500 text-sm italic">{t('loading')}</p>
+              ) : ownedOpenMissions.length === 0 ? (
+                <p className="text-slate-500 text-sm italic">{t('customerNoOrdersEmpty')}</p>
+              ) : (
+                ownedOpenMissions.map((job) => {
                   const displayTitle =
-                    job.title && job.title.trim().length > 0 ? job.title : 'Service Request';
+                    job.title && job.title.trim().length > 0 ? job.title : t('serviceRequestFallback');
                   const isPhantomPayment = job.status === 'pending_payment';
                   if (isPhantomPayment) {
                     const busy = phantomPaymentActionId === job.id;
@@ -1840,7 +1856,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         <button
                           type="button"
                           disabled={busy}
-                          onClick={() => cancelPendingPaymentMission(job, 'city')}
+                          onClick={() =>
+                            cancelPendingPaymentMission(
+                              job,
+                              String(job.category || '').toLowerCase() === 'home' ? 'home' : 'city'
+                            )
+                          }
                           className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {t('cancelMission')}
@@ -1850,6 +1871,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   }
                   const hasCoords =
                     typeof job.location_lat === 'number' && typeof job.location_lng === 'number';
+                  const statusKey = String(job.status || '').toLowerCase();
+                  const openForBids = statusKey === 'pending' || statusKey === 'available';
                   return (
                     <div key={job.id} className={`${PROFILE_GLASS_PANEL} p-4`}>
                       <div className="flex justify-between items-center mb-2">
@@ -1858,18 +1881,27 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       </div>
 
                       <div className="flex items-center justify-between gap-3 mb-1">
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
+                          <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-300">
+                              {statusKey || '—'}
+                            </span>
+                            {job.category && (
+                              <span className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-cyan-200">
+                                {job.category}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-400 font-bold mb-1">
                             {displayTitle}
                           </p>
                           <p className="text-sm font-bold text-emerald-400 mb-1">
-                            {formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
+                            {t('workBudgetUsdLabel')}: {formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
                           </p>
-                          <p className="text-[10px] font-medium text-slate-500 mb-1">
+                          <p className="text-[10px] font-medium text-lime-300/90 mb-1">
                             {t('missionTokenBidLabel')}: {formatTokens(missionTokenBid(job))}
                           </p>
                         </div>
-                        {/* VIEW ON MAP */}
                         {hasCoords && onNavigateToJob && (
                           <button
                             type="button"
@@ -1879,15 +1911,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             }}
                             className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-400 hover:text-emerald-300"
                           >
-                            <span>View on map</span>
+                            <span>{t('viewOnMap')}</span>
                             <span>↗</span>
                           </button>
                         )}
                       </div>
 
-                      <p className="text-xs text-slate-400">
-                        Your service request on the map. Providers can pick it up in the marketplace.
-                      </p>
+                      <p className="text-xs text-slate-400">{t('profileOwnedMissionHint')}</p>
 
                       {isAdmin && (
                         <button
@@ -1900,45 +1930,51 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </button>
                       )}
 
-                  {(() => {
-                    const bids = (jobBidsById[job.id] || []).filter((b) => b.status === 'pending');
-                    if (job.status !== 'pending') return null;
-                    return (
-                      <div className="mt-3">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
-                          Active offers: <span className="text-emerald-400">{bids.length}</span>
-                        </p>
-                        {bids.length > 0 ? (
-                          <div className="space-y-2">
-                            {bids.map((bid) => (
-                              <div
-                                key={bid.id}
-                                className={`flex items-center justify-between gap-3 py-2 px-3 ${PROFILE_GLASS_PANEL} !rounded-xl`}
-                              >
-                                <span className="text-sm font-black text-emerald-400">{formatWorkBudgetUsd(Number(bid.bid_amount))}</span>
-                                <div className="rounded-full animated-border-city">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleAcceptBid(job, bid)}
-                                    className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
-                                  >
-                                    Accept offer
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-slate-500 text-xs italic">No offers yet.</p>
-                        )}
-                      </div>
-                    );
-                  })()}
+                      {openForBids && (
+                        <div className="mt-3">
+                          {(() => {
+                            const bids = (jobBidsById[job.id] || []).filter((b) => b.status === 'pending');
+                            return (
+                              <>
+                                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
+                                  {t('activeOffers')}:{' '}
+                                  <span className="text-emerald-400">{bids.length}</span>
+                                </p>
+                                {bids.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {bids.map((bid) => (
+                                      <div
+                                        key={bid.id}
+                                        className={`flex items-center justify-between gap-3 py-2 px-3 ${PROFILE_GLASS_PANEL} !rounded-xl`}
+                                      >
+                                        <span className="text-sm font-black text-emerald-400">
+                                          {t('workBidUsdLabel')}: {formatWorkBudgetUsd(Number(bid.bid_amount))}
+                                        </span>
+                                        <div className="rounded-full animated-border-city">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleAcceptBid(job, bid)}
+                                            className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
+                                          >
+                                            {t('acceptOffer')}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-slate-500 text-xs italic">{t('noOffersYet')}</p>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
 
                       {job.status === 'review' && job.cleaner_id && (
                         <div className="mt-4">
                           <p className="w-full py-3 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-black text-xs uppercase tracking-[0.2em] text-center">
-                            PENDING REVIEW
+                            {t('pendingReview')}
                           </p>
                           <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
                             {t('reviewMissionAwaitingPayment')}
@@ -1964,21 +2000,67 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                             {t('reviewMissionOpenButton')}
                           </button>
                           <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
-                            Worker marked job completed. Review before confirming payment.
+                            {t('workerMarkedCompletedHint')}
                           </p>
                         </div>
                       )}
                       {(job.status === 'completed' || job.status === 'finished') && job.cleaner_id && (
                         <div className="mt-4">
                           <p className="w-full py-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-black text-xs uppercase tracking-[0.2em] text-center">
-                            MISSION ACCOMPLISHED & PAID
+                            {t('missionAccomplishedPaid')}
                           </p>
                         </div>
                       )}
                     </div>
                   );
                 })
-            )}
+              )}
+            </div>
+
+            <div className="space-y-3 border-t border-white/10 pt-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                {t('profileActiveWork')}
+              </p>
+              {loading ? (
+                <p className="text-slate-500 text-sm italic">{t('loading')}</p>
+              ) : activeWorkJobs.length === 0 ? (
+                <p className="text-slate-500 text-sm italic">{t('profileActiveWorkEmpty')}</p>
+              ) : (
+                activeWorkJobs.map((job) => {
+                  const hasCoords =
+                    typeof job.location_lat === 'number' && typeof job.location_lng === 'number';
+                  return (
+                    <div key={job.id} className={`${PROFILE_GLASS_PANEL} p-4`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-200">
+                            {String(job.status || '').toLowerCase()}
+                          </span>
+                          <p className="mt-2 text-sm font-bold text-emerald-300">
+                            {t('workBudgetUsdLabel')}: {formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
+                          </p>
+                          {job.description && (
+                            <p className="mt-1 line-clamp-2 text-xs text-slate-400">{job.description}</p>
+                          )}
+                        </div>
+                        {hasCoords && onNavigateToJob && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onNavigateToJob(job.location_lat!, job.location_lng!);
+                              onClose();
+                            }}
+                            className="inline-flex shrink-0 items-center gap-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-400 hover:text-emerald-300"
+                          >
+                            {t('viewOnMap')} ↗
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </ProfileAccordion>
 

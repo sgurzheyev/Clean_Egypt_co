@@ -18,9 +18,10 @@ You are an expert Senior Full-Stack Engineer and UI/UX Designer specializing in 
   - Crowdfunding UI: If `crowdfunding_mode` is true, show progress bar and "Contribute" button instead of bid.
 
 ## 3. Mission Status Flow (State Machine)
-- STANDARD FLOW: `active` -> `pending` -> `review` -> `completed` (P2P verified).
-- CROWDFUNDING FLOW: `crowdfunding` (collecting funds) -> `funded` (target met) -> `active` (available for worker) -> `completed`.
-- CITY NOTIFICATION FLOW: If `crowdfunding` task expires -> `city_notified` (Archived with PDF report).
+- STANDARD FLOW: `available` -> `in_progress` -> `review` -> `completed` (P2P verified).
+- CROWDFUNDING FLOW: `funding` (collecting funds) -> `available` (target met) -> `in_progress` -> `review` -> `completed`.
+- CITY NOTIFICATION FLOW: If `funding` task expires -> `expired` (+ `city_notification_events` queue; PDF pipeline is async).
+- Legacy aliases still seen in data/UI: `pending` (open like available), `finished` (like completed), `pending_approval` (like review).
 
 ## 4. Admin Powers & Moderation
 - Admins exist strictly for CONTENT MODERATION and manual `admin_delete_mission` RPC triggers.

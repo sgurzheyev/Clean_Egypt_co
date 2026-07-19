@@ -501,8 +501,8 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
             )}
             {xrSupported === false && (
               <p className="mt-3 text-xs text-amber-300/90">
-                WebXR AR is not supported in this browser. Use Chrome on Android or a
-                WebXR-enabled viewer on iOS.
+                AR is not available on this device. Close this screen and use the 2D
+                map instead.
               </p>
             )}
 
