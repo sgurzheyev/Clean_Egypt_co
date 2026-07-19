@@ -116,7 +116,9 @@ const SupervisorDashboard: React.FC = () => {
     let supervisorComment: string | undefined;
 
     if (decision === 'approve') {
-      const confirmApprove = window.confirm('Approve this cleanup and release payment?');
+      const confirmApprove = window.confirm(
+        'Approve this cleanup as verified? (P2P only — no escrow wallet payout.)'
+      );
       if (!confirmApprove) return;
     } else {
       supervisorComment = window.prompt(

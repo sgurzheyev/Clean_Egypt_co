@@ -514,7 +514,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   };
 
   const resolveDispute = async (missionId: string, decision: 'approve' | 'reject') => {
-    if (!window.confirm(decision === 'approve' ? 'Approve & payout?' : 'Reject dispute?')) return;
+    if (!window.confirm(decision === 'approve' ? 'Approve moderation (mark completed, no payout)?' : 'Reject dispute?')) return;
     try {
       const mission = disputes.find((d) => d.id === missionId) ?? null;
       const supervisorComment =
@@ -530,7 +530,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         p_supervisor_user_id: null,
       });
       if (err) throw err;
-      alert(decision === 'approve' ? 'Approved & paid out.' : 'Rejected.');
+      alert(decision === 'approve' ? 'Approved — status set to completed (P2P, no escrow payout).' : 'Rejected.');
       await loadDisputes();
     } catch (e: any) {
       console.error('Resolve dispute error:', e);

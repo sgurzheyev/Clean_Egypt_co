@@ -10,6 +10,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
+import { submitMissionProof } from '../src/lib/submitMissionProof';
 import { Navigation, Camera, X, User } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import MissionFeedCard from './MissionFeedCard';
@@ -796,17 +797,10 @@ function ProofUploadModal({
         if (uploadError) throw uploadError;
       }
 
-      const { error: updateError } = await supabase
-        .from('missions')
-        .update({
-          after_photo_urls: uploadedUrls,
-          status: 'review',
-          report_submitted_at: new Date().toISOString(),
-        })
-        .eq('id', mission.id)
-        .eq('cleaner_id', session.user.id)
-        .eq('status', 'in_progress');
-      if (updateError) throw updateError;
+      await submitMissionProof({
+        missionId: mission.id,
+        afterPhotoUrls: uploadedUrls,
+      });
 
       toast.success(t('proofUploadSuccess'));
       await onSuccess();
@@ -1674,17 +1668,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
   }, [orderSubmitting, resetMissionDraft]);
 
-  // Bidding modal state
-  const [bidJob, setBidJob] = useState<JobOnMap | null>(null);
-  const [bidAmount, setBidAmount] = useState('');
-  const [bidSubmitting, setBidSubmitting] = useState(false);
-  const [bidError, setBidError] = useState<string | null>(null);
-  const [bidSuccess, setBidSuccess] = useState<string | null>(null);
-
-  // SaaS lead-gen: bid/close-deal previews are deprecated; keep null to avoid TS errors in disabled legacy blocks.
-  const bidModalFundingGapPreview: any = null;
-  const missionBidFundingGapPreview: any = null;
-
   const [activeBidCounts, setActiveBidCounts] = useState<Record<string, number>>({});
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -2042,30 +2025,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [isAccepting, setIsAccepting] = useState(false);
   const [showBidInput, setShowBidInput] = useState(false);
   const [missionBidAmount, setMissionBidAmount] = useState<string>('');
-  const [showCrowdfundConfirm, setShowCrowdfundConfirm] = useState(false);
-  const [crowdfundBidAmount, setCrowdfundBidAmount] = useState<number | null>(null);
-  /** User-entered tokens for "close deal" co-fund (any positive amount, not tied to gap) */
-  const [crowdfundCoFundInput, setCrowdfundCoFundInput] = useState('');
-  const [showDonate, setShowDonate] = useState(false);
-  const [donateAmount, setDonateAmount] = useState<string>('');
-  const [donating, setDonating] = useState(false);
 
   /** Keep WebGL map markers visually below modal stack (z-[9999]); dim when any overlay is open. */
   const mapMarkerLayerSuppressed = useMemo(
     () =>
       Boolean(
-        bidJob ||
-          selectedMission ||
-          showCrowdfundConfirm ||
+        selectedMission ||
           hallOfFameMission ||
           taskTypeSelected ||
           showWorkerSubscriptionGate ||
           showSubscriptionModal
       ),
     [
-      bidJob,
       selectedMission,
-      showCrowdfundConfirm,
       hallOfFameMission,
       taskTypeSelected,
       showWorkerSubscriptionGate,
@@ -2457,8 +2429,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setSelectedMission(null);
     setShowBidInput(false);
     setMissionBidAmount('');
-    setShowDonate(false);
-    setDonateAmount('');
     setLeadPhoneVisible(false);
     setUnlockedLeadPhone(null);
     setSelectedRating(0);
@@ -2481,67 +2451,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
   }, [isPlatformAdminViewer, selectedMission, t, toast, handleCloseMissionBriefing]);
 
-  const closeCrowdfundConfirm = useCallback(() => {
-    setShowCrowdfundConfirm(false);
-    setCrowdfundBidAmount(null);
-    setCrowdfundCoFundInput('');
-  }, []);
-
-  const handleCoFundMission = useCallback(
-    async (missionId: string, bidAmount: number) => {
-      const { error } = await supabase.rpc('co_fund_and_accept_mission', {
-        p_mission_id: missionId,
-        p_bid_amount: floorUsd(bidAmount),
-      });
-      if (error) throw error;
-    },
-    []
-  );
-
-  const handleDonate = useCallback(
-    async (amount: number) => {
-      if (!selectedMission) return;
-      const value = Math.floor(Number(amount));
-      if (!Number.isFinite(value) || value <= 0) {
-        toast.error(t('enterPositiveUsdAmount'));
-        return;
-      }
-      try {
-        setDonating(true);
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user?.id) {
-          onRequestAuth?.();
-          return;
-        }
-        const { error } = await supabase.rpc('donate_to_mission', {
-          p_mission_id: selectedMission.id,
-          p_amount: value,
-        });
-        if (error) {
-          toast.error(t('mapToastDonationFailed'));
-          return;
-        }
-        // Optimistically update local mission funding so UI reflects change immediately
-        setSelectedMission((prev) =>
-          prev
-            ? {
-                ...prev,
-                current_funding: Math.floor(Number(prev.current_funding || 0)) + value,
-              }
-            : prev
-        );
-        toast.success(t('mapToastDonationThanks'));
-        setShowDonate(false);
-        setDonateAmount('');
-        await fetchMissions();
-      } catch (e: any) {
-        toast.error(t('mapToastDonationFailed'));
-      } finally {
-        setDonating(false);
-      }
-    },
-    [fetchMissions, onRequestAuth, selectedMission]
-  );
 
   const handleSubmitReview = useCallback(
     async (rating: number) => {
@@ -2845,14 +2754,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     ]
   );
 
-  /** Wallet debit + assign cleaner + in_progress when funding reaches goal (RPC). */
-  const completeFundingAndAssign = useCallback(async (missionId: string, bidAmountUsd: number) => {
-    const { error } = await supabase.rpc('complete_funding_and_assign', {
-      p_mission_id: missionId,
-      p_bid_amount: floorUsd(bidAmountUsd),
-    });
-    if (error) throw error;
-  }, []);
 
   const handleCloseHallOfFame = useCallback(() => {
     setHallOfFameMission(null);
@@ -2958,16 +2859,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
       }
 
-      const funded = Number(selectedMission.current_funding ?? 0);
-      const goal = Number(selectedMission.amount_target ?? 0);
-      const totalAfterBid = funded + amtUsd;
-      const closesAtGoal = goal > 0 && totalAfterBid + 0.01 >= goal;
-
-      if (closesAtGoal) {
-        await completeFundingAndAssign(selectedMission.id, amtUsd);
-      } else {
-        await placePendingBid(selectedMission.id, amtUsd);
-      }
+      await placePendingBid(selectedMission.id, amtUsd);
 
       handleCloseMissionBriefing();
       void fetchMissions();
@@ -2977,7 +2869,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setIsAccepting(false);
     }
   }, [
-    completeFundingAndAssign,
     fetchMissions,
     handleCloseMissionBriefing,
     missionBidAmount,
@@ -2988,82 +2879,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     toast.error,
     toast.notice,
   ]);
-
-  const handleCloseBidModal = useCallback(() => {
-    if (!bidSubmitting) {
-      setBidJob(null);
-      setBidAmount('');
-      setBidError(null);
-      setBidSuccess(null);
-    }
-  }, [bidSubmitting]);
-
-  const handlePlaceBid = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bidJob) return;
-    setBidError(null);
-    setBidSuccess(null);
-
-    const bidUsd = parseIntegerUsdFromInput(bidAmount);
-    if (bidUsd <= 0) {
-      setBidError(t('enterPositiveUsdAmount'));
-      return;
-    }
-
-    try {
-      setBidSubmitting(true);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.user?.id) {
-        setBidError(t('signInToPlaceBid'));
-        return;
-      }
-      const userId = session.user.id;
-
-      // SaaS model: no security deposit — access is subscription/token gated only.
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('phone_number, is_verified')
-        .eq('id', userId)
-        .maybeSingle();
-      if (profileError) {
-        console.error('Profile check failed:', profileError.message);
-      } else {
-        const homeOk = checkHomeMissionWorkerVerification(bidJob.category, profile?.is_verified);
-        if (!homeOk.ok) {
-          setBidError(t('verificationPromptOnlyVerified'));
-          return;
-        }
-
-        if (!profile?.phone_number || String(profile.phone_number).trim().length === 0) {
-          setBidError(t('mapToastWhatsAppProfileTip'));
-          return;
-        }
-      }
-
-      const funded = Number(bidJob.current_funding ?? 0);
-      const goal = Number(bidJob.amount_target ?? 0);
-      const totalAfterBid = funded + bidUsd;
-      const closesAtGoal = goal > 0 && totalAfterBid + 0.01 >= goal;
-
-      if (closesAtGoal) {
-        await completeFundingAndAssign(bidJob.id, bidUsd);
-      } else {
-        await placePendingBid(bidJob.id, bidUsd);
-      }
-
-      setBidAmount('');
-      handleCloseBidModal();
-      void fetchMissions();
-    } catch (err) {
-      console.error('Bid exception:', err);
-      setBidError(t('mapToastBidUnexpectedError'));
-    } finally {
-      setBidSubmitting(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -4255,109 +4070,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
-      {/* Bidding modal — dark glassmorphism */}
-      {false && bidJob && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] isolate bg-black/80 backdrop-blur-md"
-          onClick={handleCloseBidModal}
-          aria-hidden="false"
-        >
-          <div
-            className="w-full max-w-md animated-border animated-border-rect rounded-3xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="animated-border-inner w-full rounded-3xl bg-[#020617]/95 backdrop-blur-xl p-6">
-              <div className="flex items-start justify-between mb-4">
-                <button
-                  type="button"
-                  onClick={handleCloseBidModal}
-                  disabled={bidSubmitting}
-                  className="text-slate-400 hover:text-white text-lg font-bold disabled:opacity-40 transition-colors mr-2"
-                >
-                  ✕
-                </button>
-                <h3 className="text-lg font-black uppercase tracking-[0.18em] text-white">
-                  Place bid
-                </h3>
-              </div>
-
-            <div className="space-y-4 mb-6">
-              <div className={`px-4 py-3 ${PROFILE_GLASS_PANEL}`}>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
-                  Target amount
-                </p>
-                <p className="text-xl font-black text-amber-400">
-                  {formatTokens(Number(bidJob.amount_target))}
-                </p>
-              </div>
-              {bidJob.description && (
-                <div className={`px-4 py-3 ${PROFILE_GLASS_PANEL}`}>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
-                    Description
-                  </p>
-                  <p className="text-sm text-slate-300 whitespace-pre-wrap">
-                    {bidJob.description}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <form onSubmit={handlePlaceBid} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                  {t('bidAmountLabelUsd')}
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  pattern="\d*"
-                  value={bidAmount}
-                  onChange={(e) => setBidAmount(sanitizeIntegerUsdDigits(e.target.value))}
-                  placeholder="Enter your bid amount"
-                  className={`w-full ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 tabular-nums`}
-                />
-                {bidModalFundingGapPreview && (
-                  <p className="mt-2 text-[11px] text-cyan-200/95 font-semibold tabular-nums">
-                    {t('goalMinusFundedMinusBid')}: {formatTokens(bidModalFundingGapPreview.remainder)}
-                    {bidModalFundingGapPreview.remainder <= 0
-                      ? ` — ${t('goalMetOrExceededShort')}`
-                      : ''}
-                  </p>
-                )}
-              </div>
-
-              {bidError && (
-                <p className="text-xs text-red-400 font-medium">{bidError}</p>
-              )}
-              {bidSuccess && (
-                <p className="text-xs text-emerald-400 font-medium">{bidSuccess}</p>
-              )}
-
-              <div className={`rounded-full animated-border-home ${bidSubmitting ? 'opacity-60' : ''}`}>
-                <button
-                  type="submit"
-                  disabled={
-                    bidSubmitting ||
-                    parseIntegerUsdFromInput(bidAmount) <= 0
-                  }
-                  className="animated-border-inner w-full rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all disabled:cursor-not-allowed disabled:opacity-60 active:scale-95"
-                >
-                  {bidSubmitting
-                    ? 'Placing bid...'
-                    : (() => {
-                        const tokens = parseIntegerUsdFromInput(bidAmount);
-                        return tokens > 0
-                          ? `Place bid ${formatTokens(tokens)}`
-                          : 'Place bid';
-                      })()}
-                </button>
-              </div>
-            </form>
-            </div>
-          </div>
-        </div>
-      )}
 
       {selectedMission && (
         <MissionBriefing
@@ -4441,160 +4153,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         />
       )}
 
-      {/* Crowdfunding confirm modal (public missions) */}
-      {false && showCrowdfundConfirm && selectedMission && (
-        <div className="absolute inset-0 z-[9999] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] isolate">
-          <div
-            className="absolute inset-0 bg-black/85 backdrop-blur-md"
-            onClick={closeCrowdfundConfirm}
-            aria-hidden="true"
-          />
-          <div
-            className="relative w-full max-w-lg rounded-3xl bg-[#020617]/95 backdrop-blur-2xl border border-white/10 shadow-2xl p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between mb-3">
-              <button
-                type="button"
-                onClick={closeCrowdfundConfirm}
-                className="p-2 -m-2 mr-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-                aria-label="Close"
-              >
-                ✕
-              </button>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-500">
-                  {t('confirmation')}
-                </p>
-                <h3 className="mt-2 text-lg font-extrabold text-white">
-                  {t('thisIsCrowdfundingMission')}
-                </h3>
-              </div>
-            </div>
-
-            {(() => {
-              const bid = Number(crowdfundBidAmount ?? 0);
-              const funded = Math.max(0, Number(selectedMission.current_funding ?? 0));
-              const targetUsd = Math.max(
-                0,
-                Number(selectedMission.expected_price ?? selectedMission.amount_target ?? 0)
-              );
-              const gapToCloseUsd = Math.max(0, Math.floor(targetUsd - funded));
-              return (
-                <>
-                  <p className="text-sm text-slate-300">
-                    {t('yourBidIs')}{' '}
-                    <span className="font-black text-amber-300">{formatTokens(bid)}</span>. {t('currentFundingIs')}{' '}
-                    <span className="font-black text-emerald-300">{formatWorkBudgetUsd(funded)}</span>.
-                  </p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    {t('gapToGoalHint', {
-                      goal: formatWorkBudgetUsd(targetUsd),
-                      gap: formatWorkBudgetUsd(gapToCloseUsd),
-                    })}
-                  </p>
-                  <p className="mt-2 text-[11px] text-slate-500">
-                    {t('chooseHowToProceed')}
-                  </p>
-
-                  <div className="mt-5 grid grid-cols-1 gap-3">
-                    <div className={`space-y-2 border border-amber-500/20 rounded-xl px-3 py-3 ${PROFILE_GLASS_PANEL}`}>
-                      <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                        {t('bidAmountLabelUsd')} ({t('coFundCustomHint') || 'any amount'})
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        autoComplete="off"
-                        pattern="\d*"
-                        value={crowdfundCoFundInput}
-                        onChange={(e) => setCrowdfundCoFundInput(sanitizeIntegerUsdDigits(e.target.value))}
-                        placeholder={gapToCloseUsd > 0 ? String(gapToCloseUsd) : '10'}
-                        className={`w-full ${PROFILE_GLASS_PANEL} px-3 py-2 text-sm text-white tabular-nums`}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      disabled={isAccepting || parseIntegerUsdFromInput(crowdfundCoFundInput) <= 0}
-                      onClick={async () => {
-                        if (!selectedMission) return;
-                        const coFundUsd = parseIntegerUsdFromInput(crowdfundCoFundInput);
-                        if (coFundUsd <= 0) {
-                          toast.error(t('enterPositiveUsdAmount'));
-                          return;
-                        }
-                        try {
-                          const {
-                            data: { session },
-                          } = await supabase.auth.getSession();
-                          if (!session?.user?.id) {
-                            onRequestAuth?.();
-                            return;
-                          }
-                          setIsAccepting(true);
-                          await handleCoFundMission(selectedMission.id, floorUsd(coFundUsd));
-                          toast.success(t('mapToastCoFundSuccess'));
-                          await fetchMissions();
-                          closeCrowdfundConfirm();
-                          handleCloseMissionBriefing();
-                        } catch (e: any) {
-                          toast.error(t('mapToastCoFundFailed'));
-                        } finally {
-                          setIsAccepting(false);
-                        }
-                      }}
-                      className={`w-full px-4 py-4 text-left transition-all hover:border-amber-400/50 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 ${PROFILE_GLASS_PANEL}`}
-                    >
-                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">
-                        {t('addFunds') || 'Add Funds'} / {t('closeDeal') || 'Close deal'}
-                      </p>
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        {t('differenceDeductedFromWallet')}
-                      </p>
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={isAccepting || !(Number(crowdfundBidAmount ?? 0) > 0)}
-                      onClick={async () => {
-                        if (!selectedMission) return;
-                        const amt = floorUsd(crowdfundBidAmount ?? 0);
-                        if (!(amt > 0)) return;
-                        try {
-                          const {
-                            data: { session },
-                          } = await supabase.auth.getSession();
-                          if (!session?.user?.id) {
-                            onRequestAuth?.();
-                            return;
-                          }
-                          setIsAccepting(true);
-                          await placePendingBid(selectedMission.id, amt);
-                          await fetchMissions();
-                          closeCrowdfundConfirm();
-                          handleCloseMissionBriefing();
-                        } catch (e: any) {
-                          toast.error(t('mapToastPendingBidFailed'));
-                        } finally {
-                          setIsAccepting(false);
-                        }
-                      }}
-                      className={`w-full px-4 py-4 text-left transition-all hover:border-sky-400/50 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 ${PROFILE_GLASS_PANEL}`}
-                    >
-                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-300">
-                        {t('waitUntilFillsUpDonation')}
-                      </p>
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        {t('bidRemainsPending')}
-                      </p>
-                    </button>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        </div>
-      )}
 
       {/* Hall of Fame modal for completed missions */}
       {hallOfFameMission && (
