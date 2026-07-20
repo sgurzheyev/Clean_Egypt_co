@@ -1,0 +1,735 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { supabase } from '../services/supabase';
+
+type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected' | string;
+
+export type VerificationModalProps = {
+  open: boolean;
+  onClose: () => void;
+  onSubmitted?: () => void;
+};
+
+type DocTypeOption = {
+  slug: string;
+  label: string;
+};
+
+const DOC_TYPES: DocTypeOption[] = [
+  { slug: 'national_id_local', label: 'National ID (Local)' },
+  { slug: 'drivers_license', label: "Driver's License" },
+  { slug: 'international_passport', label: 'International Passport' },
+  { slug: 'residence_permit', label: 'Residence Permit' },
+];
+
+function extFromMime(mimeType: string) {
+  const m = String(mimeType || '').toLowerCase();
+  if (m.includes('image/png')) return 'png';
+  if (m.includes('image/webp')) return 'webp';
+  if (m.includes('image/jpeg') || m.includes('jpg') || m.includes('jpeg')) return 'jpg';
+  if (m.includes('video/mp4')) return 'mp4';
+  if (m.includes('video/quicktime')) return 'mov';
+  if (m.includes('video/webm')) return 'webm';
+  return 'bin';
+}
+
+function useObjectUrl(fileOrBlob: Blob | File | null | undefined) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!fileOrBlob) {
+      setUrl(null);
+      return;
+    }
+    const next = URL.createObjectURL(fileOrBlob);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [fileOrBlob]);
+  return url;
+}
+
+function UfoLivenessCapture(props: {
+  disabled?: boolean;
+  onCaptured: (res: { blob: Blob; mimeType: string }) => void;
+}) {
+  const { t } = useTranslation();
+  const { disabled, onCaptured } = props;
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const stopTimerRef = useRef<number | null>(null);
+
+  const [ready, setReady] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+
+  const supportedMimeType = useMemo(() => {
+    const candidates = [
+      'video/webm;codecs=vp9',
+      'video/webm;codecs=vp8',
+      'video/webm',
+      'video/mp4',
+    ];
+    for (const candidate of candidates) {
+      try {
+        if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(candidate)) return candidate;
+      } catch {
+        // ignore
+      }
+    }
+    return '';
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const start = async () => {
+      if (disabled) return;
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError('Camera is not supported in this browser.');
+        return;
+      }
+
+      try {
+        setStarting(true);
+        setError(null);
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' },
+          audio: false,
+        });
+
+        if (cancelled) {
+          stream.getTracks().forEach((tr) => tr.stop());
+          return;
+        }
+
+        streamRef.current = stream;
+        if (videoRef.current) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (videoRef.current as any).srcObject = stream;
+          await videoRef.current.play().catch(() => undefined);
+        }
+        setReady(true);
+      } catch (e: any) {
+        setError(e?.message || 'Camera permission denied.');
+      } finally {
+        setStarting(false);
+      }
+    };
+
+    start();
+
+    return () => {
+      cancelled = true;
+      if (stopTimerRef.current) window.clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = null;
+      try {
+        recorderRef.current?.stop();
+      } catch {
+        // ignore
+      }
+      const s = streamRef.current;
+      if (s) s.getTracks().forEach((tr) => tr.stop());
+      streamRef.current = null;
+      recorderRef.current = null;
+      chunksRef.current = [];
+      setReady(false);
+      setRecording(false);
+    };
+  }, [disabled]);
+
+  const startRecording = async () => {
+    if (disabled) return;
+    if (!ready) return;
+    if (recording) return;
+    if (!streamRef.current) return;
+
+    if (!supportedMimeType) {
+      setError(t('livenessNotSupported', { defaultValue: 'Recording not supported on this device/browser.' }));
+      return;
+    }
+
+    setError(null);
+    chunksRef.current = [];
+
+    try {
+      setRecording(true);
+
+      const recorder = new MediaRecorder(streamRef.current, { mimeType: supportedMimeType });
+      recorderRef.current = recorder;
+
+      recorder.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) chunksRef.current.push(ev.data);
+      };
+
+      recorder.onstop = () => {
+        setRecording(false);
+        const blob = new Blob(chunksRef.current, { type: supportedMimeType });
+        chunksRef.current = [];
+        onCaptured({ blob, mimeType: supportedMimeType });
+      };
+
+      recorder.start();
+
+      // Record a short clip (3-5 seconds).
+      const RECORD_MS = 4000;
+      stopTimerRef.current = window.setTimeout(() => {
+        try {
+          recorder.stop();
+        } catch {
+          // ignore
+        }
+      }, RECORD_MS);
+    } catch (e: any) {
+      setRecording(false);
+      setError(e?.message || t('livenessStartFailed', { defaultValue: 'Failed to start recording.' }));
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+        {t('livenessUfoTitle', { defaultValue: 'UFO Shuttle Liveness Capture' })}
+      </p>
+
+      <div className="relative mx-auto w-full max-w-[360px] rounded-[22px] border border-white/10 bg-black/30 p-4">
+        <div className="relative mx-auto w-[320px] h-[320px] max-w-full rounded-[28px] overflow-hidden bg-black/50">
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover scale-110"
+            playsInline
+            muted
+          />
+
+          {!ready && (
+            <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-300 bg-black/40">
+              {starting ? t('livenessStarting', { defaultValue: 'Starting camera…' }) : t('livenessPreviewUnavailable', { defaultValue: 'Camera preview unavailable.' })}
+            </div>
+          )}
+
+          {/* Futuristic scanning overlay */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div
+              className="absolute left-0 right-0 h-[2px] bg-cyan-300/80 shadow-[0_0_18px_rgba(34,211,238,0.9)]"
+              style={{
+                animation: 'ufoScan 1.35s ease-in-out infinite',
+                top: 0,
+              }}
+            />
+            <style>{`
+              @keyframes ufoScan {
+                0% { transform: translateY(-10%); opacity: 0.15; }
+                45% { opacity: 0.85; }
+                50% { opacity: 0.95; }
+                100% { transform: translateY(120%); opacity: 0.15; }
+              }
+            `}</style>
+          </div>
+
+          {/* Frame guides */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute left-3 top-3 right-3 bottom-3 rounded-[18px] border border-cyan-400/25 shadow-[0_0_30px_rgba(34,211,238,0.15)]" />
+          </div>
+        </div>
+
+        <p className="mt-3 text-xs leading-relaxed text-slate-300">
+          {t('livenessUfoHint', { defaultValue: 'Position your face in the frame and move slightly. Keep steady for a short capture.' })}
+        </p>
+      </div>
+
+      {error && <p className="text-xs text-red-300">{error}</p>}
+
+      <button
+        type="button"
+        disabled={disabled || !ready || recording}
+        onClick={startRecording}
+        className="w-full rounded-full px-5 py-3 text-[11px] font-black uppercase tracking-[0.2em] border border-cyan-400/35 text-cyan-100 bg-cyan-500/10 hover:bg-cyan-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+      >
+        {recording ? t('livenessRecording', { defaultValue: 'Recording…' }) : t('livenessRecordNow', { defaultValue: 'Record (4s)' })}
+      </button>
+    </div>
+  );
+}
+
+export default function VerificationModal(props: VerificationModalProps) {
+  const { open, onClose, onSubmitted } = props;
+  const { t, i18n } = useTranslation();
+  const isRu = (i18n.language || '').toLowerCase().startsWith('ru');
+
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('unverified');
+  const [profileId, setProfileId] = useState<string | null>(null);
+
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [docTypeSlug, setDocTypeSlug] = useState<string>(DOC_TYPES[0].slug);
+  const [photoFront, setPhotoFront] = useState<File | null>(null);
+  const [photoBack, setPhotoBack] = useState<File | null>(null);
+  const [frontPreviewUrl, setFrontPreviewUrl] = useState<string | null>(null);
+  const [backPreviewUrl, setBackPreviewUrl] = useState<string | null>(null);
+
+  const [livenessBlob, setLivenessBlob] = useState<Blob | null>(null);
+  const [livenessMime, setLivenessMime] = useState<string>('video/webm');
+  const livenessPreviewUrl = useObjectUrl(livenessBlob);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let cancelled = false;
+    const loadProfile = async () => {
+      setStatusLoading(true);
+      setSubmitError(null);
+      setSubmitted(false);
+      setStep(1);
+      setVerificationStatus('unverified');
+
+      try {
+        const { data: session } = await supabase.auth.getSession();
+        const userId = session?.user?.id ?? null;
+        if (!userId) {
+          if (!cancelled) setVerificationStatus('unverified');
+          return;
+        }
+
+        if (!cancelled) setProfileId(userId);
+
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('verification_status, is_verified')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        const rawStatus = (profile?.verification_status ?? null) as string | null;
+        const fallback = profile?.is_verified ? 'verified' : 'unverified';
+        const nextStatus = rawStatus || fallback;
+
+        if (!cancelled) setVerificationStatus(nextStatus);
+      } catch (e: any) {
+        if (!cancelled) setSubmitError(e?.message || 'Failed to load verification status.');
+      } finally {
+        if (!cancelled) setStatusLoading(false);
+      }
+    };
+
+    void loadProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    return () => {
+      if (frontPreviewUrl) URL.revokeObjectURL(frontPreviewUrl);
+      if (backPreviewUrl) URL.revokeObjectURL(backPreviewUrl);
+    };
+  }, [frontPreviewUrl, backPreviewUrl]);
+
+  const resetMedia = () => {
+    setLivenessBlob(null);
+    setLivenessMime('video/webm');
+  };
+
+  const onPickFront = (file: File | null) => {
+    setSubmitError(null);
+    if (frontPreviewUrl) URL.revokeObjectURL(frontPreviewUrl);
+    if (file) setFrontPreviewUrl(URL.createObjectURL(file));
+    else setFrontPreviewUrl(null);
+    setPhotoFront(file);
+  };
+
+  const onPickBack = (file: File | null) => {
+    setSubmitError(null);
+    if (backPreviewUrl) URL.revokeObjectURL(backPreviewUrl);
+    if (file) setBackPreviewUrl(URL.createObjectURL(file));
+    else setBackPreviewUrl(null);
+    setPhotoBack(file);
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const uid = session?.user?.id ?? profileId;
+      if (!uid) throw new Error('Not authenticated.');
+
+      if (!photoFront) {
+        throw new Error(isRu ? 'Загрузите лицевую сторону документа.' : 'Upload document front.');
+      }
+      if (!livenessBlob) {
+        throw new Error(isRu ? 'Запишите видео на проверку.' : 'Record liveness video.');
+      }
+
+      const ts = Date.now();
+      const frontExt = extFromMime(photoFront.type);
+      const backExt = photoBack?.type ? extFromMime(photoBack.type) : 'jpg';
+
+      const safeDocType = String(docTypeSlug || DOC_TYPES[0].slug).replace(/[^a-z0-9_\\-]/gi, '_');
+
+      const frontObjectName = `kyc/${uid}/docs/${safeDocType}/front_${ts}.${frontExt}`;
+      const backObjectName = photoBack ? `kyc/${uid}/docs/${safeDocType}/back_${ts}.${backExt}` : null;
+      const liveExt = extFromMime(livenessMime || livenessBlob.type);
+      const livenessObjectName = `kyc/${uid}/liveness/liveness_${ts}.${liveExt}`;
+
+      const { error: frontUploadErr } = await supabase.storage
+        .from('kyc_documents')
+        .upload(frontObjectName, photoFront, {
+          upsert: false,
+          contentType: photoFront.type || 'image/jpeg',
+        });
+      if (frontUploadErr) throw new Error(frontUploadErr.message);
+
+      if (photoBack && backObjectName) {
+        const { error: backUploadErr } = await supabase.storage
+          .from('kyc_documents')
+          .upload(backObjectName, photoBack, {
+            upsert: false,
+            contentType: photoBack.type || 'image/jpeg',
+          });
+        if (backUploadErr) throw new Error(backUploadErr.message);
+      }
+
+      const { error: liveUploadErr } = await supabase.storage
+        .from('kyc_documents')
+        .upload(livenessObjectName, livenessBlob, {
+          upsert: false,
+          contentType: livenessMime || livenessBlob.type || 'video/webm',
+        });
+      if (liveUploadErr) throw new Error(liveUploadErr.message);
+
+      const { error: rpcErr } = await supabase.rpc('submit_kyc_verification', {
+        p_doc_type: safeDocType,
+        p_photo_front_object_name: frontObjectName,
+        p_photo_back_object_name: backObjectName,
+        p_liveness_video_object_name: livenessObjectName,
+      });
+      if (rpcErr) throw new Error(rpcErr.message);
+
+      setSubmitted(true);
+      setVerificationStatus('pending');
+      onSubmitted?.();
+    } catch (e: any) {
+      setSubmitError(e?.message || (isRu ? 'Ошибка отправки заявки.' : 'Failed to submit verification.'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const statusBadge = useMemo(() => {
+    const s = String(verificationStatus || '').toLowerCase();
+    if (s === 'verified') {
+      return (
+        <span className="inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-emerald-200">
+          {t('kycTrustedBadge', { defaultValue: 'Trusted' })}
+        </span>
+      );
+    }
+    if (s === 'pending') {
+      return (
+        <span className="inline-flex items-center rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-amber-200">
+          {t('kycUnderReviewBadge', { defaultValue: 'Under Review' })}
+        </span>
+      );
+    }
+    if (s === 'rejected') {
+      return (
+        <span className="inline-flex items-center rounded-full border border-red-400/30 bg-red-500/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-red-200">
+          {t('kycRejectedBadge', { defaultValue: 'Rejected' })}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-200">
+        {t('kycUnverifiedBadge', { defaultValue: 'Unverified' })}
+      </span>
+    );
+  }, [t, verificationStatus]);
+
+  if (!open) return null;
+
+  const isBlockedByStatus = String(verificationStatus || '').toLowerCase() === 'pending' || String(verificationStatus || '').toLowerCase() === 'verified';
+
+  return (
+    <div
+      className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-2xl rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-cyan-500/20 p-6 pb-4">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">
+              {t('kycTitleSmall', { defaultValue: 'Identity Verification' })}
+            </p>
+            <h2 className="text-xl font-black text-white">
+              {t('kycTitle', { defaultValue: 'Verify to accept Home / Private missions' })}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-10 w-10 rounded-full border border-white/15 text-slate-300 hover:text-white hover:bg-white/10 transition-all active:scale-95"
+            aria-label={t('close', { defaultValue: 'Close' })}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="p-6 pt-5">
+          {statusLoading ? (
+            <div className="py-10 text-center text-slate-300">{t('loading', { defaultValue: 'Loading…' })}</div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-3 mb-5">
+                {statusBadge}
+                <div className="text-right text-[11px] text-slate-400">
+                  {String(verificationStatus || '').toLowerCase() === 'pending' ? (
+                    <span>{t('kycPendingHint', { defaultValue: 'Your documents are under review. Please wait.' })}</span>
+                  ) : (
+                    <span>{t('kycUnverifiedHint', { defaultValue: 'Upload documents to get access.' })}</span>
+                  )}
+                </div>
+              </div>
+
+              {submitted ? (
+                <div className="py-8 text-center space-y-4">
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-400/25 text-emerald-300 shadow-[0_0_25px_rgba(52,211,153,0.2)]">
+                    ✓
+                  </div>
+                  <p className="text-white font-black">{t('kycSubmittedTitle', { defaultValue: 'Verification submitted' })}</p>
+                  <p className="text-sm text-slate-300">
+                    {t('kycSubmittedBody', { defaultValue: 'We will review your documents. Status updated to Pending.' })}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-full py-3 rounded-full border border-emerald-400/30 bg-emerald-500/10 text-emerald-200 font-black uppercase tracking-[0.12em] hover:bg-emerald-500/20 transition-colors"
+                  >
+                    {t('close', { defaultValue: 'Close' })}
+                  </button>
+                </div>
+              ) : isBlockedByStatus ? (
+                <div className="py-8 text-center space-y-4">
+                  <p className="text-white font-black text-lg">
+                    {String(verificationStatus || '').toLowerCase() === 'pending'
+                      ? t('kycPendingTitle', { defaultValue: 'Under Review' })
+                      : t('kycTrustedTitle', { defaultValue: 'Trusted Worker' })}
+                  </p>
+                  <p className="text-sm text-slate-300">
+                    {String(verificationStatus || '').toLowerCase() === 'pending'
+                      ? t('kycPendingBody', { defaultValue: 'You cannot resubmit while your verification is pending.' })
+                      : t('kycTrustedBody', { defaultValue: 'You are already verified and can accept restricted missions.' })}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-full py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors"
+                  >
+                    {t('close', { defaultValue: 'Close' })}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {/* Step indicator */}
+                  <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                    <span className={step === 1 ? 'text-cyan-300' : ''}>1</span>
+                    <span className={step === 2 ? 'text-cyan-300' : ''}>2</span>
+                    <span className={step === 3 ? 'text-cyan-300' : ''}>3</span>
+                  </div>
+
+                  {step === 1 && (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                          {t('kycDocTypeLabel', { defaultValue: 'Document Type' })}
+                        </label>
+                        <select
+                          value={docTypeSlug}
+                          onChange={(e) => {
+                            setSubmitError(null);
+                            setDocTypeSlug(e.target.value);
+                          }}
+                          className="w-full rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:outline-none focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-500/40"
+                        >
+                          {DOC_TYPES.map((opt) => (
+                            <option key={opt.slug} value={opt.slug} className="text-black">
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div
+                        className="rounded-2xl border border-cyan-400/25 bg-cyan-500/10 px-4 py-3"
+                        aria-live="polite"
+                      >
+                        <p className={`text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] text-sm font-semibold`}>
+                          Ваше лицо должно совпадать с лицом на документах
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                            {t('kycFrontLabel', { defaultValue: 'Front Side' })}
+                          </p>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => onPickFront(e.target.files?.[0] ?? null)}
+                            className="w-full text-slate-300"
+                          />
+                          {frontPreviewUrl && (
+                            <img src={frontPreviewUrl} alt="Front preview" className="w-full max-h-40 rounded-2xl object-cover border border-white/10" />
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                            {t('kycBackLabel', { defaultValue: 'Back Side (optional)' })}
+                          </p>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => onPickBack(e.target.files?.[0] ?? null)}
+                            className="w-full text-slate-300"
+                          />
+                          {backPreviewUrl && (
+                            <img src={backPreviewUrl} alt="Back preview" className="w-full max-h-40 rounded-2xl object-cover border border-white/10" />
+                          )}
+                        </div>
+                      </div>
+
+                      {submitError && <p className="text-xs text-red-300">{submitError}</p>}
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          className="flex-1 py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors"
+                          onClick={onClose}
+                        >
+                          {t('close', { defaultValue: 'Close' })}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!photoFront}
+                          className="flex-1 py-3 rounded-full border border-cyan-400/35 bg-cyan-600/90 text-white font-black uppercase tracking-[0.12em] hover:bg-cyan-500/95 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                          onClick={() => setStep(2)}
+                        >
+                          {t('continueToLiveness', { defaultValue: 'Continue' })}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {step === 2 && (
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                        <p className="text-white font-black">
+                          {t('kycLivenessStepTitle', { defaultValue: 'Next: Liveness Capture' })}
+                        </p>
+                        <p className="mt-2 text-sm text-slate-300 leading-relaxed">
+                          {t('kycLivenessStepBody', {
+                            defaultValue: 'Allow camera access. You will record a short 3-5 second video clip for biometric liveness.',
+                          })}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setStep(3)}
+                        className="w-full py-3 rounded-full border border-cyan-400/35 bg-cyan-600/90 text-white font-black uppercase tracking-[0.12em] hover:bg-cyan-500/95 transition-colors"
+                      >
+                        {t('startUfoCapture', { defaultValue: 'Start UFO Shuttle' })}
+                      </button>
+                      {livenessBlob && (
+                        <button
+                          type="button"
+                          onClick={() => setStep(3)}
+                          className="w-full py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors"
+                        >
+                          {t('retake', { defaultValue: 'Retake Liveness' })}
+                        </button>
+                      )}
+                      {livenessBlob && (
+                        <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                          <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                            {t('livenessPreviewLabel', { defaultValue: 'Captured Preview' })}
+                          </p>
+                          {livenessPreviewUrl && (
+                            <video src={livenessPreviewUrl} controls className="mt-2 w-full rounded-2xl border border-white/10" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {step === 3 && (
+                    <div className="space-y-4">
+                      <UfoLivenessCapture
+                        disabled={submitting}
+                        onCaptured={(res) => {
+                          setSubmitError(null);
+                          setLivenessBlob(res.blob);
+                          setLivenessMime(res.mimeType);
+                        }}
+                      />
+
+                      {livenessBlob && (
+                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-3">
+                          <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                            {t('livenessCapturedTitle', { defaultValue: 'Liveness video captured' })}
+                          </p>
+                          {livenessPreviewUrl && (
+                            <video src={livenessPreviewUrl} controls className="w-full rounded-2xl border border-white/10" />
+                          )}
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => resetMedia()}
+                              className="flex-1 py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors"
+                            >
+                              {t('retake', { defaultValue: 'Retake' })}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={submitting || !photoFront}
+                              onClick={() => void handleSubmit()}
+                              className="flex-1 py-3 rounded-full border border-emerald-400/30 bg-emerald-500/10 text-emerald-200 font-black uppercase tracking-[0.12em] hover:bg-emerald-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {submitting
+                                ? t('submitting', { defaultValue: 'Submitting…' })
+                                : t('submitForReview', { defaultValue: 'Submit for review' })}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {!livenessBlob && (
+                        <div className="text-xs text-slate-400">
+                          {t('livenessNotCapturedYet', { defaultValue: 'Capture the video to continue.' })}
+                        </div>
+                      )}
+
+                      {submitError && <p className="text-xs text-red-300">{submitError}</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+

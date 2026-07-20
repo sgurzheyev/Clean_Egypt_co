@@ -44,6 +44,7 @@ import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import TokenPackModal from '../src/components/TokenPackModal';
 import SubscriptionModal from '../src/components/SubscriptionModal';
 import { YEARLY_SUBSCRIPTION, formatUsdPrice } from '../src/lib/tokenPricing';
+import VerificationModal from './VerificationModal';
 import {
   type FormTrigger,
   type ServiceType,
@@ -1687,6 +1688,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [showTokenPackModal, setShowTokenPackModal] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showWorkerSubscriptionGate, setShowWorkerSubscriptionGate] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
 
   const isExecutorViewer = useMemo(() => {
     const role = String(viewerProfile?.role ?? '').toLowerCase();
@@ -2551,7 +2553,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         workerProf?.is_verified
       );
       if (!homeOk.ok) {
-        toast.error(t('verificationPromptOnlyVerified'));
+        setShowVerificationModal(true);
         return;
       }
 
@@ -2727,7 +2729,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             profile?.is_verified
           );
           if (!homeOk.ok) {
-            toast.error(t('verificationPromptOnlyVerified'));
+            setShowVerificationModal(true);
             return;
           }
         }
@@ -2850,7 +2852,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           profile?.is_verified
         );
         if (!homeOk.ok) {
-          toast.error(t('verificationPromptOnlyVerified'));
+          setShowVerificationModal(true);
           return;
         }
 
@@ -3783,6 +3785,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
             void handleUnlockLead({ skipSubscriptionCheck: true });
           }
         }}
+      />
+
+      {/* KYC modal — triggered from restricted mission bidding gates */}
+      <VerificationModal
+        open={showVerificationModal}
+        onClose={() => setShowVerificationModal(false)}
       />
 
       {/* Pin hover tooltip — fixed to viewport so it is not clipped or misaligned vs map canvas */}
