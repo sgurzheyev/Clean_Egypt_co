@@ -60,6 +60,14 @@ import {
 } from '../src/lib/serviceSectors';
 import { isCrowdfundingOpen, isGarbageRemovalService } from '../src/lib/crowdfunding';
 import { applyEgyptMapTheme, egyptRoadLineColorExpr } from '../src/lib/mapEgyptTheme';
+import {
+  applyWeatherFog,
+  isWeatherDebugEnabled,
+  setWeatherDebugEnabled,
+  type MapWeatherMode,
+} from '../src/lib/mapWeather';
+import WeatherOverlay from '../src/components/WeatherOverlay';
+import WeatherDebugPanel from '../src/components/WeatherDebugPanel';
 import { confirmContributionCheckout, startContributionCheckout } from '../src/lib/contributions';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import {
@@ -1222,6 +1230,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const mapMoveHandlerRef = React.useRef<(event: any) => void>(() => {});
   /** Brief cooldown after pin placement so the same tap cannot re-open the draft flow. */
   const pinPlacementCooldownRef = React.useRef(0);
+  const mapWeatherRef = React.useRef<MapWeatherMode>('clear');
+
+  const [mapWeather, setMapWeather] = useState<MapWeatherMode>('clear');
+  const [weatherDebugOpen, setWeatherDebugOpen] = useState(() => isWeatherDebugEnabled());
+  mapWeatherRef.current = mapWeather;
 
   const [viewState, setViewState] = useState({
     latitude: 27.2579,
@@ -1401,6 +1414,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
       };
     }
 
+    // Simulated weather overrides (debug / prototype) — sandstorm washes distant buildings.
+    fogPack = applyWeatherFog(mapWeatherRef.current, fogPack);
+
     try {
       if (map.getLayer?.('sky')) {
         map.setPaintProperty('sky', 'sky-atmosphere-sun', skySunVec);
@@ -1520,6 +1536,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const id = window.setInterval(updateAtmosphere, 5 * 60 * 1000);
     return () => window.clearInterval(id);
   }, [updateAtmosphere]);
+
+  // Re-apply fog when simulated weather changes.
+  useEffect(() => {
+    updateAtmosphere();
+  }, [mapWeather, updateAtmosphere]);
   // SaaS lead-gen: no 3D funding towers.
 
   const [selectedLocation, setSelectedLocation] = useState<
@@ -3665,6 +3686,32 @@ const MapPicker: React.FC<MapPickerProps> = ({
           />
         )}
         </MapGL>
+
+        <WeatherOverlay weather={mapWeather} />
+
+        {weatherDebugOpen ? (
+          <WeatherDebugPanel
+            weather={mapWeather}
+            onChange={setMapWeather}
+            onHide={() => {
+              setWeatherDebugOpen(false);
+              if (!import.meta.env.DEV) setWeatherDebugEnabled(false);
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            title="Weather debug"
+            aria-label="Weather debug"
+            onClick={() => {
+              setWeatherDebugEnabled(true);
+              setWeatherDebugOpen(true);
+            }}
+            className="pointer-events-auto absolute left-2 top-[max(0.5rem,env(safe-area-inset-top))] z-[40] rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-500/80 opacity-40 hover:opacity-90 hover:text-amber-200"
+          >
+            WX
+          </button>
+        )}
       </div>
 
       <TokenPackModal
