@@ -10,7 +10,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
-import { submitMissionProof } from '../src/lib/submitMissionProof';
+import { getWorkerGeolocation, submitMissionProof } from '../src/lib/submitMissionProof';
 import { Navigation, Camera, X, User } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import MissionFeedCard from './MissionFeedCard';
@@ -810,9 +810,15 @@ function ProofUploadModal({
         if (uploadError) throw uploadError;
       }
 
+      const geo = await getWorkerGeolocation();
+
       await submitMissionProof({
         missionId: mission.id,
         afterPhotoUrls: uploadedUrls,
+        workerLat: geo.lat,
+        workerLng: geo.lng,
+        completionLat: geo.lat,
+        completionLng: geo.lng,
       });
 
       toast.success(t('proofUploadSuccess'));

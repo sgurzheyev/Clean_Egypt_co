@@ -13,8 +13,11 @@
 
 | RPC | Role | Notes |
 | --- | --- | --- |
-| `submit_mission_proof` | Worker | Sets mission → `review`; no wallet debit. Migration: [[../supabase/migrations/20260719_submit_mission_proof_rpc.sql]] |
+| `submit_mission_proof` | Worker | `in_progress` → `review`; **PostGIS GPS ≤200m**; no wallet debit. [[../supabase/migrations/20260720_proof_of_work_lifecycle_security.sql]] |
+| `creator_reject_proof` | Creator | `review` → `in_progress`; clears proof; stores `rejection_reason` |
 | `confirm_mission_*` / client confirm | Creator | P2P “work done” — see [[P2P_Deal_Flow]] |
+| `process_abandoned_missions` | Cron / service_role | `in_progress` idle >24h → `available` (clears `cleaner_id`) |
+| `process_stuck_reviews` | Cron / service_role | `review` idle >3d → `completed` + `auto_approved` |
 | `apply_stripe_contribution` | **service_role only** | Idempotent on `stripe_checkout_session_id`; writes `amount_usd` only |
 | `contribute_to_mission` | Locked | Revoked from `authenticated` — Stripe path only ([[../supabase/migrations/20260719_lock_crowdfunding_and_accept_bids.sql]]) |
 | `submit_kyc_verification` | Worker | After Storage upload ([[KYC_Verification]]) |

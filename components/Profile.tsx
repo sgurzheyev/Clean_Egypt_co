@@ -28,7 +28,7 @@ import {
   isValidMarketCityId,
 } from '../src/lib/egyptMarketplace';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
-import { submitMissionProof } from '../src/lib/submitMissionProof';
+import { creatorRejectProof, submitMissionProof } from '../src/lib/submitMissionProof';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionWorkBudgetUsd, missionTokenBid } from '../src/lib/missionBudget';
 import { isPlatformAdmin, isArchivedMissionStatus } from '../src/lib/platformAdmin';
@@ -38,10 +38,10 @@ import MissionFeedCard from './MissionFeedCard';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
 
 const MISSION_PROFILE_SELECT =
-  'id, creator_id, cleaner_id, category, amount_target, expected_price, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, ai_confidence_score, ai_verdict';
+  'id, creator_id, cleaner_id, category, amount_target, expected_price, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ai_confidence_score, ai_verdict';
 
 const MISSION_ACTIVE_SELECT =
-  'id, creator_id, cleaner_id, category, amount_target, expected_price, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason';
+  'id, creator_id, cleaner_id, category, amount_target, expected_price, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, auto_approved';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -72,6 +72,7 @@ interface Job {
   is_disputed?: boolean | null;
   retry_count?: number | null;
   rejection_reason?: string | null;
+  auto_approved?: boolean | null;
   rating?: number | null;
   ai_confidence_score?: number | null;
   ai_verdict?: string | null;
@@ -224,6 +225,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     telegram_username?: string | null;
   } | null>(null);
   const [releasePaySubmitting, setReleasePaySubmitting] = useState(false);
+  const [rejectProofSubmitting, setRejectProofSubmitting] = useState(false);
   const [toastState, setToastState] = useState<ToastState>(null);
   // Mission creation is handled from the map (token-backed). Profile no longer starts checkout flows.
   /** Loading id for Retry/Cancel on `pending_payment` (Phantom Pin) cards. */
@@ -1133,25 +1135,21 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           proofVideoUrl = videoPublicUrl;
         }
 
-        const effectiveLivenessLat =
-          livenessLat ??
-          completionLat ??
-          (typeof proofJob.location_lat === 'number' ? proofJob.location_lat : null);
-        const effectiveLivenessLng =
-          livenessLng ??
-          completionLng ??
-          (typeof proofJob.location_lng === 'number' ? proofJob.location_lng : null);
+        const effectiveLivenessLat = livenessLat ?? completionLat ?? antiFraudLat;
+        const effectiveLivenessLng = livenessLng ?? completionLng ?? antiFraudLng;
 
         if (effectiveLivenessLat == null || effectiveLivenessLng == null) {
-          setProofError('Liveness GPS is required. Please enable location and try again.');
+          setProofError('Worker GPS is required. Please enable location and try again.');
           return;
         }
 
         await submitMissionProof({
           missionId: proofJob.id,
           afterPhotoUrls: [...(proofJob.after_photo_urls || []), ...uploadedUrls].slice(0, 9),
-          completionLat,
-          completionLng,
+          workerLat: effectiveLivenessLat,
+          workerLng: effectiveLivenessLng,
+          completionLat: completionLat ?? effectiveLivenessLat,
+          completionLng: completionLng ?? effectiveLivenessLng,
           completionDistanceMeters,
           proofVideoUrl,
           livenessLat: effectiveLivenessLat,
@@ -1209,7 +1207,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       toast.error(t('reviewMissionNoContact'));
       return false;
     }
-    if (releasePaySubmitting) return false;
+    if (releasePaySubmitting || rejectProofSubmitting) return false;
     try {
       setReleasePaySubmitting(true);
       const { error: rpcErr } = await supabase.rpc('confirm_mission_work_done', {
@@ -1233,6 +1231,39 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       return false;
     } finally {
       setReleasePaySubmitting(false);
+    }
+  };
+
+  const handleCreatorRejectProof = async (job: Job): Promise<boolean> => {
+    if (releasePaySubmitting || rejectProofSubmitting) return false;
+    const reason = window.prompt(
+      t('creatorRejectProofPrompt', {
+        defaultValue: 'What should the worker fix? (required)',
+      })
+    );
+    if (reason == null) return false;
+    const trimmed = reason.trim();
+    if (!trimmed) {
+      toast.error(t('creatorRejectProofReasonRequired', { defaultValue: 'Rejection reason is required' }));
+      return false;
+    }
+    try {
+      setRejectProofSubmitting(true);
+      await creatorRejectProof({ missionId: job.id, reason: trimmed });
+      closeReviewModal();
+      await fetchProfileData();
+      toast.success(
+        t('creatorRejectProofSuccess', {
+          defaultValue: 'Proof rejected — worker can upload again.',
+        })
+      );
+      return true;
+    } catch (err: any) {
+      console.error('Creator reject proof error:', err);
+      toast.error(err?.message || 'Failed to reject proof. Please try again.');
+      return false;
+    } finally {
+      setRejectProofSubmitting(false);
     }
   };
 
@@ -1796,6 +1827,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           </p>
                           {job.description && (
                             <p className="mt-1 line-clamp-2 text-xs text-slate-400">{job.description}</p>
+                          )}
+                          {job.rejection_reason && (
+                            <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-100">
+                              <span className="font-black uppercase tracking-wider text-amber-300">
+                                {t('creatorRejectProofReasonLabel', { defaultValue: 'Fix requested' })}:{' '}
+                              </span>
+                              {job.rejection_reason}
+                            </p>
                           )}
                         </div>
                         {hasCoords && onNavigateToJob && (
@@ -2550,7 +2589,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       const ok = await handleConfirmWorkDone(reviewJob);
                       if (ok) closeReviewModal();
                     }}
-                    disabled={releasePaySubmitting}
+                    disabled={releasePaySubmitting || rejectProofSubmitting}
                     className={CLIENT_APPROVE_RELEASE_BTN_MODAL}
                   >
                     {releasePaySubmitting && (
@@ -2563,11 +2602,27 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       {releasePaySubmitting ? t('processing') : t('confirmPaymentCloseMission')}
                     </span>
                   </button>
+                  {(reviewJob.status === 'review' || reviewJob.status === 'pending_approval') && (
+                    <button
+                      type="button"
+                      onClick={() => void handleCreatorRejectProof(reviewJob)}
+                      disabled={releasePaySubmitting || rejectProofSubmitting}
+                      className="w-full rounded-full border border-amber-500/45 bg-amber-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-amber-200 hover:bg-amber-500/20 disabled:opacity-50"
+                    >
+                      {rejectProofSubmitting
+                        ? t('processing')
+                        : t('creatorRejectProof', { defaultValue: 'Reject proof — request redo' })}
+                    </button>
+                  )}
                   {isAdmin && (
                     <button
                       type="button"
                       onClick={() => handleAdminDeleteMission(reviewJob.id)}
-                      disabled={adminDeleteMissionId === reviewJob.id || releasePaySubmitting}
+                      disabled={
+                        adminDeleteMissionId === reviewJob.id ||
+                        releasePaySubmitting ||
+                        rejectProofSubmitting
+                      }
                       className="w-full rounded-full border border-red-500/50 bg-red-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 hover:bg-red-500/20 disabled:opacity-50"
                     >
                       {adminDeleteMissionId === reviewJob.id

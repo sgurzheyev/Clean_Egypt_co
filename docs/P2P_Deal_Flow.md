@@ -15,8 +15,10 @@ Legacy aliases still seen in UI/data: `pending` ≈ available, `pending_approval
 1. **Create** — `create_lead_mission_with_token` (token pin fee). Budget = `expected_price` USD.
 2. **Bid / accept** — worker bids; creator `accept_mission_bid` → `in_progress` ([[Security_and_RPCs]]).
 3. **Home missions** — worker must be KYC-verified ([[KYC_Verification]]).
-4. **Proof** — worker `submit_mission_proof` → `review` (photos / liveness scene). No wallet debit.
+4. **Proof** — worker `submit_mission_proof` → `review` (photos / liveness + **server GPS ≤200m**). No wallet debit.
 5. **Confirm** — creator confirms work done and pays the worker **off-platform / agreed P2P**. Platform does not hold fiat escrow.
+5b. **Creator reject** — `creator_reject_proof` → `in_progress` with `rejection_reason` (worker re-uploads).
+5c. **Timers** — abandoned `in_progress` (>24h) → `available`; stuck `review` (>3d) → `completed` + `auto_approved`.
 6. **Dispute** — supervisor/admin moderation updates status / retry; no escrow unwind ([[../supabase/migrations/20260719_moderate_mission_dispute_p2p.sql]]).
 
 ## UI surfaces
