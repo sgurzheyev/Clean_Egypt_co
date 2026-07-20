@@ -1,22 +1,32 @@
 /**
  * Floating weather debug panel (dev / ?weatherDebug=1 / localStorage).
+ * Auto (Live) uses Open-Meteo for the map center.
  */
 import React from 'react';
+import type { MapWeatherMode } from '../lib/mapWeather';
 import {
-  MAP_WEATHER_LABELS,
-  MAP_WEATHER_MODES,
-  type MapWeatherMode,
-} from '../lib/mapWeather';
+  WEATHER_CONTROL_LABELS,
+  WEATHER_CONTROL_MODES,
+  type WeatherControlMode,
+} from '../lib/openMeteoWeather';
 
 type WeatherDebugPanelProps = {
-  weather: MapWeatherMode;
-  onChange: (mode: MapWeatherMode) => void;
+  control: WeatherControlMode;
+  effectiveWeather: MapWeatherMode;
+  onChange: (mode: WeatherControlMode) => void;
+  liveLoading?: boolean;
+  liveError?: string | null;
+  liveHint?: string | null;
   onHide?: () => void;
 };
 
 const WeatherDebugPanel: React.FC<WeatherDebugPanelProps> = ({
-  weather,
+  control,
+  effectiveWeather,
   onChange,
+  liveLoading,
+  liveError,
+  liveHint,
   onHide,
 }) => {
   return (
@@ -36,8 +46,8 @@ const WeatherDebugPanel: React.FC<WeatherDebugPanelProps> = ({
         )}
       </div>
       <div className="flex flex-col gap-1.5">
-        {MAP_WEATHER_MODES.map((mode) => {
-          const active = weather === mode;
+        {WEATHER_CONTROL_MODES.map((mode) => {
+          const active = control === mode;
           return (
             <button
               key={mode}
@@ -49,11 +59,22 @@ const WeatherDebugPanel: React.FC<WeatherDebugPanelProps> = ({
                   : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
               }`}
             >
-              {MAP_WEATHER_LABELS[mode]}
+              {WEATHER_CONTROL_LABELS[mode]}
             </button>
           );
         })}
       </div>
+      <p className="mt-2 px-0.5 text-[10px] text-slate-500">
+        Active:{' '}
+        <span className="font-semibold text-slate-300">{effectiveWeather}</span>
+        {control === 'auto' && liveLoading ? ' · fetching…' : null}
+      </p>
+      {control === 'auto' && liveHint ? (
+        <p className="mt-0.5 px-0.5 text-[10px] text-slate-500">{liveHint}</p>
+      ) : null}
+      {control === 'auto' && liveError ? (
+        <p className="mt-1 px-0.5 text-[10px] text-red-300/90">{liveError}</p>
+      ) : null}
     </div>
   );
 };

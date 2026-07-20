@@ -66,6 +66,8 @@ import {
   setWeatherDebugEnabled,
   type MapWeatherMode,
 } from '../src/lib/mapWeather';
+import type { WeatherControlMode } from '../src/lib/openMeteoWeather';
+import { useRealWeather } from '../src/hooks/useRealWeather';
 import WeatherOverlay from '../src/components/WeatherOverlay';
 import WeatherDebugPanel from '../src/components/WeatherDebugPanel';
 import { confirmContributionCheckout, startContributionCheckout } from '../src/lib/contributions';
@@ -1232,8 +1234,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const pinPlacementCooldownRef = React.useRef(0);
   const mapWeatherRef = React.useRef<MapWeatherMode>('clear');
 
-  const [mapWeather, setMapWeather] = useState<MapWeatherMode>('clear');
+  /** Auto = Open-Meteo for map center; otherwise manual override. */
+  const [weatherControl, setWeatherControl] = useState<WeatherControlMode>('auto');
   const [weatherDebugOpen, setWeatherDebugOpen] = useState(() => isWeatherDebugEnabled());
+  const [weatherFetchCenter, setWeatherFetchCenter] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+
+  const liveWeather = useRealWeather({
+    enabled: weatherControl === 'auto',
+    latitude: weatherFetchCenter?.lat ?? null,
+    longitude: weatherFetchCenter?.lng ?? null,
+    debounceMs: 1000,
+  });
+
+  const mapWeather: MapWeatherMode =
+    weatherControl === 'auto' ? liveWeather.mode : weatherControl;
   mapWeatherRef.current = mapWeather;
 
   const [viewState, setViewState] = useState({
@@ -2436,7 +2453,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const onIdle = () => {
       bindLayerHandlers();
       keepPinLayersOnTop();
+      try {
+        const c = map.getCenter?.();
+        const lat = Number(c?.lat);
+        const lng = Number(c?.lng);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          setWeatherFetchCenter((prev) => {
+            if (
+              prev &&
+              Math.abs(prev.lat - lat) < 0.0001 &&
+              Math.abs(prev.lng - lng) < 0.0001
+            ) {
+              return prev;
+            }
+            return { lat, lng };
+          });
+        }
+      } catch {
+        /* ignore */
+      }
     };
+    onIdle();
     map.on('idle', onIdle);
 
     return () => {
@@ -3691,8 +3728,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
         {weatherDebugOpen ? (
           <WeatherDebugPanel
-            weather={mapWeather}
-            onChange={setMapWeather}
+            control={weatherControl}
+            effectiveWeather={mapWeather}
+            onChange={setWeatherControl}
+            liveLoading={liveWeather.loading}
+            liveError={liveWeather.error}
+            liveHint={
+              liveWeather.current
+                ? `wind ${Math.round(Number(liveWeather.current.windspeed ?? 0))} km/h · code ${liveWeather.current.weathercode ?? '—'}`
+                : weatherFetchCenter
+                  ? `${weatherFetchCenter.lat.toFixed(2)}, ${weatherFetchCenter.lng.toFixed(2)}`
+                  : null
+            }
             onHide={() => {
               setWeatherDebugOpen(false);
               if (!import.meta.env.DEV) setWeatherDebugEnabled(false);
