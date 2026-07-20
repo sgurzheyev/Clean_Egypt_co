@@ -214,70 +214,8 @@ GRANT EXECUTE ON FUNCTION public.submit_kyc_verification(
   text, text, text, text
 ) TO service_role;
 
--- 4) Strict Storage RLS for kyc_documents
--- Users:
---   - can INSERT their own objects (owner = auth.uid())
---   - can SELECT their own objects
--- Admins:
---   - can SELECT all objects in this bucket
-ALTER TABLE storage.objects
-  ENABLE ROW LEVEL SECURITY;
-
--- Insert: owner-only
-DROP POLICY IF EXISTS kyc_documents_insert_own ON storage.objects;
-CREATE POLICY kyc_documents_insert_own
-ON storage.objects
-FOR INSERT
-WITH CHECK (
-  bucket_id = 'kyc_documents'
-  AND owner = auth.uid()
-);
-
--- Select: owner-only
-DROP POLICY IF EXISTS kyc_documents_select_own ON storage.objects;
-CREATE POLICY kyc_documents_select_own
-ON storage.objects
-FOR SELECT
-USING (
-  bucket_id = 'kyc_documents'
-  AND owner = auth.uid()
-);
-
--- Select: admins can view all documents in this bucket
-DROP POLICY IF EXISTS kyc_documents_select_admins ON storage.objects;
-CREATE POLICY kyc_documents_select_admins
-ON storage.objects
-FOR SELECT
-USING (
-  bucket_id = 'kyc_documents'
-  AND EXISTS (
-    SELECT 1
-    FROM public.profiles p
-    WHERE p.id = auth.uid()
-      AND lower(coalesce(p.role, '')) = 'admin'
-  )
-);
-
--- Update/delete: owner-only
-DROP POLICY IF EXISTS kyc_documents_update_own ON storage.objects;
-CREATE POLICY kyc_documents_update_own
-ON storage.objects
-FOR UPDATE
-USING (
-  bucket_id = 'kyc_documents'
-  AND owner = auth.uid()
-)
-WITH CHECK (
-  bucket_id = 'kyc_documents'
-  AND owner = auth.uid()
-);
-
-DROP POLICY IF EXISTS kyc_documents_delete_own ON storage.objects;
-CREATE POLICY kyc_documents_delete_own
-ON storage.objects
-FOR DELETE
-USING (
-  bucket_id = 'kyc_documents'
-  AND owner = auth.uid()
-);
+-- 4) Storage RLS for kyc_documents
+-- Hosted Supabase projects: postgres cannot ALTER/DROP/CREATE policies on storage.objects
+-- (ERROR 42501: must be owner of table objects). RLS is already enabled on storage.objects.
+-- Configure bucket policies via Dashboard OR supabase/manual/kyc_documents_storage_policies.sql
 
