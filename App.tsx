@@ -10,7 +10,6 @@ import MapPicker from './components/MapPicker';
 const AROverlay = lazy(() => import('./src/components/AROverlay'));
 import Profile from './components/Profile';
 import AuthOverlay from './components/AuthOverlay';
-import VerificationPage from './components/VerificationPage';
 import Terms from './components/Terms';
 import Privacy from './components/Privacy';
 import TryFree from './components/TryFree';
@@ -81,7 +80,6 @@ const App: React.FC = () => {
 
   return (
     <Routes>
-      <Route path="/verify" element={<VerificationPage />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/try-free" element={<TryFree />} />

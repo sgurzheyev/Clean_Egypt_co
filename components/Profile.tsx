@@ -3,7 +3,6 @@
  * Profile sidebar — wallet/tokens, missions, accordions, Top Up.
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { Pencil, Target, Globe, Building2, Clock, Info, Mail, Lock, Coins } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
@@ -216,7 +215,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     role: userProfile?.role,
   });
   const [adminDeleteMissionId, setAdminDeleteMissionId] = useState<string | null>(null);
-  const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [paymentSyncing, setPaymentSyncing] = useState(false);
   const [reviewJob, setReviewJob] = useState<Job | null>(null);
@@ -245,7 +243,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [passwordEditMode, setPasswordEditMode] = useState(true);
   const [showTokenPackModal, setShowTokenPackModal] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
-  const navigate = useNavigate();
   const lastMissionStatusActionAtRef = useRef<number>(0);
   const toastTimerRef = useRef<number | null>(null);
   const langMenuRef = useRef<HTMLDivElement>(null);
@@ -833,7 +830,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     }
     const homeOk = checkHomeMissionWorkerVerification(job.category, workerProf?.is_verified);
     if (!homeOk.ok) {
-      alert(t('verificationPromptOnlyVerified'));
+      setShowVerificationModal(true);
       return;
     }
 
@@ -2420,55 +2417,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           body="Token purchases and subscriptions are digital services. Once a token pack or subscription is activated, it is generally non-refundable unless required by applicable law. If a payment succeeds but tokens/subscription are not credited due to a technical error, support will resolve it after verification."
           onClose={() => setShowRefunds(false)}
         />
-      )}
-
-      {/* Verification required modal */}
-      {showVerificationPrompt && (
-        <div
-          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
-          onClick={() => setShowVerificationPrompt(false)}
-        >
-          <div
-            className="relative z-[9999] w-full max-w-md rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-white font-bold text-lg mb-2">Verification Required</p>
-            <p className="text-slate-400 text-sm mb-6">
-              {userProfile?.verification_status === 'pending'
-                ? t('verificationPromptReview')
-                : t('verificationPromptOnlyVerified')}
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowVerificationPrompt(false)}
-                className="flex-1 py-3 rounded-full border border-white/20 text-slate-400 hover:text-white font-bold text-sm transition-colors"
-              >
-                {t('close')}
-              </button>
-              {userProfile?.verification_status !== 'pending' ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowVerificationPrompt(false);
-                    navigate('/verify');
-                  }}
-                  className="flex-1 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black text-sm shadow-[0_0_20px_rgba(52,211,153,0.5)] transition-colors"
-                >
-                  {t('verifyNow')}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="flex-1 py-3 rounded-full bg-white/10 text-slate-500 font-black text-sm cursor-not-allowed"
-                >
-                  {t('documentsPending')}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
       )}
 
       <VerificationModal
