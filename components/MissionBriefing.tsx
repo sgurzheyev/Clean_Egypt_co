@@ -2,7 +2,7 @@
  * [[Architecture_Overview.md]]
  * Mission detail panel — bids, crowdfunding progress + Stripe contribute.
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { MapPin, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import TranslatableMissionDescription from './TranslatableMissionDescription';
@@ -17,7 +17,12 @@ import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionTokenBid, missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
-import { isCrowdfundingOpen } from '../src/lib/crowdfunding';
+import {
+  formatCrowdfundingCountdownCompact,
+  getCrowdfundingCountdownParts,
+  getCrowdfundingExpiresAt,
+  isCrowdfundingOpen,
+} from '../src/lib/crowdfunding';
 import { formatUsdPrice, YEARLY_SUBSCRIPTION } from '../src/lib/tokenPricing';
 import { type MissionBidRow, bidWorkerDisplayName } from '../src/lib/missionBids';
 
@@ -37,6 +42,8 @@ export type MissionBriefingMission = {
   expected_price?: number | null;
   current_funding?: number | null;
   crowdfunding_mode?: boolean | null;
+  crowdfunding_expires_at?: string | null;
+  created_at?: string | null;
   location_lat: number;
   location_lng: number;
   status: string;
@@ -187,6 +194,19 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const targetUsd = Math.max(0, Math.floor(Number(mission.expected_price ?? 0)));
   const fundingPct =
     targetUsd > 0 ? Math.min(100, Math.round((fundedUsd / targetUsd) * 100)) : 0;
+
+  const [fundingNowMs, setFundingNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!crowdfundingOpen) return;
+    setFundingNowMs(Date.now());
+    const id = window.setInterval(() => setFundingNowMs(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, [crowdfundingOpen, mission.id, mission.crowdfunding_expires_at]);
+
+  const fundingCountdownParts = crowdfundingOpen
+    ? getCrowdfundingCountdownParts(getCrowdfundingExpiresAt(mission), fundingNowMs)
+    : null;
+  const fundingCountdownLabel = formatCrowdfundingCountdownCompact(fundingCountdownParts);
   const assignedWorkerName = assignedWorker
     ? assignedWorker.full_name?.trim() ||
       (assignedWorker.telegram_username?.trim()
@@ -349,9 +369,27 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
 
               {crowdfundingOpen && (
                 <section className="border-t border-white/5 pt-4">
-                  <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400/90">
-                    {t('crowdfundingCampaign')}
-                  </h3>
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400/90">
+                      {t('crowdfundingCampaign')}
+                    </h3>
+                    {fundingCountdownParts && (
+                      <p
+                        className={`shrink-0 text-[10px] font-black uppercase tracking-[0.12em] tabular-nums ${
+                          fundingCountdownParts.expired
+                            ? 'text-red-300'
+                            : 'text-amber-200/90'
+                        }`}
+                      >
+                        {fundingCountdownParts.expired
+                          ? t('crowdfundingExpiredShort', { defaultValue: 'Expired' })
+                          : t('crowdfundingTimeLeft', {
+                              time: fundingCountdownLabel,
+                              defaultValue: 'Ends in: {{time}}',
+                            })}
+                      </p>
+                    )}
+                  </div>
                   <p className="mt-2 text-xs text-slate-400 leading-relaxed">
                     {t('crowdfundingProgressHint', {
                       raised: formatWorkBudgetUsd(fundedUsd),

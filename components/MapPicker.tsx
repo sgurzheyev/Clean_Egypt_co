@@ -243,6 +243,7 @@ interface JobOnMap {
   expected_price?: number | null;
   current_funding?: number | null;
   crowdfunding_mode?: boolean | null;
+  crowdfunding_expires_at?: string | null;
   location_lat: number;
   location_lng: number;
   status: string;
@@ -1808,6 +1809,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         expected_price,
         current_funding,
         crowdfunding_mode,
+        crowdfunding_expires_at,
         location_lat,
         location_lng,
         status,
@@ -2649,7 +2651,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const { data: missionRow } = await supabase
           .from('missions')
           .select(
-            'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls'
+            'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls, created_at'
           )
           .eq('id', result.mission_id)
           .maybeSingle();
