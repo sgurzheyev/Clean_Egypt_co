@@ -471,6 +471,9 @@ const resources = {
       startLivenessCapture: 'Start verification',
       kycFrontOnlyDocHint: 'For passport and residence permit, only the main photo page is required.',
       back: 'Back',
+      retake: 'Retry',
+      submitForReview: 'Submit',
+      livenessNotCapturedYet: 'Record video',
       aiRetryTitle: '⚠️ AI [FRAUD DETECTED] - RETRY REQUESTED',
       aiRetryBody:
         'Please retake the AFTER photos. You must match the exact camera angles and landmarks from the BEFORE photos (Scene Capture Geometry). The AI needs proper georeferences to verify the cleanup.',
@@ -1347,6 +1350,9 @@ const resources = {
       startLivenessCapture: 'Начать верификацию',
       kycFrontOnlyDocHint: 'Для паспорта и вида на жительство нужна только страница с фото.',
       back: 'Назад',
+      retake: 'Повторить',
+      submitForReview: 'Отправить',
+      livenessNotCapturedYet: 'Запишите видео',
       aiRetryTitle: '⚠️ AI [FRAUD DETECTED] - ПОВТОР ЗАПРОШЕН',
       aiRetryBody:
         'Пожалуйста, переснимите AFTER-фото. Нужно повторить те же углы съёмки и ориентиры (landmarks) как на BEFORE-фото (Scene Capture Geometry). AI нужны гео-ориентиры, чтобы подтвердить уборку.',

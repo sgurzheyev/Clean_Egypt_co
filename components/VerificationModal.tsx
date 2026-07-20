@@ -29,6 +29,19 @@ function documentRequiresBackSide(slug: string): boolean {
   return !FRONT_ONLY_DOC_SLUGS.has(slug);
 }
 
+function normalizeStorageContentType(mimeType: string, kind: 'image' | 'video'): string {
+  const m = String(mimeType || '').toLowerCase();
+  if (kind === 'video') {
+    if (m.includes('webm')) return 'video/webm';
+    if (m.includes('mp4')) return 'video/mp4';
+    if (m.includes('quicktime')) return 'video/quicktime';
+    return 'video/webm';
+  }
+  if (m.includes('png')) return 'image/png';
+  if (m.includes('webp')) return 'image/webp';
+  return 'image/jpeg';
+}
+
 function extFromMime(mimeType: string) {
   const m = String(mimeType || '').toLowerCase();
   if (m.includes('image/png')) return 'png';
@@ -381,25 +394,34 @@ export default function VerificationModal(props: VerificationModalProps) {
   };
 
   const handleSubmit = async () => {
+    if (submitting) return;
+
+    if (!photoFront) {
+      const msg = isRu ? 'Загрузите лицевую сторону документа.' : 'Upload document front.';
+      setSubmitError(msg);
+      alert(msg);
+      setStep(1);
+      return;
+    }
+    if (!livenessBlob) {
+      const msg = isRu ? 'Запишите видео на проверку.' : 'Record liveness video.';
+      setSubmitError(msg);
+      alert(msg);
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError(null);
     try {
       const { data: session } = await supabase.auth.getSession();
       const uid = session?.user?.id ?? profileId;
-      if (!uid) throw new Error('Not authenticated.');
-
-      if (!photoFront) {
-        throw new Error(isRu ? 'Загрузите лицевую сторону документа.' : 'Upload document front.');
-      }
-      if (!livenessBlob) {
-        throw new Error(isRu ? 'Запишите видео на проверку.' : 'Record liveness video.');
-      }
+      if (!uid) throw new Error(isRu ? 'Войдите в аккаунт.' : 'Not authenticated.');
 
       const ts = Date.now();
       const frontExt = extFromMime(photoFront.type);
       const backExt = photoBack?.type ? extFromMime(photoBack.type) : 'jpg';
 
-      const safeDocType = String(docTypeSlug || DOC_TYPES[0].slug).replace(/[^a-z0-9_\\-]/gi, '_');
+      const safeDocType = String(docTypeSlug || DOC_TYPES[0].slug).replace(/[^a-z0-9_-]/gi, '_');
 
       const frontObjectName = `kyc/${uid}/docs/${safeDocType}/front_${ts}.${frontExt}`;
       const backObjectName =
@@ -411,27 +433,37 @@ export default function VerificationModal(props: VerificationModalProps) {
         .from('kyc_documents')
         .upload(frontObjectName, photoFront, {
           upsert: false,
-          contentType: photoFront.type || 'image/jpeg',
+          contentType: normalizeStorageContentType(photoFront.type, 'image'),
         });
-      if (frontUploadErr) throw new Error(frontUploadErr.message);
+      if (frontUploadErr) {
+        console.error('[KYC submit] front upload failed', frontUploadErr);
+        throw new Error(frontUploadErr.message);
+      }
 
       if (backObjectName && photoBack) {
         const { error: backUploadErr } = await supabase.storage
           .from('kyc_documents')
           .upload(backObjectName, photoBack, {
             upsert: false,
-            contentType: photoBack.type || 'image/jpeg',
+            contentType: normalizeStorageContentType(photoBack.type, 'image'),
           });
-        if (backUploadErr) throw new Error(backUploadErr.message);
+        if (backUploadErr) {
+          console.error('[KYC submit] back upload failed', backUploadErr);
+          throw new Error(backUploadErr.message);
+        }
       }
 
+      const videoContentType = normalizeStorageContentType(livenessMime || livenessBlob.type, 'video');
       const { error: liveUploadErr } = await supabase.storage
         .from('kyc_documents')
         .upload(livenessObjectName, livenessBlob, {
           upsert: false,
-          contentType: livenessMime || livenessBlob.type || 'video/webm',
+          contentType: videoContentType,
         });
-      if (liveUploadErr) throw new Error(liveUploadErr.message);
+      if (liveUploadErr) {
+        console.error('[KYC submit] liveness upload failed', liveUploadErr);
+        throw new Error(liveUploadErr.message);
+      }
 
       const { error: rpcErr } = await supabase.rpc('submit_kyc_verification', {
         p_doc_type: safeDocType,
@@ -439,13 +471,20 @@ export default function VerificationModal(props: VerificationModalProps) {
         p_photo_back_object_name: backObjectName,
         p_liveness_video_object_name: livenessObjectName,
       });
-      if (rpcErr) throw new Error(rpcErr.message);
+      if (rpcErr) {
+        console.error('[KYC submit] RPC failed', rpcErr);
+        throw new Error(rpcErr.message);
+      }
 
-      setSubmitted(true);
       setVerificationStatus('pending');
       onSubmitted?.();
+      onClose();
     } catch (e: any) {
-      setSubmitError(e?.message || (isRu ? 'Ошибка отправки заявки.' : 'Failed to submit verification.'));
+      const message =
+        e?.message || (isRu ? 'Ошибка отправки заявки.' : 'Failed to submit verification.');
+      console.error('[KYC submit] failed', e);
+      setSubmitError(message);
+      alert(message);
     } finally {
       setSubmitting(false);
     }
@@ -491,7 +530,7 @@ export default function VerificationModal(props: VerificationModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[10001] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm px-0 sm:px-4 py-0 sm:py-4"
+      className="fixed inset-0 z-[10080] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm px-0 sm:px-4 pt-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-4"
       onClick={onClose}
     >
       <div
@@ -706,7 +745,12 @@ export default function VerificationModal(props: VerificationModalProps) {
         </div>
 
         {(showFlowFooter || submitted || isBlockedByStatus) && (
-          <div className="shrink-0 sticky bottom-0 border-t border-cyan-500/20 bg-cyan-950/98 backdrop-blur-md px-5 sm:px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="shrink-0 sticky bottom-0 border-t border-cyan-500/20 bg-cyan-950/98 backdrop-blur-md px-4 sm:px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            {submitError && showFlowFooter && !submitted && !isBlockedByStatus && (
+              <p className="mb-2 text-center text-xs text-red-300" role="alert">
+                {submitError}
+              </p>
+            )}
             {submitted || isBlockedByStatus ? (
               <button
                 type="button"
@@ -751,17 +795,17 @@ export default function VerificationModal(props: VerificationModalProps) {
                 </button>
               </div>
             ) : (
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   disabled={submitting}
-                  className="flex-1 py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors disabled:opacity-60"
+                  className="min-w-0 py-2.5 px-1 rounded-full border border-white/15 bg-white/5 text-slate-200 text-xs font-semibold hover:bg-white/10 transition-colors disabled:opacity-60"
                   onClick={() => {
                     resetMedia();
                     setStep(2);
                   }}
                 >
-                  {t('back', { defaultValue: 'Back' })}
+                  {t('back', { defaultValue: 'Назад' })}
                 </button>
                 {livenessBlob ? (
                   <>
@@ -769,22 +813,26 @@ export default function VerificationModal(props: VerificationModalProps) {
                       type="button"
                       disabled={submitting}
                       onClick={resetMedia}
-                      className="flex-1 py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors disabled:opacity-60"
+                      className="min-w-0 py-2.5 px-1 rounded-full border border-white/15 bg-white/5 text-slate-200 text-xs font-semibold hover:bg-white/10 transition-colors disabled:opacity-60"
                     >
-                      {t('retake', { defaultValue: 'Retake' })}
+                      {t('retake', { defaultValue: 'Повторить' })}
                     </button>
                     <button
                       type="button"
-                      disabled={submitting || !photoFront}
+                      disabled={submitting}
                       onClick={() => void handleSubmit()}
-                      className="flex-[1.2] py-3 rounded-full border border-emerald-400/30 bg-emerald-500/15 text-emerald-100 font-black uppercase tracking-[0.12em] hover:bg-emerald-500/25 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                      className="min-w-0 py-2.5 px-1 rounded-full border border-emerald-400/30 bg-emerald-500/15 text-emerald-100 text-xs font-semibold hover:bg-emerald-500/25 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                     >
                       {submitting
-                        ? t('submitting', { defaultValue: 'Submitting…' })
-                        : t('submitForReview', { defaultValue: 'Submit for review' })}
+                        ? t('submitting', { defaultValue: 'Отправка...' })
+                        : t('submitForReview', { defaultValue: 'Отправить' })}
                     </button>
                   </>
-                ) : null}
+                ) : (
+                  <div className="col-span-2 flex items-center justify-center text-[11px] text-slate-500 text-center px-1">
+                    {t('livenessNotCapturedYet', { defaultValue: 'Запишите видео' })}
+                  </div>
+                )}
               </div>
             )}
           </div>
