@@ -1,4 +1,6 @@
 import { supabase } from '../../services/supabase';
+import { resolveAccessToken } from './supabaseAuth';
+import { throwIfInvokeFailed } from './supabaseFunctionError';
 
 export type ContributionResult = {
   mission_id: string;
@@ -9,19 +11,6 @@ export type ContributionResult = {
   idempotent?: boolean;
 };
 
-function throwIfInvokeFailed(name: string, res: { data: any; error: any }) {
-  if (res.error) {
-    const msg =
-      res.error.message ||
-      res.data?.error ||
-      `Edge function ${name} failed`;
-    throw new Error(msg);
-  }
-  if (res.data?.error) {
-    throw new Error(String(res.data.error));
-  }
-}
-
 /** Start Stripe Checkout for a crowdfunding contribution (redirects to session.url). */
 export async function startContributionCheckout(input: {
   missionId: string;
@@ -29,10 +18,8 @@ export async function startContributionCheckout(input: {
   successUrl: string;
   cancelUrl?: string;
 }): Promise<{ url: string; sessionId: string }> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session?.access_token) {
+  const accessToken = await resolveAccessToken();
+  if (!accessToken) {
     throw new Error('Not authenticated');
   }
 
@@ -43,6 +30,7 @@ export async function startContributionCheckout(input: {
       success_url: input.successUrl,
       cancel_url: input.cancelUrl || input.successUrl,
     },
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
   throwIfInvokeFailed('stripe-contribution-checkout', res);
 
@@ -59,8 +47,14 @@ export async function startContributionCheckout(input: {
 export async function confirmContributionCheckout(
   sessionId: string
 ): Promise<ContributionResult> {
+  const accessToken = await resolveAccessToken();
+  if (!accessToken) {
+    throw new Error('Not authenticated');
+  }
+
   const res = await supabase.functions.invoke('stripe-contribution-confirm', {
     body: { session_id: sessionId },
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
   throwIfInvokeFailed('stripe-contribution-confirm', res);
   const row = (res.data || {}) as ContributionResult;

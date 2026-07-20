@@ -2423,6 +2423,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         open={showVerificationModal}
         onClose={() => setShowVerificationModal(false)}
         onSubmitted={() => void fetchProfileData()}
+        userId={_session?.user?.id ?? null}
       />
 
       <TokenPackModal

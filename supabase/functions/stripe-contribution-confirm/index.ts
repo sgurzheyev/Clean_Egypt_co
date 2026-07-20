@@ -92,7 +92,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabaseService = createClient(supabaseUrl, serviceKey);
+    const supabaseService = createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
     const { data, error: rpcErr } = await supabaseService.rpc('apply_stripe_contribution', {
       p_mission_id: missionId,
       p_contributor_id: user.id,
@@ -102,7 +104,10 @@ Deno.serve(async (req) => {
 
     if (rpcErr) {
       console.error('apply_stripe_contribution', rpcErr);
-      throw rpcErr;
+      return new Response(JSON.stringify({ error: rpcErr.message || 'Contribution RPC failed' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const row = (data || {}) as Record<string, unknown>;

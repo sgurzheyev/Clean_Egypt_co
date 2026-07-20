@@ -3791,6 +3791,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       <VerificationModal
         open={showVerificationModal}
         onClose={() => setShowVerificationModal(false)}
+        userId={currentUserId}
       />
 
       {/* Pin hover tooltip — fixed to viewport so it is not clipped or misaligned vs map canvas */}

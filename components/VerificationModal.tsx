@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabase';
+import { resolveAuthenticatedUserId } from '../src/lib/supabaseAuth';
 
 type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected' | string;
 
@@ -8,6 +9,8 @@ export type VerificationModalProps = {
   open: boolean;
   onClose: () => void;
   onSubmitted?: () => void;
+  /** Parent-provided user id (Profile / MapPicker session) — avoids stale getSession(). */
+  userId?: string | null;
 };
 
 type DocTypeOption = {
@@ -283,7 +286,7 @@ function KycLivenessCapture(props: {
 }
 
 export default function VerificationModal(props: VerificationModalProps) {
-  const { open, onClose, onSubmitted } = props;
+  const { open, onClose, onSubmitted, userId: userIdProp } = props;
   const { t, i18n } = useTranslation();
   const isRu = (i18n.language || '').toLowerCase().startsWith('ru');
 
@@ -310,6 +313,10 @@ export default function VerificationModal(props: VerificationModalProps) {
   const canContinueFromDocs = !!photoFront;
 
   useEffect(() => {
+    if (userIdProp) setProfileId(userIdProp);
+  }, [userIdProp]);
+
+  useEffect(() => {
     if (!open) return;
 
     let cancelled = false;
@@ -321,8 +328,7 @@ export default function VerificationModal(props: VerificationModalProps) {
       setVerificationStatus('unverified');
 
       try {
-        const { data: session } = await supabase.auth.getSession();
-        const userId = session?.user?.id ?? null;
+        const userId = await resolveAuthenticatedUserId(userIdProp ?? profileId);
         if (!userId) {
           if (!cancelled) setVerificationStatus('unverified');
           return;
@@ -354,7 +360,7 @@ export default function VerificationModal(props: VerificationModalProps) {
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, userIdProp]);
 
   useEffect(() => {
     if (requiresBackSide) return;
@@ -413,8 +419,7 @@ export default function VerificationModal(props: VerificationModalProps) {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const { data: session } = await supabase.auth.getSession();
-      const uid = session?.user?.id ?? profileId;
+      const uid = await resolveAuthenticatedUserId(userIdProp ?? profileId);
       if (!uid) throw new Error(isRu ? 'Войдите в аккаунт.' : 'Not authenticated.');
 
       const ts = Date.now();
