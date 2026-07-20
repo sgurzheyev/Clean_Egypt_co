@@ -144,7 +144,7 @@ const BidsTerminal: React.FC<BidsTerminalProps> = ({ onclose, onShowTryFree }) =
             </div>
           </div>
 
-          <div className="w-full mt-4 animated-border rounded-2xl">
+          <div className="w-full mt-4 animated-border animated-border-rect rounded-2xl">
             <button
               type="submit"
               className="animated-border-inner w-full py-5 text-white bg-[#020617] font-black uppercase rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all"

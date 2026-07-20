@@ -1318,7 +1318,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       />
       {/* Sliding drawer — Gemini-style animated border on outer edge */}
       <div
-        className="relative z-10 w-full min-w-0 max-w-[min(100vw,32rem)] h-[calc(100dvh-env(safe-area-inset-top))] max-h-[calc(100dvh-env(safe-area-inset-top))] flex flex-col animate-slide-in-right animated-border animated-border-drawer overflow-x-hidden min-h-0"
+        className="relative z-10 w-full min-w-0 max-w-[min(100vw,32rem)] h-[calc(100dvh-env(safe-area-inset-top))] max-h-[calc(100dvh-env(safe-area-inset-top))] flex flex-col animate-slide-in-right animated-border animated-border-drawer overflow-hidden min-h-0"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="animated-border-inner w-full min-h-0 flex-1 flex flex-col max-w-full overflow-x-hidden bg-gradient-to-b from-slate-950 via-[#020617] to-slate-950">
