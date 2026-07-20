@@ -121,8 +121,8 @@ EXECUTE FUNCTION public._sync_verification_status_from_is_verified();
 CREATE OR REPLACE FUNCTION public.submit_kyc_verification(
   p_doc_type text,
   p_photo_front_object_name text,
-  p_photo_back_object_name text DEFAULT NULL,
-  p_liveness_video_object_name text
+  p_liveness_video_object_name text,
+  p_photo_back_object_name text DEFAULT NULL
 )
 RETURNS void
 LANGUAGE plpgsql
