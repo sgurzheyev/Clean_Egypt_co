@@ -32,7 +32,7 @@ export async function startContributionCheckout(input: {
     },
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  throwIfInvokeFailed('stripe-contribution-checkout', res);
+  await throwIfInvokeFailed('stripe-contribution-checkout', res);
 
   const url = String(res.data?.url || '');
   const sessionId = String(res.data?.sessionId || '');
@@ -56,7 +56,7 @@ export async function confirmContributionCheckout(
     body: { session_id: sessionId },
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  throwIfInvokeFailed('stripe-contribution-confirm', res);
+  await throwIfInvokeFailed('stripe-contribution-confirm', res);
   const row = (res.data || {}) as ContributionResult;
   return {
     mission_id: String(row.mission_id ?? ''),

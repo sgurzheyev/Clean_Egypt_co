@@ -2,10 +2,10 @@
  * Supabase `functions.invoke` often sets a generic message on non-2xx responses.
  * Parse JSON body (and `data.error`) so users see the real Edge Function message.
  */
-export function throwIfInvokeFailed(
+export async function throwIfInvokeFailed(
   label: string,
   result: { data: unknown; error: Error | null }
-): void {
+): Promise<void> {
   const { data, error } = result;
 
   const dataError =
@@ -22,26 +22,47 @@ export function throwIfInvokeFailed(
     throw new Error(String(dataError));
   }
 
-  const anyErr = error as { message?: string; context?: { body?: unknown } } | null;
-  const ctxBody = anyErr?.context?.body;
+  const anyErr = error as { message?: string; context?: unknown } | null;
+  const ctx = anyErr?.context;
 
-  if (anyErr?.context) {
-    console.error(`[${label}] error.context`, anyErr.context);
+  if (ctx) {
+    console.error(`[${label}] error.context`, ctx);
   }
 
-  if (typeof ctxBody === 'string' && ctxBody.trim()) {
-    let parsed: { error?: unknown; message?: unknown } | null = null;
-    try {
-      parsed = JSON.parse(ctxBody) as { error?: unknown; message?: unknown };
-    } catch {
-      throw new Error(ctxBody);
+  const messageFromPayload = (payload: unknown): string | null => {
+    if (!payload) return null;
+    if (typeof payload === 'string' && payload.trim()) {
+      try {
+        const parsed = JSON.parse(payload) as { error?: unknown; message?: unknown };
+        if (parsed?.error != null) return String(parsed.error);
+        if (parsed?.message != null) return String(parsed.message);
+      } catch {
+        return payload;
+      }
+      return payload;
     }
-    if (parsed?.error != null) throw new Error(String(parsed.error));
-    if (parsed?.message != null) throw new Error(String(parsed.message));
+    if (typeof payload === 'object' && payload !== null) {
+      const obj = payload as { error?: unknown; message?: unknown };
+      if (obj.error != null) return String(obj.error);
+      if (obj.message != null) return String(obj.message);
+    }
+    return null;
+  };
+
+  // Newer supabase-js: context is a Fetch Response.
+  if (ctx && typeof ctx === 'object' && typeof (ctx as Response).text === 'function') {
+    try {
+      const text = await (ctx as Response).clone().text();
+      const msg = messageFromPayload(text);
+      if (msg) throw new Error(msg);
+    } catch (e) {
+      if (e instanceof Error && e.message !== anyErr?.message) throw e;
+    }
   }
 
-  if (ctxBody && typeof ctxBody === 'object' && ctxBody !== null && 'error' in ctxBody) {
-    throw new Error(String((ctxBody as { error: unknown }).error));
+  if (typeof ctx === 'object' && ctx !== null && 'body' in ctx) {
+    const msg = messageFromPayload((ctx as { body?: unknown }).body);
+    if (msg) throw new Error(msg);
   }
 
   if (error instanceof Error) throw error;

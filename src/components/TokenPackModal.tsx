@@ -96,7 +96,7 @@ function SaasPaymentForm({
             plan_tier: YEARLY_SUBSCRIPTION.planTier,
           },
         });
-        throwIfInvokeFailed('stripe-subscription-intent', intentRes);
+        await throwIfInvokeFailed('stripe-subscription-intent', intentRes);
         clientSecret = (intentRes.data as { clientSecret?: string })?.clientSecret;
       } else {
         const intentRes = await supabase.functions.invoke('stripe-token-intent', {
@@ -106,7 +106,7 @@ function SaasPaymentForm({
             pack_usd_cents: tokenTier.cents,
           },
         });
-        throwIfInvokeFailed('stripe-token-intent', intentRes);
+        await throwIfInvokeFailed('stripe-token-intent', intentRes);
         clientSecret = (intentRes.data as { clientSecret?: string })?.clientSecret;
       }
 
@@ -125,12 +125,12 @@ function SaasPaymentForm({
         const actRes = await supabase.functions.invoke('stripe-subscription-activate', {
           body: { payment_intent_id: paymentIntent.id },
         });
-        throwIfInvokeFailed('stripe-subscription-activate', actRes);
+        await throwIfInvokeFailed('stripe-subscription-activate', actRes);
       } else {
         const creditRes = await supabase.functions.invoke('stripe-token-credit', {
           body: { payment_intent_id: paymentIntent.id },
         });
-        throwIfInvokeFailed('stripe-token-credit', creditRes);
+        await throwIfInvokeFailed('stripe-token-credit', creditRes);
       }
 
       onSuccess();

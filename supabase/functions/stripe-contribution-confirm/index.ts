@@ -7,6 +7,14 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+function jsonError(message: string, status = 400, extra?: Record<string, unknown>) {
+  console.error('[stripe-contribution-confirm]', message, extra || '');
+  return new Response(JSON.stringify({ error: message, ...(extra || {}) }), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
 /**
  * After Stripe Checkout success redirect, verify the session is paid and apply
  * the crowdfunding contribution via service-role RPC (idempotent).
@@ -19,82 +27,107 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing Authorization' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonError('Missing Authorization', 401);
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
-    if (!supabaseUrl || !anonKey || !serviceKey || !stripeKey) {
-      throw new Error('Missing Supabase or Stripe env');
+
+    if (!supabaseUrl) {
+      return jsonError('Missing SUPABASE_URL env', 500);
+    }
+    if (!anonKey) {
+      return jsonError('Missing SUPABASE_ANON_KEY env', 500);
+    }
+    if (!serviceKey) {
+      return jsonError('Missing SUPABASE_SERVICE_ROLE_KEY env', 500);
+    }
+    if (!stripeKey) {
+      return jsonError('Missing STRIPE_SECRET_KEY env', 500);
     }
 
-    const body = (await req.json()) as { session_id?: unknown };
+    let body: { session_id?: unknown };
+    try {
+      body = (await req.json()) as { session_id?: unknown };
+    } catch (e: any) {
+      return jsonError('Invalid JSON body', 400, { detail: String(e?.message || e) });
+    }
+
     const sessionId = typeof body.session_id === 'string' ? body.session_id.trim() : '';
     if (!sessionId) {
-      return new Response(JSON.stringify({ error: 'Missing session_id' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonError('Missing session_id', 400);
     }
 
     const supabaseUser = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabaseUser.auth.getUser();
     if (userErr || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return jsonError('Unauthorized', 401, {
+        detail: userErr?.message || 'No user from JWT',
       });
     }
 
-    const stripe = new Stripe(stripeKey, {
-      apiVersion: '2023-10-16',
-      httpClient: Stripe.createFetchHttpClient(),
-    });
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    let session;
+    try {
+      const stripe = new Stripe(stripeKey, {
+        apiVersion: '2023-10-16',
+        httpClient: Stripe.createFetchHttpClient(),
+      });
+      session = await stripe.checkout.sessions.retrieve(sessionId);
+    } catch (e: any) {
+      return jsonError('Stripe session retrieve failed', 400, {
+        detail: String(e?.message || e),
+        session_id: sessionId,
+      });
+    }
 
     if (session.payment_status !== 'paid') {
-      return new Response(JSON.stringify({ error: 'Payment not completed' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return jsonError('Payment not completed', 400, {
+        payment_status: session.payment_status,
+        session_id: sessionId,
       });
     }
 
     const purpose = String(session.metadata?.purpose || '');
     if (purpose !== 'crowdfunding_contribution') {
-      return new Response(JSON.stringify({ error: 'Invalid session purpose' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return jsonError('Invalid session purpose', 400, {
+        purpose: purpose || null,
+        session_id: sessionId,
       });
     }
 
     const missionId = String(session.metadata?.mission_id || '');
-    const contributorId = String(session.metadata?.contributor_id || session.client_reference_id || '');
+    const contributorId = String(
+      session.metadata?.contributor_id || session.client_reference_id || ''
+    );
     const amountUsd = Math.floor(Number(session.metadata?.amount_usd || 0));
 
     if (!missionId || amountUsd < 1) {
-      return new Response(JSON.stringify({ error: 'Invalid contribution metadata' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return jsonError('Invalid contribution metadata', 400, {
+        mission_id: missionId || null,
+        amount_usd: amountUsd,
+        metadata: session.metadata || null,
       });
     }
 
     if (contributorId !== user.id) {
-      return new Response(JSON.stringify({ error: 'Session does not belong to this user' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return jsonError('Session does not belong to this user', 403, {
+        contributor_id: contributorId,
+        user_id: user.id,
       });
     }
 
+    // Service role bypasses RLS for contributions insert + mission funding update.
     const supabaseService = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+
     const { data, error: rpcErr } = await supabaseService.rpc('apply_stripe_contribution', {
       p_mission_id: missionId,
       p_contributor_id: user.id,
@@ -103,10 +136,13 @@ Deno.serve(async (req) => {
     });
 
     if (rpcErr) {
-      console.error('apply_stripe_contribution', rpcErr);
-      return new Response(JSON.stringify({ error: rpcErr.message || 'Contribution RPC failed' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return jsonError(rpcErr.message || 'Contribution RPC failed', 400, {
+        code: rpcErr.code || null,
+        details: rpcErr.details || null,
+        hint: rpcErr.hint || null,
+        mission_id: missionId,
+        amount_usd: amountUsd,
+        session_id: sessionId,
       });
     }
 
@@ -126,10 +162,9 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error: any) {
-    console.error('stripe-contribution-confirm error:', error?.message || error);
-    return new Response(JSON.stringify({ error: String(error?.message || 'Unknown error') }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    console.error('[stripe-contribution-confirm] unhandled', error);
+    return jsonError(String(error?.message || 'Unknown error'), 500, {
+      stack: typeof error?.stack === 'string' ? error.stack.slice(0, 500) : null,
     });
   }
 });

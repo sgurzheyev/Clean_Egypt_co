@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../services/supabase';
-import { createKycSignedUrl, kycDocTypeLabel } from '../lib/kycDocuments';
+import { createKycAdminSignedUrls, kycDocTypeLabel } from '../lib/kycDocuments';
 
 export type PendingKycProfile = {
   id: string;
@@ -62,15 +62,25 @@ const KYCReviewDashboard: React.FC<KYCReviewDashboardProps> = ({ isAllowedAdmin 
     if (mediaByUserId[row.id]) return;
     setMediaLoadingId(row.id);
     try {
-      const [front, back, liveness] = await Promise.all([
-        createKycSignedUrl(row.verification_photo_front),
-        createKycSignedUrl(row.verification_photo_back),
-        createKycSignedUrl(row.verification_liveness_video),
+      const urls = await createKycAdminSignedUrls([
+        row.verification_photo_front,
+        row.verification_photo_back,
+        row.verification_liveness_video,
       ]);
+      const frontPath = String(row.verification_photo_front ?? '').trim();
+      const backPath = String(row.verification_photo_back ?? '').trim();
+      const livePath = String(row.verification_liveness_video ?? '').trim();
       setMediaByUserId((prev) => ({
         ...prev,
-        [row.id]: { front, back, liveness },
+        [row.id]: {
+          front: frontPath ? urls[frontPath] ?? null : null,
+          back: backPath ? urls[backPath] ?? null : null,
+          liveness: livePath ? urls[livePath] ?? null : null,
+        },
       }));
+    } catch (e: any) {
+      console.error('loadMediaForUser', e);
+      alert(e?.message || 'Failed to load KYC media (signed URLs).');
     } finally {
       setMediaLoadingId(null);
     }
@@ -168,7 +178,11 @@ const KYCReviewDashboard: React.FC<KYCReviewDashboardProps> = ({ isAllowedAdmin 
             const media = mediaByUserId[row.id];
             const isExpanded = !!media;
             const busy = actionLoadingId === row.id || mediaLoadingId === row.id;
-            const name = row.full_name?.trim() || 'Unknown worker';
+            const name =
+              row.full_name?.trim() ||
+              row.contact_email?.trim() ||
+              row.telegram_username?.trim() ||
+              'Unknown worker';
             const handle = row.telegram_username ? `@${row.telegram_username.replace(/^@/, '')}` : '';
 
             return (
