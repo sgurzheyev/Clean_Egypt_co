@@ -3,16 +3,16 @@
  * Programmatic Mapbox “Egypt / Orient” restyle — sandstone extrusions + sandy roads.
  */
 
-/** Warm adobe / sandstone / terracotta palette for 3D buildings. */
+/** Muted dusty-desert palette for 3D buildings (chameleon over satellite). */
 export const EGYPT_BUILDING_COLORS = [
-  '#D2B48C', // tan / sandstone
-  '#DEB887', // burlywood
-  '#C4A484', // dusty adobe
-  '#E2725B', // terracotta
-  '#E8D5B7', // sun-bleached limestone
-  '#F5F5DC', // beige adobe
-  '#CD853F', // peru / Nile clay
-  '#B8956C', // darker sandstone
+  '#D8D0C1', // dusty bone
+  '#C5BFA9', // dry khaki
+  '#B8AD9A', // muted clay
+  '#E1DACB', // pale sand
+  '#CBC4B4', // limestone dust
+  '#B0A796', // dry ash clay
+  '#D4CCBC', // bleached khaki
+  '#A89F8E', // shadow limestone
 ] as const;
 
 /**
@@ -43,29 +43,29 @@ export const egyptBuildingExtrusionColorExpr: unknown[] = [
   EGYPT_BUILDING_COLORS[7],
 ];
 
-/** Fallback when height is missing: type-based earth tones. */
+/** Fallback when height is missing: type-based dusty tones (no red/peach). */
 export const egyptBuildingColorByTypeExpr: unknown[] = [
   'match',
   ['downcase', ['to-string', ['coalesce', ['get', 'type'], '']]],
   'residential',
-  '#D2B48C',
+  '#D8D0C1',
   'apartments',
-  '#DEB887',
+  '#C5BFA9',
   'house',
-  '#E8D5B7',
+  '#E1DACB',
   'commercial',
-  '#E2725B',
+  '#B8AD9A',
   'retail',
-  '#CD853F',
+  '#CBC4B4',
   'industrial',
-  '#B8956C',
+  '#A89F8E',
   'mosque',
-  '#C4A484',
+  '#D4CCBC',
   'church',
-  '#C4A484',
+  '#D4CCBC',
   'hotel',
-  '#DEB887',
-  '#D2B48C',
+  '#C5BFA9',
+  '#D8D0C1',
 ];
 
 export const egyptBuildingExtrusionPaint = {
@@ -77,10 +77,11 @@ export const egyptBuildingExtrusionPaint = {
   ],
   'fill-extrusion-height': ['get', 'height'],
   'fill-extrusion-base': ['get', 'min_height'],
-  'fill-extrusion-opacity': 0.88,
+  // Semi-transparent so satellite (desert / green) tints the walls naturally.
+  'fill-extrusion-opacity': 0.5,
   'fill-extrusion-vertical-gradient': true,
-  'fill-extrusion-ambient-occlusion-intensity': 0.55,
-  'fill-extrusion-ambient-occlusion-radius': 3.2,
+  'fill-extrusion-ambient-occlusion-intensity': 0.35,
+  'fill-extrusion-ambient-occlusion-radius': 2.8,
 } as const;
 
 /** Sandy / amber road colors (desert complementary). */
@@ -155,7 +156,7 @@ export function applyEgyptMapTheme(map: MapLike, options?: { beforeLayerId?: str
   }
 
   // Optional foundation tint (supported on newer Mapbox GL only).
-  safePaint(map, '3d-buildings', 'fill-extrusion-base-color', '#8B6914');
+  safePaint(map, '3d-buildings', 'fill-extrusion-base-color', '#A89F8E');
 
   // --- Road / border / admin lines ---
   const style = map.getStyle?.();
