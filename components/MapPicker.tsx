@@ -59,6 +59,7 @@ import {
   PIN_ICON_IMAGE_MOP,
 } from '../src/lib/serviceSectors';
 import { isCrowdfundingOpen, isGarbageRemovalService } from '../src/lib/crowdfunding';
+import { applyEgyptMapTheme, egyptRoadLineColorExpr } from '../src/lib/mapEgyptTheme';
 import { confirmContributionCheckout, startContributionCheckout } from '../src/lib/contributions';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import {
@@ -1103,7 +1104,7 @@ const customDarkStyle: any = {
       source: 'composite',
       'source-layer': 'road',
       paint: {
-        'line-color': '#ffffff',
+        'line-color': egyptRoadLineColorExpr,
         'line-width': [
           'interpolate',
           ['linear'],
@@ -1113,6 +1114,7 @@ const customDarkStyle: any = {
           16,
           2.5,
         ],
+        'line-opacity': 0.9,
       },
     },
     {
@@ -3486,28 +3488,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
           // SaaS lead-gen: legacy crowdfunding heatmap removed (2D bubble pins only).
 
-          if (!map.getLayer('3d-buildings')) {
-            map.addLayer(
-              {
-                id: '3d-buildings',
-                source: 'composite',
-                'source-layer': 'building',
-                filter: ['==', 'extrude', 'true'],
-                type: 'fill-extrusion',
-                minzoom: 13,
-                paint: {
-                  // 2D mode: keep buildings as neutral background only.
-                  'fill-extrusion-color': '#1f2937',
-                  'fill-extrusion-height': ['get', 'height'],
-                  'fill-extrusion-base': ['get', 'min_height'],
-                  'fill-extrusion-opacity': 0.8,
-                  'fill-extrusion-vertical-gradient': true,
-                  'fill-extrusion-ambient-occlusion-intensity': 0.8,
-                },
-              },
-              'place_label'
-            );
-          }
+          // Egypt / Orient thematic restyle: sandstone extrusions + sandy roads.
+          applyEgyptMapTheme(map, { beforeLayerId: 'place_label' });
+          // Neon road layers mount after first paint — re-apply once map is idle.
+          map.once?.('idle', () => {
+            try {
+              applyEgyptMapTheme(map, { beforeLayerId: 'place_label' });
+            } catch {
+              /* ignore */
+            }
+          });
         }}
         mapStyle={customDarkStyle}
         mapboxAccessToken={MAPBOX_TOKEN}
@@ -3520,9 +3510,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
             source-layer="road"
             filter={['in', ['get', 'class'], ['literal', ['motorway', 'primary', 'secondary', 'trunk']]]}
             paint={{
-              'line-color': '#00ffff',
+              'line-color': '#E8C39E',
               'line-width': 3.5,
-              'line-opacity': 0.2,
+              'line-opacity': 0.22,
               'line-blur': 1.5,
             }}
           />
@@ -3532,9 +3522,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
             source-layer="road"
             filter={['in', ['get', 'class'], ['literal', ['motorway', 'primary', 'secondary', 'trunk']]]}
             paint={{
-              'line-color': '#00ffff',
+              'line-color': '#C2B280',
               'line-width': 1.5,
-              'line-opacity': 0.6,
+              'line-opacity': 0.7,
             }}
           />
         </Source>
