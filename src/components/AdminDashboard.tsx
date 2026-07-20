@@ -8,6 +8,8 @@ import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { runMissionAiAnalysis } from '../lib/openai';
 import { adminDeleteMission } from '../lib/adminMission';
+import { isPlatformAdmin } from '../lib/platformAdmin';
+import KYCReviewDashboard from './KYCReviewDashboard';
 import { ADMIN_FORCE_RELEASE_PAYMENT_BTN } from '../../constants';
 import { formatTokens } from '../lib/formatMoney';
 import ModeratedMissionPhoto from '../../components/ModeratedMissionPhoto';
@@ -123,7 +125,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [pendingPayoutsError, setPendingPayoutsError] = useState<string | null>(null);
   const [payoutActionLoadingId, setPayoutActionLoadingId] = useState<string | null>(null);
 
-  type TabId = 'god' | 'missions' | 'finance' | 'disputes';
+  type TabId = 'god' | 'missions' | 'finance' | 'disputes' | 'kyc';
   const [activeTab, setActiveTab] = useState<TabId>('god');
 
   const [godSearch, setGodSearch] = useState('');
@@ -216,17 +218,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         const { data: profile } = user?.id
           ? await supabase
               .from('profiles')
-              .select('telegram_username')
+              .select('telegram_username, role')
               .eq('id', user.id)
               .maybeSingle()
           : { data: null };
 
-        const isAdmin =
-          user?.email === 'sgurzheyev@gmail.com' ||
-          user?.email?.includes('tg_6618910143') ||
-          ((profile as any)?.telegram_username ?? '')
-            .toString()
-            .toLowerCase() === 'sergiogurgini';
+        const isAdmin = isPlatformAdmin({
+          email: user?.email,
+          telegramUsername: (profile as { telegram_username?: string | null })?.telegram_username,
+          role: (profile as { role?: string | null })?.role,
+        });
 
         setIsAllowedAdmin(!!isAdmin);
       } catch {
@@ -665,6 +666,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {([
           { id: 'god', label: 'God Mode' },
+          { id: 'kyc', label: 'KYC Review' },
           { id: 'missions', label: 'Mission Control' },
           { id: 'finance', label: 'Financial Analytics' },
           { id: 'disputes', label: 'Dispute Center' },
@@ -972,6 +974,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
               </div>
             </section>
           )}
+
+          {activeTab === 'kyc' && <KYCReviewDashboard isAllowedAdmin={isAllowedAdmin} />}
 
           {activeTab === 'missions' && (
             <section className="rounded-2xl bg-slate-950 border border-orange-500/20 p-4">
