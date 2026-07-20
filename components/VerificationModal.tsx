@@ -22,6 +22,13 @@ const DOC_TYPES: DocTypeOption[] = [
   { slug: 'residence_permit', label: 'Residence Permit' },
 ];
 
+/** Passport and residence permit only need the main data page (front). */
+const FRONT_ONLY_DOC_SLUGS = new Set(['international_passport', 'residence_permit']);
+
+function documentRequiresBackSide(slug: string): boolean {
+  return !FRONT_ONLY_DOC_SLUGS.has(slug);
+}
+
 function extFromMime(mimeType: string) {
   const m = String(mimeType || '').toLowerCase();
   if (m.includes('image/png')) return 'png';
@@ -47,7 +54,7 @@ function useObjectUrl(fileOrBlob: Blob | File | null | undefined) {
   return url;
 }
 
-function UfoLivenessCapture(props: {
+function KycLivenessCapture(props: {
   disabled?: boolean;
   onCaptured: (res: { blob: Blob; mimeType: string }) => void;
 }) {
@@ -142,10 +149,7 @@ function UfoLivenessCapture(props: {
   }, [disabled]);
 
   const startRecording = async () => {
-    if (disabled) return;
-    if (!ready) return;
-    if (recording) return;
-    if (!streamRef.current) return;
+    if (disabled || !ready || recording || !streamRef.current) return;
 
     if (!supportedMimeType) {
       setError(t('livenessNotSupported', { defaultValue: 'Recording not supported on this device/browser.' }));
@@ -174,7 +178,6 @@ function UfoLivenessCapture(props: {
 
       recorder.start();
 
-      // Record a short clip (3-5 seconds).
       const RECORD_MS = 4000;
       stopTimerRef.current = window.setTimeout(() => {
         try {
@@ -192,11 +195,11 @@ function UfoLivenessCapture(props: {
   return (
     <div className="space-y-3">
       <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
-        {t('livenessUfoTitle', { defaultValue: 'UFO Shuttle Liveness Capture' })}
+        {t('livenessCaptureTitle', { defaultValue: 'Identity verification' })}
       </p>
 
-      <div className="relative mx-auto w-full max-w-[360px] rounded-[22px] border border-white/10 bg-black/30 p-4">
-        <div className="relative mx-auto w-[320px] h-[320px] max-w-full rounded-[28px] overflow-hidden bg-black/50">
+      <div className="relative mx-auto w-full max-w-[360px] rounded-[22px] border border-white/10 bg-black/30 p-3 sm:p-4">
+        <div className="relative mx-auto w-full max-w-[320px] aspect-square max-h-[min(52vw,280px)] sm:max-h-[320px] rounded-[28px] overflow-hidden bg-black/50">
           <video
             ref={videoRef}
             className="w-full h-full object-cover scale-110"
@@ -205,22 +208,31 @@ function UfoLivenessCapture(props: {
           />
 
           {!ready && (
-            <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-300 bg-black/40">
-              {starting ? t('livenessStarting', { defaultValue: 'Starting camera…' }) : t('livenessPreviewUnavailable', { defaultValue: 'Camera preview unavailable.' })}
+            <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-300 bg-black/40 px-4 text-center">
+              {starting
+                ? t('livenessStarting', { defaultValue: 'Starting camera…' })
+                : t('livenessPreviewUnavailable', { defaultValue: 'Camera preview unavailable.' })}
             </div>
           )}
 
-          {/* Futuristic scanning overlay */}
+          {recording && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/45 px-4">
+              <p className="text-sm font-semibold text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] text-center">
+                {t('livenessVerificationInProgress', { defaultValue: 'Идёт верификация...' })}
+              </p>
+            </div>
+          )}
+
           <div className="absolute inset-0 pointer-events-none">
             <div
               className="absolute left-0 right-0 h-[2px] bg-cyan-300/80 shadow-[0_0_18px_rgba(34,211,238,0.9)]"
               style={{
-                animation: 'ufoScan 1.35s ease-in-out infinite',
+                animation: recording ? 'kycScan 1.35s ease-in-out infinite' : undefined,
                 top: 0,
               }}
             />
             <style>{`
-              @keyframes ufoScan {
+              @keyframes kycScan {
                 0% { transform: translateY(-10%); opacity: 0.15; }
                 45% { opacity: 0.85; }
                 50% { opacity: 0.95; }
@@ -229,14 +241,15 @@ function UfoLivenessCapture(props: {
             `}</style>
           </div>
 
-          {/* Frame guides */}
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute left-3 top-3 right-3 bottom-3 rounded-[18px] border border-cyan-400/25 shadow-[0_0_30px_rgba(34,211,238,0.15)]" />
           </div>
         </div>
 
         <p className="mt-3 text-xs leading-relaxed text-slate-300">
-          {t('livenessUfoHint', { defaultValue: 'Position your face in the frame and move slightly. Keep steady for a short capture.' })}
+          {t('livenessCaptureHint', {
+            defaultValue: 'Position your face in the frame and hold still for a short clip.',
+          })}
         </p>
       </div>
 
@@ -248,7 +261,9 @@ function UfoLivenessCapture(props: {
         onClick={startRecording}
         className="w-full rounded-full px-5 py-3 text-[11px] font-black uppercase tracking-[0.2em] border border-cyan-400/35 text-cyan-100 bg-cyan-500/10 hover:bg-cyan-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
       >
-        {recording ? t('livenessRecording', { defaultValue: 'Recording…' }) : t('livenessRecordNow', { defaultValue: 'Record (4s)' })}
+        {recording
+          ? t('livenessVerificationInProgress', { defaultValue: 'Идёт верификация...' })
+          : t('livenessRecordNow', { defaultValue: 'Record (4s)' })}
       </button>
     </div>
   );
@@ -277,6 +292,9 @@ export default function VerificationModal(props: VerificationModalProps) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+
+  const requiresBackSide = documentRequiresBackSide(docTypeSlug);
+  const canContinueFromDocs = !!photoFront;
 
   useEffect(() => {
     if (!open) return;
@@ -324,6 +342,15 @@ export default function VerificationModal(props: VerificationModalProps) {
       cancelled = true;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (requiresBackSide) return;
+    setPhotoBack(null);
+    setBackPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, [requiresBackSide]);
 
   useEffect(() => {
     return () => {
@@ -375,7 +402,8 @@ export default function VerificationModal(props: VerificationModalProps) {
       const safeDocType = String(docTypeSlug || DOC_TYPES[0].slug).replace(/[^a-z0-9_\\-]/gi, '_');
 
       const frontObjectName = `kyc/${uid}/docs/${safeDocType}/front_${ts}.${frontExt}`;
-      const backObjectName = photoBack ? `kyc/${uid}/docs/${safeDocType}/back_${ts}.${backExt}` : null;
+      const backObjectName =
+        requiresBackSide && photoBack ? `kyc/${uid}/docs/${safeDocType}/back_${ts}.${backExt}` : null;
       const liveExt = extFromMime(livenessMime || livenessBlob.type);
       const livenessObjectName = `kyc/${uid}/liveness/liveness_${ts}.${liveExt}`;
 
@@ -387,7 +415,7 @@ export default function VerificationModal(props: VerificationModalProps) {
         });
       if (frontUploadErr) throw new Error(frontUploadErr.message);
 
-      if (photoBack && backObjectName) {
+      if (backObjectName && photoBack) {
         const { error: backUploadErr } = await supabase.storage
           .from('kyc_documents')
           .upload(backObjectName, photoBack, {
@@ -455,42 +483,46 @@ export default function VerificationModal(props: VerificationModalProps) {
 
   if (!open) return null;
 
-  const isBlockedByStatus = String(verificationStatus || '').toLowerCase() === 'pending' || String(verificationStatus || '').toLowerCase() === 'verified';
+  const isBlockedByStatus =
+    String(verificationStatus || '').toLowerCase() === 'pending' ||
+    String(verificationStatus || '').toLowerCase() === 'verified';
+
+  const showFlowFooter = !statusLoading && !submitted && !isBlockedByStatus;
 
   return (
     <div
-      className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+      className="fixed inset-0 z-[10001] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm px-0 sm:px-4 py-0 sm:py-4"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-2xl rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)] overflow-hidden"
+        className="relative flex w-full max-w-2xl max-h-[90dvh] flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl bg-cyan-950/95 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-cyan-500/20 p-6 pb-4">
-          <div>
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-cyan-500/20 p-5 sm:p-6 pb-4">
+          <div className="min-w-0 pr-2">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">
               {t('kycTitleSmall', { defaultValue: 'Identity Verification' })}
             </p>
-            <h2 className="text-xl font-black text-white">
+            <h2 className="text-lg sm:text-xl font-black text-white leading-snug">
               {t('kycTitle', { defaultValue: 'Verify to accept Home / Private missions' })}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="h-10 w-10 rounded-full border border-white/15 text-slate-300 hover:text-white hover:bg-white/10 transition-all active:scale-95"
+            className="h-10 w-10 shrink-0 rounded-full border border-white/15 text-slate-300 hover:text-white hover:bg-white/10 transition-all active:scale-95"
             aria-label={t('close', { defaultValue: 'Close' })}
           >
             ✕
           </button>
         </div>
 
-        <div className="p-6 pt-5">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-6 py-4 pb-6 [scrollbar-width:thin]">
           {statusLoading ? (
             <div className="py-10 text-center text-slate-300">{t('loading', { defaultValue: 'Loading…' })}</div>
           ) : (
             <>
-              <div className="flex items-center justify-between gap-3 mb-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
                 {statusBadge}
                 <div className="text-right text-[11px] text-slate-400">
                   {String(verificationStatus || '').toLowerCase() === 'pending' ? (
@@ -502,7 +534,7 @@ export default function VerificationModal(props: VerificationModalProps) {
               </div>
 
               {submitted ? (
-                <div className="py-8 text-center space-y-4">
+                <div className="py-6 text-center space-y-4">
                   <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-400/25 text-emerald-300 shadow-[0_0_25px_rgba(52,211,153,0.2)]">
                     ✓
                   </div>
@@ -510,16 +542,9 @@ export default function VerificationModal(props: VerificationModalProps) {
                   <p className="text-sm text-slate-300">
                     {t('kycSubmittedBody', { defaultValue: 'We will review your documents. Status updated to Pending.' })}
                   </p>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="w-full py-3 rounded-full border border-emerald-400/30 bg-emerald-500/10 text-emerald-200 font-black uppercase tracking-[0.12em] hover:bg-emerald-500/20 transition-colors"
-                  >
-                    {t('close', { defaultValue: 'Close' })}
-                  </button>
                 </div>
               ) : isBlockedByStatus ? (
-                <div className="py-8 text-center space-y-4">
+                <div className="py-6 text-center space-y-4">
                   <p className="text-white font-black text-lg">
                     {String(verificationStatus || '').toLowerCase() === 'pending'
                       ? t('kycPendingTitle', { defaultValue: 'Under Review' })
@@ -530,20 +555,14 @@ export default function VerificationModal(props: VerificationModalProps) {
                       ? t('kycPendingBody', { defaultValue: 'You cannot resubmit while your verification is pending.' })
                       : t('kycTrustedBody', { defaultValue: 'You are already verified and can accept restricted missions.' })}
                   </p>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="w-full py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors"
-                  >
-                    {t('close', { defaultValue: 'Close' })}
-                  </button>
                 </div>
               ) : (
                 <div className="space-y-5">
-                  {/* Step indicator */}
                   <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
                     <span className={step === 1 ? 'text-cyan-300' : ''}>1</span>
+                    <span aria-hidden>·</span>
                     <span className={step === 2 ? 'text-cyan-300' : ''}>2</span>
+                    <span aria-hidden>·</span>
                     <span className={step === 3 ? 'text-cyan-300' : ''}>3</span>
                   </div>
 
@@ -569,16 +588,13 @@ export default function VerificationModal(props: VerificationModalProps) {
                         </select>
                       </div>
 
-                      <div
-                        className="rounded-2xl border border-cyan-400/25 bg-cyan-500/10 px-4 py-3"
-                        aria-live="polite"
-                      >
-                        <p className={`text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] text-sm font-semibold`}>
+                      <div className="rounded-2xl border border-cyan-400/25 bg-cyan-500/10 px-4 py-3" aria-live="polite">
+                        <p className="text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] text-sm font-semibold">
                           Ваше лицо должно совпадать с лицом на документах
                         </p>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className={`grid grid-cols-1 gap-4 ${requiresBackSide ? 'sm:grid-cols-2' : ''}`}>
                         <div className="space-y-2">
                           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
                             {t('kycFrontLabel', { defaultValue: 'Front Side' })}
@@ -587,48 +603,46 @@ export default function VerificationModal(props: VerificationModalProps) {
                             type="file"
                             accept="image/*"
                             onChange={(e) => onPickFront(e.target.files?.[0] ?? null)}
-                            className="w-full text-slate-300"
+                            className="w-full text-slate-300 text-sm"
                           />
                           {frontPreviewUrl && (
-                            <img src={frontPreviewUrl} alt="Front preview" className="w-full max-h-40 rounded-2xl object-cover border border-white/10" />
+                            <img
+                              src={frontPreviewUrl}
+                              alt="Front preview"
+                              className="w-full max-h-36 sm:max-h-40 rounded-2xl object-cover border border-white/10"
+                            />
                           )}
                         </div>
 
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
-                            {t('kycBackLabel', { defaultValue: 'Back Side (optional)' })}
-                          </p>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => onPickBack(e.target.files?.[0] ?? null)}
-                            className="w-full text-slate-300"
-                          />
-                          {backPreviewUrl && (
-                            <img src={backPreviewUrl} alt="Back preview" className="w-full max-h-40 rounded-2xl object-cover border border-white/10" />
-                          )}
-                        </div>
+                        {requiresBackSide && (
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                              {t('kycBackLabel', { defaultValue: 'Back Side (optional)' })}
+                            </p>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => onPickBack(e.target.files?.[0] ?? null)}
+                              className="w-full text-slate-300 text-sm"
+                            />
+                            {backPreviewUrl && (
+                              <img
+                                src={backPreviewUrl}
+                                alt="Back preview"
+                                className="w-full max-h-36 sm:max-h-40 rounded-2xl object-cover border border-white/10"
+                              />
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      {submitError && <p className="text-xs text-red-300">{submitError}</p>}
-
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          className="flex-1 py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors"
-                          onClick={onClose}
-                        >
-                          {t('close', { defaultValue: 'Close' })}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!photoFront}
-                          className="flex-1 py-3 rounded-full border border-cyan-400/35 bg-cyan-600/90 text-white font-black uppercase tracking-[0.12em] hover:bg-cyan-500/95 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                          onClick={() => setStep(2)}
-                        >
-                          {t('continueToLiveness', { defaultValue: 'Continue' })}
-                        </button>
-                      </div>
+                      {!requiresBackSide && (
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          {t('kycFrontOnlyDocHint', {
+                            defaultValue: 'For passport and residence permit, only the main photo page is required.',
+                          })}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -636,38 +650,21 @@ export default function VerificationModal(props: VerificationModalProps) {
                     <div className="space-y-4">
                       <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
                         <p className="text-white font-black">
-                          {t('kycLivenessStepTitle', { defaultValue: 'Next: Liveness Capture' })}
+                          {t('kycLivenessStepTitle', { defaultValue: 'Liveness check' })}
                         </p>
                         <p className="mt-2 text-sm text-slate-300 leading-relaxed">
                           {t('kycLivenessStepBody', {
-                            defaultValue: 'Allow camera access. You will record a short 3-5 second video clip for biometric liveness.',
+                            defaultValue:
+                              'Allow camera access. You will record a short video clip to confirm your identity.',
                           })}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setStep(3)}
-                        className="w-full py-3 rounded-full border border-cyan-400/35 bg-cyan-600/90 text-white font-black uppercase tracking-[0.12em] hover:bg-cyan-500/95 transition-colors"
-                      >
-                        {t('startUfoCapture', { defaultValue: 'Start UFO Shuttle' })}
-                      </button>
-                      {livenessBlob && (
-                        <button
-                          type="button"
-                          onClick={() => setStep(3)}
-                          className="w-full py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors"
-                        >
-                          {t('retake', { defaultValue: 'Retake Liveness' })}
-                        </button>
-                      )}
-                      {livenessBlob && (
+                      {livenessBlob && livenessPreviewUrl && (
                         <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
                           <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
                             {t('livenessPreviewLabel', { defaultValue: 'Captured Preview' })}
                           </p>
-                          {livenessPreviewUrl && (
-                            <video src={livenessPreviewUrl} controls className="mt-2 w-full rounded-2xl border border-white/10" />
-                          )}
+                          <video src={livenessPreviewUrl} controls playsInline className="mt-2 w-full max-h-48 rounded-2xl border border-white/10" />
                         </div>
                       )}
                     </div>
@@ -675,7 +672,7 @@ export default function VerificationModal(props: VerificationModalProps) {
 
                   {step === 3 && (
                     <div className="space-y-4">
-                      <UfoLivenessCapture
+                      <KycLivenessCapture
                         disabled={submitting}
                         onCaptured={(res) => {
                           setSubmitError(null);
@@ -684,52 +681,115 @@ export default function VerificationModal(props: VerificationModalProps) {
                         }}
                       />
 
-                      {livenessBlob && (
-                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-3">
+                      {livenessBlob && livenessPreviewUrl && (
+                        <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
                           <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-                            {t('livenessCapturedTitle', { defaultValue: 'Liveness video captured' })}
+                            {t('livenessCapturedTitle', { defaultValue: 'Video captured' })}
                           </p>
-                          {livenessPreviewUrl && (
-                            <video src={livenessPreviewUrl} controls className="w-full rounded-2xl border border-white/10" />
-                          )}
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => resetMedia()}
-                              className="flex-1 py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors"
-                            >
-                              {t('retake', { defaultValue: 'Retake' })}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={submitting || !photoFront}
-                              onClick={() => void handleSubmit()}
-                              className="flex-1 py-3 rounded-full border border-emerald-400/30 bg-emerald-500/10 text-emerald-200 font-black uppercase tracking-[0.12em] hover:bg-emerald-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                            >
-                              {submitting
-                                ? t('submitting', { defaultValue: 'Submitting…' })
-                                : t('submitForReview', { defaultValue: 'Submit for review' })}
-                            </button>
-                          </div>
+                          <video src={livenessPreviewUrl} controls playsInline className="mt-2 w-full max-h-40 rounded-2xl border border-white/10" />
                         </div>
                       )}
 
                       {!livenessBlob && (
-                        <div className="text-xs text-slate-400">
-                          {t('livenessNotCapturedYet', { defaultValue: 'Capture the video to continue.' })}
-                        </div>
+                        <p className="text-xs text-slate-400">
+                          {t('livenessNotCapturedYet', { defaultValue: 'Record the video to enable submission.' })}
+                        </p>
                       )}
-
-                      {submitError && <p className="text-xs text-red-300">{submitError}</p>}
                     </div>
                   )}
+
+                  {submitError && <p className="text-xs text-red-300">{submitError}</p>}
                 </div>
               )}
             </>
           )}
         </div>
+
+        {(showFlowFooter || submitted || isBlockedByStatus) && (
+          <div className="shrink-0 sticky bottom-0 border-t border-cyan-500/20 bg-cyan-950/98 backdrop-blur-md px-5 sm:px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            {submitted || isBlockedByStatus ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors"
+              >
+                {t('close', { defaultValue: 'Close' })}
+              </button>
+            ) : step === 1 ? (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="flex-1 py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors"
+                  onClick={onClose}
+                >
+                  {t('close', { defaultValue: 'Close' })}
+                </button>
+                <button
+                  type="button"
+                  disabled={!canContinueFromDocs}
+                  className="flex-1 py-3 rounded-full border border-cyan-400/35 bg-cyan-600/90 text-white font-black uppercase tracking-[0.12em] hover:bg-cyan-500/95 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                  onClick={() => setStep(2)}
+                >
+                  {t('continueToLiveness', { defaultValue: 'Continue' })}
+                </button>
+              </div>
+            ) : step === 2 ? (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="flex-1 py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors"
+                  onClick={() => setStep(1)}
+                >
+                  {t('back', { defaultValue: 'Back' })}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  className="flex-1 py-3 rounded-full border border-cyan-400/35 bg-cyan-600/90 text-white font-black uppercase tracking-[0.12em] hover:bg-cyan-500/95 transition-colors"
+                >
+                  {t('startLivenessCapture', { defaultValue: 'Start verification' })}
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={submitting}
+                  className="flex-1 py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors disabled:opacity-60"
+                  onClick={() => {
+                    resetMedia();
+                    setStep(2);
+                  }}
+                >
+                  {t('back', { defaultValue: 'Back' })}
+                </button>
+                {livenessBlob ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={resetMedia}
+                      className="flex-1 py-3 rounded-full border border-white/15 bg-white/5 text-slate-200 font-black uppercase tracking-[0.12em] hover:bg-white/10 transition-colors disabled:opacity-60"
+                    >
+                      {t('retake', { defaultValue: 'Retake' })}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={submitting || !photoFront}
+                      onClick={() => void handleSubmit()}
+                      className="flex-[1.2] py-3 rounded-full border border-emerald-400/30 bg-emerald-500/15 text-emerald-100 font-black uppercase tracking-[0.12em] hover:bg-emerald-500/25 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {submitting
+                        ? t('submitting', { defaultValue: 'Submitting…' })
+                        : t('submitForReview', { defaultValue: 'Submit for review' })}
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
 }
-

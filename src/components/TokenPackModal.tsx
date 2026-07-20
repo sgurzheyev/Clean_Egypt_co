@@ -151,6 +151,7 @@ function SaasPaymentForm({
 
   return (
     <form onSubmit={submit} className="space-y-5">
+      <p className="text-xs leading-relaxed text-slate-400">{t('topUpProcessingDisclaimer')}</p>
       {/* Yearly subscription card */}
       <button
         type="button"

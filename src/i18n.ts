@@ -162,7 +162,7 @@ const resources = {
       newHero: 'New Hero',
       topUpWithCard: 'Top up with card',
       topUpProcessingDisclaimer:
-        'Token-only system: buy a token pack to top up.',
+        'Tokens pay for crowdfunding and boosting pins on the map. They are not used for direct worker payment.',
       releaseWorkerReceives: 'Worker receives (90% of funded amount): {{amount}}',
       payWithCardStripe: 'Pay with card (Stripe)',
       stripeFeeAdvisory:
@@ -277,7 +277,7 @@ const resources = {
       profileInfoOverview: 'Info',
       profileLeadsShort: 'Leads',
       profileEconomyHint:
-        'Tokens pay for pinning and ranking. Job pay is USD (P2P between client and worker). Crowdfunding raises USD until the target opens for bids.',
+        'Tokens pay for crowdfunding and boosting pins. Work payment is direct (P2P) between client and worker.',
       profileOwnedShort: 'Owned',
       profileActiveWorkShort: 'Active work',
       profileOwnedMissions: 'Your pins',
@@ -307,7 +307,7 @@ const resources = {
       contributionThanks: 'Thank you for your contribution!',
       crowdfundingTargetReached: 'Target reached — this job is now open for bidding.',
       tokenPack: 'Token pack',
-      tokenOnlyNote: 'Pin placement costs 1 token. No internal fiat wallet is used.',
+      tokenOnlyNote: 'Tokens pay for pin placement and ranking boosts. Work payment is direct between client and worker.',
       tokenOnlyMarketplaceHint: 'Create service requests directly from the map. Your account is token-based.',
       subscribeToUnlock: 'Subscribe to unlock',
       subscriptionGateTitle: 'Unlock client contacts',
@@ -465,6 +465,12 @@ const resources = {
       tooFarFromMission: 'You are too far from the mission location.',
       livenessFinalStep:
         'Final Step: Record a 2-second video of any of the cleaned scenes to prove liveness.',
+      livenessVerificationInProgress: 'Verification in progress...',
+      livenessCaptureTitle: 'Identity verification',
+      livenessCaptureHint: 'Position your face in the frame and hold still for a short clip.',
+      startLivenessCapture: 'Start verification',
+      kycFrontOnlyDocHint: 'For passport and residence permit, only the main photo page is required.',
+      back: 'Back',
       aiRetryTitle: '⚠️ AI [FRAUD DETECTED] - RETRY REQUESTED',
       aiRetryBody:
         'Please retake the AFTER photos. You must match the exact camera angles and landmarks from the BEFORE photos (Scene Capture Geometry). The AI needs proper georeferences to verify the cleanup.',
@@ -1047,7 +1053,7 @@ const resources = {
       newHero: 'Новый герой',
       topUpWithCard: 'Пополнить картой',
       topUpProcessingDisclaimer:
-        'Введите сумму в USD. Баланс кошелька — в долларах США (USD).',
+        'Токены нужны для краудфандинга и буста пинов на карте. Они не используются для прямой оплаты работы исполнителю.',
       releaseWorkerReceives: 'Исполнитель получит (90% от собранной суммы): {{amount}}',
       payWithCardStripe: 'Оплатить картой (Stripe)',
       stripeFeeAdvisory: '💡 Комиссия Stripe: 3.5% + $0.3 за транзакцию! Лучше начинать 🎮 игру от $9.99',
@@ -1137,7 +1143,7 @@ const resources = {
       profileInfoOverview: 'Инфо',
       profileLeadsShort: 'Лиды',
       profileEconomyHint:
-        'Токены — за пины и ранжирование. Оплата работы — в USD (напрямую между клиентом и исполнителем). Краудфандинг собирает USD до цели, после чего открываются ставки.',
+        'Токены — для краудфандинга и буста пинов. Оплата работы — напрямую между клиентом и исполнителем.',
       profileOwnedShort: 'Мои',
       profileActiveWorkShort: 'В работе',
       profileOwnedMissions: 'Ваши пины',
@@ -1167,7 +1173,7 @@ const resources = {
       contributionThanks: 'Спасибо за вклад!',
       crowdfundingTargetReached: 'Цель достигнута — заказ открыт для ставок.',
       tokenPack: 'Пакет токенов',
-      tokenOnlyNote: 'Размещение пина стоит 1 токен. Внутреннего фиатного кошелька нет.',
+      tokenOnlyNote: 'Токены — за размещение пинов и буст. Оплата работы — напрямую между клиентом и исполнителем.',
       tokenOnlyMarketplaceHint: 'Создавайте заявки прямо с карты. Аккаунт работает на токенах.',
       subscribeToUnlock: 'Подписка для разблокировки',
       subscriptionGateTitle: 'Доступ к контактам клиентов',
@@ -1335,6 +1341,12 @@ const resources = {
       tooFarFromMission: 'Вы слишком далеко от места задания.',
       livenessFinalStep:
         'Финальный шаг: Запишите 2-секундное видео любой из убранных сцен для подтверждения.',
+      livenessVerificationInProgress: 'Идёт верификация...',
+      livenessCaptureTitle: 'Верификация личности',
+      livenessCaptureHint: 'Поместите лицо в рамку и зафиксируйте короткий ролик.',
+      startLivenessCapture: 'Начать верификацию',
+      kycFrontOnlyDocHint: 'Для паспорта и вида на жительство нужна только страница с фото.',
+      back: 'Назад',
       aiRetryTitle: '⚠️ AI [FRAUD DETECTED] - ПОВТОР ЗАПРОШЕН',
       aiRetryBody:
         'Пожалуйста, переснимите AFTER-фото. Нужно повторить те же углы съёмки и ориентиры (landmarks) как на BEFORE-фото (Scene Capture Geometry). AI нужны гео-ориентиры, чтобы подтвердить уборку.',
