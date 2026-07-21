@@ -2188,7 +2188,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         )}
 
         <ProfileAccordion
-          title={t('contactInfo')}
+          title={t('accountSecurity')}
           icon={<Mail className="w-5 h-5 shrink-0 text-cyan-400/90" aria-hidden />}
         >
           <form
@@ -2321,12 +2321,16 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               )}
             </div>
           </form>
-        </ProfileAccordion>
 
-        <ProfileAccordion
-          title={t('changePassword')}
-          icon={<Lock className="w-5 h-5 shrink-0 text-slate-300/90" aria-hidden />}
-        >
+          <div className="my-4 border-t border-white/10" />
+
+          <div className="mb-3 flex items-center gap-2">
+            <Lock className="w-4 h-4 shrink-0 text-slate-300/90" aria-hidden />
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-300">
+              {t('changePassword')}
+            </p>
+          </div>
+
           <form onSubmit={handleChangePassword} className="space-y-3">
             <p className="text-[11px] text-slate-500">{t('changePasswordHint')}</p>
             {passwordEditMode ? (
