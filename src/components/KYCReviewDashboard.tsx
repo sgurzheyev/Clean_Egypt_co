@@ -219,13 +219,13 @@ const KYCReviewDashboard: React.FC<KYCReviewDashboardProps> = ({ isAllowedAdmin 
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 shrink-0">
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
                     {!isExpanded && (
                       <button
                         type="button"
                         disabled={busy}
                         onClick={() => void loadMediaForUser(row)}
-                        className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.14em] border border-white/15 text-slate-200 bg-white/5 hover:bg-white/10 disabled:opacity-60"
+                        className="w-full sm:w-auto px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.14em] border border-white/15 text-slate-200 bg-white/5 hover:bg-white/10 disabled:opacity-60"
                       >
                         {mediaLoadingId === row.id ? 'Loading…' : 'Load documents'}
                       </button>
@@ -234,7 +234,7 @@ const KYCReviewDashboard: React.FC<KYCReviewDashboardProps> = ({ isAllowedAdmin 
                       type="button"
                       disabled={busy}
                       onClick={() => void handleApprove(row)}
-                      className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.14em] border border-emerald-400/40 text-emerald-100 bg-emerald-500/15 hover:bg-emerald-500/25 disabled:opacity-60"
+                      className="w-full sm:w-auto px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.14em] border border-emerald-400/40 text-emerald-100 bg-emerald-500/15 hover:bg-emerald-500/25 disabled:opacity-60"
                     >
                       Approve
                     </button>
@@ -245,7 +245,7 @@ const KYCReviewDashboard: React.FC<KYCReviewDashboardProps> = ({ isAllowedAdmin 
                         setRejectTarget(row);
                         setRejectReason('');
                       }}
-                      className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.14em] border border-red-400/40 text-red-100 bg-red-500/15 hover:bg-red-500/25 disabled:opacity-60"
+                      className="w-full sm:w-auto px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.14em] border border-red-400/40 text-red-100 bg-red-500/15 hover:bg-red-500/25 disabled:opacity-60"
                     >
                       Reject
                     </button>
