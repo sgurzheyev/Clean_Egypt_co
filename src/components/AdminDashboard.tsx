@@ -63,11 +63,6 @@ interface TransactionRow {
   created_at: string;
   gateway?: string | null;
   status?: string | null;
-  payout_method?: string | null;
-  payout_details?: string | null;
-  withdrawal_gross_usd?: number | null;
-  withdrawal_fee_usd?: number | null;
-  withdrawal_net_usd?: number | null;
 }
 
 interface AdminDashboardProps {
@@ -140,9 +135,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<{
     total_donated: number;
-    pending_payouts: number;
-    pending_withdrawals: number;
     supervisor_bounties_total: number;
+    active_missions: number;
+    completed_missions: number;
   } | null>(null);
 
   const [disputes, setDisputes] = useState<MissionRow[]>([]);
@@ -403,9 +398,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
       const row = Array.isArray(data) ? data[0] : data;
       setMetrics({
         total_donated: Number(row?.total_donated ?? 0),
-        pending_payouts: Number(row?.pending_payouts ?? 0),
-        pending_withdrawals: Number(row?.pending_withdrawals ?? 0),
         supervisor_bounties_total: Number(row?.supervisor_bounties_total ?? 0),
+        active_missions: Number(row?.active_missions ?? 0),
+        completed_missions: Number(row?.completed_missions ?? 0),
       });
     } catch (e: any) {
       console.error('Metrics error:', e);
@@ -1027,7 +1022,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                   {
                     icon: '♻️',
                     label: 'Retained Contributions',
-                    value: metrics?.total_donated ?? 0,
+                    display: formatTokens(Number(metrics?.total_donated ?? 0)),
                     color: 'text-emerald-300',
                     caption: 'Non-refundable — no card refunds',
                     ring: 'border-emerald-500/20',
@@ -1035,10 +1030,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                   {
                     icon: '🎖️',
                     label: 'Supervisor Bounties',
-                    value: metrics?.supervisor_bounties_total ?? 0,
+                    display: formatTokens(Number(metrics?.supervisor_bounties_total ?? 0)),
                     color: 'text-cyan-300',
                     caption: 'Ahmed-Pro network rewards',
                     ring: 'border-cyan-500/20',
+                  },
+                  {
+                    icon: '🟢',
+                    label: 'Active Missions',
+                    display: String(metrics?.active_missions ?? 0),
+                    color: 'text-emerald-200',
+                    caption: 'Live on the marketplace',
+                    ring: 'border-emerald-500/15',
+                  },
+                  {
+                    icon: '✅',
+                    label: 'Completed Missions',
+                    display: String(metrics?.completed_missions ?? 0),
+                    color: 'text-slate-200',
+                    caption: 'Closed / verified',
+                    ring: 'border-white/10',
                   },
                 ].map((c) => (
                   <div
@@ -1051,7 +1062,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                       </p>
                       <span className="text-base" aria-hidden>{c.icon}</span>
                     </div>
-                    <p className={`mt-2 text-3xl font-black ${c.color}`}>{formatTokens(Number(c.value))}</p>
+                    <p className={`mt-2 text-3xl font-black ${c.color}`}>{c.display}</p>
                     <p className="mt-1 text-[10px] text-slate-500">{c.caption}</p>
                   </div>
                 ))}
