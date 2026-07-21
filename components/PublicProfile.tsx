@@ -7,6 +7,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, BadgeCheck, Star } from 'lucide-react';
 import { supabase } from '../services/supabase';
+import { getProfileReviews, type ProfileReviewRow } from '../src/lib/reviews';
+import { formatSubmittedRelative } from '../src/lib/missionFilterSort';
 
 interface PublicProfileData {
   id: string;
@@ -14,6 +16,7 @@ interface PublicProfileData {
   avatar_url: string | null;
   is_verified: boolean | null;
   rating: number | null;
+  review_count: number | null;
   missions_created: number | null;
   missions_completed: number | null;
 }
@@ -21,8 +24,9 @@ interface PublicProfileData {
 const PublicProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [profile, setProfile] = useState<PublicProfileData | null>(null);
+  const [reviews, setReviews] = useState<ProfileReviewRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +45,13 @@ const PublicProfile: React.FC = () => {
         const row = Array.isArray(data) ? data[0] : data;
         setProfile((row as PublicProfileData) ?? null);
       }
-      setLoading(false);
+      try {
+        const rows = await getProfileReviews(id, 15);
+        if (!cancelled) setReviews(rows);
+      } catch (err) {
+        console.warn('getProfileReviews failed:', err);
+      }
+      if (!cancelled) setLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -92,11 +102,16 @@ const PublicProfile: React.FC = () => {
                     <BadgeCheck className="h-5 w-5 shrink-0 text-cyan-400" strokeWidth={2.25} />
                   )}
                 </div>
-                {typeof profile.rating === 'number' && !Number.isNaN(profile.rating) && (
+                {typeof profile.rating === 'number' && !Number.isNaN(profile.rating) ? (
                   <p className="mt-1 inline-flex items-center gap-1 text-sm font-bold text-amber-300">
                     <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
                     {Number(profile.rating).toFixed(1)}
+                    <span className="text-xs font-medium text-slate-400">
+                      ({profile.review_count ?? 0})
+                    </span>
                   </p>
+                ) : (
+                  <p className="mt-1 text-xs text-slate-500">{t('publicProfileNoRating')}</p>
                 )}
               </div>
             </div>
@@ -118,6 +133,68 @@ const PublicProfile: React.FC = () => {
                   {t('publicProfileMissionsCompleted')}
                 </p>
               </div>
+            </div>
+
+            <div className="mt-6">
+              <h2 className="mb-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
+                {t('reviewsTitle', { defaultValue: 'Reviews' })}
+              </h2>
+              {reviews.length === 0 ? (
+                <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-center text-xs text-slate-500">
+                  {t('reviewsEmpty', { defaultValue: 'No reviews yet.' })}
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {reviews.map((r) => {
+                    const initial = (r.reviewer_name || '?').trim().charAt(0).toUpperCase() || '?';
+                    return (
+                      <div
+                        key={r.id}
+                        className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-slate-800">
+                            {r.reviewer_avatar ? (
+                              <img
+                                src={r.reviewer_avatar}
+                                alt=""
+                                className="h-full w-full object-cover"
+                                draggable={false}
+                              />
+                            ) : (
+                              <span className="text-xs font-black uppercase text-emerald-200">
+                                {initial}
+                              </span>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-bold text-slate-100">
+                              {r.reviewer_name || t('publicProfileAnonymous')}
+                            </p>
+                            <p className="text-[10px] uppercase tracking-[0.1em] text-slate-500">
+                              {formatSubmittedRelative(r.created_at, i18n.language)}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-0.5">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star
+                                key={s}
+                                className={`h-3.5 w-3.5 ${
+                                  s <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-600'
+                                }`}
+                                strokeWidth={1.75}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        {r.comment && (
+                          <p className="mt-2 text-sm leading-relaxed text-slate-300">{r.comment}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}

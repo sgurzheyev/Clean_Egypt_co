@@ -11,8 +11,11 @@ import { useTranslation } from 'react-i18next';
 import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
 import { getWorkerGeolocation, submitMissionProof } from '../src/lib/submitMissionProof';
+import { notifyMissionEvent } from '../src/lib/notifications';
+import { submitReview } from '../src/lib/reviews';
 import { Navigation, Camera, X, User } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
+import NotificationBell from './NotificationBell';
 import MissionFeedCard from './MissionFeedCard';
 import MissionBriefing, { type AssignedWorkerProfile } from './MissionBriefing';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
@@ -829,6 +832,7 @@ function ProofUploadModal({
         completionLat: geo.lat,
         completionLng: geo.lng,
       });
+      await notifyMissionEvent(mission.id, 'proof_uploaded');
 
       toast.success(t('proofUploadSuccess'));
       await onSuccess();
@@ -2532,8 +2536,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
 
   const handleSubmitReview = useCallback(
-    async (rating: number) => {
-      if (!selectedMission || !selectedMission.cleaner_id) return;
+    async (rating: number, comment: string) => {
+      if (!selectedMission) return;
       if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
         toast.error(t('mapToastRatingRange'));
         return;
@@ -2543,20 +2547,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        if (!session?.user?.id) {
+        const uid = session?.user?.id;
+        if (!uid) {
           onRequestAuth?.();
           return;
         }
 
-        const { error } = await supabase.rpc('submit_review', {
-          p_mission_id: selectedMission.id,
-          p_cleaner_id: selectedMission.cleaner_id,
-          p_rating: rating,
-        });
-        if (error) {
+        const revieweeId =
+          selectedMission.creator_id === uid
+            ? selectedMission.cleaner_id
+            : selectedMission.creator_id;
+        if (!revieweeId) {
           toast.error(t('mapToastRatingSubmitFailed'));
           return;
         }
+
+        await submitReview({
+          missionId: selectedMission.id,
+          revieweeId,
+          rating,
+          comment,
+        });
 
         toast.success(t('mapToastRatingThanks'));
         setReviewedMissions((prev) => {
@@ -2566,7 +2577,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         });
         setSelectedRating(0);
       } catch (e: any) {
-        toast.error(t('mapToastRatingSubmitFailed'));
+        toast.error(e?.message || t('mapToastRatingSubmitFailed'));
       } finally {
         setIsSubmittingReview(false);
       }
@@ -3346,6 +3357,28 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
   }, []);
 
+  /** Open a mission by id (from a notification): use loaded jobs or fetch it. */
+  const openMissionById = useCallback(async (missionId: string) => {
+    const existing = (jobsRef.current || []).find((j) => String(j.id) === String(missionId));
+    if (existing) {
+      openMyOrderMission(existing);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('missions')
+        .select(
+          'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, location_lat, location_lng, status, building_id, cleaner_id, creator_id, description, photo_urls, after_photo_urls, created_at, started_at'
+        )
+        .eq('id', missionId)
+        .maybeSingle();
+      if (error || !data) return;
+      openMyOrderMission(data as JobOnMap);
+    } catch (err) {
+      console.warn('openMissionById failed:', err);
+    }
+  }, [openMyOrderMission]);
+
   const handleOpenMarketFeed = useCallback(() => {
     setShowMyOrdersPanel(false);
     setDraftPinMenuExpanded(false);
@@ -3916,6 +3949,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           </div>
         </div>
       )}
+
+      <NotificationBell userId={currentUserId} onOpenMission={(id) => void openMissionById(id)} />
 
       {showProfileFab && (
         <div className="fixed inset-x-0 bottom-0 z-[10020] flex justify-center pointer-events-none pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))]">

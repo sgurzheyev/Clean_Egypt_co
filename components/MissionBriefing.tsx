@@ -93,7 +93,7 @@ export type MissionBriefingProps = {
   onStartWork: () => void;
   onUnlockLead: () => void;
   onSubscribe: () => void;
-  onSubmitReview: (rating: number) => void;
+  onSubmitReview: (rating: number, comment: string) => void;
   onSelectRating: (rating: number) => void;
   isPlatformAdmin?: boolean;
   adminDeleteSubmitting?: boolean;
@@ -195,6 +195,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const fundingPct =
     targetUsd > 0 ? Math.min(100, Math.round((fundedUsd / targetUsd) * 100)) : 0;
 
+  const [reviewComment, setReviewComment] = useState('');
   const [fundingNowMs, setFundingNowMs] = useState(() => Date.now());
   useEffect(() => {
     if (!crowdfundingOpen) return;
@@ -627,11 +628,18 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       {t('viewPhotos')}
                     </button>
                   </div>
-                  {mission.creator_id === currentUserId &&
+                  {!!currentUserId &&
+                    (mission.creator_id === currentUserId ||
+                      mission.cleaner_id === currentUserId) &&
+                    (mission.creator_id === currentUserId
+                      ? mission.cleaner_id
+                      : mission.creator_id) &&
                     !reviewedMissions.has(mission.id) && (
                       <div className="space-y-3 border-t border-white/5 pt-4">
                         <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300">
-                          {t('rateTheCleaner')}
+                          {mission.creator_id === currentUserId
+                            ? t('rateTheCleaner')
+                            : t('rateCreatorTitle', { defaultValue: 'Rate the client' })}
                         </p>
                         <p className="text-[11px] text-slate-300">{t('ratingHelpsReward')}</p>
                         <div className="flex items-center gap-2">
@@ -653,14 +661,26 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                           })}
                         </div>
                         {selectedRating > 0 && (
-                          <button
-                            type="button"
-                            disabled={isSubmittingReview}
-                            onClick={() => onSubmitReview(selectedRating)}
-                            className="mt-2 w-full rounded-full bg-amber-500 py-2.5 text-[11px] font-black uppercase tracking-[0.18em] text-black hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60"
-                          >
-                            {isSubmittingReview ? t('submitting') : t('submitRating')}
-                          </button>
+                          <>
+                            <textarea
+                              value={reviewComment}
+                              onChange={(e) => setReviewComment(e.target.value)}
+                              maxLength={1000}
+                              rows={2}
+                              placeholder={t('reviewCommentPlaceholder', {
+                                defaultValue: 'Leave a short comment (optional)',
+                              })}
+                              className="w-full resize-none rounded-xl border border-white/12 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-amber-400/50"
+                            />
+                            <button
+                              type="button"
+                              disabled={isSubmittingReview}
+                              onClick={() => onSubmitReview(selectedRating, reviewComment)}
+                              className="mt-2 w-full rounded-full bg-amber-500 py-2.5 text-[11px] font-black uppercase tracking-[0.18em] text-black hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60"
+                            >
+                              {isSubmittingReview ? t('submitting') : t('submitRating')}
+                            </button>
+                          </>
                         )}
                       </div>
                     )}

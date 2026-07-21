@@ -29,6 +29,8 @@ import {
 } from '../src/lib/egyptMarketplace';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import { creatorRejectProof, submitMissionProof } from '../src/lib/submitMissionProof';
+import { notifyMissionEvent } from '../src/lib/notifications';
+import RatingReviewModal, { type RatingTarget } from './RatingReviewModal';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionWorkBudgetUsd, missionTokenBid } from '../src/lib/missionBudget';
 import { isPlatformAdmin, isArchivedMissionStatus } from '../src/lib/platformAdmin';
@@ -226,6 +228,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   } | null>(null);
   const [releasePaySubmitting, setReleasePaySubmitting] = useState(false);
   const [rejectProofSubmitting, setRejectProofSubmitting] = useState(false);
+  const [ratingTarget, setRatingTarget] = useState<RatingTarget | null>(null);
   const [toastState, setToastState] = useState<ToastState>(null);
   // Mission creation is handled from the map (token-backed). Profile no longer starts checkout flows.
   /** Loading id for Retry/Cancel on `pending_payment` (Phantom Pin) cards. */
@@ -1155,6 +1158,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           livenessLat: effectiveLivenessLat,
           livenessLng: effectiveLivenessLng,
         });
+        await notifyMissionEvent(proofJob.id, 'proof_uploaded');
 
         const plastic = Number.parseFloat(plasticKg || '0') || 0;
         const glass = Number.parseFloat(glassKg || '0') || 0;
@@ -1218,12 +1222,21 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       setMyCityJobs((prev) => prev.filter((j) => j.id !== job.id));
       setMyHomeJobs((prev) => prev.filter((j) => j.id !== job.id));
 
+      await notifyMissionEvent(job.id, 'mission_approved');
+
       window.dispatchEvent(
         new CustomEvent('cleanegypt:mission-completed', { detail: { missionId: job.id } })
       );
 
       await fetchProfileData();
       toast.success(t('missionCompletedSuccess'));
+      if (job.cleaner_id) {
+        setRatingTarget({
+          missionId: job.id,
+          revieweeId: job.cleaner_id,
+          role: 'worker',
+        });
+      }
       return true;
     } catch (err: any) {
       console.error('Confirm work done error:', err);
@@ -1250,6 +1263,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     try {
       setRejectProofSubmitting(true);
       await creatorRejectProof({ missionId: job.id, reason: trimmed });
+      await notifyMissionEvent(job.id, 'proof_rejected');
       closeReviewModal();
       await fetchProfileData();
       toast.success(
@@ -2054,6 +2068,25 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       {job.description && (
                         <p className="text-xs text-slate-400 mt-1">{job.description}</p>
                       )}
+                      {(() => {
+                        const revieweeId = isCreator ? job.cleaner_id : job.creator_id;
+                        if (!revieweeId) return null;
+                        return (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setRatingTarget({
+                                missionId: job.id,
+                                revieweeId,
+                                role: isCreator ? 'worker' : 'creator',
+                              })
+                            }
+                            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-amber-200 transition-colors hover:bg-amber-500/20"
+                          >
+                            ⭐ {t('rateLeaveReview', { defaultValue: 'Rate & review' })}
+                          </button>
+                        );
+                      })()}
                     </div>
                   );
                 });
@@ -2470,6 +2503,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         userId={_session?.user?.id ?? null}
         onClose={() => setShowTokenPackModal(false)}
         onSuccess={() => void fetchProfileData()}
+      />
+
+      <RatingReviewModal
+        target={ratingTarget}
+        onClose={() => setRatingTarget(null)}
+        onSubmitted={() => void fetchProfileData()}
+        toast={toast}
       />
 
       {toastState && (
