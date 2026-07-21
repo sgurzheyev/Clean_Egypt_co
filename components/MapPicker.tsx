@@ -18,6 +18,7 @@ import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import NotificationBell from './NotificationBell';
 import MissionFeedCard from './MissionFeedCard';
 import MissionBriefing, { type AssignedWorkerProfile } from './MissionBriefing';
+import { useNavigate } from 'react-router-dom';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import CreateMission from './CreateMission';
 import {
@@ -280,6 +281,7 @@ interface JobOnMap {
   completion_lng?: number | null;
   completion_distance_meters?: number | null;
   creator?: {
+    full_name?: string | null;
     avatar_url?: string | null;
     phone_number?: string | null;
     is_verified?: boolean | null;
@@ -1238,6 +1240,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   onFlyToComplete,
 }) => {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const isRu = (i18n.language || '').toLowerCase().startsWith('ru');
   const isTouchDevice =
     typeof window !== 'undefined' &&
@@ -1904,6 +1907,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         completion_lng,
         completion_distance_meters,
         creator:profiles!creator_id (
+          full_name,
           avatar_url,
           is_verified
         )
@@ -4334,6 +4338,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
           isPlatformAdmin={isPlatformAdminViewer}
           adminDeleteSubmitting={adminDeleteMissionId === selectedMission.id}
           onAdminDeleteMission={() => void handleAdminDeleteMission()}
+          creatorAvatarUrl={selectedMission.creator?.avatar_url ?? null}
+          creatorName={selectedMission.creator?.full_name ?? null}
+          creatorIsVerified={selectedMission.creator?.is_verified ?? false}
+          onCreatorClick={
+            selectedMission.creator_id
+              ? () => {
+                  const creatorId = selectedMission.creator_id;
+                  handleCloseMissionBriefing();
+                  navigate(`/profile/${creatorId}`);
+                }
+              : undefined
+          }
         />
       )}
 

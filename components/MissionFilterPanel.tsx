@@ -73,45 +73,74 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
       </div>
 
       {expanded && (
-        <div className="border-t border-white/10 p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-              {t('filterByTags')}
+        <div className="space-y-3 border-t border-white/10 p-3">
+          <div>
+            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+              {t('sortByLabel')}
             </p>
-            {activeCount > 0 && (
-              <button
-                type="button"
-                onClick={onClearTags}
-                className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 hover:text-slate-200"
-              >
-                <X className="h-3 w-3" strokeWidth={2.5} />
-                {t('clearFilters')}
-              </button>
-            )}
+            <div className="grid grid-cols-2 gap-1.5">
+              {MISSION_SORT_MODES.map((mode) => {
+                const active = sortMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => onSortChange(mode)}
+                    className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-bold tracking-wide transition-colors ${
+                      active
+                        ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100'
+                        : 'border-white/12 bg-white/5 text-slate-300 hover:border-white/25 hover:text-slate-100'
+                    }`}
+                  >
+                    {t(MISSION_SORT_LABEL_KEYS[mode])}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {ALL_MISSION_TAGS.map((tag) => {
-              const checked = selectedTags.includes(tag);
-              return (
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                {t('filterByTags')}
+              </p>
+              {activeCount > 0 && (
                 <button
-                  key={tag}
                   type="button"
-                  role="checkbox"
-                  aria-checked={checked}
-                  onClick={() => onToggleTag(tag)}
-                  className={`rounded-full border px-2.5 py-1 text-[11px] font-bold lowercase tracking-wide transition-colors ${
-                    checked
-                      ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100'
-                      : 'border-white/12 bg-white/5 text-slate-300 hover:border-white/25 hover:text-slate-100'
-                  }`}
+                  onClick={onClearTags}
+                  className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 hover:text-slate-200"
                 >
-                  {tag}
+                  <X className="h-3 w-3" strokeWidth={2.5} />
+                  {t('clearFilters')}
                 </button>
-              );
-            })}
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {ALL_MISSION_TAGS.map((tag) => {
+                const checked = selectedTags.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={checked}
+                    onClick={() => onToggleTag(tag)}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-bold lowercase tracking-wide transition-colors ${
+                      checked
+                        ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100'
+                        : 'border-white/12 bg-white/5 text-slate-300 hover:border-white/25 hover:text-slate-100'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+
           {typeof resultCount === 'number' && (
-            <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
               {t('resultsCount', { count: resultCount })}
             </p>
           )}

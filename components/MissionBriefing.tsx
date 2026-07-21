@@ -98,6 +98,11 @@ export type MissionBriefingProps = {
   isPlatformAdmin?: boolean;
   adminDeleteSubmitting?: boolean;
   onAdminDeleteMission?: () => void;
+  /** Mission creator identity for the clickable avatar in the hero. */
+  creatorAvatarUrl?: string | null;
+  creatorName?: string | null;
+  creatorIsVerified?: boolean | null;
+  onCreatorClick?: () => void;
 };
 
 function missionLocationLine(
@@ -174,8 +179,13 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   isPlatformAdmin = false,
   adminDeleteSubmitting = false,
   onAdminDeleteMission,
+  creatorAvatarUrl,
+  creatorName,
+  creatorIsVerified = false,
+  onCreatorClick,
 }) => {
   const { t } = useTranslation();
+  const creatorInitial = (creatorName || '?').trim().charAt(0).toUpperCase() || '?';
   const [bidInput, setBidInput] = React.useState('');
   const photos = mission.photo_urls?.filter(Boolean) ?? [];
   const placeholderVariant = placeholderVariantFor(mission);
@@ -321,7 +331,11 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 )}
               </div>
 
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4 pt-8">
+              <div
+                className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4 pt-8 ${
+                  onCreatorClick ? 'pr-28' : ''
+                }`}
+              >
                 <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-300/80">
                   {t('missionBriefing')}
                 </p>
@@ -335,6 +349,42 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                   </p>
                 </div>
               </div>
+
+              {onCreatorClick && (
+                <button
+                  type="button"
+                  onClick={onCreatorClick}
+                  className="pointer-events-auto absolute bottom-4 right-3 z-30 flex items-center gap-2 rounded-full border border-emerald-300/50 bg-black/55 py-1 pl-1 pr-2.5 text-emerald-100 shadow-lg backdrop-blur-md transition-transform hover:border-emerald-200/80 active:scale-95"
+                  aria-label={t('viewCreatorProfile')}
+                  title={creatorName || t('viewCreatorProfile')}
+                >
+                  <span className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-slate-800">
+                    {creatorAvatarUrl ? (
+                      <img
+                        src={creatorAvatarUrl}
+                        alt=""
+                        draggable={false}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-xs font-black uppercase text-emerald-200">
+                        {creatorInitial}
+                      </span>
+                    )}
+                    {creatorIsVerified && (
+                      <span
+                        className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-slate-950 bg-cyan-400 text-[8px] font-black text-slate-950"
+                        aria-hidden
+                      >
+                        ✓
+                      </span>
+                    )}
+                  </span>
+                  <span className="max-w-[5.5rem] truncate text-[11px] font-bold">
+                    {creatorName || t('publicProfileAnonymous')}
+                  </span>
+                </button>
+              )}
             </div>
 
             <div className="relative z-[1] space-y-5 px-5 pt-5 pb-1">
