@@ -1,7 +1,7 @@
 import type { ServiceType } from './serviceSectors';
 
 /** Default smart hashtags per service type (2–3 each). */
-const SERVICE_TYPE_HASHTAGS: Record<ServiceType, string[]> = {
+export const SERVICE_TYPE_HASHTAGS: Record<ServiceType, string[]> = {
   home_office: ['#home', '#office', '#cleaning'],
   ac_cleaning: ['#ac', '#hvac', '#cleaning'],
   pool_maintenance: ['#pool', '#cleaning', '#maintenance'],
@@ -19,6 +19,11 @@ const SERVICE_TYPE_HASHTAGS: Record<ServiceType, string[]> = {
   junk_removal: ['#junk', '#heavy', '#haul'],
   beach_street_cleanup: ['#beach', '#street', '#cleanup', '#eco'],
 };
+
+/** Hashtags for a mission's service type (empty for unknown types). */
+export function serviceTypeHashtags(serviceType: string | null | undefined): string[] {
+  return SERVICE_TYPE_HASHTAGS[serviceType as ServiceType] ?? [];
+}
 
 const HASHTAG_RE = /#\S+/gi;
 

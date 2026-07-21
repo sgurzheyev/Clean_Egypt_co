@@ -13,6 +13,7 @@ import AuthOverlay from './components/AuthOverlay';
 import Terms from './components/Terms';
 import Privacy from './components/Privacy';
 import TryFree from './components/TryFree';
+import PublicProfile from './components/PublicProfile';
 import { supabase } from './services/supabase';
 import i18n from './src/i18n';
 import { useTranslation } from 'react-i18next';
@@ -83,6 +84,7 @@ const App: React.FC = () => {
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/try-free" element={<TryFree />} />
+      <Route path="/profile/:id" element={<PublicProfile />} />
       <Route
         path="/*"
         element={

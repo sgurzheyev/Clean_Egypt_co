@@ -37,6 +37,7 @@ import {
 } from '../constants';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionTokenBid, missionWorkBudgetUsd } from '../src/lib/missionBudget';
+import { formatSubmittedRelative } from '../src/lib/missionFilterSort';
 import { isPlatformAdmin } from '../src/lib/platformAdmin';
 import { adminDeleteMission } from '../src/lib/adminMission';
 import { floorUsd, parseIntegerUsdFromInput, sanitizeIntegerUsdDigits } from '../src/lib/integerUsdInput';
@@ -631,7 +632,7 @@ function MyOrdersPanel({
   isLoggedIn: boolean;
   onRequestAuth?: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   return (
     <AnimatePresence>
@@ -697,6 +698,14 @@ function MyOrdersPanel({
                       placeholderIcon={missionPinIcon(mission.service_type, mission.category)}
                       budgetValue={formatWorkBudgetUsd(missionWorkBudgetUsd(mission))}
                       metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
+                      submittedLabel={
+                        mission.created_at
+                          ? `${t('submittedLabel')}: ${formatSubmittedRelative(
+                              mission.created_at,
+                              i18n.language
+                            )}`
+                          : undefined
+                      }
                       locationLine={mission.description?.split('\n')[0]?.trim() || undefined}
                       description={extractMissionFeedDescription(mission.description)}
                       statusBadge={

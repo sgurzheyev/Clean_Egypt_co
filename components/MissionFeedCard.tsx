@@ -21,11 +21,20 @@ export interface MissionFeedCardProps {
   statusBadge?: React.ReactNode;
   topLeftBadge?: React.ReactNode;
   metaLine?: string;
+  /** Human-readable submission time, e.g. "Submitted: 2 hours ago". */
+  submittedLabel?: string;
   footer?: React.ReactNode;
   highlighted?: boolean;
   onClick?: () => void;
   onLocate?: () => void;
   locateAriaLabel?: string;
+  /** Creator avatar URL (falls back to letter placeholder). */
+  creatorAvatarUrl?: string | null;
+  /** Creator name/label — used for the avatar fallback letter + aria label. */
+  creatorName?: string | null;
+  /** Click handler for the creator avatar (e.g. navigate to public profile). */
+  onCreatorClick?: () => void;
+  creatorAriaLabel?: string;
 }
 
 const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
@@ -39,18 +48,30 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
   statusBadge,
   topLeftBadge,
   metaLine,
+  submittedLabel,
   footer,
   highlighted = false,
   onClick,
   onLocate,
   locateAriaLabel = 'Locate on map',
+  creatorAvatarUrl,
+  creatorName,
+  onCreatorClick,
+  creatorAriaLabel = 'View creator profile',
 }) => {
   const locationTranslation = useMissionTextTranslation(locationLine);
   const showLocate = !!(onLocate || onClick);
+  const showCreator = !!onCreatorClick;
+  const creatorInitial = (creatorName || '?').trim().charAt(0).toUpperCase() || '?';
 
   const handleLocate = (e: React.MouseEvent) => {
     e.stopPropagation();
     (onLocate ?? onClick)?.();
+  };
+
+  const handleCreator = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onCreatorClick?.();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -115,16 +136,38 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
             </div>
           )}
 
-          {showLocate && (
-            <button
-              type="button"
-              onClick={handleLocate}
-              className="absolute right-2.5 top-2.5 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-black/55 text-cyan-200 shadow-lg backdrop-blur-md transition-transform hover:bg-black/70 active:scale-95"
-              aria-label={locateAriaLabel}
-            >
-              <MapPin className="h-4 w-4" strokeWidth={2.25} />
-            </button>
-          )}
+          <div className="absolute right-2.5 top-2.5 z-10 flex flex-col items-center gap-2">
+            {showLocate && (
+              <button
+                type="button"
+                onClick={handleLocate}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-black/55 text-cyan-200 shadow-lg backdrop-blur-md transition-transform hover:bg-black/70 active:scale-95"
+                aria-label={locateAriaLabel}
+              >
+                <MapPin className="h-4 w-4" strokeWidth={2.25} />
+              </button>
+            )}
+            {showCreator && (
+              <button
+                type="button"
+                onClick={handleCreator}
+                className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-emerald-300/50 bg-black/55 text-emerald-100 shadow-lg backdrop-blur-md transition-transform hover:border-emerald-200/80 active:scale-95"
+                aria-label={creatorAriaLabel}
+                title={creatorName || creatorAriaLabel}
+              >
+                {creatorAvatarUrl ? (
+                  <img
+                    src={creatorAvatarUrl}
+                    alt=""
+                    draggable={false}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-xs font-black uppercase">{creatorInitial}</span>
+                )}
+              </button>
+            )}
+          </div>
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] p-3 pt-6">
             {metaLine && (
@@ -150,6 +193,11 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
               </div>
             )}
             {statusBadge && <div className="mt-2 flex flex-wrap gap-1.5">{statusBadge}</div>}
+            {submittedLabel && (
+              <p className="mt-1.5 truncate text-[10px] font-medium uppercase tracking-[0.1em] text-slate-300/70">
+                {submittedLabel}
+              </p>
+            )}
           </div>
         </div>
 

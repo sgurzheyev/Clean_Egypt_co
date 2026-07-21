@@ -2,9 +2,10 @@
  * [[Architecture_Overview.md]]
  * Live market feed of active missions (USD work budgets).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionWorkBudgetUsd } from '../src/lib/missionBudget';
@@ -12,7 +13,15 @@ import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
+import {
+  DEFAULT_MISSION_SORT,
+  filterMissionsByTags,
+  formatSubmittedRelative,
+  sortMissions,
+  type MissionSortMode,
+} from '../src/lib/missionFilterSort';
 import MissionFeedCard from './MissionFeedCard';
+import MissionFilterPanel from './MissionFilterPanel';
 
 export interface LiveMarketMission {
   id: string;
@@ -29,6 +38,10 @@ export interface LiveMarketMission {
   description?: string | null;
   photo_urls?: string[] | null;
   created_at?: string | null;
+  creator?: {
+    full_name?: string | null;
+    avatar_url?: string | null;
+  } | null;
 }
 
 interface LiveMarketFeedProps {
@@ -68,10 +81,24 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   onSelectMission,
   currentUserId,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const [missions, setMissions] = useState<LiveMarketMission[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  const toggleTag = (tag: string) =>
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((x) => x !== tag) : [...prev, tag]
+    );
+  const clearTags = () => setSelectedTags([]);
+
+  const visibleMissions = useMemo(
+    () => sortMissions(filterMissionsByTags(missions, selectedTags), sortMode),
+    [missions, selectedTags, sortMode]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -95,7 +122,11 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
           creator_id,
           description,
           photo_urls,
-          created_at
+          created_at,
+          creator:profiles!creator_id (
+            full_name,
+            avatar_url
+          )
         `)
         .in('status', [...ACTIVE_MARKET_STATUSES])
         .order('amount_target', { ascending: false })
@@ -157,6 +188,16 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                 {t('serviceMarketplace')}
               </p>
               <p className="mt-0.5 text-xs text-slate-500">{t('liveMarketBrowseHint')}</p>
+              <div className="mt-3">
+                <MissionFilterPanel
+                  sortMode={sortMode}
+                  onSortChange={setSortMode}
+                  selectedTags={selectedTags}
+                  onToggleTag={toggleTag}
+                  onClearTags={clearTags}
+                  resultCount={visibleMissions.length}
+                />
+              </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
@@ -168,9 +209,12 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                 {!loading && !loadError && missions.length === 0 && (
                   <p className="py-4 text-center text-xs text-slate-400">{t('noLiveMissions')}</p>
                 )}
+                {!loading && !loadError && missions.length > 0 && visibleMissions.length === 0 && (
+                  <p className="py-4 text-center text-xs text-slate-400">{t('noMissionsMatchFilters')}</p>
+                )}
                 {!loading &&
                   !loadError &&
-                  missions.map((mission) => {
+                  visibleMissions.map((mission) => {
                     const budget = missionWorkBudgetUsd(mission);
                     const isOwnTask =
                       !!currentUserId && mission.creator_id === currentUserId;
@@ -188,6 +232,25 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                         locationLine={missionLocationLine(mission, t)}
                         description={extractMissionFeedDescription(mission.description)}
                         metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
+                        submittedLabel={
+                          mission.created_at
+                            ? `${t('submittedLabel')}: ${formatSubmittedRelative(
+                                mission.created_at,
+                                i18n.language
+                              )}`
+                            : undefined
+                        }
+                        creatorAvatarUrl={mission.creator?.avatar_url ?? null}
+                        creatorName={mission.creator?.full_name ?? null}
+                        creatorAriaLabel={t('viewCreatorProfile')}
+                        onCreatorClick={
+                          mission.creator_id
+                            ? () => {
+                                onClose();
+                                navigate(`/profile/${mission.creator_id}`);
+                              }
+                            : undefined
+                        }
                         highlighted={isOwnTask}
                         topLeftBadge={
                           isOwnTask ? (
