@@ -3,12 +3,19 @@
  * Tags are derived from `service_type` (there is no `tags` column) via
  * SERVICE_TYPE_HASHTAGS; budget uses the canonical USD work budget.
  */
-import { missionWorkBudgetUsd } from './missionBudget';
+import { missionTokenBid, missionWorkBudgetUsd } from './missionBudget';
 import { SERVICE_TYPE_HASHTAGS, serviceTypeHashtags } from './missionDescription';
 
-export type MissionSortMode = 'date_desc' | 'date_asc' | 'budget_desc' | 'budget_asc';
+export type MissionSortMode =
+  | 'boost_desc'
+  | 'date_desc'
+  | 'date_asc'
+  | 'budget_desc'
+  | 'budget_asc';
 
+// Token-boost first: promoted (higher token bid) missions rank strictly at the top.
 export const MISSION_SORT_MODES: MissionSortMode[] = [
+  'boost_desc',
   'date_desc',
   'date_asc',
   'budget_desc',
@@ -17,13 +24,15 @@ export const MISSION_SORT_MODES: MissionSortMode[] = [
 
 /** i18n key per sort mode (added to src/i18n.ts). */
 export const MISSION_SORT_LABEL_KEYS: Record<MissionSortMode, string> = {
+  boost_desc: 'sortBoostTop',
   date_desc: 'sortDateNewest',
   date_asc: 'sortDateOldest',
   budget_desc: 'sortBudgetHighest',
   budget_asc: 'sortBudgetLowest',
 };
 
-export const DEFAULT_MISSION_SORT: MissionSortMode = 'date_desc';
+// Ranking pivot: token promotion ("продвижение за токены") is the default order.
+export const DEFAULT_MISSION_SORT: MissionSortMode = 'boost_desc';
 
 /** Unique, ordered list of all filterable tags across every service type. */
 export const ALL_MISSION_TAGS: string[] = (() => {
@@ -44,6 +53,7 @@ export const ALL_MISSION_TAGS: string[] = (() => {
 type SortableMission = {
   created_at?: string | null;
   expected_price?: number | null;
+  /** Token promotion / boost (listing rank). Higher = ranks higher. */
   amount_target?: number | null;
 };
 
@@ -90,6 +100,9 @@ export function sortMissions<T extends SortableMission>(
   const copy = [...missions];
   copy.sort((a, b) => {
     switch (mode) {
+      case 'boost_desc':
+        // Token promotion first, newest as tiebreaker.
+        return missionTokenBid(b) - missionTokenBid(a) || createdAtMs(b) - createdAtMs(a);
       case 'date_asc':
         return createdAtMs(a) - createdAtMs(b);
       case 'budget_desc':
@@ -97,8 +110,10 @@ export function sortMissions<T extends SortableMission>(
       case 'budget_asc':
         return missionWorkBudgetUsd(a) - missionWorkBudgetUsd(b) || createdAtMs(b) - createdAtMs(a);
       case 'date_desc':
-      default:
         return createdAtMs(b) - createdAtMs(a);
+      default:
+        // Default ranking = token boost desc, then newest.
+        return missionTokenBid(b) - missionTokenBid(a) || createdAtMs(b) - createdAtMs(a);
     }
   });
   return copy;

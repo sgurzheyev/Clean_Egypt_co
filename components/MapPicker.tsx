@@ -1914,6 +1914,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
       `)
       .in('status', ['pending', 'available', 'funding', 'in_progress', 'review', 'pending_approval'])
       .not('status', 'eq', 'pending_payment')
+      // Ranking pivot: token promotion (amount_target) first, newest as tiebreaker.
+      .order('amount_target', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(500);
 

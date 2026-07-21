@@ -21,12 +21,13 @@ import {
   CITY_MIN_PRICE,
   CITY_MAX_PRICE,
 } from '../constants';
+import MissionFilterPanel from './MissionFilterPanel';
 import {
-  EGYPT_MARKETPLACE_CITIES,
-  MARKETPLACE_ALL_EGYPT_ID,
-  filterMissionsByMarketCity,
-  isValidMarketCityId,
-} from '../src/lib/egyptMarketplace';
+  sortMissions,
+  filterMissionsByTags,
+  DEFAULT_MISSION_SORT,
+  type MissionSortMode,
+} from '../src/lib/missionFilterSort';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import { creatorRejectProof, submitMissionProof } from '../src/lib/submitMissionProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
@@ -206,7 +207,16 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [missionHistory, setMissionHistory] = useState<Job[]>([]);
   const [jobBidsById, setJobBidsById] = useState<Record<string, Bid[]>>({});
   const [marketplaceJobs, setMarketplaceJobs] = useState<Job[]>([]);
-  const [marketCityId, setMarketCityId] = useState<string>('');
+  // Filter & sort control bar (replaces the legacy city dropdown). Default ranking
+  // is token-boost first (see DEFAULT_MISSION_SORT).
+  const [marketSortMode, setMarketSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
+  const [marketSelectedTags, setMarketSelectedTags] = useState<string[]>([]);
+  const toggleMarketTag = useCallback((tag: string) => {
+    setMarketSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  }, []);
+  const clearMarketTags = useCallback(() => setMarketSelectedTags([]), []);
   const [loading, setLoading] = useState(true);
   const [marketLoading, setMarketplaceLoading] = useState(true);
   const [marketError, setMarketplaceError] = useState<string | null>(null);
@@ -347,22 +357,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     return `${t('profileOwnedShort')}: ${openOwned} · ${t('profileActiveWorkShort')}: ${activeWork}`;
   }, [ownedOpenMissions.length, activeWorkJobs.length, t]);
 
-  useEffect(() => {
-    if (!marketCityId) return;
-    if (!isValidMarketCityId(marketCityId)) {
-      setMarketCityId('');
-    }
-  }, [marketCityId]);
-
-  const filteredMarketplaceJobs = useMemo(() => {
-    if (!marketCityId) return [] as Job[];
-    return filterMissionsByMarketCity(openMarketplaceJobs, marketCityId).sort((a, b) => {
-      const aAvailable = a.status === 'available' ? 1 : 0;
-      const bAvailable = b.status === 'available' ? 1 : 0;
-      if (aAvailable !== bAvailable) return bAvailable - aAvailable;
-      return Number(b.amount_target ?? 0) - Number(a.amount_target ?? 0);
-    });
-  }, [openMarketplaceJobs, marketCityId]);
+  // Filtered by selected tags, then ranked by the chosen sort (default: token boost).
+  const displayedMarketplaceJobs = useMemo(
+    () => sortMissions(filterMissionsByTags(openMarketplaceJobs, marketSelectedTags), marketSortMode),
+    [openMarketplaceJobs, marketSelectedTags, marketSortMode]
+  );
 
   // Real-time token balance subscription
   useEffect(() => {
@@ -1873,7 +1872,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         </ProfileAccordion>
 
         <ProfileAccordion
-          title={t('selectCity')}
+          title={t('serviceMarketplace')}
           icon={<Globe className="w-5 h-5 shrink-0 text-emerald-400/90" aria-hidden />}
         >
           <div className="text-white pointer-events-auto relative z-10 min-w-0">
@@ -1884,24 +1883,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           )}
 
           <div className="mb-4">
-            <label className="flex w-full flex-col gap-1">
-              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                {t('selectCity')}
-              </span>
-              <select
-                value={marketCityId}
-                onChange={(e) => setMarketCityId(e.target.value)}
-                className={`w-full min-w-0 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500/50 ${PROFILE_GLASS_PANEL} !rounded-xl`}
-              >
-                <option value="">{t('selectCityPlaceholder')}</option>
-                <option value={MARKETPLACE_ALL_EGYPT_ID}>{t('marketplaceCityAll')}</option>
-                {EGYPT_MARKETPLACE_CITIES.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {t(c.nameKey)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <MissionFilterPanel
+              sortMode={marketSortMode}
+              onSortChange={setMarketSortMode}
+              selectedTags={marketSelectedTags}
+              onToggleTag={toggleMarketTag}
+              onClearTags={clearMarketTags}
+              resultCount={displayedMarketplaceJobs.length}
+            />
           </div>
 
           {marketLoading && (
@@ -1923,17 +1912,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <p className="text-sm text-red-400 mb-4">{marketError}</p>
           )}
 
-          {!marketLoading && !marketError && !marketCityId && (
-            <p className="text-sm text-slate-400 italic">{t('selectCityToExplore')}</p>
+          {!marketLoading && !marketError && displayedMarketplaceJobs.length === 0 && (
+            <p className="text-sm text-slate-500 italic">{t('noMissionsMatchFilters')}</p>
           )}
 
-          {!marketLoading && !marketError && marketCityId && filteredMarketplaceJobs.length === 0 && (
-            <p className="text-sm text-slate-500 italic">{t('noMissionsInCity')}</p>
-          )}
-
-          {!marketLoading && !marketError && marketCityId && filteredMarketplaceJobs.length > 0 && (
+          {!marketLoading && !marketError && displayedMarketplaceJobs.length > 0 && (
             <div className="space-y-3 pointer-events-auto">
-              {filteredMarketplaceJobs.map((job) => {
+              {displayedMarketplaceJobs.map((job) => {
                   const isHome = job.category === 'home';
                   const icon = isHome ? '🏠' : '🌆';
 
