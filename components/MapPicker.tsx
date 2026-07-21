@@ -3996,18 +3996,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
       <NotificationBell userId={currentUserId} onOpenMission={(id) => void openMissionById(id)} />
 
       {showProfileFab && (
-        <div className="fixed left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[10015] w-auto max-w-[min(20rem,calc(100vw-4.5rem))]">
-          <MissionFilterPanel
-            sortMode={missionSortMode}
-            onSortChange={setMissionSortMode}
-            selectedTags={selectedMissionTags}
-            onToggleTag={toggleMissionTag}
-            onClearTags={clearMissionTags}
-            resultCount={missionPinsGeoJSON.features.length}
-            cityId={marketCityId}
-            onCityChange={setMarketCityId}
-          />
-        </div>
+        <MissionFilterPanel
+          variant="floating"
+          sortMode={missionSortMode}
+          onSortChange={setMissionSortMode}
+          selectedTags={selectedMissionTags}
+          onToggleTag={toggleMissionTag}
+          onClearTags={clearMissionTags}
+          resultCount={missionPinsGeoJSON.features.length}
+          cityId={marketCityId}
+          onCityChange={setMarketCityId}
+        />
       )}
 
       {showProfileFab && (

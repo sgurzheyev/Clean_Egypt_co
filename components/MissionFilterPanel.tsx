@@ -1,9 +1,16 @@
 /**
- * Compact, expandable filter + sort controls for the missions feed.
- * Tag filter is multi-select (check the categories you want); sort is a dropdown.
+ * Filter + sort controls for the missions feed.
+ *
+ * Two layouts share the SAME logic (city closest-hub filter, boost-default sort,
+ * emerald eco-tag highlight):
+ *  - `inline`   (default): compact expandable bar — used inside Profile / LiveMarketFeed lists.
+ *  - `floating`         : round FAB (rounded-full, w-12 h-12) that opens an elegant
+ *                          bottom-sheet — used over the fullscreen map so nothing
+ *                          overlaps the canvas.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { SlidersHorizontal, ChevronDown, X, MapPin } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
   ALL_MISSION_TAGS,
@@ -30,6 +37,9 @@ const ECO_TAGS = new Set([
   '#haul',
 ]);
 
+const SECTION_LABEL =
+  'mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400';
+
 export interface MissionFilterPanelProps {
   sortMode: MissionSortMode;
   onSortChange: (mode: MissionSortMode) => void;
@@ -40,6 +50,11 @@ export interface MissionFilterPanelProps {
   /** When provided, renders a City filter dropdown ("All Cities" + core hubs). */
   cityId?: string;
   onCityChange?: (cityId: string) => void;
+  /**
+   * `inline` (default) = compact expandable bar for list views.
+   * `floating`        = round FAB + bottom-sheet for the map overlay.
+   */
+  variant?: 'inline' | 'floating';
 }
 
 const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
@@ -51,12 +66,32 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
   resultCount,
   cityId,
   onCityChange,
+  variant = 'inline',
 }) => {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(false); // inline bar
+  const [open, setOpen] = useState(false); // floating sheet
   const activeCount = selectedTags.length;
   const showCityFilter = typeof onCityChange === 'function';
   const cityValue = cityId ?? MARKETPLACE_ALL_EGYPT_ID;
+  const cityActive = showCityFilter && cityValue !== MARKETPLACE_ALL_EGYPT_ID;
+  // FAB badge counts every applied constraint (tags + a non-default city).
+  const badgeCount = activeCount + (cityActive ? 1 : 0);
+
+  // Bottom-sheet: lock body scroll + close on Escape while it is open.
+  useEffect(() => {
+    if (variant !== 'floating' || !open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [variant, open]);
 
   const cityOptions = (
     <>
@@ -71,6 +106,184 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
     </>
   );
 
+  // Shared renderers — identical behaviour in both layouts, only spacing differs.
+  const renderSortButtons = (spacious = false) =>
+    MISSION_SORT_MODES.map((mode) => {
+      const active = sortMode === mode;
+      return (
+        <button
+          key={mode}
+          type="button"
+          aria-pressed={active}
+          onClick={() => onSortChange(mode)}
+          className={`rounded-lg border ${
+            spacious ? 'px-3 py-2 text-xs' : 'px-2.5 py-1.5 text-[11px]'
+          } font-bold tracking-wide transition-colors ${
+            active
+              ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100'
+              : 'border-white/12 bg-white/5 text-slate-300 hover:border-white/25 hover:text-slate-100'
+          }`}
+        >
+          {t(MISSION_SORT_LABEL_KEYS[mode])}
+        </button>
+      );
+    });
+
+  const renderTagButtons = (spacious = false) =>
+    ALL_MISSION_TAGS.map((tag) => {
+      const checked = selectedTags.includes(tag);
+      const isEco = ECO_TAGS.has(tag.toLowerCase());
+      const className = isEco
+        ? checked
+          ? 'border-emerald-400 bg-emerald-500/30 text-emerald-50 shadow-[0_0_10px_rgba(16,185,129,0.25)]'
+          : 'border-emerald-500 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+        : checked
+          ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100'
+          : 'border-white/12 bg-white/5 text-slate-300 hover:border-white/25 hover:text-slate-100';
+      return (
+        <button
+          key={tag}
+          type="button"
+          role="checkbox"
+          aria-checked={checked}
+          onClick={() => onToggleTag(tag)}
+          className={`rounded-full border ${
+            spacious ? 'px-3 py-1.5 text-xs' : 'px-2.5 py-1 text-[11px]'
+          } font-bold lowercase tracking-wide transition-colors ${className}`}
+        >
+          {isEco && <span aria-hidden>🌿 </span>}
+          {tag}
+        </button>
+      );
+    });
+
+  // ── Floating layout: round FAB (top-left) + elegant bottom-sheet ──────────────
+  if (variant === 'floating') {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="fixed left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[10015] flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/50 bg-black/70 text-cyan-200 shadow-[0_0_18px_rgba(34,211,238,0.28)] backdrop-blur-lg transition-transform active:scale-95"
+          aria-label={t('filtersLabel')}
+          aria-expanded={open}
+        >
+          <SlidersHorizontal className="h-5 w-5" strokeWidth={2.25} />
+          {badgeCount > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full border border-black/40 bg-emerald-500 px-1 text-[10px] font-black text-white">
+              {badgeCount}
+            </span>
+          )}
+        </button>
+
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              className="fixed inset-0 z-[10070] flex items-end justify-center sm:items-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <div
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                onClick={() => setOpen(false)}
+                aria-hidden
+              />
+
+              <motion.div
+                role="dialog"
+                aria-modal="true"
+                aria-label={t('filtersLabel')}
+                className="relative flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-slate-950/95 shadow-[0_-8px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl sm:rounded-3xl"
+                initial={{ y: '100%', opacity: 0.6 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: '100%', opacity: 0.4 }}
+                transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+              >
+                {/* Grabber (mobile affordance) */}
+                <div className="flex justify-center pt-3 sm:hidden" aria-hidden>
+                  <span className="h-1.5 w-10 rounded-full bg-white/20" />
+                </div>
+
+                <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-3">
+                  <div>
+                    <p className="text-[12px] font-black uppercase tracking-[0.2em] text-cyan-300">
+                      {t('filtersLabel')}
+                    </p>
+                    {typeof resultCount === 'number' && (
+                      <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                        {t('resultsCount', { count: resultCount })}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    aria-label={t('close', { defaultValue: 'Close' })}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
+                  >
+                    <X className="h-4 w-4" strokeWidth={2.25} />
+                  </button>
+                </div>
+
+                <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain border-t border-white/10 px-5 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+                  {showCityFilter && (
+                    <section>
+                      <p className={SECTION_LABEL}>{t('selectCity')}</p>
+                      <div className="relative">
+                        <MapPin
+                          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300"
+                          strokeWidth={2.25}
+                          aria-hidden
+                        />
+                        <select
+                          value={cityValue}
+                          onChange={(e) => onCityChange?.(e.target.value)}
+                          aria-label={t('selectCity')}
+                          className="w-full appearance-none rounded-xl border border-emerald-400/30 bg-emerald-500/10 py-2.5 pl-9 pr-9 text-sm font-bold text-emerald-100 outline-none transition-colors focus:border-emerald-400/60"
+                        >
+                          {cityOptions}
+                        </select>
+                        <ChevronDown
+                          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300/70"
+                          aria-hidden
+                        />
+                      </div>
+                    </section>
+                  )}
+
+                  <section>
+                    <p className={SECTION_LABEL}>{t('sortByLabel')}</p>
+                    <div className="grid grid-cols-2 gap-2">{renderSortButtons(true)}</div>
+                  </section>
+
+                  <section>
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className={`${SECTION_LABEL} mb-0`}>{t('filterByTags')}</p>
+                      {activeCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={onClearTags}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 hover:text-slate-200"
+                        >
+                          <X className="h-3 w-3" strokeWidth={2.5} />
+                          {t('clearFilters')}
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">{renderTagButtons(true)}</div>
+                  </section>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </>
+    );
+  }
+
+  // ── Inline layout (default): compact expandable bar ──────────────────────────
   return (
     <div className="rounded-xl border border-white/10 bg-slate-900/70 backdrop-blur-md">
       <div className="flex flex-wrap items-center gap-2 p-2">
@@ -130,36 +343,13 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
       {expanded && (
         <div className="space-y-3 border-t border-white/10 p-3">
           <div>
-            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-              {t('sortByLabel')}
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {MISSION_SORT_MODES.map((mode) => {
-                const active = sortMode === mode;
-                return (
-                  <button
-                    key={mode}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => onSortChange(mode)}
-                    className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-bold tracking-wide transition-colors ${
-                      active
-                        ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100'
-                        : 'border-white/12 bg-white/5 text-slate-300 hover:border-white/25 hover:text-slate-100'
-                    }`}
-                  >
-                    {t(MISSION_SORT_LABEL_KEYS[mode])}
-                  </button>
-                );
-              })}
-            </div>
+            <p className={SECTION_LABEL}>{t('sortByLabel')}</p>
+            <div className="grid grid-cols-2 gap-1.5">{renderSortButtons(false)}</div>
           </div>
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                {t('filterByTags')}
-              </p>
+              <p className={`${SECTION_LABEL} mb-0`}>{t('filterByTags')}</p>
               {activeCount > 0 && (
                 <button
                   type="button"
@@ -171,32 +361,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                 </button>
               )}
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {ALL_MISSION_TAGS.map((tag) => {
-                const checked = selectedTags.includes(tag);
-                const isEco = ECO_TAGS.has(tag.toLowerCase());
-                const className = isEco
-                  ? checked
-                    ? 'border-emerald-400 bg-emerald-500/30 text-emerald-50 shadow-[0_0_10px_rgba(16,185,129,0.25)]'
-                    : 'border-emerald-500 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
-                  : checked
-                    ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100'
-                    : 'border-white/12 bg-white/5 text-slate-300 hover:border-white/25 hover:text-slate-100';
-                return (
-                  <button
-                    key={tag}
-                    type="button"
-                    role="checkbox"
-                    aria-checked={checked}
-                    onClick={() => onToggleTag(tag)}
-                    className={`rounded-full border px-2.5 py-1 text-[11px] font-bold lowercase tracking-wide transition-colors ${className}`}
-                  >
-                    {isEco && <span aria-hidden>🌿 </span>}
-                    {tag}
-                  </button>
-                );
-              })}
-            </div>
+            <div className="flex flex-wrap gap-1.5">{renderTagButtons(false)}</div>
           </div>
 
           {typeof resultCount === 'number' && (
