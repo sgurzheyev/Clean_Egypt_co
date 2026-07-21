@@ -6,11 +6,11 @@ import type { MapWeatherMode } from './mapWeather';
 
 export type WeatherControlMode = 'auto' | MapWeatherMode;
 
+// UI-exposed controls: only Auto (Live) and Clear. Sandstorm/rain are still
+// reachable automatically via Auto (Open-Meteo), just not as manual force buttons.
 export const WEATHER_CONTROL_MODES: readonly WeatherControlMode[] = [
   'auto',
   'clear',
-  'sandstorm',
-  'rain',
 ] as const;
 
 export const WEATHER_CONTROL_LABELS: Record<WeatherControlMode, string> = {

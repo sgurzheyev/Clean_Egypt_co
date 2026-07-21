@@ -30,7 +30,7 @@ const WeatherDebugPanel: React.FC<WeatherDebugPanelProps> = ({
   onHide,
 }) => {
   return (
-    <div className="pointer-events-auto absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[40] max-w-[min(100vw-1.5rem,16rem)] rounded-2xl border border-white/15 bg-slate-950/85 p-2.5 shadow-xl backdrop-blur-md">
+    <div className="pointer-events-auto absolute left-3 bottom-[max(2.25rem,calc(env(safe-area-inset-bottom)+2rem))] z-[40] max-w-[min(100vw-1.5rem,16rem)] rounded-2xl border border-white/15 bg-slate-950/85 p-2.5 shadow-xl backdrop-blur-md">
       <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
         <p className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-200/90">
           Weather debug

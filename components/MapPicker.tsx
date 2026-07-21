@@ -3831,7 +3831,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               setWeatherDebugEnabled(true);
               setWeatherDebugOpen(true);
             }}
-            className="pointer-events-auto absolute left-2 top-[max(0.5rem,env(safe-area-inset-top))] z-[40] rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-500/80 opacity-40 hover:opacity-90 hover:text-amber-200"
+            className="pointer-events-auto absolute left-2 bottom-[max(2.25rem,calc(env(safe-area-inset-bottom)+2rem))] z-[40] rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-500/80 opacity-40 hover:opacity-90 hover:text-amber-200"
           >
             WX
           </button>
@@ -3982,7 +3982,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       <NotificationBell userId={currentUserId} onOpenMission={(id) => void openMissionById(id)} />
 
       {showProfileFab && (
-        <div className="fixed left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[10015] w-[min(20rem,calc(100vw-4.5rem))]">
+        <div className="fixed left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[10015] w-auto max-w-[min(20rem,calc(100vw-4.5rem))]">
           <MissionFilterPanel
             sortMode={missionSortMode}
             onSortChange={setMissionSortMode}
