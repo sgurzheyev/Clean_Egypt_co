@@ -4035,33 +4035,54 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       <NotificationBell userId={currentUserId} onOpenMission={(id) => void openMissionById(id)} />
 
-      {/* Custom map controls — neon FABs replacing the default Mapbox zoom/geolocate. */}
+      {/* Unified 3-in-1 map "joystick": top = zoom in, bottom = zoom out, center = geolocate. */}
       {showProfileFab && (
-        <div className="fixed right-3 bottom-[max(1.5rem,calc(env(safe-area-inset-bottom)+1rem))] z-[10015] flex flex-col items-center gap-2 pointer-events-none">
-          <button
-            type="button"
-            onClick={handleZoomIn}
-            aria-label={t('zoomIn', { defaultValue: 'Zoom in' })}
-            className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/50 bg-black/70 text-cyan-200 shadow-[0_0_18px_rgba(34,211,238,0.28)] backdrop-blur-lg transition-transform active:scale-95"
+        <div className="fixed right-3 bottom-[max(1.5rem,calc(env(safe-area-inset-bottom)+1rem))] z-[10015] pointer-events-none">
+          <div
+            role="group"
+            aria-label={t('mapControls', { defaultValue: 'Map controls' })}
+            className="pointer-events-auto relative h-16 w-16 overflow-hidden rounded-full border border-cyan-400/40 bg-black/70 shadow-[0_0_18px_rgba(34,211,238,0.28)] backdrop-blur-lg"
           >
-            <Plus className="h-5 w-5" strokeWidth={2.5} aria-hidden />
-          </button>
-          <button
-            type="button"
-            onClick={handleZoomOut}
-            aria-label={t('zoomOut', { defaultValue: 'Zoom out' })}
-            className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/50 bg-black/70 text-cyan-200 shadow-[0_0_18px_rgba(34,211,238,0.28)] backdrop-blur-lg transition-transform active:scale-95"
-          >
-            <Minus className="h-5 w-5" strokeWidth={2.5} aria-hidden />
-          </button>
-          <button
-            type="button"
-            onClick={handleGeolocate}
-            aria-label={t('geolocate', { defaultValue: 'My location' })}
-            className="pointer-events-auto mt-1 flex h-12 w-12 items-center justify-center rounded-full border border-emerald-400/50 bg-black/70 text-emerald-300 shadow-[0_0_18px_rgba(16,185,129,0.3)] backdrop-blur-lg transition-transform active:scale-95"
-          >
-            <Crosshair className="h-5 w-5" strokeWidth={2.25} aria-hidden />
-          </button>
+            {/* Hairline separators framing the center dial */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute left-1/2 top-0 h-4 w-px -translate-x-1/2 bg-white/10"
+            />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute bottom-0 left-1/2 h-4 w-px -translate-x-1/2 bg-white/10"
+            />
+
+            {/* Top zone — Zoom in */}
+            <button
+              type="button"
+              onClick={handleZoomIn}
+              aria-label={t('zoomIn', { defaultValue: 'Zoom in' })}
+              className="absolute inset-x-0 top-0 flex h-1/2 items-start justify-center pt-1.5 text-cyan-200 transition-colors hover:bg-cyan-400/15 active:bg-cyan-400/30"
+            >
+              <Plus className="h-4 w-4" strokeWidth={2.75} aria-hidden />
+            </button>
+
+            {/* Bottom zone — Zoom out */}
+            <button
+              type="button"
+              onClick={handleZoomOut}
+              aria-label={t('zoomOut', { defaultValue: 'Zoom out' })}
+              className="absolute inset-x-0 bottom-0 flex h-1/2 items-end justify-center pb-1.5 text-cyan-200 transition-colors hover:bg-cyan-400/15 active:bg-cyan-400/30"
+            >
+              <Minus className="h-4 w-4" strokeWidth={2.75} aria-hidden />
+            </button>
+
+            {/* Center dial — Geolocate */}
+            <button
+              type="button"
+              onClick={handleGeolocate}
+              aria-label={t('geolocate', { defaultValue: 'My location' })}
+              className="absolute left-1/2 top-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-emerald-400/50 bg-slate-950/90 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.35)] transition-all hover:bg-emerald-500/25 active:scale-90"
+            >
+              <Crosshair className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+            </button>
+          </div>
         </div>
       )}
 
