@@ -39,6 +39,16 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Idempotent column guards: if a legacy `notifications` table already existed with
+-- a different shape, CREATE TABLE IF NOT EXISTS is a no-op — ensure every column
+-- exists before any index/policy references it.
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS user_id uuid;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS actor_id uuid;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS mission_id uuid;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS type text;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS is_read boolean NOT NULL DEFAULT false;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+
 COMMENT ON TABLE public.notifications IS
   'In-app notification feed. Rows are created only by SECURITY DEFINER RPCs (create_notification / notify_mission_event / submit_review).';
 
@@ -80,6 +90,33 @@ CREATE TABLE IF NOT EXISTS public.reviews (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (mission_id, reviewer_id)
 );
+
+-- Idempotent column guards: if a legacy `reviews` table already existed without
+-- these columns, CREATE TABLE IF NOT EXISTS is a no-op — add every column BEFORE
+-- the index / unique constraint / RPCs reference reviewee_id (fixes 42703).
+ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS mission_id uuid;
+ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS reviewer_id uuid;
+ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS reviewee_id uuid;
+ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS rating integer;
+ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS comment text;
+ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+
+-- Ensure the (mission_id, reviewer_id) uniqueness exists even on a legacy table.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.reviews'::regclass
+      AND contype = 'u'
+      AND conname = 'reviews_mission_id_reviewer_id_key'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname = 'public' AND indexname = 'reviews_mission_reviewer_uidx'
+  ) THEN
+    CREATE UNIQUE INDEX reviews_mission_reviewer_uidx
+      ON public.reviews (mission_id, reviewer_id);
+  END IF;
+END $$;
 
 COMMENT ON TABLE public.reviews IS
   'Per-mission peer reviews (creator<->worker). Public read; writes via submit_review RPC only.';

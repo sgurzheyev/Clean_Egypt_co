@@ -40,7 +40,13 @@ import {
 } from '../constants';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionTokenBid, missionWorkBudgetUsd } from '../src/lib/missionBudget';
-import { formatSubmittedRelative } from '../src/lib/missionFilterSort';
+import {
+  formatSubmittedRelative,
+  filterMissionsByTags,
+  DEFAULT_MISSION_SORT,
+  type MissionSortMode,
+} from '../src/lib/missionFilterSort';
+import MissionFilterPanel from './MissionFilterPanel';
 import { isPlatformAdmin } from '../src/lib/platformAdmin';
 import { adminDeleteMission } from '../src/lib/adminMission';
 import { floorUsd, parseIntegerUsdFromInput, sanitizeIntegerUsdDigits } from '../src/lib/integerUsdInput';
@@ -1244,6 +1250,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const mapInstanceRef = React.useRef<any>(null);
   const orderFormRef = React.useRef<HTMLFormElement>(null);
   const jobsRef = React.useRef<JobOnMap[]>([]);
+  const selectedMissionTagsRef = React.useRef<string[]>([]);
   const hoveredMissionIdRef = React.useRef<string | null>(null);
   // Latest map event closures. Native Mapbox listeners are bound ONCE (on map load) and delegate
   // through these refs, so updating React state never detaches/re-attaches the canvas listeners.
@@ -1590,6 +1597,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [activeFormTrigger, setActiveFormTrigger] = useState<FormTrigger | null>(null);
   const [showLiveMarketFeed, setShowLiveMarketFeed] = useState(false);
   const [showMyOrdersPanel, setShowMyOrdersPanel] = useState(false);
+  // Map filter/sort: multi-select category checkboxes + sort dropdown. Empty
+  // selection means "show everything". Sort is shared with the market feed.
+  const [missionSortMode, setMissionSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
+  const [selectedMissionTags, setSelectedMissionTags] = useState<string[]>([]);
+  const toggleMissionTag = useCallback((tag: string) => {
+    setSelectedMissionTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  }, []);
+  const clearMissionTags = useCallback(() => setSelectedMissionTags([]), []);
+  useEffect(() => {
+    selectedMissionTagsRef.current = selectedMissionTags;
+  }, [selectedMissionTags]);
   const [mapDraftPin, setMapDraftPin] = useState<{ lat: number; lng: number } | null>(null);
   const [draftPinMenuExpanded, setDraftPinMenuExpanded] = useState(false);
   const [proofUploadMission, setProofUploadMission] = useState<JobOnMap | null>(null);
@@ -2319,9 +2339,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
 
       // Occlusion-proof fallback: screen-space distance to each eligible pin.
+      // Respect the active tag filter so hidden pins stay unclickable.
+      const visibleJobs = filterMissionsByTags(
+        jobsRef.current || [],
+        selectedMissionTagsRef.current
+      );
       let best: JobOnMap | null = null;
       let bestDist = Infinity;
-      for (const j of jobsRef.current || []) {
+      for (const j of visibleJobs) {
         if (!missionEligibleForMapPin(j)) continue;
         if (!Number.isFinite(j.location_lat) || !Number.isFinite(j.location_lng)) continue;
         let projected: { x: number; y: number };
@@ -3226,7 +3251,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   /** Service-colored mission pins on the map (always visible in 2D mode). */
   const missionPinsGeoJSON = useMemo(() => {
-    const features = (jobs || [])
+    const features = filterMissionsByTags(jobs || [], selectedMissionTags)
       .filter(missionEligibleForMapPin)
       .filter((j) => Number.isFinite(j.location_lat) && Number.isFinite(j.location_lng))
       .map((j) => ({
@@ -3245,7 +3270,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         },
       }));
     return { type: 'FeatureCollection' as const, features };
-  }, [jobs, serviceTypeForMission]);
+  }, [jobs, selectedMissionTags, serviceTypeForMission]);
 
   const activeWorkerMission = useMemo(
     () =>
@@ -3951,6 +3976,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
       )}
 
       <NotificationBell userId={currentUserId} onOpenMission={(id) => void openMissionById(id)} />
+
+      {showProfileFab && (
+        <div className="fixed left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[10015] w-[min(20rem,calc(100vw-4.5rem))]">
+          <MissionFilterPanel
+            sortMode={missionSortMode}
+            onSortChange={setMissionSortMode}
+            selectedTags={selectedMissionTags}
+            onToggleTag={toggleMissionTag}
+            onClearTags={clearMissionTags}
+            resultCount={missionPinsGeoJSON.features.length}
+          />
+        </div>
+      )}
 
       {showProfileFab && (
         <div className="fixed inset-x-0 bottom-0 z-[10020] flex justify-center pointer-events-none pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))]">
