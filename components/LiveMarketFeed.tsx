@@ -10,7 +10,11 @@ import { supabase } from '../services/supabase';
 import { formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
-import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
+import {
+  closestMarketplaceCity,
+  filterMissionsByMarketCity,
+  MARKETPLACE_ALL_EGYPT_ID,
+} from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
 import {
@@ -88,6 +92,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_EGYPT_ID);
 
   const toggleTag = (tag: string) =>
     setSelectedTags((prev) =>
@@ -96,8 +101,12 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   const clearTags = () => setSelectedTags([]);
 
   const visibleMissions = useMemo(
-    () => sortMissions(filterMissionsByTags(missions, selectedTags), sortMode),
-    [missions, selectedTags, sortMode]
+    () =>
+      sortMissions(
+        filterMissionsByMarketCity(filterMissionsByTags(missions, selectedTags), marketCityId),
+        sortMode
+      ),
+    [missions, selectedTags, marketCityId, sortMode]
   );
 
   useEffect(() => {
@@ -196,6 +205,8 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                   onToggleTag={toggleTag}
                   onClearTags={clearTags}
                   resultCount={visibleMissions.length}
+                  cityId={marketCityId}
+                  onCityChange={setMarketCityId}
                 />
               </div>
             </div>

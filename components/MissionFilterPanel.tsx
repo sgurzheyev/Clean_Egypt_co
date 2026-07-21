@@ -3,7 +3,7 @@
  * Tag filter is multi-select (check the categories you want); sort is a dropdown.
  */
 import React, { useState } from 'react';
-import { SlidersHorizontal, ChevronDown, X } from 'lucide-react';
+import { SlidersHorizontal, ChevronDown, X, MapPin } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   ALL_MISSION_TAGS,
@@ -11,6 +11,24 @@ import {
   MISSION_SORT_LABEL_KEYS,
   type MissionSortMode,
 } from '../src/lib/missionFilterSort';
+import {
+  EGYPT_MARKETPLACE_CITIES,
+  MARKETPLACE_ALL_EGYPT_ID,
+} from '../src/lib/egyptMarketplace';
+
+/**
+ * Eco / community / crowdfunding-focused tags get a distinct green accent so they
+ * pop out from the regular home/office cleaning tags.
+ */
+const ECO_TAGS = new Set([
+  '#eco',
+  '#beach',
+  '#street',
+  '#cleanup',
+  '#junk',
+  '#heavy',
+  '#haul',
+]);
 
 export interface MissionFilterPanelProps {
   sortMode: MissionSortMode;
@@ -19,6 +37,9 @@ export interface MissionFilterPanelProps {
   onToggleTag: (tag: string) => void;
   onClearTags: () => void;
   resultCount?: number;
+  /** When provided, renders a City filter dropdown ("All Cities" + core hubs). */
+  cityId?: string;
+  onCityChange?: (cityId: string) => void;
 }
 
 const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
@@ -28,14 +49,31 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
   onToggleTag,
   onClearTags,
   resultCount,
+  cityId,
+  onCityChange,
 }) => {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const activeCount = selectedTags.length;
+  const showCityFilter = typeof onCityChange === 'function';
+  const cityValue = cityId ?? MARKETPLACE_ALL_EGYPT_ID;
+
+  const cityOptions = (
+    <>
+      <option value={MARKETPLACE_ALL_EGYPT_ID} className="bg-slate-900 text-slate-100">
+        {t('marketplaceCityAll')}
+      </option>
+      {EGYPT_MARKETPLACE_CITIES.map((c) => (
+        <option key={c.id} value={c.id} className="bg-slate-900 text-slate-100">
+          {t(c.nameKey)}
+        </option>
+      ))}
+    </>
+  );
 
   return (
     <div className="rounded-xl border border-white/10 bg-slate-900/70 backdrop-blur-md">
-      <div className="flex items-center gap-2 p-2">
+      <div className="flex flex-wrap items-center gap-2 p-2">
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
@@ -54,6 +92,23 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
             strokeWidth={2.25}
           />
         </button>
+
+        {showCityFilter && (
+          <div className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-500/10 pl-2">
+            <MapPin className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2.25} aria-hidden />
+            <label className="sr-only" htmlFor="mission-city-select">
+              {t('selectCity')}
+            </label>
+            <select
+              id="mission-city-select"
+              value={cityValue}
+              onChange={(e) => onCityChange?.(e.target.value)}
+              className="rounded-lg border-0 bg-transparent px-1 py-1.5 text-[11px] font-bold text-emerald-100 outline-none focus:ring-0"
+            >
+              {cityOptions}
+            </select>
+          </div>
+        )}
 
         <label className="sr-only" htmlFor="mission-sort-select">
           {t('sortByLabel')}
@@ -119,6 +174,14 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
             <div className="flex flex-wrap gap-1.5">
               {ALL_MISSION_TAGS.map((tag) => {
                 const checked = selectedTags.includes(tag);
+                const isEco = ECO_TAGS.has(tag.toLowerCase());
+                const className = isEco
+                  ? checked
+                    ? 'border-emerald-400 bg-emerald-500/30 text-emerald-50 shadow-[0_0_10px_rgba(16,185,129,0.25)]'
+                    : 'border-emerald-500 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                  : checked
+                    ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100'
+                    : 'border-white/12 bg-white/5 text-slate-300 hover:border-white/25 hover:text-slate-100';
                 return (
                   <button
                     key={tag}
@@ -126,12 +189,9 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                     role="checkbox"
                     aria-checked={checked}
                     onClick={() => onToggleTag(tag)}
-                    className={`rounded-full border px-2.5 py-1 text-[11px] font-bold lowercase tracking-wide transition-colors ${
-                      checked
-                        ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100'
-                        : 'border-white/12 bg-white/5 text-slate-300 hover:border-white/25 hover:text-slate-100'
-                    }`}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-bold lowercase tracking-wide transition-colors ${className}`}
                   >
+                    {isEco && <span aria-hidden>🌿 </span>}
                     {tag}
                   </button>
                 );

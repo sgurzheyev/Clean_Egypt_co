@@ -28,6 +28,10 @@ import {
   DEFAULT_MISSION_SORT,
   type MissionSortMode,
 } from '../src/lib/missionFilterSort';
+import {
+  filterMissionsByMarketCity,
+  MARKETPLACE_ALL_EGYPT_ID,
+} from '../src/lib/egyptMarketplace';
 import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
 import { creatorRejectProof, submitMissionProof } from '../src/lib/submitMissionProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
@@ -211,6 +215,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   // is token-boost first (see DEFAULT_MISSION_SORT).
   const [marketSortMode, setMarketSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
   const [marketSelectedTags, setMarketSelectedTags] = useState<string[]>([]);
+  const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_EGYPT_ID);
   const toggleMarketTag = useCallback((tag: string) => {
     setMarketSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
@@ -357,10 +362,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     return `${t('profileOwnedShort')}: ${openOwned} · ${t('profileActiveWorkShort')}: ${activeWork}`;
   }, [ownedOpenMissions.length, activeWorkJobs.length, t]);
 
-  // Filtered by selected tags, then ranked by the chosen sort (default: token boost).
+  // Filtered by city + selected tags, then ranked by the chosen sort (default: token boost).
   const displayedMarketplaceJobs = useMemo(
-    () => sortMissions(filterMissionsByTags(openMarketplaceJobs, marketSelectedTags), marketSortMode),
-    [openMarketplaceJobs, marketSelectedTags, marketSortMode]
+    () =>
+      sortMissions(
+        filterMissionsByMarketCity(
+          filterMissionsByTags(openMarketplaceJobs, marketSelectedTags),
+          marketCityId
+        ),
+        marketSortMode
+      ),
+    [openMarketplaceJobs, marketSelectedTags, marketCityId, marketSortMode]
   );
 
   // Real-time token balance subscription
@@ -1890,6 +1902,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               onToggleTag={toggleMarketTag}
               onClearTags={clearMarketTags}
               resultCount={displayedMarketplaceJobs.length}
+              cityId={marketCityId}
+              onCityChange={setMarketCityId}
             />
           </div>
 

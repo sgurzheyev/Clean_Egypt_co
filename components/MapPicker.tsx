@@ -82,7 +82,11 @@ import { useRealWeather } from '../src/hooks/useRealWeather';
 import WeatherOverlay from '../src/components/WeatherOverlay';
 import WeatherDebugPanel from '../src/components/WeatherDebugPanel';
 import { confirmContributionCheckout, startContributionCheckout } from '../src/lib/contributions';
-import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
+import {
+  closestMarketplaceCity,
+  filterMissionsByMarketCity,
+  MARKETPLACE_ALL_EGYPT_ID,
+} from '../src/lib/egyptMarketplace';
 import {
   type PinLocationContext,
   formatPinLocationTag,
@@ -1254,6 +1258,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const orderFormRef = React.useRef<HTMLFormElement>(null);
   const jobsRef = React.useRef<JobOnMap[]>([]);
   const selectedMissionTagsRef = React.useRef<string[]>([]);
+  const marketCityIdRef = React.useRef<string>(MARKETPLACE_ALL_EGYPT_ID);
   const hoveredMissionIdRef = React.useRef<string | null>(null);
   // Latest map event closures. Native Mapbox listeners are bound ONCE (on map load) and delegate
   // through these refs, so updating React state never detaches/re-attaches the canvas listeners.
@@ -1604,6 +1609,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   // selection means "show everything". Sort is shared with the market feed.
   const [missionSortMode, setMissionSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
   const [selectedMissionTags, setSelectedMissionTags] = useState<string[]>([]);
+  const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_EGYPT_ID);
   const toggleMissionTag = useCallback((tag: string) => {
     setSelectedMissionTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
@@ -1613,6 +1619,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   useEffect(() => {
     selectedMissionTagsRef.current = selectedMissionTags;
   }, [selectedMissionTags]);
+  useEffect(() => {
+    marketCityIdRef.current = marketCityId;
+  }, [marketCityId]);
   const [mapDraftPin, setMapDraftPin] = useState<{ lat: number; lng: number } | null>(null);
   const [draftPinMenuExpanded, setDraftPinMenuExpanded] = useState(false);
   const [proofUploadMission, setProofUploadMission] = useState<JobOnMap | null>(null);
@@ -2346,9 +2355,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       // Occlusion-proof fallback: screen-space distance to each eligible pin.
       // Respect the active tag filter so hidden pins stay unclickable.
-      const visibleJobs = filterMissionsByTags(
-        jobsRef.current || [],
-        selectedMissionTagsRef.current
+      const visibleJobs = filterMissionsByMarketCity(
+        filterMissionsByTags(jobsRef.current || [], selectedMissionTagsRef.current),
+        marketCityIdRef.current
       );
       let best: JobOnMap | null = null;
       let bestDist = Infinity;
@@ -3257,7 +3266,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   /** Service-colored mission pins on the map (always visible in 2D mode). */
   const missionPinsGeoJSON = useMemo(() => {
-    const features = filterMissionsByTags(jobs || [], selectedMissionTags)
+    const features = filterMissionsByMarketCity(
+      filterMissionsByTags(jobs || [], selectedMissionTags),
+      marketCityId
+    )
       .filter(missionEligibleForMapPin)
       .filter((j) => Number.isFinite(j.location_lat) && Number.isFinite(j.location_lng))
       .map((j) => ({
@@ -3276,7 +3288,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         },
       }));
     return { type: 'FeatureCollection' as const, features };
-  }, [jobs, selectedMissionTags, serviceTypeForMission]);
+  }, [jobs, selectedMissionTags, marketCityId, serviceTypeForMission]);
 
   const activeWorkerMission = useMemo(
     () =>
@@ -3992,6 +4004,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
             onToggleTag={toggleMissionTag}
             onClearTags={clearMissionTags}
             resultCount={missionPinsGeoJSON.features.length}
+            cityId={marketCityId}
+            onCityChange={setMarketCityId}
           />
         </div>
       )}
