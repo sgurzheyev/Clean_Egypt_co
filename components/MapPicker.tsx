@@ -4357,7 +4357,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Hall of Fame modal for completed missions */}
       {hallOfFameMission && (
         <div
-          className="absolute inset-0 z-[9999] flex items-center justify-center pt-[env(safe-area-inset-top)] isolate"
+          className="absolute inset-0 z-[10050] flex items-center justify-center pt-[env(safe-area-inset-top)] isolate"
           aria-hidden="false"
         >
           <div
@@ -4423,7 +4423,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       )}
 
       {mapToast && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[10000] pointer-events-none max-w-[min(92vw,24rem)]">
+        <div className="absolute top-[max(5rem,calc(env(safe-area-inset-top)+4rem))] left-1/2 -translate-x-1/2 z-[10095] pointer-events-none max-w-[min(92vw,24rem)]">
           <div
             className={`rounded-xl border px-4 py-2 text-xs font-bold shadow-xl backdrop-blur-sm ${
               mapToast.variant === 'success'

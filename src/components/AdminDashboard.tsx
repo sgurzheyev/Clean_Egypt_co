@@ -13,6 +13,7 @@ import KYCReviewDashboard from './KYCReviewDashboard';
 import { ADMIN_FORCE_RELEASE_PAYMENT_BTN } from '../../constants';
 import { formatTokens } from '../lib/formatMoney';
 import ModeratedMissionPhoto from '../../components/ModeratedMissionPhoto';
+import ProfileCard from '../../components/ProfileCard';
 
 interface ProfileRow {
   id: string;
@@ -879,7 +880,81 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
               />
               {godError && <p className="text-xs text-red-300 mb-2">{godError}</p>}
 
-              <div className="max-h-[420px] overflow-auto pr-1 rounded-xl border border-orange-500/15 bg-black/20 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+              {/* Mobile: stacked cards (no horizontal scroll) */}
+              <div className="space-y-2 md:hidden">
+                {filteredGodProfiles.length === 0 && (
+                  <p className="px-1 py-6 text-center text-slate-500 italic">No users.</p>
+                )}
+                {filteredGodProfiles.map((p) => {
+                  const name = p.full_name || '—';
+                  const handle = p.telegram_username ? `@${p.telegram_username}` : '';
+                  const verified = !!p.is_verified;
+                  const banned = !!p.is_banned;
+                  return (
+                    <div
+                      key={p.id}
+                      className="rounded-2xl border border-orange-500/15 bg-cyan-950/20 backdrop-blur p-3"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border border-orange-500/20 bg-slate-950">
+                          {p.avatar_url ? (
+                            <img src={p.avatar_url} alt={name} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-sm font-black text-orange-300">
+                              {(name || 'U').slice(0, 1).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold text-slate-100">
+                            {name}
+                            {verified && <span className="ml-1.5 text-emerald-400">✅</span>}
+                            {banned && <span className="ml-1.5 text-red-400">⛔</span>}
+                          </p>
+                          {handle && <p className="truncate text-[11px] text-slate-500">{handle}</p>}
+                          <p className="truncate text-[11px] text-slate-400">{p.contact_email || '—'}</p>
+                          <p className="truncate text-[11px] text-cyan-300">{p.phone_number || '—'}</p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-[9px] uppercase tracking-[0.18em] text-slate-500">Wallet</p>
+                          <p className="font-black text-orange-400">{formatTokens(Number(p.wallet_balance ?? 0))}</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleVerify(p.id, true)}
+                          disabled={verifyLoadingUserId === p.id || verified}
+                          className="flex-1 min-w-[7rem] px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border border-emerald-500/40 text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/15 disabled:opacity-60 disabled:cursor-wait transition-all"
+                        >
+                          Verify Agent
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditBalanceUser(p);
+                            setEditBalanceValue(String(Number(p.wallet_balance ?? 0)));
+                          }}
+                          className="flex-1 min-w-[7rem] px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border border-orange-500/40 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 transition-all"
+                        >
+                          Edit Balance
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleBan(p.id, true)}
+                          disabled={banned}
+                          className="flex-1 min-w-[7rem] px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border border-red-500/40 text-red-200 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-60 transition-all"
+                        >
+                          Ban User
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop: table */}
+              <div className="hidden md:block max-h-[420px] overflow-auto pr-1 rounded-xl border border-orange-500/15 bg-black/20 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
                 <table className="w-full text-left text-[11px]">
                   <thead className="sticky top-0 bg-[#020617]/95 backdrop-blur border-b border-orange-500/15">
                     <tr className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
@@ -1003,7 +1078,39 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
               </div>
               {missionsError && <p className="text-xs text-red-300 mb-2">{missionsError}</p>}
 
-              <div className="max-h-[520px] overflow-auto pr-1 rounded-xl border border-orange-500/15 bg-black/20 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+              {/* Mobile: stacked cards */}
+              <div className="space-y-2 md:hidden">
+                {missions.length === 0 && (
+                  <p className="px-1 py-6 text-center text-slate-500 italic">No missions.</p>
+                )}
+                {(missions || []).map((m) => (
+                  <div
+                    key={m.id}
+                    className="rounded-2xl border border-orange-500/15 bg-cyan-950/20 backdrop-blur p-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-mono text-sm text-slate-100">#{m.id.slice(0, 8)}</p>
+                        <p className="mt-0.5 text-[11px] uppercase tracking-[0.14em] text-slate-400">{m.status}</p>
+                        <p className="mt-0.5 text-[11px] text-slate-500 font-mono">
+                          Creator: {(m.creator_id || '—').slice(0, 8)}
+                        </p>
+                      </div>
+                      <p className="shrink-0 font-black text-orange-300">{formatTokens(Number(m.amount_target ?? 0))}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => forceCancelMission(m.id)}
+                      className="mt-3 w-full px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border border-red-500/40 text-red-200 bg-red-500/10 hover:bg-red-500/20 transition-all"
+                    >
+                      Force Cancel
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop: table */}
+              <div className="hidden md:block max-h-[520px] overflow-auto pr-1 rounded-xl border border-orange-500/15 bg-black/20 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
                 <table className="w-full text-left text-[11px]">
                   <thead className="sticky top-0 bg-[#020617]/95 backdrop-blur border-b border-orange-500/15">
                     <tr className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
@@ -1062,32 +1169,70 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
               </div>
               {metricsError && <p className="text-xs text-red-300 mb-2">{metricsError}</p>}
 
-              <div className="mb-4 rounded-2xl bg-cyan-950/15 border border-cyan-500/20 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300/90 mb-2">
-                  Currency
+              {/* Hero: total donated */}
+              <div className="mb-4 overflow-hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent p-5">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg" aria-hidden>💰</span>
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-300/90">
+                    Total Donated (Gross Volume)
+                  </p>
+                </div>
+                <p className="mt-2 text-4xl font-black tracking-tight text-emerald-300 sm:text-5xl">
+                  {formatTokens(Number(metrics?.total_donated ?? 0))}
                 </p>
-                <p className="text-[11px] text-slate-400">
-                  Platform fiat amounts are USD-only. Stripe charges and credits wallet in USD (×0.97 buffer). No FX conversion.
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Lifetime crowdfunding + donation inflow processed by the platform.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Outstanding obligations + rewards */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {[
-                  { label: 'Total Donated', value: metrics?.total_donated ?? 0, color: 'text-emerald-400' },
-                  { label: 'Pending Payouts', value: metrics?.pending_payouts ?? 0, color: 'text-amber-300' },
-                  { label: 'Pending Withdrawals', value: metrics?.pending_withdrawals ?? 0, color: 'text-orange-400' },
                   {
-                    label: 'Supervisor bounties (Ahmed-Pro)',
+                    icon: '⏳',
+                    label: 'Pending Payouts',
+                    value: metrics?.pending_payouts ?? 0,
+                    color: 'text-amber-300',
+                    caption: 'Awaiting admin release',
+                    ring: 'border-amber-500/20',
+                  },
+                  {
+                    icon: '🏦',
+                    label: 'Pending Withdrawals',
+                    value: metrics?.pending_withdrawals ?? 0,
+                    color: 'text-orange-400',
+                    caption: 'Cash-out requests in queue',
+                    ring: 'border-orange-500/20',
+                  },
+                  {
+                    icon: '🎖️',
+                    label: 'Supervisor Bounties',
                     value: metrics?.supervisor_bounties_total ?? 0,
                     color: 'text-cyan-300',
+                    caption: 'Ahmed-Pro network rewards',
+                    ring: 'border-cyan-500/20',
                   },
                 ].map((c) => (
-                  <div key={c.label} className="rounded-2xl bg-cyan-950/20 backdrop-blur-md border border-orange-500/10 p-4">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{c.label}</p>
+                  <div
+                    key={c.label}
+                    className={`rounded-2xl bg-cyan-950/20 backdrop-blur-md border ${c.ring} p-4`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        {c.label}
+                      </p>
+                      <span className="text-base" aria-hidden>{c.icon}</span>
+                    </div>
                     <p className={`mt-2 text-3xl font-black ${c.color}`}>{formatTokens(Number(c.value))}</p>
+                    <p className="mt-1 text-[10px] text-slate-500">{c.caption}</p>
                   </div>
                 ))}
               </div>
+
+              <p className="mt-4 rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3 text-[11px] leading-relaxed text-slate-500">
+                <span className="font-bold text-cyan-300/90">Currency:</span> platform fiat amounts are
+                USD-only. Stripe charges and credits the wallet in USD (×0.97 buffer). No FX conversion.
+              </p>
             </section>
           )}
 
@@ -1254,7 +1399,98 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
               className="mb-2 w-full rounded-2xl bg-slate-950 border border-cyan-500/40 px-3 py-1.5 text-[11px] text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
             />
 
-            <div className="max-h-[420px] overflow-auto pr-1 rounded-xl border border-cyan-500/20 bg-cyan-950/10 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+            {/* Mobile: stacked user cards (no horizontal scroll) */}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:hidden">
+              {filteredProfiles.length === 0 ? (
+                <p className="col-span-full px-1 py-6 text-center text-slate-500 italic">
+                  No users match this search.
+                </p>
+              ) : (
+                filteredProfiles.map((p) => {
+                  const name = p.full_name || '—';
+                  const handle = p.telegram_username ? `@${p.telegram_username}` : '—';
+                  const phone = p.phone_number || '—';
+                  const wallet = Number(p.wallet_balance ?? 0);
+                  const createdCount = missionsCreatedByUserId[p.id] || 0;
+                  const gps = parseFirstGpsTrack(p.first_gps_track);
+                  const gpsLabel = gps ? `${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)}` : '—';
+                  const verified = !!p.is_verified;
+                  return (
+                    <button
+                      type="button"
+                      key={p.id}
+                      onClick={() => openUser(p)}
+                      className="w-full rounded-2xl border border-cyan-500/15 bg-cyan-950/25 backdrop-blur p-3 text-left transition-colors hover:bg-cyan-950/40"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border border-cyan-500/20 bg-slate-950">
+                          {p.avatar_url ? (
+                            <img src={p.avatar_url} alt={name} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-sm font-black text-cyan-300">
+                              {(name || 'U').slice(0, 1).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold text-slate-100">
+                            {name}
+                            {verified && (
+                              <span className="ml-1.5 inline-flex items-center rounded-full border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-200 align-middle">
+                                Verified
+                              </span>
+                            )}
+                          </p>
+                          <p className="truncate text-[11px] text-slate-500">{handle}</p>
+                          <p className="truncate text-[11px] text-cyan-300">{phone}</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-1.5">
+                        <div className="rounded-xl border border-white/8 bg-white/[0.03] px-1.5 py-1.5 text-center">
+                          <p className="text-sm font-black text-orange-400">{formatTokens(wallet)}</p>
+                          <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-slate-500">Wallet</p>
+                        </div>
+                        <div className="rounded-xl border border-white/8 bg-white/[0.03] px-1.5 py-1.5 text-center">
+                          <p className="text-sm font-black text-slate-100">{createdCount}</p>
+                          <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-slate-500">Missions</p>
+                        </div>
+                        <div className="rounded-xl border border-white/8 bg-white/[0.03] px-1.5 py-1.5 text-center">
+                          <p className="truncate text-[10px] font-mono font-bold text-slate-300">{gpsLabel}</p>
+                          <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-slate-500">GPS</p>
+                        </div>
+                      </div>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleVerify(p.id, !verified);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleVerify(p.id, !verified);
+                          }
+                        }}
+                        className={[
+                          'mt-3 flex w-full items-center justify-center px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] transition-all border cursor-pointer',
+                          verified
+                            ? 'border-orange-500/50 text-orange-300 bg-orange-500/10 hover:bg-orange-500/20'
+                            : 'border-cyan-500/40 text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/15',
+                          verifyLoadingUserId === p.id && 'opacity-60 cursor-wait',
+                        ].join(' ')}
+                      >
+                        {verifyLoadingUserId === p.id ? '...' : verified ? 'Unverify' : 'Verify'}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden md:block max-h-[420px] overflow-auto pr-1 rounded-xl border border-cyan-500/20 bg-cyan-950/10 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
               <table className="w-full text-left text-[11px]">
                 <thead className="sticky top-0 bg-[#020617]/95 backdrop-blur border-b border-cyan-500/20">
                   <tr className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
@@ -1269,7 +1505,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                 <tbody>
                   {filteredProfiles.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-3 py-6 text-center text-slate-500 italic">
+                      <td colSpan={6} className="px-3 py-6 text-center text-slate-500 italic">
                         No users match this search.
                       </td>
                     </tr>
@@ -1470,36 +1706,85 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             className="w-[95vw] md:w-full max-w-4xl rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.12)] p-5 sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="relative mb-4">
               <button
                 type="button"
                 onClick={() => setSelectedUser(null)}
-                className="p-2 -m-2 mr-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                className="absolute right-0 top-0 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/50 text-slate-300 hover:text-white hover:bg-white/10 transition-all"
                 aria-label="Close"
               >
                 ✕
               </button>
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.35em] text-cyan-300/80">
-                  User Deep-Dive
-                </p>
-                <h3 className="mt-1 text-lg font-extrabold tracking-tight text-white truncate">
-                  {selectedUser.full_name || '—'}{' '}
-                  <span className="text-slate-400 font-normal">
-                    {selectedUser.telegram_username ? `(@${selectedUser.telegram_username})` : ''}
+              <ProfileCard
+                accent="cyan"
+                name={selectedUser.full_name || selectedUser.id.slice(0, 8)}
+                avatarUrl={selectedUser.avatar_url}
+                handle={selectedUser.telegram_username ? `@${selectedUser.telegram_username}` : undefined}
+                isVerified={!!selectedUser.is_verified}
+                subtitle={
+                  <span className="block truncate">
+                    {selectedUser.contact_email || '—'} •{' '}
+                    <span className="text-cyan-300">{selectedUser.phone_number || '—'}</span>
                   </span>
-                </h3>
-                <p className="mt-1 text-[11px] text-slate-400 truncate">
-                  {selectedUser.contact_email || '—'} •{' '}
-                  <span className="text-cyan-300">{selectedUser.phone_number || '—'}</span>
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Wallet</p>
-                <p className="text-orange-400 font-black">
-                  {formatTokens(Number(selectedUser.wallet_balance ?? 0))}
-                </p>
-              </div>
+                }
+                badges={
+                  <>
+                    {selectedUser.is_banned && (
+                      <span className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-red-300">
+                        Banned
+                      </span>
+                    )}
+                    {selectedUser.is_verified && (
+                      <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-300">
+                        Verified Agent
+                      </span>
+                    )}
+                  </>
+                }
+                stats={[
+                  {
+                    label: 'Wallet',
+                    value: formatTokens(Number(selectedUser.wallet_balance ?? 0)),
+                    accent: 'text-orange-400',
+                  },
+                  {
+                    label: 'Missions',
+                    value: missionsCreatedByUserId[selectedUser.id] || 0,
+                    accent: 'text-cyan-300',
+                  },
+                  {
+                    label: 'Transactions',
+                    value: selectedUserTransactions.length,
+                    accent: 'text-emerald-300',
+                  },
+                ]}
+                actions={
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => toggleVerify(selectedUser.id, !selectedUser.is_verified)}
+                      disabled={verifyLoadingUserId === selectedUser.id}
+                      className="flex-1 min-w-[8rem] px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border border-cyan-500/40 text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/15 disabled:opacity-60 disabled:cursor-wait transition-all"
+                    >
+                      {verifyLoadingUserId === selectedUser.id
+                        ? '...'
+                        : selectedUser.is_verified
+                          ? 'Unverify'
+                          : 'Verify Agent'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditBalanceUser(selectedUser);
+                        setEditBalanceValue(String(Number(selectedUser.wallet_balance ?? 0)));
+                      }}
+                      className="flex-1 min-w-[8rem] px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border border-orange-500/40 text-orange-200 bg-orange-500/10 hover:bg-orange-500/20 transition-all"
+                    >
+                      Edit Balance
+                    </button>
+                  </>
+                }
+              />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
