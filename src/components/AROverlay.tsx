@@ -10,6 +10,16 @@ import * as THREE from 'three';
 import { supabase } from '../../services/supabase';
 
 /**
+ * `XRSession.mode` is part of the WebXR spec but missing from the bundled DOM/
+ * WebXR lib types. Augment it so mode-guarded logic stays type-safe.
+ */
+declare global {
+  interface XRSession {
+    readonly mode?: 'inline' | 'immersive-vr' | 'immersive-ar';
+  }
+}
+
+/**
  * Standalone WebXR AR overlay: renders 'available' / 'funding' missions as
  * 3D markers positioned relative to the user's GPS location.
  *
