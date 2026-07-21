@@ -1,4 +1,22 @@
 /**
+ * True when the Edge Function could not be reached at all — i.e. supabase-js threw a
+ * `FunctionsFetchError` ("Failed to send a request to the Edge Function"). This means
+ * the function is not deployed, network/CORS failed, or the project ref is wrong —
+ * NOT a business error returned by the function body.
+ */
+export function isEdgeFunctionUnreachable(error: unknown): boolean {
+  if (!error) return false;
+  const e = error as { name?: string; message?: string };
+  const name = String(e.name || '');
+  const msg = String(e.message || '');
+  return (
+    name === 'FunctionsFetchError' ||
+    /failed to send a request to the edge function/i.test(msg) ||
+    /failed to fetch/i.test(msg)
+  );
+}
+
+/**
  * Supabase `functions.invoke` often sets a generic message on non-2xx responses.
  * Parse JSON body (and `data.error`) so users see the real Edge Function message.
  */

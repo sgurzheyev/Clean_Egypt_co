@@ -3,7 +3,7 @@
  * Primary Mapbox UI — mission pins, create flow, bids, crowdfunding.
  */
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import MapGL, { NavigationControl, GeolocateControl, MapRef, Source, Layer, Marker } from 'react-map-gl';
+import MapGL, { MapRef, Source, Layer, Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -13,7 +13,7 @@ import { supabase } from '../services/supabase';
 import { getWorkerGeolocation, submitMissionProof } from '../src/lib/submitMissionProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import { submitReview } from '../src/lib/reviews';
-import { Navigation, Camera, X, User } from 'lucide-react';
+import { Navigation, Camera, X, User, Plus, Minus, Crosshair } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import NotificationBell from './NotificationBell';
 import MissionFeedCard from './MissionFeedCard';
@@ -82,6 +82,7 @@ import { useRealWeather } from '../src/hooks/useRealWeather';
 import WeatherOverlay from '../src/components/WeatherOverlay';
 import WeatherDebugPanel from '../src/components/WeatherDebugPanel';
 import { confirmContributionCheckout, startContributionCheckout } from '../src/lib/contributions';
+import { isEdgeFunctionUnreachable } from '../src/lib/supabaseFunctionError';
 import {
   closestMarketplaceCity,
   filterMissionsByMarketCity,
@@ -2751,8 +2752,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
         });
         window.location.assign(url);
       } catch (e: any) {
-        console.error('handleBriefingContribute', e);
-        toast.error(e?.message || t('stripeTopUpError') || t('unexpectedErrorTryAgain'));
+        // Log the full trace so we can tell apart: (a) function not deployed /
+        // Stripe not configured (FunctionsFetchError → "Failed to send a request
+        // to the Edge Function"), vs (b) a business error from the function body.
+        console.error('[handleBriefingContribute] stripe-contribution-checkout failed', e);
+        const message = isEdgeFunctionUnreachable(e)
+          ? t('edgeFunctionUnreachable', {
+              defaultValue:
+                'Payment service is unavailable right now (the checkout function may not be deployed or Stripe keys are missing). Please try again later or contact support.',
+            })
+          : e?.message ||
+            t('stripeTopUpError', { defaultValue: 'Could not start payment. Please try again.' });
+        toast.error(message);
         setBriefingBidSubmitting(false);
       }
     },
@@ -3432,6 +3443,39 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setDraftPinMenuExpanded((prev) => !prev);
   }, []);
 
+  // Custom map controls (replace the default Mapbox NavigationControl/GeolocateControl).
+  const handleZoomIn = useCallback(() => {
+    mapRef.current?.getMap()?.zoomIn({ duration: 300 });
+  }, []);
+  const handleZoomOut = useCallback(() => {
+    mapRef.current?.getMap()?.zoomOut({ duration: 300 });
+  }, []);
+  const handleGeolocate = useCallback(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      toast.error(
+        t('geolocateUnavailable', {
+          defaultValue: 'Location unavailable. Please check your browser permissions.',
+        })
+      );
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        mapRef.current?.flyTo({ center: [longitude, latitude], zoom: 15, duration: 1500 });
+      },
+      (err) => {
+        console.warn('[geolocate] getCurrentPosition failed', err);
+        toast.error(
+          t('geolocateUnavailable', {
+            defaultValue: 'Location unavailable. Please check your browser permissions.',
+          })
+        );
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+    );
+  }, [t, toast]);
+
   const showProfileFab =
     !taskTypeSelected && !selectedMission && !proofUploadMission;
 
@@ -3677,12 +3721,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }}
           />
         </Source>
-        <GeolocateControl
-          position="bottom-right"
-          positionOptions={{ enableHighAccuracy: true }}
-          trackUserLocation
-        />
-        <NavigationControl position="bottom-right" showCompass={false} />
+        {/* Default Mapbox zoom/geolocate controls are replaced by custom neon FABs
+            (bottom-right) — see the map-control FAB stack rendered outside <MapGL>. */}
 
         {/* Mobile tap pulse feedback */}
         <Source id="tap-pulse" type="geojson" data={mobileTapPulseGeoJSON}>
@@ -3994,6 +4034,36 @@ const MapPicker: React.FC<MapPickerProps> = ({
       )}
 
       <NotificationBell userId={currentUserId} onOpenMission={(id) => void openMissionById(id)} />
+
+      {/* Custom map controls — neon FABs replacing the default Mapbox zoom/geolocate. */}
+      {showProfileFab && (
+        <div className="fixed right-3 bottom-[max(1.5rem,calc(env(safe-area-inset-bottom)+1rem))] z-[10015] flex flex-col items-center gap-2 pointer-events-none">
+          <button
+            type="button"
+            onClick={handleZoomIn}
+            aria-label={t('zoomIn', { defaultValue: 'Zoom in' })}
+            className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/50 bg-black/70 text-cyan-200 shadow-[0_0_18px_rgba(34,211,238,0.28)] backdrop-blur-lg transition-transform active:scale-95"
+          >
+            <Plus className="h-5 w-5" strokeWidth={2.5} aria-hidden />
+          </button>
+          <button
+            type="button"
+            onClick={handleZoomOut}
+            aria-label={t('zoomOut', { defaultValue: 'Zoom out' })}
+            className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/50 bg-black/70 text-cyan-200 shadow-[0_0_18px_rgba(34,211,238,0.28)] backdrop-blur-lg transition-transform active:scale-95"
+          >
+            <Minus className="h-5 w-5" strokeWidth={2.5} aria-hidden />
+          </button>
+          <button
+            type="button"
+            onClick={handleGeolocate}
+            aria-label={t('geolocate', { defaultValue: 'My location' })}
+            className="pointer-events-auto mt-1 flex h-12 w-12 items-center justify-center rounded-full border border-emerald-400/50 bg-black/70 text-emerald-300 shadow-[0_0_18px_rgba(16,185,129,0.3)] backdrop-blur-lg transition-transform active:scale-95"
+          >
+            <Crosshair className="h-5 w-5" strokeWidth={2.25} aria-hidden />
+          </button>
+        </div>
+      )}
 
       {showProfileFab && (
         <MissionFilterPanel
