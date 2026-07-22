@@ -197,9 +197,9 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const isInProgress = mission.status === 'in_progress';
   const showBidsSection =
     !isInProgress &&
-    !isCrowdfundingOpen(mission) &&
     (isMissionCreator || canPlaceBid || missionBids.length > 0 || bidsLoading);
   const crowdfundingOpen = isCrowdfundingOpen(mission);
+  const isCrowdfundingMissionFlag = !!mission.crowdfunding_mode;
   const fundedUsd = Math.max(0, Math.floor(Number(mission.current_funding ?? 0)));
   const targetUsd = Math.max(0, Math.floor(Number(mission.expected_price ?? 0)));
   const fundingPct =
@@ -213,6 +213,13 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
     const id = window.setInterval(() => setFundingNowMs(Date.now()), 60_000);
     return () => window.clearInterval(id);
   }, [crowdfundingOpen, mission.id, mission.crowdfunding_expires_at]);
+
+  // Prefill proposed USD price with campaign target (worker may raise or lower).
+  useEffect(() => {
+    if (!canPlaceBid) return;
+    const target = Math.floor(Number(mission.expected_price ?? 0));
+    if (target >= 1) setBidInput(String(target));
+  }, [canPlaceBid, mission.id, mission.expected_price]);
 
   const fundingCountdownParts = crowdfundingOpen
     ? getCrowdfundingCountdownParts(getCrowdfundingExpiresAt(mission), fundingNowMs)
@@ -577,32 +584,49 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
 
                 {canPlaceBid && !isMissionCreator && (
                   <form
-                    className="mt-4 flex gap-2"
+                    className="mt-4 space-y-2"
                     onSubmit={(e) => {
                       e.preventDefault();
                       const amount = parseIntegerUsdFromInput(bidInput);
                       if (amount <= 0) return;
                       onPlaceBid(amount);
-                      setBidInput('');
                     }}
                   >
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      pattern="\d*"
-                      value={bidInput}
-                      onChange={(e) => setBidInput(sanitizeIntegerUsdDigits(e.target.value))}
-                      placeholder={t('bidAmountLabelUsd')}
-                      className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400/40 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
-                    />
-                    <button
-                      type="submit"
-                      disabled={bidSubmitting || parseIntegerUsdFromInput(bidInput) <= 0}
-                      className="shrink-0 rounded-xl border border-cyan-400/35 bg-cyan-600/90 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-all hover:bg-cyan-500/95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {bidSubmitting ? t('processing') : t('placeBid')}
-                    </button>
+                    <label className="block text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                      {t('proposeYourPriceUsd', { defaultValue: 'Your proposed price (USD)' })}
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        pattern="\d*"
+                        value={bidInput}
+                        onChange={(e) => setBidInput(sanitizeIntegerUsdDigits(e.target.value))}
+                        placeholder={t('bidAmountLabelUsd')}
+                        className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400/40 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
+                      />
+                      <button
+                        type="submit"
+                        disabled={bidSubmitting || parseIntegerUsdFromInput(bidInput) <= 0}
+                        className="shrink-0 rounded-xl border border-cyan-400/35 bg-cyan-600/90 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-all hover:bg-cyan-500/95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {bidSubmitting ? t('processing') : t('placeBid')}
+                      </button>
+                    </div>
+                    {isCrowdfundingMissionFlag && (
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-300/90">
+                        {t('bidCostsOneToken', { defaultValue: 'Costs 1 Token to place this bid' })}
+                      </p>
+                    )}
+                    {crowdfundingOpen && targetUsd > 0 && (
+                      <p className="text-[10px] text-slate-500">
+                        {t('crowdBidVsTargetHint', {
+                          defaultValue: 'Campaign target: {{target}}. You may bid higher or lower.',
+                          target: formatWorkBudgetUsd(targetUsd),
+                        })}
+                      </p>
+                    )}
                   </form>
                 )}
               </section>

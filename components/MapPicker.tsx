@@ -30,7 +30,7 @@ import {
   extractMissionFeedDescription,
   MISSION_SHORT_DESCRIPTION_MAX,
 } from '../src/lib/missionDescription';
-import { type MissionBidRow } from '../src/lib/missionBids';
+import { type MissionBidRow, placeMissionBid } from '../src/lib/missionBids';
 import {
   PROFILE_GLASS_PANEL,
   HOME_MIN_PRICE,
@@ -69,7 +69,12 @@ import {
   PIN_ICON_IMAGE_SPONGE,
   PIN_ICON_IMAGE_MOP,
 } from '../src/lib/serviceSectors';
-import { isCrowdfundingOpen, isGarbageRemovalService } from '../src/lib/crowdfunding';
+import {
+  getCrowdfundingCountdownParts,
+  getCrowdfundingExpiresAt,
+  isCrowdfundingOpen,
+  isGarbageRemovalService,
+} from '../src/lib/crowdfunding';
 import { applyEgyptMapTheme, egyptRoadLineColorExpr } from '../src/lib/mapEgyptTheme';
 import {
   applyWeatherFog,
@@ -2637,15 +2642,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      const { error } = await supabase.from('mission_bids').insert({
-        mission_id: missionId,
-        cleaner_id: user.id,
-        bid_amount: floorUsd(bidAmount),
-        status: 'pending',
-      });
-      if (error) {
-        throw error;
-      }
+      await placeMissionBid(missionId, floorUsd(bidAmount));
     },
     [onRequestAuth]
   );
@@ -2903,7 +2900,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
         void fetchMissions();
       } catch (e: any) {
         console.error('handleBriefingPlaceBid', e);
-        toast.error(t('mapToastBidUnexpectedError'));
+        const msg = String(e?.message || '');
+        toast.error(
+          /insufficient tokens/i.test(msg)
+            ? t('insufficientTokensForBid', {
+                defaultValue: 'Not enough tokens. Crowdfunding bids cost 1 Token.',
+              })
+            : msg || t('mapToastBidUnexpectedError')
+        );
       } finally {
         setBriefingBidSubmitting(false);
       }
@@ -4434,8 +4438,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
           canPlaceBid={
             !!currentUserId &&
             currentUserId !== selectedMission.creator_id &&
-            !isCrowdfundingOpen(selectedMission) &&
-            OPEN_BID_MISSION_STATUSES.has(String(selectedMission.status || ''))
+            (OPEN_BID_MISSION_STATUSES.has(String(selectedMission.status || '')) ||
+              (isCrowdfundingOpen(selectedMission) &&
+                !getCrowdfundingCountdownParts(
+                  getCrowdfundingExpiresAt(selectedMission)
+                )?.expired))
           }
           bidSubmitting={briefingBidSubmitting}
           onAcceptBid={handleBriefingAcceptBid}
