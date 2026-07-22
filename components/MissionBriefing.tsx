@@ -401,7 +401,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 </span>
                 {activeBidCount > 0 && (
                   <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-400">
-                    {t('lockedDeposit')}
+                    {t('activeBidsOnMission')}
                   </span>
                 )}
               </div>
