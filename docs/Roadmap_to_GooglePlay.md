@@ -1,0 +1,319 @@
+---
+title: Roadmap to Google Play
+type: roadmap
+status: active
+target: Google Play Store launch
+updated: 2026-07-22
+tags: [cleanegypt, roadmap, google-play, crowdfunding, tokens, ar, p2p]
+---
+
+# 🚀 Roadmap to Google Play
+
+> Long-term product & engineering roadmap from **current marketplace terminal** → **public Android release**.
+> Grounded in the post-audit stack (Stripe Checkout + webhook, token-boost, PostGIS GPS gate, neon map UI) and the **new business rules** for Hungry-Games bidding, dynamic crowdfunding timers, and municipal escalation.
+
+## Hub links
+- Field dashboard → [[../00_Dashboard]]
+- Architecture → [[Architecture_Overview]]
+- Stripe / USD → [[Stripe_USD_Flow]]
+- P2P deals → [[P2P_Deal_Flow]]
+- Security & RPCs → [[Security_and_RPCs]]
+- KYC → [[KYC_Verification]]
+- Prior status note → [[CleanEgypt_Roadmap_Update]]
+- Project rules → [[../.cursorrules]]
+
+---
+
+## North Star
+
+**CleanEgypt.co** is a cyberpunk marketplace terminal for garbage cleaning and municipal tasks in Egypt.
+
+| Pillar | Rule |
+| --- | --- |
+| Fiat | **No internal escrow payouts.** Standard jobs = direct P2P. Crowdfunding = Stripe contributions held by the platform until target / expiry. |
+| Crowdfunding | Garbage Removal campaigns raise USD; on expiry **funds are not card-refunded** — they feed the municipal PDF escalation path. |
+| Tokens | Used for posting, boosting, and **Hungry-Games bid stakes** (1 token per bid). |
+| Privacy | Map is public; **client phone is never shown** on private tasks until a bid is **accepted**. Crowdfunding is public by design (no private client phone). |
+| Launch | Google Play after Phases 1–5 are shippable + Play Console / AAB / permissions locked. |
+
+---
+
+## Current baseline (already shipped)
+
+Use this as the floor — do **not** rebuild what works.
+
+- [x] Map-first React shell + neon FAB filter / joystick controls
+- [x] Crowdfunding Stripe Checkout + `apply_stripe_contribution` (idempotent) + **`stripe-webhook`**
+- [x] Fixed 7-day `crowdfunding_expires_at` + `expired` + `city_notification_events` **queue stub**
+- [x] Token packs / subscription rails (Stripe intents)
+- [x] Token-boost listing rank (`amount_target`)
+- [x] P2P proof lifecycle + PostGIS ≤200m GPS gate
+- [x] KYC admin queue + signed media
+- [x] In-app notification bell (DB-backed; not FCM yet)
+- [x] Lazy WebXR [[../src/components/AROverlay]] (field-unvalidated)
+
+**Gap to Play:** dynamic timers, crowd-bidding, PDF pipeline, Hungry-Games token stake + phone unlock, in-app chat, AR field proof, FCM, Android packaging.
+
+---
+
+## Phase 1 — Dynamic Crowdfunding Engine & Crowd-Bidding
+
+> **Goal:** Make funding campaigns feel alive (timer extends on real money) and let workers compete on price before / as the pot fills.
+
+### Business rules (canonical)
+
+#### Dynamic expiry timers
+- [ ] **New campaign @ $0 raised** → funding window = **7 days** from create (`crowdfunding_expires_at = created_at + 7d`).
+- [ ] **Any successful Stripe contribution** → reset / extend timer to **+30 days from that payment’s timestamp** (not from create).
+- [ ] Subsequent contributions **re-apply** the +30d extension from the **latest** successful payment.
+- [ ] Soft-expiry UI + checkout/apply/webhook **must all honor** the same `crowdfunding_expires_at` (no soft-expired contributes).
+- [ ] Expiry sweep (`process_expired_crowdfunding_missions`) only fires when **still underfunded** and past `crowdfunding_expires_at` (already race-hardened; re-verify after timer rewrite).
+
+#### Crowd-bidding
+- [ ] Workers may **place bids while status = `funding`** (and after `available`) — not only after target met.
+- [ ] Bid modes:
+	- [ ] **Accept target** — bid = current campaign `expected_price` (work budget).
+	- [ ] **Propose own price** — worker may bid **higher or lower** than the target (“I will finish for $X”).
+- [ ] Creator (or campaign steward UX) can **accept one bid** → mission → `in_progress`, cleaner assigned.
+- [ ] UI: crowdfunding briefing shows **Contribute** *and* **Bid / Propose price** (update [[../.cursorrules]] Map Interface note when this lands).
+- [ ] State machine update:
+
+```
+funding ──(target met)──► available ──(accept bid)──► in_progress ► review ► completed
+   │                           ▲
+   │                           │
+   └──(crowd-bid accepted*)────┘   *product decision: accept during funding vs only after available
+   └──(timer expired, underfunded)─► expired → Phase 2 PDF escalation
+```
+
+> **Open product decision to lock in Phase 1 kickoff:** May a bid be accepted **before** the USD target is fully funded? Document the chosen rule in [[P2P_Deal_Flow]] and this note before coding accept RPC changes.
+
+### Engineering notes
+- Touch points: `apply_stripe_contribution`, checkout/confirm/webhook metadata, [[../src/lib/crowdfunding]], [[../components/MissionBriefing]], bid RPCs (`accept_mission_bid` allowlist).
+- Extend timer **inside** `apply_stripe_contribution` under `FOR UPDATE` so concurrent payments serialize the new expiry.
+- Seed / admin tools: assert 7d→30d behavior in SQL tests or seed scripts.
+
+### Exit criteria
+- [ ] Contribute $1 on a fresh $0 campaign → UI countdown jumps to ~30 days.
+- [ ] Worker can submit a custom-price bid on a live crowdfunding pin.
+- [ ] Soft-expired campaign rejects Checkout + webhook apply.
+
+---
+
+## Phase 2 — PDF Pipeline & Municipal Escalation (City-Notification)
+
+> **Goal:** Close the “funds retained as processing fee → city notified” promise with real PDFs and admin/Telegram delivery.
+
+### Business rules (canonical)
+
+#### Success state (funded + completed)
+- [ ] When a crowdfunding mission reaches **`completed`** (proof verified / auto-approved), **auto-generate a polished success PDF**:
+	- Location, before/after photos, raised vs target, cleaner identity (public fields), completion timestamp, GPS integrity summary.
+- [ ] Store PDF (Supabase Storage) + link from mission / admin finance view.
+- [ ] Optional: notify contributors (in-app / later FCM) that the cleanup is done.
+
+#### Stuck / expired state (30-day window ends underfunded)
+- [ ] When the **extended 30-day** timer expires and `current_funding < expected_price`:
+	- [ ] Status → `expired` (existing sweep).
+	- [ ] Insert / finalize `city_notification_events` row.
+	- [ ] **Generate municipal escalation PDF** (official request for city intervention): location map pin, raised amount, target, description, photo evidence, expiry timestamps, platform fee notice (**no card refunds**).
+	- [ ] **Deliver** PDF to:
+		- [ ] CleanEgypt **Admin Email**
+		- [ ] CleanEgypt **Telegram Bot** (ops channel)
+- [ ] Funds remain platform-retained (processing fee) — **no** Stripe refund automation.
+
+### Engineering notes
+- Replace stub [[../api/process-expired-crowdfunding.ts]] with real RPC call + PDF job.
+- Expand [[../src/lib/cityNotification.ts]] beyond placeholders.
+- Wire `pg_cron` **or** secured Vercel cron hitting the process endpoint.
+- Success PDF can share a template engine with escalation PDF (different cover / tone).
+
+### Exit criteria
+- [ ] Expired underfunded mission produces a downloadable PDF in Storage within N minutes.
+- [ ] Admin email + Telegram receive the same artifact.
+- [ ] Completed crowdfunding mission produces a success PDF linked in admin / mission history.
+
+---
+
+## Phase 3 — “Hungry-Games” Anti-Spam & Token Economy
+
+> **Goal:** Public discovery without doxxing clients; spam-resistant bidding via subscription + 1-token stake.
+
+### Business rules (canonical)
+
+#### Public map vs private data
+- [ ] **Anyone** who installs the app can see the **map and all orders** (browsing is open).
+- [ ] For **ALL private tasks** (home / office / non-crowdfunding P2P):
+	- [ ] Client **phone number is strictly hidden** — no exceptions, no “preview digits.”
+- [ ] Crowdfunding (Garbage Removal / public space):
+	- [ ] Fully **open and public**.
+	- [ ] **No private client phone** attached to the pin (public location semantics).
+
+#### Token-gated bidding (Hungry-Games)
+- [ ] Worker must have an **active subscription** to place any bid.
+- [ ] Placing a bid costs exactly **1 Token** (non-refundable stake; replaces legacy fiat deposit / trust-deposit thinking).
+- [ ] Deduct token **atomically** with bid insert (`FOR UPDATE` on `profiles.token_balance`) — no free bids on race.
+- [ ] Token-boost for **listing promotion** remains separate from the 1-token bid stake.
+
+#### Tender win → unlock contact
+- [ ] Only when the creator **explicitly accepts** a worker’s bid:
+	- [ ] Mission → `in_progress`, cleaner assigned.
+	- [ ] Worker unlocks the client’s **private phone number** (and any other contact fields gated the same way).
+- [ ] Until accept: briefing shows contacts as locked / “Accept required.”
+
+### Engineering notes
+- RLS / RPC: never select `phone_number` for non-accepted counterparties.
+- UI: [[../components/MissionBriefing]], [[../components/Profile]], public [[../components/PublicProfile]].
+- Update `.cursorrules` TOKENS MODEL bullet to include **1 token / bid**.
+- Retire remaining trust-deposit UX copy if still present.
+
+### Exit criteria
+- [ ] Logged-out / free user sees pins but cannot bid.
+- [ ] Subscribed user without tokens cannot bid; with ≥1 token, balance drops by 1 on bid.
+- [ ] Phone visible to cleaner **only** after accept; crowdfunding pins never expose a client phone.
+
+---
+
+## Phase 4 — In-App P2P Chat
+
+> **Goal:** Negotiate on-platform before tender win; delay WhatsApp leakage until contact unlock.
+
+### Business rules (canonical)
+- [ ] Direct messaging between **client and interested workers** on a mission thread.
+- [ ] Allowed **before** bid accept (negotiate price / scope) and after (coordination).
+- [ ] Scope RLS: only mission creator + bidders / assigned cleaner.
+- [ ] No broadcasting phone numbers inside chat system messages until unlock (Phase 3).
+- [ ] Optional: soft-prompt WhatsApp **only after** accept as secondary channel.
+
+### Engineering notes
+- New tables e.g. `conversations` / `messages` + Realtime channel.
+- UI panel on [[../components/MissionBriefing]] or dedicated sheet.
+- Hooks into Phase 5 push (“new message”).
+
+### Exit criteria
+- [ ] Client and bidder exchange messages without leaving the app.
+- [ ] Unrelated users cannot read the thread (RLS verified).
+
+---
+
+## Phase 5 — AR Field Test & Push Notifications
+
+> **Goal:** Field-grade proof of cleanup + timely alerts that survive backgrounded mobile sessions.
+
+### AR (Hurghada field test)
+- [ ] WebXR / camera overlay verifies worker is at pin (align with PostGIS gate).
+- [ ] Visual confirmation of cleanup progress / completion framing.
+- [ ] Validate: session start, GPS marker accuracy, crowdfunding progress on AR HUD.
+- [ ] Fallback UX when WebXR unsupported (already partially present — harden for Play).
+
+### Push notifications (FCM / Supabase)
+- [ ] Global push pipeline (FCM via Capacitor / PWA or native wrapper — decide in Play prep).
+- [ ] Mandatory event set:
+	- [ ] Bid accepted (worker) / new bid (client)
+	- [ ] Crowdfunding timer expiring (24h / 1h)
+	- [ ] New in-app chat message
+	- [ ] Proof uploaded / proof rejected / mission completed
+- [ ] Keep existing in-app bell in sync with push payloads.
+
+### Exit criteria
+- [ ] Hurghada checklist from [[../00_Dashboard]] fully green.
+- [ ] Force-killed app still receives bid-accepted push on a test device.
+
+---
+
+## Phase 6 — Google Play Store Release Track
+
+> **Goal:** Ship a compliant Android App Bundle with privacy, permissions, and staged rollout.
+
+### Product / store assets
+- [ ] App icon (adaptive) + feature graphic
+- [ ] Splash screen aligned with neon brand
+- [ ] Short / full store description (EN + RU minimum; AR optional)
+- [ ] Screenshots: map, crowdfunding contribute, Hungry-Games bid, AR proof
+
+### Android packaging
+- [ ] Capacitor / TWA / React Native shell decision documented (recommend **Capacitor** over map+WebXR stack unless native rewrite planned)
+- [ ] Generate **Android App Bundle (`.aab`)**
+- [ ] Permissions declared & justified:
+	- [ ] **Location** (precise) — mission pins, geolocate, proof GPS
+	- [ ] **Camera** — proof photos, KYC liveness, AR
+	- [ ] **Notifications** — FCM
+- [ ] Privacy Policy URL + Terms (existing web routes `/privacy`, `/terms`) linked in Play Console
+- [ ] Data safety form (location, photos, financial via Stripe)
+
+### Google Play Console
+- [ ] Create app listing + signing key / Play App Signing
+- [ ] **Internal testing** track → Closed testing → Production
+- [ ] Content rating questionnaire
+- [ ] Target API level / 64-bit compliance
+- [ ] Crash / ANR monitoring (Play Vitals)
+
+### Exit criteria
+- [ ] Internal track install works for ops team on physical Android devices
+- [ ] Closed test completes crowdfunding contribute + Hungry-Games bid + proof without blocker bugs
+- [ ] Production release candidate tagged in git
+
+---
+
+## Suggested sequencing & dependencies
+
+```mermaid
+flowchart LR
+  P1[Phase 1 Dynamic CF + Crowd-Bid]
+  P2[Phase 2 PDF Escalation]
+  P3[Phase 3 Hungry-Games Tokens]
+  P4[Phase 4 In-App Chat]
+  P5[Phase 5 AR + FCM]
+  P6[Phase 6 Google Play]
+  P1 --> P2
+  P1 --> P3
+  P3 --> P4
+  P4 --> P5
+  P2 --> P5
+  P5 --> P6
+```
+
+| Order | Why |
+| --- | --- |
+| **1 → 2** | Timer rules must be final before municipal PDF copy/dates are trustworthy. |
+| **1 → 3** | Crowd-bid UX shares MissionBriefing; Hungry-Games gates that UX. |
+| **3 → 4** | Chat without phone unlock is the anti-leak story. |
+| **2 + 4 → 5** | Push covers expiry + messages; AR is independent but shares field-test window. |
+| **5 → 6** | Don’t freeze Play assets until AR/push permission copy is honest. |
+
+---
+
+## Definition of Done — “Ready for Google Play”
+
+- [ ] Phases 1–5 exit criteria checked
+- [ ] Stripe webhook live in production; no orphaned paid sessions in staging soak
+- [ ] No client phone leakage on private tasks (security review / RLS audit)
+- [ ] Crowdfunding expiry → PDF → Admin email + Telegram verified end-to-end
+- [ ] Hungry-Games: subscription + 1 token deducted per bid
+- [ ] `.aab` uploaded; Internal + Closed tracks signed off
+- [ ] Privacy Policy / Terms URLs live and linked
+
+---
+
+## Risk register (keep visible)
+
+| Risk | Mitigation |
+| --- | --- |
+| Accepting bids before full funding confuses contributors | Lock product rule early; show “bid accepted — funding continues / escrow note” in UI |
+| Timer extension abused by $1 micro-payments forever | Cap extensions (e.g. max N resets) or min contribution to reset — **decide in Phase 1** |
+| PDF delivery fails silently | Idempotent job queue + admin “retry PDF” in dashboard |
+| Token bid stake feels punitive | Clear UX copy + subscription value framing |
+| WebXR flaky on Android WebView | Capacitor native camera fallback for proof; AR as progressive enhancement |
+| Play rejects precise location | Justify in Data safety + in-app disclosure before first GPS prompt |
+
+---
+
+## Changelog
+
+| Date | Note |
+| --- | --- |
+| 2026-07-22 | Initial Roadmap to Google Play authored from new business rules + post-stabilization architecture. |
+
+---
+
+> _Next action:_ Pick Phase 1 product decision (bid accept before full funding?) → spike `apply_stripe_contribution` +30d extension under lock → update [[Stripe_USD_Flow]] and [[../.cursorrules]] when rules land in code.
