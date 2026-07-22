@@ -2734,6 +2734,22 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const handleBriefingContribute = useCallback(
     async (amountUsd: number) => {
       if (!selectedMission) return;
+      const target = Math.floor(Number(selectedMission.expected_price ?? 0));
+      const funded = Math.floor(Number(selectedMission.current_funding ?? 0));
+      const remaining = Math.max(0, target - funded);
+      if (remaining < 1) {
+        toast.error(t('crowdfundingTargetReached'));
+        return;
+      }
+      if (amountUsd > remaining) {
+        toast.error(
+          t('contributionExceedsRemaining', {
+            defaultValue: `Max remaining is $${remaining}`,
+            remaining,
+          })
+        );
+        return;
+      }
       setBriefingBidSubmitting(true);
       try {
         const {
@@ -2819,16 +2835,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
             : t('contributionThanks')
         );
         await fetchMissions();
+        // Clear query params only on success so a failed confirm can be retried.
+        if (!cancelled) {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('cf_contribution');
+          url.searchParams.delete('session_id');
+          window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+        }
       } catch (e: any) {
         console.error('confirmContributionCheckout', e);
         toast.error(e?.message || t('stripeTopUpError') || t('unexpectedErrorTryAgain'));
+        // Keep session_id in the URL so the user can retry after a transient failure.
       } finally {
         if (!cancelled) setBriefingBidSubmitting(false);
-        // Clear query params so refresh does not re-trigger.
-        const url = new URL(window.location.href);
-        url.searchParams.delete('cf_contribution');
-        url.searchParams.delete('session_id');
-        window.history.replaceState({}, '', url.pathname + url.search + url.hash);
       }
     })();
 
@@ -2862,15 +2881,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
           .maybeSingle();
         if (profileError) {
           console.error('Profile check failed:', profileError.message);
-        } else {
-          const homeOk = checkHomeMissionWorkerVerification(
-            selectedMission.category,
-            profile?.is_verified
-          );
-          if (!homeOk.ok) {
-            setShowVerificationModal(true);
-            return;
-          }
+          toast.error(t('unexpectedErrorTryAgain'));
+          return;
+        }
+        const homeOk = checkHomeMissionWorkerVerification(
+          selectedMission.category,
+          profile?.is_verified
+        );
+        if (!homeOk.ok) {
+          setShowVerificationModal(true);
+          return;
         }
 
         await placePendingBid(selectedMission.id, amountUsd);
@@ -2985,19 +3005,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
         .maybeSingle();
       if (profileError) {
         console.error('Profile check failed:', profileError.message);
-      } else {
-        const homeOk = checkHomeMissionWorkerVerification(
-          selectedMission.category,
-          profile?.is_verified
-        );
-        if (!homeOk.ok) {
-          setShowVerificationModal(true);
-          return;
-        }
+        toast.error(t('unexpectedErrorTryAgain'));
+        return;
+      }
+      const homeOk = checkHomeMissionWorkerVerification(
+        selectedMission.category,
+        profile?.is_verified
+      );
+      if (!homeOk.ok) {
+        setShowVerificationModal(true);
+        return;
+      }
 
-        if (!profile?.phone_number || String(profile.phone_number).trim().length === 0) {
-          toast.notice(t('mapToastWhatsAppProfileTip'));
-        }
+      if (!profile?.phone_number || String(profile.phone_number).trim().length === 0) {
+        toast.notice(t('mapToastWhatsAppProfileTip'));
       }
 
       await placePendingBid(selectedMission.id, amtUsd);

@@ -1026,7 +1026,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       }
     } catch (err) {
       console.error('Geolocation error:', err);
-      setProofError(t('tooFarFromMission'));
+      setProofError(
+        t('geolocateUnavailable', {
+          defaultValue: 'Location unavailable. Please check your browser permissions.',
+        })
+      );
       return;
     }
   }

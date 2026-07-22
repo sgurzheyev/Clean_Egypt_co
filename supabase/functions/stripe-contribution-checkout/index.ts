@@ -70,7 +70,9 @@ Deno.serve(async (req) => {
 
     const { data: mission, error: missionErr } = await supabaseUser
       .from('missions')
-      .select('id, status, crowdfunding_mode, service_type, expected_price, creator_id')
+      .select(
+        'id, status, crowdfunding_mode, service_type, expected_price, current_funding, crowdfunding_expires_at, creator_id'
+      )
       .eq('id', missionId)
       .maybeSingle();
 
@@ -101,6 +103,38 @@ Deno.serve(async (req) => {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    const expiresAt = mission.crowdfunding_expires_at
+      ? Date.parse(String(mission.crowdfunding_expires_at))
+      : NaN;
+    if (Number.isFinite(expiresAt) && expiresAt < Date.now()) {
+      return new Response(JSON.stringify({ error: 'Crowdfunding window has expired' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const target = Math.floor(Number(mission.expected_price ?? 0));
+    const funded = Math.floor(Number(mission.current_funding ?? 0));
+    const remaining = Math.max(0, target - funded);
+    if (target < 1 || remaining < 1) {
+      return new Response(JSON.stringify({ error: 'Campaign already funded' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (amountUsd > remaining) {
+      return new Response(
+        JSON.stringify({
+          error: `Contribution exceeds remaining budget (${remaining} USD left)`,
+          remaining,
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     if (mission.creator_id && mission.creator_id === user.id) {

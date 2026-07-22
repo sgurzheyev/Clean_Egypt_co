@@ -479,7 +479,11 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       />
                       <button
                         type="submit"
-                        disabled={contributeSubmitting || parseIntegerUsdFromInput(bidInput) <= 0}
+                        disabled={
+                          contributeSubmitting ||
+                          parseIntegerUsdFromInput(bidInput) <= 0 ||
+                          !!fundingCountdownParts?.expired
+                        }
                         className="shrink-0 rounded-xl border border-amber-400/40 bg-amber-500/90 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-black transition-all hover:bg-amber-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {contributeSubmitting ? t('processing') : t('contributeWithStripe')}

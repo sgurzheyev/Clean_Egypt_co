@@ -11,7 +11,7 @@ import { adminDeleteMission } from '../lib/adminMission';
 import { isPlatformAdmin } from '../lib/platformAdmin';
 import KYCReviewDashboard from './KYCReviewDashboard';
 import { ADMIN_FORCE_RELEASE_PAYMENT_BTN } from '../../constants';
-import { formatTokens } from '../lib/formatMoney';
+import { formatTokens, formatWorkBudgetUsd } from '../lib/formatMoney';
 import ModeratedMissionPhoto from '../../components/ModeratedMissionPhoto';
 import ProfileCard from '../../components/ProfileCard';
 
@@ -108,6 +108,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [missions, setMissions] = useState<MissionRow[]>([]);
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<PendingApprovalRow[]>([]);
+  const [pendingApprovalsError, setPendingApprovalsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adminDeleteLoadingId, setAdminDeleteLoadingId] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState('');
@@ -147,6 +148,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [lastAiRunByMissionId, setLastAiRunByMissionId] = useState<Record<string, string>>({});
 
   const fetchPendingApprovals = async () => {
+    setPendingApprovalsError(null);
     const { data, error: err } = await supabase
       .from('missions')
       .select('id, amount_target, cleaner_id, status, after_photo_urls')
@@ -155,6 +157,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
       .order('created_at', { ascending: false });
     if (err) {
       console.error('Pending approvals fetch error:', err);
+      setPendingApprovalsError(err.message || 'Failed to load stuck missions.');
       return;
     }
     const rows = (data || []) as PendingApprovalRow[];
@@ -655,7 +658,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
               ⚠️ Stuck Missions (Action Required)
             </h3>
             <div className="max-h-48 overflow-y-auto space-y-2 pr-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
-              {pendingApprovals.length === 0 ? (
+              {pendingApprovalsError ? (
+                <p className="text-red-300 text-xs py-2">{pendingApprovalsError}</p>
+              ) : pendingApprovals.length === 0 ? (
                 <p className="text-slate-500 text-xs italic py-2">No stuck missions.</p>
               ) : (
                 pendingApprovals.map((m) => (
@@ -1009,7 +1014,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                   </p>
                 </div>
                 <p className="mt-2 text-4xl font-black tracking-tight text-emerald-300 sm:text-5xl">
-                  {formatTokens(Number(metrics?.total_donated ?? 0))}
+                  {formatWorkBudgetUsd(Number(metrics?.total_donated ?? 0))}
                 </p>
                 <p className="mt-1 text-[11px] text-slate-400">
                   Lifetime crowdfunding + donation inflow processed by the platform.
@@ -1022,7 +1027,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                   {
                     icon: '♻️',
                     label: 'Retained Contributions',
-                    display: formatTokens(Number(metrics?.total_donated ?? 0)),
+                    display: formatWorkBudgetUsd(Number(metrics?.total_donated ?? 0)),
                     color: 'text-emerald-300',
                     caption: 'Non-refundable — no card refunds',
                     ring: 'border-emerald-500/20',
@@ -1030,7 +1035,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                   {
                     icon: '🎖️',
                     label: 'Supervisor Bounties',
-                    display: formatTokens(Number(metrics?.supervisor_bounties_total ?? 0)),
+                    display: formatWorkBudgetUsd(Number(metrics?.supervisor_bounties_total ?? 0)),
                     color: 'text-cyan-300',
                     caption: 'Ahmed-Pro network rewards',
                     ring: 'border-cyan-500/20',

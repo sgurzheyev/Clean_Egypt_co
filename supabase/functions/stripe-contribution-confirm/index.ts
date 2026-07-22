@@ -106,13 +106,26 @@ Deno.serve(async (req) => {
     const contributorId = String(
       session.metadata?.contributor_id || session.client_reference_id || ''
     );
-    const amountUsd = Math.floor(Number(session.metadata?.amount_usd || 0));
+    const metadataUsd = Math.floor(Number(session.metadata?.amount_usd || 0));
+    const paidUsd = Math.floor(Number(session.amount_total || 0) / 100);
+    // Prefer charged Stripe amount; metadata must agree when present.
+    const amountUsd = paidUsd >= 1 ? paidUsd : metadataUsd;
 
     if (!missionId || amountUsd < 1) {
       return jsonError('Invalid contribution metadata', 400, {
         mission_id: missionId || null,
         amount_usd: amountUsd,
+        paid_usd: paidUsd,
+        metadata_usd: metadataUsd,
         metadata: session.metadata || null,
+      });
+    }
+
+    if (metadataUsd >= 1 && paidUsd >= 1 && metadataUsd !== paidUsd) {
+      return jsonError('Amount mismatch between Stripe charge and metadata', 400, {
+        paid_usd: paidUsd,
+        metadata_usd: metadataUsd,
+        session_id: sessionId,
       });
     }
 
