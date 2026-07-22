@@ -191,39 +191,41 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                 role="dialog"
                 aria-modal="true"
                 aria-label={t('filtersLabel')}
-                className="relative flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-slate-950/95 shadow-[0_-8px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl sm:rounded-3xl"
+                className="relative flex max-h-[min(85vh,100dvh)] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-slate-950/95 shadow-[0_-8px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl sm:rounded-3xl"
                 initial={{ y: '100%', opacity: 0.6 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: '100%', opacity: 0.4 }}
                 transition={{ type: 'spring', damping: 32, stiffness: 320 }}
               >
-                {/* Grabber (mobile affordance) */}
-                <div className="flex justify-center pt-3 sm:hidden" aria-hidden>
-                  <span className="h-1.5 w-10 rounded-full bg-white/20" />
-                </div>
-
-                <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-3">
-                  <div>
-                    <p className="text-[12px] font-black uppercase tracking-[0.2em] text-cyan-300">
-                      {t('filtersLabel')}
-                    </p>
-                    {typeof resultCount === 'number' && (
-                      <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-                        {t('resultsCount', { count: resultCount })}
-                      </p>
-                    )}
+                {/* Sticky chrome: grabber + title/close stay pinned while tags scroll */}
+                <div className="sticky top-0 z-10 shrink-0 border-b border-white/10 bg-slate-950/95 backdrop-blur-xl">
+                  <div className="flex justify-center pt-3 sm:hidden" aria-hidden>
+                    <span className="h-1.5 w-10 rounded-full bg-white/20" />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setOpen(false)}
-                    aria-label={t('close', { defaultValue: 'Close' })}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
-                  >
-                    <X className="h-4 w-4" strokeWidth={2.25} />
-                  </button>
+                  <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-3">
+                    <div>
+                      <p className="text-[12px] font-black uppercase tracking-[0.2em] text-cyan-300">
+                        {t('filtersLabel')}
+                      </p>
+                      {typeof resultCount === 'number' && (
+                        <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                          {t('resultsCount', { count: resultCount })}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOpen(false)}
+                      aria-label={t('close', { defaultValue: 'Close' })}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
+                    >
+                      <X className="h-4 w-4" strokeWidth={2.25} />
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain border-t border-white/10 px-5 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+                {/* min-h-0 is required so flex-1 can shrink and overflow-y-auto actually scrolls */}
+                <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pt-5 pb-[max(6rem,calc(env(safe-area-inset-bottom)+5rem))]">
                   {showCityFilter && (
                     <section>
                       <p className={SECTION_LABEL}>{t('selectCity')}</p>
@@ -254,7 +256,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                     <div className="grid grid-cols-2 gap-2">{renderSortButtons()}</div>
                   </section>
 
-                  <section>
+                  <section className="pb-4">
                     <div className="mb-2 flex items-center justify-between">
                       <p className={`${SECTION_LABEL} mb-0`}>{t('filterByTags')}</p>
                       {activeCount > 0 && (
