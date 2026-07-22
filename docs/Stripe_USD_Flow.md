@@ -7,9 +7,12 @@
 1. Client → `startContributionCheckout` ([[../src/lib/contributions.ts]])
 2. Edge → [[../supabase/functions/stripe-contribution-checkout/index.ts]] (Checkout Session, `currency: usd`)
 3. Redirect back with `cf_contribution=1&session_id=…`
-4. Edge → [[../supabase/functions/stripe-contribution-confirm/index.ts]]
-5. RPC `apply_stripe_contribution` (service_role) inserts `contributions.amount_usd` + `stripe_checkout_session_id`, bumps `missions.current_funding`
-6. If `current_funding >= expected_price` → status `available` (open for bids)
+4. Edge → [[../supabase/functions/stripe-contribution-confirm/index.ts]] (browser confirm)
+5. **Also** Edge → [[../supabase/functions/stripe-webhook/index.ts]] on `checkout.session.completed` (server-side safety net if the user closes the tab)
+6. RPC `apply_stripe_contribution` (service_role) inserts `contributions.amount_usd` + `stripe_checkout_session_id`, bumps `missions.current_funding` — **idempotent** so confirm + webhook never double-credit
+7. If `current_funding >= expected_price` → status `available` (open for bids)
+
+Webhook requires `STRIPE_WEBHOOK_SECRET` and `verify_jwt = false` (see `supabase/config.toml`).
 
 ### Schema notes
 
