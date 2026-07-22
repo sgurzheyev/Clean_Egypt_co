@@ -107,29 +107,26 @@ funding ──(target met)──► available ──(accept bid)──► in_pro
 ### Business rules (canonical)
 
 #### Success state (funded + completed)
-- [ ] When a crowdfunding mission reaches **`completed`** (proof verified / auto-approved), **auto-generate a polished success PDF**:
-	- Location, before/after photos, raised vs target, cleaner identity (public fields), completion timestamp, GPS integrity summary.
-- [ ] Store PDF (Supabase Storage) + link from mission / admin finance view.
+- [x] When a crowdfunding mission reaches **`completed`**, enqueue `mission_completed` → Edge Function **`city-notification-pipeline`** builds success PDF (location, raised vs target, description, timestamps).
+- [x] Store PDF in Storage bucket `city-notifications` + `pdf_url` on `city_notification_events`.
 - [ ] Optional: notify contributors (in-app / later FCM) that the cleanup is done.
+- [ ] Enrich PDF with before/after photos + cleaner public identity + GPS integrity summary.
 
 #### Stuck / expired state (30-day window ends underfunded)
-- [ ] When the **extended 30-day** timer expires and `current_funding < expected_price`:
-	- [ ] Status → `expired` (existing sweep).
-	- [ ] Insert / finalize `city_notification_events` row.
-	- [ ] **Generate municipal escalation PDF** (official request for city intervention): location map pin, raised amount, target, description, photo evidence, expiry timestamps, platform fee notice (**no card refunds**).
-	- [ ] **Deliver** PDF to:
-		- [ ] CleanEgypt **Admin Email**
-		- [ ] CleanEgypt **Telegram Bot** (ops channel)
+- [x] When timer expires underfunded: status → `expired` + `city_notification_events` (`crowdfunding_expired`).
+- [x] **Municipal escalation PDF** via `city-notification-pipeline` (coords, raised/target, description, fee / no-refund notice).
+- [x] **Deliver** PDF to Telegram (`TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`); email via Resend when configured (else stub log).
 - [ ] Funds remain platform-retained (processing fee) — **no** Stripe refund automation.
 
 ### Engineering notes
-- Replace stub [[../api/process-expired-crowdfunding.ts]] with real RPC call + PDF job.
-- Expand [[../src/lib/cityNotification.ts]] beyond placeholders.
-- Wire `pg_cron` **or** secured Vercel cron hitting the process endpoint.
-- Success PDF can share a template engine with escalation PDF (different cover / tone).
+- Edge Function: `supabase/functions/city-notification-pipeline` (pdf-lib → Storage → Telegram / Resend stub).
+- Migration: `supabase/migrations/20260722_city_notification_pipeline.sql` (columns, bucket, completion enqueue, `pg_net` INSERT trigger).
+- Configure URL/keys: `supabase/manual/configure_city_notification_webhook.sql`.
+- Deploy with `verify_jwt=false`; set secrets; run migration + configure script (replace `PROJECT_REF`).
+- Keep expiry sweep cron (`process_expired_crowdfunding_missions`) so rows are inserted.
 
 ### Exit criteria
-- [ ] Expired underfunded mission produces a downloadable PDF in Storage within N minutes.
+- [ ] Expired underfunded mission produces a downloadable PDF in Storage within N minutes (after deploy + secrets).
 - [ ] Admin email + Telegram receive the same artifact.
 - [ ] Completed crowdfunding mission produces a success PDF linked in admin / mission history.
 

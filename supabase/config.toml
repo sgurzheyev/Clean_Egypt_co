@@ -16,3 +16,10 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/stripe-webhook/deno.json"
 entrypoint = "./functions/stripe-webhook/index.ts"
+
+# Invoked by DB webhook / pg_net (no end-user JWT). Optional CITY_NOTIFICATION_WEBHOOK_SECRET.
+[functions.city-notification-pipeline]
+enabled = true
+verify_jwt = false
+import_map = "./functions/city-notification-pipeline/deno.json"
+entrypoint = "./functions/city-notification-pipeline/index.ts"

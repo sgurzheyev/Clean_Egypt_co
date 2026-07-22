@@ -1,13 +1,13 @@
 /**
- * City Notification placeholder — when a Garbage Removal crowdfunding campaign
- * expires underfunded, `process_expired_crowdfunding_missions` inserts a row into
- * `city_notification_events` with pdf_status = 'pending'.
+ * City Notification helpers — client/server summary builders.
  *
- * This module is the client/server stub for generating a PDF summary for local
- * authorities. Wire a real PDF renderer (e.g. @react-pdf/renderer or a Supabase
- * Edge Function + storage upload) when ready.
+ * Production PDF + Telegram/email dispatch lives in the Edge Function:
+ *   supabase/functions/city-notification-pipeline
+ *
+ * Rows are queued in `city_notification_events` (pdf_status = pending) by:
+ *   • process_expired_crowdfunding_missions → event_type = crowdfunding_expired
+ *   • trg_enqueue_crowdfunding_completion_notification → mission_completed
  */
-
 export type CityNotificationPayload = {
   service_type?: string | null;
   location_lat?: number | null;
@@ -16,6 +16,8 @@ export type CityNotificationPayload = {
   raised?: number | null;
   description?: string | null;
   expired_at?: string | null;
+  funding_expires_at?: string | null;
+  completed_at?: string | null;
 };
 
 export type CityNotificationEvent = {
@@ -25,46 +27,56 @@ export type CityNotificationEvent = {
   payload: CityNotificationPayload;
   pdf_status: 'pending' | 'generated' | 'sent' | 'skipped';
   created_at: string;
+  pdf_url?: string | null;
+  processed_at?: string | null;
+  last_error?: string | null;
 };
 
 /** Build a plain-text summary suitable for PDF body / email attachment. */
 export function buildCityNotificationSummary(
-  event: Pick<CityNotificationEvent, 'mission_id' | 'payload' | 'created_at'>
+  event: Pick<CityNotificationEvent, 'mission_id' | 'event_type' | 'payload' | 'created_at'>
 ): string {
   const p = event.payload || {};
+  const isExpired = event.event_type === 'crowdfunding_expired';
   const lines = [
-    'CleanEgypt.co — Municipal Crowdfunding Report',
+    isExpired
+      ? 'CleanEgypt.co — Official Escalation Request to Municipality'
+      : 'CleanEgypt.co — Crowdfunding Success / Completion Report',
     '============================================',
     `Mission ID: ${event.mission_id}`,
+    `Event type: ${event.event_type}`,
     `Event logged: ${event.created_at}`,
     `Service: ${p.service_type ?? 'n/a'}`,
     `Location: ${p.location_lat ?? '?'}, ${p.location_lng ?? '?'}`,
     `Target budget (USD): ${p.target_budget ?? 0}`,
     `Raised (USD): ${p.raised ?? 0}`,
-    `Expired at: ${p.expired_at ?? 'n/a'}`,
+    isExpired
+      ? `Expired at: ${p.expired_at ?? 'n/a'}`
+      : `Completed at: ${p.completed_at ?? 'n/a'}`,
     '',
     'Description:',
     p.description?.trim() || '(none)',
     '',
-    'Status: Crowdfunding target was not reached within the campaign window.',
-    'Action requested: review for municipal cleanup / public works follow-up.',
+    isExpired
+      ? 'Status: Crowdfunding target was not reached within the campaign window. Funds retained as processing fee (no card refunds). Action requested: municipal cleanup follow-up.'
+      : 'Status: Campaign funded and mission completed. This report is for municipal / contributor records.',
   ];
   return lines.join('\n');
 }
 
 /**
- * Placeholder PDF generation. Logs the summary and returns a stub "blob" marker.
- * Replace with real PDF bytes + upload to storage, then update pdf_status.
+ * @deprecated Prefer Edge Function `city-notification-pipeline`.
+ * Kept for local/cron stubs that only need a text summary.
  */
 export async function generateCityNotificationPdfPlaceholder(
   event: CityNotificationEvent
 ): Promise<{ ok: true; summary: string; pdfStatus: 'pending' }> {
   const summary = buildCityNotificationSummary(event);
-  console.info('[city-notification] PDF placeholder ready', {
+  console.info('[city-notification] summary ready (PDF via Edge Function)', {
     eventId: event.id,
     missionId: event.mission_id,
+    eventType: event.event_type,
     summaryLength: summary.length,
   });
-  // Future: return { ok: true, pdfBytes, storagePath } and set pdf_status = 'generated'.
   return { ok: true, summary, pdfStatus: 'pending' };
 }
