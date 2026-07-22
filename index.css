@@ -27,6 +27,15 @@
   animation: slideInRight 0.3s ease-out forwards;
 }
 
+/* Horizontally scrollable filter chrome — hide native scrollbar chrome */
+.ce-hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.ce-hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Mission photo moderation — “waste verification” style check on safe images */
 @keyframes moderation-safe-pulse {
   0%,

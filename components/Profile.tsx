@@ -7,6 +7,7 @@ import { supabase } from '../services/supabase';
 import { Pencil, Target, Globe, Building2, Clock, Info, Mail, Lock, Coins } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import AdminDashboard from '../src/components/AdminDashboard';
 import TokenPackModal from '../src/components/TokenPackModal';
 import LivenessCheck from '../src/components/LivenessCheck';
@@ -86,6 +87,10 @@ interface Job {
   cleaner?: {
     full_name?: string | null;
     telegram_username?: string | null;
+  } | null;
+  creator?: {
+    full_name?: string | null;
+    avatar_url?: string | null;
   } | null;
 }
 
@@ -201,6 +206,7 @@ function JobTimer({ startedAt }: { startedAt: string }) {
 
 const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, onNavigateToJob, onOpenAR }) => {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const isRu = (i18n.language || '').toLowerCase().startsWith('ru');
   const [showAdmin, setShowAdmin] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
@@ -787,7 +793,30 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const { data, error } = await supabase
         .from('missions')
-        .select('*')
+        .select(
+          `
+          id,
+          creator_id,
+          cleaner_id,
+          category,
+          service_type,
+          amount_target,
+          expected_price,
+          current_funding,
+          crowdfunding_mode,
+          location_lat,
+          location_lng,
+          status,
+          title,
+          description,
+          created_at,
+          photo_urls,
+          creator:profiles!creator_id (
+            full_name,
+            avatar_url
+          )
+        `
+        )
         .in('status', ['available', 'funding', 'pending'])
         .order('created_at', { ascending: false })
         .limit(100);
@@ -1981,6 +2010,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       onClose();
                     }}
                     locateAriaLabel={t('locateOnMap')}
+                    creatorAvatarUrl={job.creator?.avatar_url ?? null}
+                    creatorName={job.creator?.full_name ?? null}
+                    creatorAriaLabel={t('viewCreatorProfile')}
+                    onCreatorClick={
+                      job.creator_id
+                        ? () => {
+                            onClose();
+                            navigate(`/profile/${job.creator_id}`);
+                          }
+                        : undefined
+                    }
                   />
                 );
               })}

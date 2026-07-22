@@ -61,7 +61,8 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
 }) => {
   const locationTranslation = useMissionTextTranslation(locationLine);
   const showLocate = !!(onLocate || onClick);
-  const showCreator = !!onCreatorClick;
+  // Show the creator avatar whenever we have identity info — click is optional.
+  const showCreator = !!(onCreatorClick || creatorAvatarUrl || creatorName);
   const creatorInitial = (creatorName || '?').trim().charAt(0).toUpperCase() || '?';
 
   const handleLocate = (e: React.MouseEvent) => {
@@ -151,7 +152,12 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
               <button
                 type="button"
                 onClick={handleCreator}
-                className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-emerald-300/50 bg-black/55 text-emerald-100 shadow-lg backdrop-blur-md transition-transform hover:border-emerald-200/80 active:scale-95"
+                disabled={!onCreatorClick}
+                className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-emerald-300/50 bg-black/55 text-emerald-100 shadow-lg backdrop-blur-md transition-transform ${
+                  onCreatorClick
+                    ? 'hover:border-emerald-200/80 active:scale-95'
+                    : 'cursor-default'
+                }`}
                 aria-label={creatorAriaLabel}
                 title={creatorName || creatorAriaLabel}
               >

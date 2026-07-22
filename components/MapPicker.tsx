@@ -3444,6 +3444,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, []);
 
   // Custom map controls (replace the default Mapbox NavigationControl/GeolocateControl).
+  // Blue "puck" marker restored after removing the stock GeolocateControl.
+  const [userLocation, setUserLocation] = useState<{
+    lat: number;
+    lng: number;
+    accuracy?: number;
+  } | null>(null);
+
   const handleZoomIn = useCallback(() => {
     mapRef.current?.getMap()?.zoomIn({ duration: 300 });
   }, []);
@@ -3461,7 +3468,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const { latitude, longitude } = pos.coords;
+        const { latitude, longitude, accuracy } = pos.coords;
+        setUserLocation({ lat: latitude, lng: longitude, accuracy });
         mapRef.current?.flyTo({ center: [longitude, latitude], zoom: 15, duration: 1500 });
       },
       (err) => {
@@ -3721,8 +3729,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }}
           />
         </Source>
-        {/* Default Mapbox zoom/geolocate controls are replaced by custom neon FABs
-            (bottom-right) — see the map-control FAB stack rendered outside <MapGL>. */}
+        {/* Default Mapbox zoom/geolocate controls are replaced by the custom joystick FAB.
+            User location puck is restored below when Geolocate succeeds. */}
+        {userLocation && (
+          <Marker
+            longitude={userLocation.lng}
+            latitude={userLocation.lat}
+            anchor="center"
+            style={{ zIndex: 5 }}
+          >
+            <div className="pointer-events-none relative flex h-8 w-8 items-center justify-center">
+              <span
+                className="absolute inline-flex h-8 w-8 animate-ping rounded-full bg-sky-400/40"
+                aria-hidden
+              />
+              <span
+                className="relative inline-flex h-4 w-4 rounded-full border-2 border-white bg-sky-500 shadow-[0_0_12px_rgba(14,165,233,0.85)]"
+                aria-label={t('geolocate', { defaultValue: 'My location' })}
+              />
+            </div>
+          </Marker>
+        )}
 
         {/* Mobile tap pulse feedback */}
         <Source id="tap-pulse" type="geojson" data={mobileTapPulseGeoJSON}>

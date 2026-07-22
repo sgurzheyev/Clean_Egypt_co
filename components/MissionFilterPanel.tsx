@@ -106,8 +106,8 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
     </>
   );
 
-  // Shared renderers — identical behaviour in both layouts, only spacing differs.
-  const renderSortButtons = (spacious = false) =>
+  // Shared renderers — identical behaviour in both layouts; equal-size grid cells.
+  const renderSortButtons = () =>
     MISSION_SORT_MODES.map((mode) => {
       const active = sortMode === mode;
       return (
@@ -116,9 +116,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
           type="button"
           aria-pressed={active}
           onClick={() => onSortChange(mode)}
-          className={`rounded-lg border ${
-            spacious ? 'px-3 py-2 text-xs' : 'px-2.5 py-1.5 text-[11px]'
-          } font-bold tracking-wide transition-colors ${
+          className={`flex min-h-[2.75rem] w-full items-center justify-center rounded-xl border px-3 py-2 text-center text-[11px] font-bold leading-snug tracking-wide transition-colors ${
             active
               ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100'
               : 'border-white/12 bg-white/5 text-slate-300 hover:border-white/25 hover:text-slate-100'
@@ -129,7 +127,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
       );
     });
 
-  const renderTagButtons = (spacious = false) =>
+  const renderTagButtons = () =>
     ALL_MISSION_TAGS.map((tag) => {
       const checked = selectedTags.includes(tag);
       const isEco = ECO_TAGS.has(tag.toLowerCase());
@@ -147,9 +145,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
           role="checkbox"
           aria-checked={checked}
           onClick={() => onToggleTag(tag)}
-          className={`rounded-full border ${
-            spacious ? 'px-3 py-1.5 text-xs' : 'px-2.5 py-1 text-[11px]'
-          } font-bold lowercase tracking-wide transition-colors ${className}`}
+          className={`inline-flex min-h-[2rem] items-center justify-center rounded-full border px-3 py-1.5 text-[11px] font-bold lowercase tracking-wide transition-colors ${className}`}
         >
           {isEco && <span aria-hidden>🌿 </span>}
           {tag}
@@ -255,7 +251,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
 
                   <section>
                     <p className={SECTION_LABEL}>{t('sortByLabel')}</p>
-                    <div className="grid grid-cols-2 gap-2">{renderSortButtons(true)}</div>
+                    <div className="grid grid-cols-2 gap-2">{renderSortButtons()}</div>
                   </section>
 
                   <section>
@@ -272,7 +268,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                         </button>
                       )}
                     </div>
-                    <div className="flex flex-wrap gap-2">{renderTagButtons(true)}</div>
+                    <div className="flex flex-wrap gap-2">{renderTagButtons()}</div>
                   </section>
                 </div>
               </motion.div>
@@ -283,14 +279,14 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
     );
   }
 
-  // ── Inline layout (default): compact expandable bar ──────────────────────────
+  // ── Inline layout (default): single-row header with horizontal scroll ─────────
   return (
     <div className="rounded-xl border border-white/10 bg-slate-900/70 backdrop-blur-md">
-      <div className="flex flex-wrap items-center gap-2 p-2">
+      <div className="ce-hide-scrollbar flex items-center gap-2 overflow-x-auto whitespace-nowrap p-2">
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-cyan-200 transition-colors hover:bg-cyan-500/20"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-cyan-200 transition-colors hover:bg-cyan-500/20"
           aria-expanded={expanded}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={2.25} />
@@ -307,7 +303,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
         </button>
 
         {showCityFilter && (
-          <div className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-500/10 pl-2">
+          <div className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-500/10 pl-2">
             <MapPin className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2.25} aria-hidden />
             <label className="sr-only" htmlFor="mission-city-select">
               {t('selectCity')}
@@ -316,7 +312,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
               id="mission-city-select"
               value={cityValue}
               onChange={(e) => onCityChange?.(e.target.value)}
-              className="rounded-lg border-0 bg-transparent px-1 py-1.5 text-[11px] font-bold text-emerald-100 outline-none focus:ring-0"
+              className="max-w-[9.5rem] rounded-lg border-0 bg-transparent px-1 py-1.5 text-[11px] font-bold text-emerald-100 outline-none focus:ring-0"
             >
               {cityOptions}
             </select>
@@ -330,7 +326,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
           id="mission-sort-select"
           value={sortMode}
           onChange={(e) => onSortChange(e.target.value as MissionSortMode)}
-          className="ml-auto rounded-lg border border-white/15 bg-slate-950/80 px-2 py-1.5 text-[11px] font-bold text-slate-100 outline-none focus:border-cyan-400/50"
+          className="ml-auto shrink-0 rounded-lg border border-white/15 bg-slate-950/80 px-2 py-1.5 text-[11px] font-bold text-slate-100 outline-none focus:border-cyan-400/50"
         >
           {MISSION_SORT_MODES.map((mode) => (
             <option key={mode} value={mode} className="bg-slate-900 text-slate-100">
@@ -344,7 +340,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
         <div className="space-y-3 border-t border-white/10 p-3">
           <div>
             <p className={SECTION_LABEL}>{t('sortByLabel')}</p>
-            <div className="grid grid-cols-2 gap-1.5">{renderSortButtons(false)}</div>
+            <div className="grid grid-cols-2 gap-2">{renderSortButtons()}</div>
           </div>
 
           <div>
@@ -361,7 +357,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                 </button>
               )}
             </div>
-            <div className="flex flex-wrap gap-1.5">{renderTagButtons(false)}</div>
+            <div className="flex flex-wrap gap-2">{renderTagButtons()}</div>
           </div>
 
           {typeof resultCount === 'number' && (
