@@ -8,6 +8,8 @@ export type ContributionResult = {
   current_funding: number;
   target_budget: number;
   opened_for_bidding: boolean;
+  /** ISO timestamp after Phase 1 timer extension (now+30d), when present. */
+  crowdfunding_expires_at?: string | null;
   idempotent?: boolean;
 };
 
@@ -64,6 +66,8 @@ export async function confirmContributionCheckout(
     current_funding: Number(row.current_funding ?? 0),
     target_budget: Number(row.target_budget ?? 0),
     opened_for_bidding: !!row.opened_for_bidding,
+    crowdfunding_expires_at:
+      row.crowdfunding_expires_at != null ? String(row.crowdfunding_expires_at) : null,
     idempotent: !!row.idempotent,
   };
 }

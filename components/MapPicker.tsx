@@ -2813,6 +2813,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
           const updated: JobOnMap = {
             ...(missionRow as JobOnMap),
             current_funding: result.current_funding,
+            crowdfunding_expires_at:
+              result.crowdfunding_expires_at ??
+              (missionRow as JobOnMap).crowdfunding_expires_at ??
+              null,
             status: result.opened_for_bidding
               ? 'available'
               : String((missionRow as JobOnMap).status || 'funding'),
