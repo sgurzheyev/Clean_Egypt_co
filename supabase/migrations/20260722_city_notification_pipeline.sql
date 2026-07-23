@@ -5,7 +5,7 @@
 -- • Storage bucket for generated PDFs
 -- • Enqueue mission_completed when crowdfunding missions complete
 -- • Trigger helper to POST new events to Edge Function city-notification-pipeline
---   (uses pg_net; set app settings OR replace URL/key placeholders below)
+--   (uses pg_net; URL/key from private.app_config — see 20260723 + manual configure script)
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -95,22 +95,28 @@ COMMENT ON FUNCTION public.enqueue_crowdfunding_completion_notification() IS
 -- ---------------------------------------------------------------------------
 -- 4) Database webhook → Edge Function (pg_net)
 -- ---------------------------------------------------------------------------
--- Requires extension pg_net (enabled on hosted Supabase by default in many projects).
+-- Config lives in private.app_config (see 20260723_city_notification_webhook_app_config.sql).
+-- Do NOT use ALTER DATABASE / app.settings — managed Supabase denies those GUCs.
 CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
 
--- Store Edge URL + bearer in DB settings (set once per project):
---   ALTER DATABASE postgres SET app.settings.city_notification_pipeline_url
---     = 'https://<PROJECT_REF>.supabase.co/functions/v1/city-notification-pipeline';
---   ALTER DATABASE postgres SET app.settings.city_notification_pipeline_key
---     = '<SERVICE_ROLE_OR_WEBHOOK_SECRET>';
---
--- Or edit the fallbacks below before running in SQL Editor.
+CREATE SCHEMA IF NOT EXISTS private;
+
+CREATE TABLE IF NOT EXISTS private.app_config (
+  key text PRIMARY KEY,
+  value text NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+REVOKE ALL ON SCHEMA private FROM PUBLIC;
+REVOKE ALL ON TABLE private.app_config FROM PUBLIC;
+GRANT USAGE ON SCHEMA private TO postgres, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE private.app_config TO postgres, service_role;
 
 CREATE OR REPLACE FUNCTION public.trg_city_notification_call_pipeline()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, extensions
+SET search_path = public, private, extensions
 AS $$
 DECLARE
   edge_url text;
@@ -124,27 +130,41 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  edge_url := nullif(current_setting('app.settings.city_notification_pipeline_url', true), '');
-  edge_key := nullif(current_setting('app.settings.city_notification_pipeline_key', true), '');
-  webhook_secret := nullif(current_setting('app.settings.city_notification_webhook_secret', true), '');
+  SELECT c.value INTO edge_url
+  FROM private.app_config c
+  WHERE c.key = 'city_notification_pipeline_url';
 
-  -- Fallback placeholders (replace PROJECT_REF / KEY if not using app.settings):
-  IF edge_url IS NULL THEN
-    edge_url := 'https://PROJECT_REF.supabase.co/functions/v1/city-notification-pipeline';
-  END IF;
-  IF edge_key IS NULL THEN
-    edge_key := 'YOUR_SERVICE_ROLE_OR_ANON_KEY';
+  SELECT c.value INTO edge_key
+  FROM private.app_config c
+  WHERE c.key = 'city_notification_pipeline_key';
+
+  SELECT c.value INTO webhook_secret
+  FROM private.app_config c
+  WHERE c.key = 'city_notification_webhook_secret';
+
+  edge_url := nullif(btrim(coalesce(edge_url, '')), '');
+  edge_key := nullif(btrim(coalesce(edge_key, '')), '');
+  webhook_secret := nullif(btrim(coalesce(webhook_secret, '')), '');
+
+  IF edge_url IS NULL OR edge_key IS NULL THEN
+    RAISE NOTICE
+      'city-notification-pipeline not configured (private.app_config); event % left pending',
+      NEW.id;
+    RETURN NEW;
   END IF;
 
-  -- Skip if still placeholders (avoid broken HTTP calls in fresh clones).
-  IF position('PROJECT_REF' in edge_url) > 0 OR position('YOUR_SERVICE_ROLE' in edge_key) > 0 THEN
-    RAISE NOTICE 'city-notification-pipeline webhook not configured (set app.settings.*); event % queued as pending', NEW.id;
+  IF position('YOUR_SUPABASE_SERVICE_ROLE_KEY' in edge_key) > 0
+     OR position('PROJECT_REF' in edge_url) > 0 THEN
+    RAISE NOTICE
+      'city-notification-pipeline still using placeholders in private.app_config; event % left pending',
+      NEW.id;
     RETURN NEW;
   END IF;
 
   headers := jsonb_build_object(
     'Content-Type', 'application/json',
-    'Authorization', 'Bearer ' || edge_key
+    'Authorization', 'Bearer ' || edge_key,
+    'apikey', edge_key
   );
   IF webhook_secret IS NOT NULL THEN
     headers := headers || jsonb_build_object('x-webhook-secret', webhook_secret);
@@ -180,4 +200,4 @@ CREATE TRIGGER trg_city_notification_call_pipeline
   EXECUTE FUNCTION public.trg_city_notification_call_pipeline();
 
 COMMENT ON FUNCTION public.trg_city_notification_call_pipeline() IS
-  'AFTER INSERT on city_notification_events: POST to Edge Function city-notification-pipeline via pg_net.';
+  'AFTER INSERT on city_notification_events: POST to city-notification-pipeline via pg_net; config in private.app_config.';

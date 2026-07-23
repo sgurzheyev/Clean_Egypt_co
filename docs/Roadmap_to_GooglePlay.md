@@ -121,8 +121,8 @@ funding ──(target met)──► available ──(accept bid)──► in_pro
 ### Engineering notes
 - Edge Function: `supabase/functions/city-notification-pipeline` (pdf-lib → Storage → Telegram / Resend stub).
 - Migration: `supabase/migrations/20260722_city_notification_pipeline.sql` (columns, bucket, completion enqueue, `pg_net` INSERT trigger).
-- Configure URL/keys: `supabase/manual/configure_city_notification_webhook.sql`.
-- Deploy with `verify_jwt=false`; set secrets; run migration + configure script (replace `PROJECT_REF`).
+- Configure URL/keys via `private.app_config` (no `ALTER DATABASE`): `supabase/manual/configure_city_notification_webhook.sql`.
+- Deploy with `verify_jwt=false`; set secrets; run migration `20260723_…_app_config` + configure script (paste service role key).
 - Keep expiry sweep cron (`process_expired_crowdfunding_missions`) so rows are inserted.
 
 ### Exit criteria

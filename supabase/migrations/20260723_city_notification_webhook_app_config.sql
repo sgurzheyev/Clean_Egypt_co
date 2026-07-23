@@ -1,9 +1,10 @@
 -- ============================================================================
--- Configure city-notification-pipeline webhook (NO ALTER DATABASE)
--- Paste into Supabase SQL Editor. Replace YOUR_SUPABASE_SERVICE_ROLE_KEY only.
+-- Fix: city-notification webhook config without ALTER DATABASE / GUC
 -- ============================================================================
--- Reads/writes: private.app_config
--- Trigger: public.trg_city_notification_call_pipeline (pg_net → Edge Function)
+-- Managed Supabase blocks:
+--   ALTER DATABASE ... SET app.settings.*
+-- This migration stores Edge URL + bearer in private.app_config and rewrites
+-- trg_city_notification_call_pipeline() to read from that table via pg_net.
 -- ============================================================================
 
 CREATE SCHEMA IF NOT EXISTS private;
@@ -14,34 +15,26 @@ CREATE TABLE IF NOT EXISTS private.app_config (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+COMMENT ON TABLE private.app_config IS
+  'Internal key/value config (Edge URLs, webhook secrets). Not exposed via PostgREST.';
+
 REVOKE ALL ON SCHEMA private FROM PUBLIC;
 REVOKE ALL ON TABLE private.app_config FROM PUBLIC;
 GRANT USAGE ON SCHEMA private TO postgres, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE private.app_config TO postgres, service_role;
 
-CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
-
--- ---------------------------------------------------------------------------
--- 1) Upsert URL + service role key (edit the key value below)
--- ---------------------------------------------------------------------------
-INSERT INTO private.app_config (key, value) VALUES
-  (
-    'city_notification_pipeline_url',
-    'https://pnhdwlcxmcathgkigcys.supabase.co/functions/v1/city-notification-pipeline'
-  ),
-  (
-    'city_notification_pipeline_key',
-    'YOUR_SUPABASE_SERVICE_ROLE_KEY'
-  )
-  -- Optional: only if Edge Function has CITY_NOTIFICATION_WEBHOOK_SECRET set
-  -- , ('city_notification_webhook_secret', 'your-random-webhook-secret')
+-- Seed URL for this project (safe to overwrite later via UPSERT).
+-- Service role key is NOT stored here — set it in SQL Editor via
+-- supabase/manual/configure_city_notification_webhook.sql
+INSERT INTO private.app_config (key, value)
+VALUES (
+  'city_notification_pipeline_url',
+  'https://pnhdwlcxmcathgkigcys.supabase.co/functions/v1/city-notification-pipeline'
+)
 ON CONFLICT (key) DO UPDATE
 SET value = EXCLUDED.value,
     updated_at = now();
 
--- ---------------------------------------------------------------------------
--- 2) Trigger function (reads private.app_config — no GUCs / ALTER DATABASE)
--- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.trg_city_notification_call_pipeline()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -78,7 +71,7 @@ BEGIN
 
   IF edge_url IS NULL OR edge_key IS NULL THEN
     RAISE NOTICE
-      'city-notification-pipeline not configured (private.app_config); event % left pending',
+      'city-notification-pipeline not configured (private.app_config keys city_notification_pipeline_url / city_notification_pipeline_key); event % left pending',
       NEW.id;
     RETURN NEW;
   END IF;
@@ -124,21 +117,12 @@ EXCEPTION
 END;
 $$;
 
+COMMENT ON FUNCTION public.trg_city_notification_call_pipeline() IS
+  'AFTER INSERT on city_notification_events: POST to city-notification-pipeline via pg_net; reads URL/key from private.app_config (no ALTER DATABASE).';
+
+-- Ensure trigger still exists (idempotent).
 DROP TRIGGER IF EXISTS trg_city_notification_call_pipeline ON public.city_notification_events;
 CREATE TRIGGER trg_city_notification_call_pipeline
   AFTER INSERT ON public.city_notification_events
   FOR EACH ROW
   EXECUTE FUNCTION public.trg_city_notification_call_pipeline();
-
--- ---------------------------------------------------------------------------
--- 3) Verify
--- ---------------------------------------------------------------------------
-SELECT key,
-       CASE
-         WHEN key = 'city_notification_pipeline_key' THEN left(value, 8) || '…'
-         ELSE value
-       END AS value_preview,
-       updated_at
-FROM private.app_config
-WHERE key LIKE 'city_notification%'
-ORDER BY key;
