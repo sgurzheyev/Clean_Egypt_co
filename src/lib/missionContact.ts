@@ -54,3 +54,17 @@ export async function getMissionWorkerPhone(missionId: string): Promise<string |
   const phone = String(data ?? '').trim();
   return phone || null;
 }
+
+/**
+ * Client phone on public profile — only when viewer has an accepted/assigned
+ * private mission with that client (RPC returns NULL otherwise).
+ */
+export async function getClientPhoneIfContracted(clientId: string): Promise<string | null> {
+  if (!clientId) return null;
+  const { data, error } = await supabase.rpc('get_client_phone_if_contracted', {
+    p_client_id: clientId,
+  });
+  if (error) throw error;
+  const phone = String(data ?? '').trim();
+  return phone || null;
+}

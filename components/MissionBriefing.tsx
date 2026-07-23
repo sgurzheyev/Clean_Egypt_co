@@ -218,6 +218,22 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
     [revealedPhone]
   );
 
+  const isAssignedCleaner =
+    !!currentUserId && !!mission.cleaner_id && mission.cleaner_id === currentUserId;
+  const hasAcceptedBid =
+    !!currentUserId &&
+    missionBids.some(
+      (b) =>
+        b.cleaner_id === currentUserId &&
+        String(b.status || '').toLowerCase() === 'accepted'
+    );
+  const contactUnlocked = isAssignedCleaner || hasAcceptedBid;
+  /** Private missions: show contact panel to workers (role cleaner OR contracted). */
+  const showWorkerContactPanel =
+    !isCrowdfundingMissionFlag &&
+    !!currentUserId &&
+    (isExecutorViewer || contactUnlocked);
+
   const [reviewComment, setReviewComment] = useState('');
   const [fundingNowMs, setFundingNowMs] = useState(() => Date.now());
   useEffect(() => {
@@ -246,6 +262,82 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
     : null;
   const isOwnActive = isInProgress && mission.cleaner_id === currentUserId;
   const statusLabel = String(mission.status || '').replace(/_/g, ' ');
+
+  const workerContactPanel =
+    showWorkerContactPanel ? (
+      <div className="space-y-3 border-t border-white/5 pt-4">
+        {revealedPhone && contactUnlocked ? (
+          <>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                {t('contactCustomer')}
+              </span>
+              {telHref ? (
+                <a
+                  href={telHref}
+                  className="text-right text-sm font-black text-emerald-300 break-all underline-offset-2 hover:underline"
+                >
+                  {revealedPhone}
+                </a>
+              ) : (
+                <span className="text-right text-sm font-black text-emerald-300 break-all">
+                  {revealedPhone}
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              {telHref ? (
+                <a
+                  href={telHref}
+                  className="flex min-h-[48px] flex-1 touch-manipulation items-center justify-center gap-1.5 rounded-2xl border border-emerald-400/35 bg-emerald-600/90 px-3 text-[11px] font-bold uppercase tracking-[0.14em] text-white shadow-[0_4px_16px_rgba(16,185,129,0.25)]"
+                >
+                  <span aria-hidden>📞</span>
+                  {t('callClient')}
+                </a>
+              ) : null}
+              {whatsappHref ? (
+                <a
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex min-h-[48px] flex-1 touch-manipulation items-center justify-center gap-1.5 rounded-2xl border border-cyan-400/35 bg-cyan-600/90 px-3 text-[11px] font-bold uppercase tracking-[0.14em] text-white shadow-[0_4px_16px_rgba(34,211,238,0.25)]"
+                >
+                  <span aria-hidden>💬</span>
+                  WhatsApp
+                </a>
+              ) : null}
+            </div>
+          </>
+        ) : contactUnlocked && !unlockLeadLoading ? (
+          <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-[11px] font-semibold text-slate-400">
+            {t('contactUnavailable')}
+          </p>
+        ) : (
+          <>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                {t('contactCustomer')}
+              </span>
+              <span className="font-mono text-sm text-slate-500">{LOCKED_PHONE_MASK}</span>
+            </div>
+            <p className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2.5 text-[11px] font-semibold leading-relaxed text-amber-100/90">
+              {unlockLeadLoading
+                ? t('processing')
+                : `🔒 ${t('phoneLockedUntilBidAccepted')}`}
+            </p>
+            {!workerHasActiveSubscription && !contactUnlocked && (
+              <button
+                type="button"
+                onClick={onSubscribe}
+                className="flex min-h-[44px] w-full touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/90 px-4 text-[10px] font-bold uppercase tracking-[0.14em] text-white"
+              >
+                {t('subscribeToUnlock')}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    ) : null;
 
   return (
     <div
@@ -781,7 +873,8 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                   {t('workInProgress')}
                 </p>
               ) : mission.status === 'in_progress' && mission.cleaner_id === currentUserId ? (
-                <div className="border-t border-white/5 pt-4">
+                <div className="space-y-4 border-t border-white/5 pt-4">
+                  {workerContactPanel}
                   <div className="w-full rounded-full animated-border-city">
                     <button
                       type="button"
@@ -801,72 +894,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     <span className="text-right text-sm font-semibold text-white">{serviceLabel}</span>
                   </div>
 
-                  {isExecutorViewer && !isCrowdfundingMissionFlag && (
-                    <div className="space-y-3">
-                      {revealedPhone ? (
-                        <div className="space-y-3 border-t border-white/5 pt-4">
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                              {t('contactCustomer')}
-                            </span>
-                            {telHref ? (
-                              <a
-                                href={telHref}
-                                className="text-right text-sm font-black text-emerald-300 break-all underline-offset-2 hover:underline"
-                              >
-                                {revealedPhone}
-                              </a>
-                            ) : (
-                              <span className="text-right text-sm font-black text-emerald-300 break-all">
-                                {revealedPhone}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex gap-2">
-                            {telHref ? (
-                              <a
-                                href={telHref}
-                                className="flex min-h-[44px] flex-1 touch-manipulation items-center justify-center rounded-2xl border border-emerald-400/35 bg-emerald-600/80 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-white"
-                              >
-                                {t('callClient')}
-                              </a>
-                            ) : null}
-                            {whatsappHref ? (
-                              <a
-                                href={whatsappHref}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex min-h-[44px] flex-1 touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/80 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-white"
-                              >
-                                WhatsApp
-                              </a>
-                            ) : null}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-2 border-t border-white/5 pt-4">
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                              {t('contactCustomer')}
-                            </span>
-                            <span className="font-mono text-sm text-slate-500">{LOCKED_PHONE_MASK}</span>
-                          </div>
-                          <p className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold leading-relaxed text-amber-100/90">
-                            {unlockLeadLoading ? t('processing') : t('phoneLockedUntilBidAccepted')}
-                          </p>
-                          {!workerHasActiveSubscription && (
-                            <button
-                              type="button"
-                              onClick={onSubscribe}
-                              className="flex min-h-[44px] w-full touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/90 px-4 text-[10px] font-bold uppercase tracking-[0.14em] text-white"
-                            >
-                              {t('subscribeToUnlock')}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {workerContactPanel}
                   {isExecutorViewer && isCrowdfundingMissionFlag && (
                     <p className="border-t border-white/5 pt-4 text-[11px] leading-relaxed text-slate-500">
                       {t('crowdfundingNoPrivatePhone')}

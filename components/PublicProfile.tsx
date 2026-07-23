@@ -1,24 +1,60 @@
 /**
- * Public creator profile at /profile/:id — minimal, read-only card reached by
- * tapping a creator avatar on a mission card. Uses the get_public_profile RPC.
+ * Public creator profile at /profile/:id — read-only card from mission avatars.
+ * Phone is never in get_public_profile; unlocked only via get_client_phone_if_contracted
+ * when the viewer has an accepted/assigned private mission with this client.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, BadgeCheck, Star } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Calendar, ShieldCheck, Star } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { getProfileReviews, type ProfileReviewRow } from '../src/lib/reviews';
 import { formatSubmittedRelative } from '../src/lib/missionFilterSort';
+import {
+  getClientPhoneIfContracted,
+  toTelHref,
+  toWhatsAppHref,
+} from '../src/lib/missionContact';
 
 interface PublicProfileData {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
   is_verified: boolean | null;
+  verification_status?: string | null;
   rating: number | null;
   review_count: number | null;
   missions_created: number | null;
   missions_completed: number | null;
+  member_since?: string | null;
+}
+
+function formatMemberSince(iso: string | null | undefined, locale: string): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return null;
+  try {
+    return new Intl.DateTimeFormat(locale || 'en', {
+      month: 'long',
+      year: 'numeric',
+    }).format(d);
+  } catch {
+    return d.toISOString().slice(0, 7);
+  }
+}
+
+function verificationLabel(
+  profile: PublicProfileData,
+  t: (key: string, opts?: Record<string, string>) => string
+): string {
+  const status = String(profile.verification_status || '').toLowerCase();
+  if (profile.is_verified || status === 'verified' || status === 'approved') {
+    return t('publicProfileVerified', { defaultValue: 'ID verified' });
+  }
+  if (status === 'pending' || status === 'submitted') {
+    return t('publicProfileVerificationPending', { defaultValue: 'Verification pending' });
+  }
+  return t('publicProfileUnverified', { defaultValue: 'Not ID-verified' });
 }
 
 const PublicProfile: React.FC = () => {
@@ -29,12 +65,16 @@ const PublicProfile: React.FC = () => {
   const [reviews, setReviews] = useState<ProfileReviewRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [contractPhone, setContractPhone] = useState<string | null>(null);
+  const [phoneChecked, setPhoneChecked] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setContractPhone(null);
+    setPhoneChecked(false);
     (async () => {
       const { data, error: rpcErr } = await supabase.rpc('get_public_profile', { p_id: id });
       if (cancelled) return;
@@ -51,6 +91,23 @@ const PublicProfile: React.FC = () => {
       } catch (err) {
         console.warn('getProfileReviews failed:', err);
       }
+
+      // Phase 3: only returns a phone when viewer has an accepted/assigned private contract.
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.user?.id && session.user.id !== id) {
+          const phone = await getClientPhoneIfContracted(id);
+          if (!cancelled) setContractPhone(phone);
+        }
+      } catch (err) {
+        console.warn('get_client_phone_if_contracted failed:', err);
+        if (!cancelled) setContractPhone(null);
+      } finally {
+        if (!cancelled) setPhoneChecked(true);
+      }
+
       if (!cancelled) setLoading(false);
     })();
     return () => {
@@ -59,6 +116,15 @@ const PublicProfile: React.FC = () => {
   }, [id, t]);
 
   const initial = (profile?.full_name || '?').trim().charAt(0).toUpperCase() || '?';
+  const memberSinceLabel = formatMemberSince(profile?.member_since, i18n.language);
+  const telHref = useMemo(() => toTelHref(contractPhone), [contractPhone]);
+  const whatsappHref = useMemo(() => toWhatsAppHref(contractPhone), [contractPhone]);
+  const created = Math.max(0, Number(profile?.missions_created ?? 0));
+  const completed = Math.max(0, Number(profile?.missions_completed ?? 0));
+  const completionRate = created > 0 ? Math.min(100, Math.round((completed / created) * 100)) : 0;
+  const isVerified =
+    !!profile?.is_verified ||
+    ['verified', 'approved'].includes(String(profile?.verification_status || '').toLowerCase());
 
   return (
     <div className="min-h-screen w-full bg-slate-950 text-slate-100">
@@ -98,7 +164,7 @@ const PublicProfile: React.FC = () => {
                   <h1 className="truncate text-xl font-black text-white">
                     {profile.full_name || t('publicProfileAnonymous')}
                   </h1>
-                  {profile.is_verified && (
+                  {isVerified && (
                     <BadgeCheck className="h-5 w-5 shrink-0 text-cyan-400" strokeWidth={2.25} />
                   )}
                 </div>
@@ -113,27 +179,91 @@ const PublicProfile: React.FC = () => {
                 ) : (
                   <p className="mt-1 text-xs text-slate-500">{t('publicProfileNoRating')}</p>
                 )}
+                {memberSinceLabel && (
+                  <p className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] text-slate-400">
+                    <Calendar className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                    {t('publicProfileMemberSince', {
+                      date: memberSinceLabel,
+                      defaultValue: `Member since ${memberSinceLabel}`,
+                    })}
+                  </p>
+                )}
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
-                <p className="text-2xl font-black text-emerald-300">
-                  {profile.missions_created ?? 0}
+            {/* Contract contact unlock — authenticated viewers only; phone only if contracted */}
+            {phoneChecked && (
+              <div className="mt-5 space-y-3">
+                {contractPhone ? (
+                  <div className="flex gap-2">
+                    {telHref ? (
+                      <a
+                        href={telHref}
+                        className="flex min-h-[52px] flex-1 items-center justify-center gap-1.5 rounded-2xl border border-emerald-400/40 bg-emerald-600/90 px-3 text-[11px] font-black uppercase tracking-[0.14em] text-white shadow-[0_4px_20px_rgba(16,185,129,0.3)]"
+                      >
+                        <span aria-hidden>📞</span>
+                        {t('callClient')}
+                      </a>
+                    ) : null}
+                    {whatsappHref ? (
+                      <a
+                        href={whatsappHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex min-h-[52px] flex-1 items-center justify-center gap-1.5 rounded-2xl border border-cyan-400/40 bg-cyan-600/90 px-3 text-[11px] font-black uppercase tracking-[0.14em] text-white shadow-[0_4px_20px_rgba(34,211,238,0.3)]"
+                      >
+                        <span aria-hidden>💬</span>
+                        WhatsApp
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            <div className="mt-5 flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+              <ShieldCheck
+                className={`h-5 w-5 shrink-0 ${isVerified ? 'text-cyan-400' : 'text-slate-500'}`}
+                strokeWidth={2}
+              />
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                  {t('publicProfileVerification', { defaultValue: 'Verification' })}
                 </p>
+                <p className={`text-sm font-bold ${isVerified ? 'text-cyan-200' : 'text-slate-300'}`}>
+                  {verificationLabel(profile, t)}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-center">
+                <p className="text-2xl font-black text-emerald-300">{created}</p>
                 <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
                   {t('publicProfileMissionsCreated')}
                 </p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
-                <p className="text-2xl font-black text-cyan-300">
-                  {profile.missions_completed ?? 0}
-                </p>
+              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4 text-center">
+                <p className="text-2xl font-black text-cyan-300">{completed}</p>
                 <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
                   {t('publicProfileMissionsCompleted')}
                 </p>
               </div>
             </div>
+            {created > 0 && (
+              <div className="mt-3">
+                <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                  <span>{t('publicProfileCompletionRate', { defaultValue: 'Completion rate' })}</span>
+                  <span className="text-emerald-300">{completionRate}%</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-400"
+                    style={{ width: `${completionRate}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="mt-6">
               <h2 className="mb-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
@@ -146,7 +276,7 @@ const PublicProfile: React.FC = () => {
               ) : (
                 <div className="space-y-3">
                   {reviews.map((r) => {
-                    const initial = (r.reviewer_name || '?').trim().charAt(0).toUpperCase() || '?';
+                    const revInitial = (r.reviewer_name || '?').trim().charAt(0).toUpperCase() || '?';
                     return (
                       <div
                         key={r.id}
@@ -163,7 +293,7 @@ const PublicProfile: React.FC = () => {
                               />
                             ) : (
                               <span className="text-xs font-black uppercase text-emerald-200">
-                                {initial}
+                                {revInitial}
                               </span>
                             )}
                           </div>
