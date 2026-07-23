@@ -206,13 +206,16 @@ funding ──(target met)──► available ──(accept bid)──► in_pro
 - [ ] Fallback UX when WebXR unsupported (already partially present — harden for Play).
 
 ### Push notifications (FCM / Supabase)
-- [ ] Global push pipeline (FCM via Capacitor / PWA or native wrapper — decide in Play prep).
-- [ ] Mandatory event set:
-	- [ ] Bid accepted (worker) / new bid (client)
-	- [ ] Crowdfunding timer expiring (24h / 1h)
-	- [ ] New in-app chat message
-	- [ ] Proof uploaded / proof rejected / mission completed
-- [ ] Keep existing in-app bell in sync with push payloads.
+- [x] Device token table + RLS (`user_push_tokens`) + upsert RPC.
+- [x] Scaffold: Edge Function `send-push-notification` + pg_net trigger on `notifications` INSERT.
+- [x] Client registration hook (`usePushNotifications` / `pushNotifications.ts`) + SW stub.
+- [ ] Configure Firebase / VAPID secrets and deploy Edge Function (see `supabase/manual/configure_push_webhook.sql`).
+- [ ] Mandatory event set (already creates in-app rows → push via trigger once secrets live):
+	- [x] Bid accepted (worker) / new bid (client) — via notification triggers
+	- [ ] Crowdfunding timer expiring (24h / 1h) — still needs scheduled notifier
+	- [x] New in-app chat message
+	- [x] Proof uploaded / proof rejected / mission completed
+- [x] Keep existing in-app bell in sync with push payloads (same `notifications` row).
 
 ### Exit criteria
 - [ ] Hurghada checklist from [[../00_Dashboard]] fully green.

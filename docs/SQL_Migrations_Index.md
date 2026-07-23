@@ -49,6 +49,7 @@ Chronological — June–July 2026 token / crowdfunding / privacy stack.
 | 2026-07-23 | [[20260723_dynamic_funding_bid_acceptance.sql]] | Accept bids during `funding`; bump `expected_price` to market bid; pre-lock cleaner until funds catch up. |
 | 2026-07-23 | [[20260723_lifecycle_chat_notifications.sql]] | Bell feed: title/message + Realtime; triggers for chat, bids, funding lifecycle. |
 | 2026-07-23 | [[20260723_fix_reviews_cleaner_id.sql]] | `submit_review` always sets legacy `cleaner_id`; profile reviews include comments. |
+| 2026-07-23 | [[20260723_push_device_tokens.sql]] | Phase 5: `user_push_tokens` + RLS + pg_net bridge to `send-push-notification`. |
 
 ### Roadmap phase quick links
 

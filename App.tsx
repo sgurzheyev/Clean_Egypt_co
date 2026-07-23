@@ -17,6 +17,7 @@ import PublicProfile from './components/PublicProfile';
 import { supabase } from './services/supabase';
 import i18n from './src/i18n';
 import { useTranslation } from 'react-i18next';
+import { usePushNotifications } from './src/hooks/usePushNotifications';
 
 const App: React.FC = () => {
   const { t } = useTranslation();
@@ -28,6 +29,9 @@ const App: React.FC = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showAROverlay, setShowAROverlay] = useState(false);
   const [paymentSuccessType, setPaymentSuccessType] = useState<'pin' | 'tokens' | 'subscription'>('pin');
+
+  // Phase 5: register FCM / Web Push token after auth (no-op until secrets configured).
+  usePushNotifications(session?.user?.id ?? null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));

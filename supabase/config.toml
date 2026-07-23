@@ -23,3 +23,10 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/city-notification-pipeline/deno.json"
 entrypoint = "./functions/city-notification-pipeline/index.ts"
+
+# Phase 5: notifications INSERT → FCM / Web Push. Auth via service role + optional PUSH_WEBHOOK_SECRET.
+[functions.send-push-notification]
+enabled = true
+verify_jwt = false
+import_map = "./functions/send-push-notification/deno.json"
+entrypoint = "./functions/send-push-notification/index.ts"
