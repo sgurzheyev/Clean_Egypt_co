@@ -12,7 +12,7 @@ import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
 import { getWorkerGeolocation, submitMissionProof } from '../src/lib/submitMissionProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
-import { submitReview } from '../src/lib/reviews';
+import { resolveMissionCleanerId, submitReview } from '../src/lib/reviews';
 import { Navigation, Camera, X, User, Plus, Minus, Crosshair } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import NotificationBell from './NotificationBell';
@@ -2640,9 +2640,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
           return;
         }
 
+        const acceptedBidCleanerId =
+          missionBids.find(
+            (b) => String(b.status || '').toLowerCase() === 'accepted'
+          )?.cleaner_id ?? null;
+        const cleanerId = resolveMissionCleanerId({
+          cleanerId: selectedMission.cleaner_id,
+          acceptedBidCleanerId,
+        });
+
         const revieweeId =
           selectedMission.creator_id === uid
-            ? selectedMission.cleaner_id
+            ? cleanerId
             : selectedMission.creator_id;
         if (!revieweeId) {
           toast.error(t('mapToastRatingSubmitFailed'));
@@ -2654,9 +2663,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
           revieweeId,
           rating,
           comment,
+          cleanerId,
         });
 
-        toast.success(t('mapToastRatingThanks'));
+        toast.success(
+          t('reviewSubmittedSuccess', {
+            defaultValue: 'Review submitted successfully!',
+          })
+        );
         setReviewedMissions((prev) => {
           const next = new Set(prev);
           next.add(selectedMission.id);
@@ -2664,12 +2678,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
         });
         setSelectedRating(0);
       } catch (e: any) {
+        console.error('handleSubmitReview', e);
         toast.error(e?.message || t('mapToastRatingSubmitFailed'));
       } finally {
         setIsSubmittingReview(false);
       }
     },
-    [onRequestAuth, selectedMission]
+    [missionBids, onRequestAuth, selectedMission, t, toast]
   );
 
   const placePendingBid = useCallback(

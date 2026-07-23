@@ -48,6 +48,7 @@ Chronological — June–July 2026 token / crowdfunding / privacy stack.
 | 2026-07-23 | [[20260723_p2p_chat_system.sql]] | Phase 4: `mission_chats` table, participant RLS, Realtime publication. |
 | 2026-07-23 | [[20260723_dynamic_funding_bid_acceptance.sql]] | Accept bids during `funding`; bump `expected_price` to market bid; pre-lock cleaner until funds catch up. |
 | 2026-07-23 | [[20260723_lifecycle_chat_notifications.sql]] | Bell feed: title/message + Realtime; triggers for chat, bids, funding lifecycle. |
+| 2026-07-23 | [[20260723_fix_reviews_cleaner_id.sql]] | `submit_review` always sets legacy `cleaner_id`; profile reviews include comments. |
 
 ### Roadmap phase quick links
 

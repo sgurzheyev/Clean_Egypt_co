@@ -12,6 +12,8 @@ export interface RatingTarget {
   revieweeId: string;
   /** Who is being rated — drives the modal heading. */
   role: 'worker' | 'creator';
+  /** Mission assigned worker (required when role is creator / legacy cleaner_id). */
+  cleanerId?: string | null;
 }
 
 interface RatingReviewModalProps {
@@ -61,8 +63,13 @@ const RatingReviewModal: React.FC<RatingReviewModalProps> = ({
         revieweeId: target.revieweeId,
         rating,
         comment,
+        cleanerId: target.role === 'worker' ? target.revieweeId : target.cleanerId,
       });
-      toast?.success(t('mapToastRatingThanks'));
+      toast?.success(
+        t('reviewSubmittedSuccess', {
+          defaultValue: 'Review submitted successfully!',
+        })
+      );
       onSubmitted?.();
       onClose();
     } catch (err: any) {

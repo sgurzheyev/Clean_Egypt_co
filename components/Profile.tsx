@@ -1309,6 +1309,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           missionId: job.id,
           revieweeId: job.cleaner_id,
           role: 'worker',
+          cleanerId: job.cleaner_id,
         });
       }
       return true;
@@ -2150,6 +2151,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                 missionId: job.id,
                                 revieweeId,
                                 role: isCreator ? 'worker' : 'creator',
+                                cleanerId: job.cleaner_id,
                               })
                             }
                             className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-amber-200 transition-colors hover:bg-amber-500/20"

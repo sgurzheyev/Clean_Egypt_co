@@ -281,7 +281,25 @@ const PublicProfile: React.FC = () => {
               ) : (
                 <div className="space-y-3">
                   {reviews.map((r) => {
-                    const revInitial = (r.reviewer_name || '?').trim().charAt(0).toUpperCase() || '?';
+                    const reviewerLabel =
+                      (r.reviewer_name || '').trim() ||
+                      t('reviewClientFallback', { defaultValue: 'Client' });
+                    const revInitial = reviewerLabel.charAt(0).toUpperCase() || '?';
+                    const reviewDate = (() => {
+                      const d = new Date(r.created_at);
+                      if (!Number.isFinite(d.getTime())) {
+                        return formatSubmittedRelative(r.created_at, i18n.language);
+                      }
+                      try {
+                        return new Intl.DateTimeFormat(i18n.language || 'en', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        }).format(d);
+                      } catch {
+                        return formatSubmittedRelative(r.created_at, i18n.language);
+                      }
+                    })();
                     return (
                       <div
                         key={r.id}
@@ -304,27 +322,34 @@ const PublicProfile: React.FC = () => {
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-bold text-slate-100">
-                              {r.reviewer_name || t('publicProfileAnonymous')}
+                              {reviewerLabel}
                             </p>
                             <p className="text-[10px] uppercase tracking-[0.1em] text-slate-500">
-                              {formatSubmittedRelative(r.created_at, i18n.language)}
+                              {reviewDate}
                             </p>
                           </div>
-                          <div className="flex shrink-0 items-center gap-0.5">
+                          <div
+                            className="flex shrink-0 items-center gap-0.5"
+                            aria-label={`${r.rating} / 5`}
+                          >
                             {[1, 2, 3, 4, 5].map((s) => (
                               <Star
                                 key={s}
                                 className={`h-3.5 w-3.5 ${
-                                  s <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-600'
+                                  s <= r.rating
+                                    ? 'fill-amber-400 text-amber-400'
+                                    : 'text-slate-600'
                                 }`}
                                 strokeWidth={1.75}
                               />
                             ))}
                           </div>
                         </div>
-                        {r.comment && (
-                          <p className="mt-2 text-sm leading-relaxed text-slate-300">{r.comment}</p>
-                        )}
+                        {r.comment?.trim() ? (
+                          <p className="mt-2.5 text-sm leading-relaxed text-slate-200">
+                            {r.comment.trim()}
+                          </p>
+                        ) : null}
                       </div>
                     );
                   })}
