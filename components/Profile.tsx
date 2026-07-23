@@ -460,14 +460,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   useEffect(() => {
     let cancelled = false;
     const cleanerId = reviewJob?.cleaner_id;
-    if (!cleanerId) {
+    const missionId = reviewJob?.id;
+    if (!cleanerId || !missionId) {
       setReviewWorkerProfile(null);
       return;
     }
     void (async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, phone_number, telegram_username')
+        .select('full_name, telegram_username')
         .eq('id', cleanerId)
         .maybeSingle();
       if (cancelled) return;
@@ -476,7 +477,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         setReviewWorkerProfile(null);
         return;
       }
-      setReviewWorkerProfile(data ?? null);
+      let phone: string | null = null;
+      try {
+        const { getMissionWorkerPhone } = await import('../src/lib/missionContact');
+        phone = await getMissionWorkerPhone(missionId);
+      } catch (e) {
+        console.warn('get_mission_worker_phone failed', e);
+      }
+      setReviewWorkerProfile({ ...(data ?? {}), phone_number: phone });
     })();
     return () => {
       cancelled = true;
@@ -679,18 +687,25 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       const { data: profile } = await supabase
         .from('profiles')
         .select(
-          'id, role, token_balance, subscription_expires_at, contact_email, is_verified, verification_status, full_name, phone_number, telegram_username, rating, avatar_url'
+          'id, role, token_balance, subscription_expires_at, contact_email, is_verified, verification_status, full_name, telegram_username, rating, avatar_url'
         )
         .eq('id', userId)
         .maybeSingle();
 
       const profileRow = profile as ProfileRow | null;
-      setUserProfile(profileRow ?? null);
+      let ownPhone = '';
+      try {
+        const { getOwnPhoneNumber } = await import('../src/lib/missionContact');
+        ownPhone = (await getOwnPhoneNumber()) || '';
+      } catch (e) {
+        console.warn('get_own_phone_number failed', e);
+      }
+      setUserProfile(profileRow ? { ...profileRow, phone_number: ownPhone || null } : null);
       if (profileRow) {
-        setPhoneNumber(profileRow.phone_number ?? '');
+        setPhoneNumber(ownPhone);
         setTelegramUsername(profileRow.telegram_username ?? '');
         setContactEmail(profileRow.contact_email ?? session.user.email ?? '');
-        setContactEditMode(!(profileRow.contact_email || profileRow.phone_number || profileRow.telegram_username));
+        setContactEditMode(!(profileRow.contact_email || ownPhone || profileRow.telegram_username));
       }
 
       const { data: homeJobsData } = await supabase

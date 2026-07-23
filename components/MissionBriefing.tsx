@@ -23,8 +23,8 @@ import {
   getCrowdfundingExpiresAt,
   isCrowdfundingOpen,
 } from '../src/lib/crowdfunding';
-import { formatUsdPrice, YEARLY_SUBSCRIPTION } from '../src/lib/tokenPricing';
 import { type MissionBidRow, bidWorkerDisplayName } from '../src/lib/missionBids';
+import { LOCKED_PHONE_MASK, toTelHref, toWhatsAppHref } from '../src/lib/missionContact';
 
 export type AssignedWorkerProfile = {
   full_name?: string | null;
@@ -91,6 +91,7 @@ export type MissionBriefingProps = {
   onSheetTouchEnd: () => void;
   onViewPhotos: () => void;
   onStartWork: () => void;
+  /** @deprecated Phone unlock is automatic via get_mission_client_phone; kept for call-site compat. */
   onUnlockLead: () => void;
   onSubscribe: () => void;
   onSubmitReview: (rating: number, comment: string) => void;
@@ -172,7 +173,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   onSheetTouchEnd,
   onViewPhotos,
   onStartWork,
-  onUnlockLead,
+  onUnlockLead: _onUnlockLead,
   onSubscribe,
   onSubmitReview,
   onSelectRating,
@@ -788,53 +789,68 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     <span className="text-right text-sm font-semibold text-white">{serviceLabel}</span>
                   </div>
 
-                  {isExecutorViewer && (
+                  {isExecutorViewer && !isCrowdfundingMissionFlag && (
                     <div className="space-y-3">
-                      {!workerHasActiveSubscription && !leadPhoneVisible && (
+                      {leadPhoneVisible && unlockedLeadPhone ? (
                         <div className="space-y-3 border-t border-white/5 pt-4">
-                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
-                            {t('subscriptionGateTitle')}
-                          </p>
-                          <p className="text-xs leading-relaxed text-slate-300">
-                            {t('subscriptionGateBody')}
-                          </p>
-                          <p className="text-lg font-black text-white">
-                            {t('subscriptionGatePerYear', {
-                              price: formatUsdPrice(YEARLY_SUBSCRIPTION.usd),
-                            })}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={onSubscribe}
-                            className="flex min-h-[52px] w-full touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/90 px-4 text-[11px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_4px_20px_rgba(34,211,238,0.35)] transition-all hover:bg-cyan-500/95 active:scale-[0.98]"
-                          >
-                            {t('subscribeToUnlock')}
-                          </button>
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                              {t('contactCustomer')}
+                            </span>
+                            <a
+                              href={toTelHref(unlockedLeadPhone) || undefined}
+                              className="text-right text-sm font-black text-emerald-300 break-all underline-offset-2 hover:underline"
+                            >
+                              {unlockedLeadPhone}
+                            </a>
+                          </div>
+                          <div className="flex gap-2">
+                            <a
+                              href={toTelHref(unlockedLeadPhone) || undefined}
+                              className="flex min-h-[44px] flex-1 touch-manipulation items-center justify-center rounded-2xl border border-emerald-400/35 bg-emerald-600/80 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-white"
+                            >
+                              {t('callClient')}
+                            </a>
+                            {toWhatsAppHref(unlockedLeadPhone) && (
+                              <a
+                                href={toWhatsAppHref(unlockedLeadPhone)!}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex min-h-[44px] flex-1 touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/80 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-white"
+                              >
+                                WhatsApp
+                              </a>
+                            )}
+                          </div>
                         </div>
-                      )}
-
-                      {workerHasActiveSubscription && !leadPhoneVisible && (
-                        <button
-                          type="button"
-                          onClick={onUnlockLead}
-                          disabled={unlockLeadLoading}
-                          className="flex min-h-[52px] w-full touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/90 px-4 text-[11px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_4px_20px_rgba(34,211,238,0.35)] transition-all hover:bg-cyan-500/95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {unlockLeadLoading ? t('processing') : t('unlockLead')}
-                        </button>
-                      )}
-
-                      {leadPhoneVisible && unlockedLeadPhone && (
-                        <div className="flex items-center justify-between gap-4 border-t border-white/5 pt-4">
-                          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                            {t('contactCustomer')}
-                          </span>
-                          <span className="text-right text-sm font-black text-emerald-300 break-all">
-                            {unlockedLeadPhone}
-                          </span>
+                      ) : (
+                        <div className="space-y-2 border-t border-white/5 pt-4">
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                              {t('contactCustomer')}
+                            </span>
+                            <span className="font-mono text-sm text-slate-500">{LOCKED_PHONE_MASK}</span>
+                          </div>
+                          <p className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold leading-relaxed text-amber-100/90">
+                            {unlockLeadLoading ? t('processing') : t('phoneLockedUntilBidAccepted')}
+                          </p>
+                          {!workerHasActiveSubscription && (
+                            <button
+                              type="button"
+                              onClick={onSubscribe}
+                              className="flex min-h-[44px] w-full touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/90 px-4 text-[10px] font-bold uppercase tracking-[0.14em] text-white"
+                            >
+                              {t('subscribeToUnlock')}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
+                  )}
+                  {isExecutorViewer && isCrowdfundingMissionFlag && (
+                    <p className="border-t border-white/5 pt-4 text-[11px] leading-relaxed text-slate-500">
+                      {t('crowdfundingNoPrivatePhone')}
+                    </p>
                   )}
                 </div>
               )}

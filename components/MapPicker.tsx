@@ -370,7 +370,6 @@ function buildOptimisticLeadMission(
     creator: viewerProfile
       ? {
           avatar_url: viewerProfile?.avatar_url ?? null,
-          phone_number: viewerProfile?.phone_number ?? null,
           is_verified: viewerProfile?.is_verified ?? null,
         }
       : null,
@@ -2062,42 +2061,37 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const [selectedMission, setSelectedMission] = useState<JobOnMap | null>(null);
 
-  const handleUnlockLead = useCallback(async (opts?: { skipSubscriptionCheck?: boolean }) => {
+  /** Reveal client phone only via RPC (creator / accepted bid / assigned cleaner). */
+  const handleUnlockLead = useCallback(async () => {
     if (!currentUserId) {
       onRequestAuth?.();
       return;
     }
-    if (!opts?.skipSubscriptionCheck) {
-      const expRaw = viewerProfile?.subscription_expires_at;
-      const exp = expRaw ? new Date(expRaw).getTime() : NaN;
-      const active = Number.isFinite(exp) && Date.now() < exp;
-      if (!active) {
-        setShowWorkerSubscriptionGate(true);
-        return;
-      }
-    }
-    const creatorId = selectedMission?.creator_id;
-    if (!creatorId) {
+    const missionId = selectedMission?.id;
+    if (!missionId) {
       toast.error(t('contactUnavailable'));
+      return;
+    }
+    if (selectedMission?.crowdfunding_mode) {
+      setUnlockedLeadPhone(null);
+      setLeadPhoneVisible(false);
       return;
     }
     setUnlockLeadLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('phone_number')
-        .eq('id', creatorId)
-        .maybeSingle();
-      if (error) throw error;
-      const phone = String((data as { phone_number?: string | null })?.phone_number ?? '').trim();
+      const { getMissionClientPhone } = await import('../src/lib/missionContact');
+      const phone = await getMissionClientPhone(missionId);
       if (!phone) {
-        toast.error(t('contactUnavailable'));
+        setUnlockedLeadPhone(null);
+        setLeadPhoneVisible(false);
         return;
       }
       setUnlockedLeadPhone(phone);
       setLeadPhoneVisible(true);
     } catch (err) {
       console.error('handleUnlockLead', err);
+      setUnlockedLeadPhone(null);
+      setLeadPhoneVisible(false);
       toast.error(t('unexpectedErrorTryAgain'));
     } finally {
       setUnlockLeadLoading(false);
@@ -2105,10 +2099,25 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [
     currentUserId,
     onRequestAuth,
-    selectedMission?.creator_id,
+    selectedMission?.crowdfunding_mode,
+    selectedMission?.id,
     t,
     toast,
-    viewerProfile?.subscription_expires_at,
+  ]);
+
+  // Auto-reveal client phone when RPC allows (accepted bid / assigned / creator).
+  useEffect(() => {
+    setLeadPhoneVisible(false);
+    setUnlockedLeadPhone(null);
+    if (!selectedMission?.id || !currentUserId || selectedMission.crowdfunding_mode) return;
+    void handleUnlockLead();
+  }, [
+    currentUserId,
+    handleUnlockLead,
+    selectedMission?.cleaner_id,
+    selectedMission?.crowdfunding_mode,
+    selectedMission?.id,
+    selectedMission?.status,
   ]);
 
   const [mobileTapPulse, setMobileTapPulse] = useState<{ lng: number; lat: number } | null>(null);
@@ -2877,7 +2886,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('phone_number, is_verified')
+          .select('is_verified')
           .eq('id', user.id)
           .maybeSingle();
         if (profileError) {
@@ -3008,7 +3017,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // SaaS model: no security deposit — access is subscription/token gated only.
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('phone_number, is_verified')
+        .select('is_verified')
         .eq('id', user.id)
         .maybeSingle();
       if (profileError) {
@@ -3025,8 +3034,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      if (!profile?.phone_number || String(profile.phone_number).trim().length === 0) {
-        toast.notice(t('mapToastWhatsAppProfileTip'));
+      try {
+        const { getOwnPhoneNumber } = await import('../src/lib/missionContact');
+        const ownPhone = await getOwnPhoneNumber();
+        if (!ownPhone) {
+          toast.notice(t('mapToastWhatsAppProfileTip'));
+        }
+      } catch {
+        /* tip is best-effort */
       }
 
       await placePendingBid(selectedMission.id, amtUsd);
@@ -4054,8 +4069,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 }
           );
           setShowWorkerSubscriptionGate(false);
-          if (exp && Date.parse(exp) > Date.now() && selectedMission?.creator_id) {
-            void handleUnlockLead({ skipSubscriptionCheck: true });
+          if (exp && Date.parse(exp) > Date.now() && selectedMission?.id) {
+            void handleUnlockLead();
           }
         }}
       />

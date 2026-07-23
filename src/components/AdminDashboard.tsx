@@ -28,6 +28,24 @@ interface ProfileRow {
   first_gps_track?: unknown;
 }
 
+/** Enrich profiles with phones via admin RPC (column SELECT revoked for authenticated). */
+async function withAdminPhones(rows: ProfileRow[]): Promise<ProfileRow[]> {
+  if (!rows.length) return rows;
+  const ids = rows.map((r) => r.id).filter(Boolean);
+  const { data, error } = await supabase.rpc('admin_get_profile_phones', {
+    p_user_ids: ids,
+  });
+  if (error) {
+    console.warn('admin_get_profile_phones', error.message);
+    return rows;
+  }
+  const map = new Map<string, string | null>();
+  for (const row of (data || []) as { user_id: string; phone_number: string | null }[]) {
+    map.set(row.user_id, row.phone_number);
+  }
+  return rows.map((r) => ({ ...r, phone_number: map.get(r.id) ?? null }));
+}
+
 interface MissionRow {
   id: string;
   status: string;
@@ -176,7 +194,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
       const [profRes, missRes, txRes] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, full_name, telegram_username, contact_email, phone_number, wallet_balance, avatar_url, is_verified, is_banned, first_gps_track')
+          .select('id, full_name, telegram_username, contact_email, wallet_balance, avatar_url, is_verified, is_banned, first_gps_track')
           .order('wallet_balance', { ascending: false })
           .limit(50),
         supabase.from('missions').select('id, status, creator_id').limit(50),
@@ -191,7 +209,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
       if (missRes.error) throw missRes.error;
       if (txRes.error) throw txRes.error;
 
-      setProfiles((profRes.data || []) as ProfileRow[]);
+      setProfiles(await withAdminPhones((profRes.data || []) as ProfileRow[]));
       setMissions((missRes.data || []) as MissionRow[]);
       setTransactions((txRes.data || []) as TransactionRow[]);
       await fetchPendingApprovals();
@@ -327,12 +345,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     try {
       const base = supabase
         .from('profiles')
-        .select('id, full_name, telegram_username, contact_email, phone_number, wallet_balance, avatar_url, is_verified, is_banned', { count: 'exact' })
+        .select('id, full_name, telegram_username, contact_email, wallet_balance, avatar_url, is_verified, is_banned', { count: 'exact' })
         .order('wallet_balance', { ascending: false })
         .limit(50);
       const { data, error } = await base;
       if (error) throw error;
-      setProfiles((data || []) as ProfileRow[]);
+      setProfiles(await withAdminPhones((data || []) as ProfileRow[]));
     } catch (e: any) {
       console.error('God mode fetch error:', e);
       setGodError(e?.message || 'Failed to load users.');

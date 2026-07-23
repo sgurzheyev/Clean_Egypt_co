@@ -139,35 +139,36 @@ funding ──(target met)──► available ──(accept bid)──► in_pro
 ### Business rules (canonical)
 
 #### Public map vs private data
-- [ ] **Anyone** who installs the app can see the **map and all orders** (browsing is open).
-- [ ] For **ALL private tasks** (home / office / non-crowdfunding P2P):
-	- [ ] Client **phone number is strictly hidden** — no exceptions, no “preview digits.”
-- [ ] Crowdfunding (Garbage Removal / public space):
-	- [ ] Fully **open and public**.
-	- [ ] **No private client phone** attached to the pin (public location semantics).
+- [x] **Anyone** who installs the app can see the **map and all orders** (browsing is open).
+- [x] For **ALL private tasks** (home / office / non-crowdfunding P2P):
+	- [x] Client **phone number is strictly hidden** — no exceptions, no “preview digits.” (`get_mission_client_phone` + column SELECT revoke)
+- [x] Crowdfunding (Garbage Removal / public space):
+	- [x] Fully **open and public**.
+	- [x] **No private client phone** attached to the pin (RPC always returns NULL when `crowdfunding_mode`).
 
 #### Token-gated bidding (Hungry-Games)
 - [ ] Worker must have an **active subscription** to place any bid.
-- [ ] Placing a bid costs exactly **1 Token** (non-refundable stake; replaces legacy fiat deposit / trust-deposit thinking).
-- [ ] Deduct token **atomically** with bid insert (`FOR UPDATE` on `profiles.token_balance`) — no free bids on race.
+- [x] Placing a bid costs exactly **1 Token** on crowdfunding (non-refundable stake).
+- [x] Deduct token **atomically** with bid insert (`FOR UPDATE` on `profiles.token_balance`) — no free bids on race.
 - [ ] Token-boost for **listing promotion** remains separate from the 1-token bid stake.
 
 #### Tender win → unlock contact
-- [ ] Only when the creator **explicitly accepts** a worker’s bid:
-	- [ ] Mission → `in_progress`, cleaner assigned.
-	- [ ] Worker unlocks the client’s **private phone number** (and any other contact fields gated the same way).
-- [ ] Until accept: briefing shows contacts as locked / “Accept required.”
+- [x] Only when the creator **explicitly accepts** a worker’s bid (or worker is assigned cleaner):
+	- [x] Mission → `in_progress`, cleaner assigned.
+	- [x] Worker unlocks the client’s **private phone number** via `get_mission_client_phone`.
+- [x] Until accept: briefing shows masked `+20 1XX XXX XXXX` + “Locked until bid acceptance” / RU equivalent.
 
 ### Engineering notes
-- RLS / RPC: never select `phone_number` for non-accepted counterparties.
-- UI: [[../components/MissionBriefing]], [[../components/Profile]], public [[../components/PublicProfile]].
+- Migration: `supabase/migrations/20260723_hide_client_phone_until_bid_accept.sql`
+- Helpers: `src/lib/missionContact.ts`; UI: `MissionBriefing` + `MapPicker`.
+- RLS / column: `REVOKE SELECT (phone_number)` on `profiles` for `anon`/`authenticated`; use RPCs instead.
 - Update `.cursorrules` TOKENS MODEL bullet to include **1 token / bid**.
 - Retire remaining trust-deposit UX copy if still present.
 
 ### Exit criteria
 - [ ] Logged-out / free user sees pins but cannot bid.
 - [ ] Subscribed user without tokens cannot bid; with ≥1 token, balance drops by 1 on bid.
-- [ ] Phone visible to cleaner **only** after accept; crowdfunding pins never expose a client phone.
+- [x] Phone visible to cleaner **only** after accept; crowdfunding pins never expose a client phone.
 
 ---
 
