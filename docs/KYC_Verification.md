@@ -54,6 +54,6 @@ Browser RLS blocks non-owner reads. Admins mint 1h URLs via Edge Function:
 
 ## Related
 
-- Trust / home mission gate: [[../src/lib/trustDeposit.ts]]
+- Trust / home mission gate: [[../src/lib/homeMissionAccess.ts]]
 - Admin shell: [[../src/components/AdminDashboard.tsx]]
 - Dashboard hub: [[../00_Dashboard]]

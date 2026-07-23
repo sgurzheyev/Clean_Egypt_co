@@ -163,7 +163,7 @@ funding ──(target met)──► available ──(accept bid)──► in_pro
 - Helpers: `src/lib/missionContact.ts`; UI: `MissionBriefing` + `MapPicker`.
 - RLS / column: `REVOKE SELECT (phone_number)` on `profiles` for `anon`/`authenticated`; use RPCs instead.
 - Update `.cursorrules` TOKENS MODEL bullet to include **1 token / bid**.
-- Retire remaining trust-deposit UX copy if still present.
+- Retire remaining trust-deposit UX copy if still present (audit Jul 2026: dead i18n keys removed; gate lives in `homeMissionAccess.ts`).
 
 ### Exit criteria
 - [ ] Logged-out / free user sees pins but cannot bid.

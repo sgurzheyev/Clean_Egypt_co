@@ -21,7 +21,7 @@ const resources = {
       withdrawalBalanceHint:
         'Cash out is disabled in the token-only system.',
       withdrawalExceedsAvailable:
-        'Amount exceeds withdrawable balance (wallet minus frozen security deposit).',
+        'Amount exceeds withdrawable balance.',
       withdrawalRequestQueued: 'Withdrawal request submitted. Our team will process your payout.',
       continueToConfirmWithdrawal: 'Review & confirm',
       withdrawalBackToEdit: 'Back',
@@ -196,7 +196,6 @@ const resources = {
         '💡 Card processor fee applies.',
       stripeCommissionNote: '💡 Your balance is token-based.',
       availableToWithdraw: 'Available: {{amount}}',
-      frozenDepositTag: '🔒 Frozen deposit: {{amount}}',
       payoutFeeNote: '*12% platform fee applies on payout.',
       cardNumber: 'Card Number',
       expiry: 'Expiry',
@@ -213,16 +212,10 @@ const resources = {
         'International cards may route through a processor.',
       stripeFeeTransparentHint:
         'Wallet credit uses the platform rate and a small currency-risk buffer on card top-ups.',
-      stripeDepositLegalNote:
-        'By paying, you agree to the 12% platform fee on all future cash withdrawals.',
       stripeMinimumCharge: 'Minimum card charge applies. Increase the amount.',
-      depositCurrencyUsd: 'TOKENS',
       amountUsd: 'Amount (Tokens)',
       orderFormAmountHintUsd: 'Minimum work budget is $5 USD. All amounts are in USD.',
       paymentsUsdOnlyNote: 'Payments are token-based.',
-      frozenDepositInfoTitle: 'About frozen deposit',
-      frozenDepositInfoBody:
-        'This amount is reserved for your active bids and missions. It will be released once the missions are completed or cancelled.',
       missionPhotoRejected: 'One or more photos were rejected. Replace them with real cleanup context.',
       moderationPhotoExplicit: 'Blocked (explicit content — not stored)',
       photoModerationChecking: 'Checking photo…',
@@ -277,7 +270,6 @@ const resources = {
       missionPlacementCost: 'Total cost: {{count}} tokens',
       leadPinDefaultDescription: 'Service request',
       serviceRequested: 'Service requested',
-      unlockLead: 'Unlock Lead',
       contactCustomer: 'Contact customer',
       contactUnavailable: 'Contact not available',
       phoneLockedUntilBidAccepted: 'Locked until bid acceptance',
@@ -550,7 +542,7 @@ const resources = {
       withdrawalLineNet: 'صافي الاستلام: ${{net}}',
       withdrawalBalanceHint:
         'الحد الأقصى للسحب: {{max}} USD (المحفظة ناقص {{frozen}} USD مجمّد). عمولة المنصة 12٪.',
-      withdrawalExceedsAvailable: 'المبلغ يتجاوز الرصيد القابل للسحب (المحفظة ناقص الوديعة المجمّدة).',
+      withdrawalExceedsAvailable: 'المبلغ يتجاوز الرصيد القابل للسحب.',
       withdrawalRequestQueued: 'تم إرسال طلب السحب. سيعالج فريقنا الدفع.',
       continueToConfirmWithdrawal: 'مراجعة وتأكيد',
       withdrawalBackToEdit: 'رجوع',
@@ -702,7 +694,6 @@ const resources = {
       payWithCardStripe: 'ادفع بالبطاقة (Stripe)',
       stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
       availableToWithdraw: 'المتاح: {{amount}}',
-      frozenDepositTag: '🔒 وديعة مجمّدة: {{amount}}',
       payoutFeeNote: '*تُطبق عمولة المنصة 12٪ عند السحب.',
       cardNumber: 'رقم البطاقة',
       expiry: 'تاريخ الانتهاء',
@@ -719,14 +710,8 @@ const resources = {
       stripeCardProcessingNote:
         'قد تعالج البطاقة الدولية عبر شبكة أجنبية؛ الرصيد المُضاف بالدولار (USD) كما هو موضح.',
       stripeFeeTransparentHint: '(المبلغ − ٠٫٣٠$) × ٠٫٩٦٥ × ٠٫٩٧٥ — Stripe ~٣٫٥٪ + احتياطي تحويل ٢٫٥٪.',
-      stripeDepositLegalNote:
-        'بالدفع فإنك توافق على رسوم المنصة ١٢٪ على جميع السحوبات النقدية لاحقًا.',
       stripeMinimumCharge: 'الحد الأدنى للخصم يعادل نحو ٢٥ USD. زد المبلغ.',
-      depositCurrencyUsd: 'USD',
       amountUsd: 'المبلغ (USD)',
-      frozenDepositInfoTitle: 'عن الوديعة المجمّدة',
-      frozenDepositInfoBody:
-        'هذا المبلغ محجوز لعروضك النشطة ومهامك. يُفرج عنه عند اكتمال المهام أو إلغائها.',
       whatNeedsCleaning: 'ماذا يحتاج تنظيفاً؟',
       serviceMarketplace: 'سوق الخدمات',
       cleanCityArea: 'تنظيف منطقة المدينة',
@@ -753,7 +738,6 @@ const resources = {
       missionPlacementCost: 'التكلفة الإجمالية: {{count}} توكن',
       leadPinDefaultDescription: 'طلب خدمة',
       serviceRequested: 'الخدمة المطلوبة',
-      unlockLead: 'افتح العميل المحتمل',
       contactCustomer: 'تواصل مع العميل',
       contactUnavailable: 'بيانات الاتصال غير متاحة',
       phoneLockedUntilBidAccepted: 'الرقم مخفي حتى قبول العرض',
@@ -986,7 +970,7 @@ const resources = {
       withdrawalBalanceHint:
         'Макс. вывод: {{max}} USD (кошелёк минус {{frozen}} USD заморожено). Комиссия платформы 12%.',
       withdrawalExceedsAvailable:
-        'Сумма превышает доступный баланс (кошелёк минус замороженный залог).',
+        'Сумма превышает доступный баланс.',
       withdrawalRequestQueued: 'Заявка отправлена. Обработаем выплату.',
       continueToConfirmWithdrawal: 'Проверить и подтвердить',
       withdrawalBackToEdit: 'Назад',
@@ -1156,7 +1140,6 @@ const resources = {
       stripeFeeAdvisory: '💡 Комиссия Stripe: 3.5% + $0.3 за транзакцию! Лучше начинать 🎮 игру от $9.99',
       stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
       availableToWithdraw: 'Доступно к выводу: {{amount}} USD',
-      frozenDepositTag: '🔒 Замороженный залог: {{amount}} USD',
       payoutFeeNote: '*При выплате удерживается комиссия платформы 12%.',
       cardNumber: 'Номер карты',
       expiry: 'Срок действия',
@@ -1174,17 +1157,11 @@ const resources = {
         'Международная карта может идти через чужую валюту; зачисление в USD — как показано выше.',
       stripeFeeTransparentHint:
         'Формула: (сумма − $0.30) × 0.965 × 0.975 — Stripe ~3.5% + буфер конвертации 2.5%.',
-      stripeDepositLegalNote:
-        'Оплачивая, вы соглашаетесь с комиссией платформы 12% при всех будущих выводах средств.',
       stripeMinimumCharge: 'Минимальное списание — эквивалент ~25 USD. Увеличьте сумму.',
-      depositCurrencyUsd: 'USD',
       amountUsd: 'Сумма (USD)',
       orderFormAmountHintUsd:
         'Минимальный бюджет работы — 5 USD. Все суммы только в USD.',
       paymentsUsdOnlyNote: 'Оплата миссий в этой форме — в USD, без шага конвертации валют.',
-      frozenDepositInfoTitle: 'О замороженном залоге',
-      frozenDepositInfoBody:
-        'Эта сумма зарезервирована под активные ставки и задания. Она разблокируется после завершения или отмены заданий.',
       whatNeedsCleaning: 'Что нужно очистить?',
       serviceMarketplace: 'Рынок услуг',
       cleanCityArea: 'Очистить район города',
@@ -1213,7 +1190,6 @@ const resources = {
       missionPlacementCost: 'К оплате: {{count}} токенов',
       leadPinDefaultDescription: 'Заявка на услугу',
       serviceRequested: 'Запрошенная услуга',
-      unlockLead: 'Открыть лид',
       contactCustomer: 'Контакты клиента',
       contactUnavailable: 'Контакт недоступен',
       phoneLockedUntilBidAccepted: 'Номер скрыт до принятия отклика',
@@ -1497,7 +1473,7 @@ const resources = {
       withdrawalBalanceHint:
         'Max. Auszahlung: {{max}} USD (Wallet abzüglich {{frozen}} USD Sicherheit). 12% Gebühr.',
       withdrawalExceedsAvailable:
-        'Betrag übersteigt verfügbares Guthaben (Wallet minus eingefrorene Kaution).',
+        'Betrag übersteigt verfügbares Guthaben.',
       withdrawalRequestQueued: 'Antrag gesendet.',
       continueToConfirmWithdrawal: 'Prüfen & bestätigen',
       withdrawalBackToEdit: 'Zurück',
@@ -1649,7 +1625,6 @@ const resources = {
       payWithCardStripe: 'Mit Karte zahlen (Stripe)',
       stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
       availableToWithdraw: 'Verfügbar zur Auszahlung: {{amount}} USD',
-      frozenDepositTag: '🔒 Eingefrorene Kaution: {{amount}} USD',
       payoutFeeNote: '*12% Plattformgebühr bei Auszahlung.',
       cardNumber: 'Kartennummer',
       expiry: 'Ablauf',
@@ -1666,14 +1641,8 @@ const resources = {
       stripeCardProcessingNote:
         'Internationale Karten können über Fremdwährung laufen; Gutschrift erfolgt in USD wie angezeigt.',
       stripeFeeTransparentHint: 'Formel: (Betrag − $0,30) × 0,965 × 0,975 — Stripe ~3,5% + 2,5% FX-Puffer.',
-      stripeDepositLegalNote:
-        'Mit der Zahlung akzeptieren Sie die 12% Plattformgebühr bei künftigen Auszahlungen.',
       stripeMinimumCharge: 'Mindestbetrag entspricht ca. 25 USD. Bitte erhöhen.',
-      depositCurrencyUsd: 'USD',
       amountUsd: 'Betrag (USD)',
-      frozenDepositInfoTitle: 'Über eingefrorene Kaution',
-      frozenDepositInfoBody:
-        'Dieser Betrag ist für aktive Gebote und Missionen reserviert. Er wird freigegeben, sobald die Missionen abgeschlossen oder storniert sind.',
       whatNeedsCleaning: 'Was soll gereinigt werden?',
       cleanCityArea: 'Stadtbereich reinigen',
       cleanYourHomeOffice: 'Zuhause/Büro reinigen',
@@ -1831,7 +1800,7 @@ const resources = {
       withdrawalBalanceHint:
         'Max prelievo: {{max}} USD (wallet meno {{frozen}} USD bloccati). Commissione 12%.',
       withdrawalExceedsAvailable:
-        'Importo superiore al disponibile (wallet meno deposito vincolato).',
+        'Importo superiore al disponibile.',
       withdrawalRequestQueued: 'Richiesta inviata.',
       continueToConfirmWithdrawal: 'Rivedi e conferma',
       withdrawalBackToEdit: 'Indietro',
@@ -1983,7 +1952,6 @@ const resources = {
       payWithCardStripe: 'Paga con carta (Stripe)',
       stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
       availableToWithdraw: 'Disponibile per il prelievo: {{amount}} USD',
-      frozenDepositTag: '🔒 Deposito vincolato: {{amount}} USD',
       payoutFeeNote: '*Commissione piattaforma 12% sul prelievo.',
       cardNumber: 'Numero carta',
       expiry: 'Scadenza',
@@ -2001,14 +1969,8 @@ const resources = {
         'Le carte internazionali possono passare in altra valuta; il credito è in USD come indicato.',
       stripeFeeTransparentHint:
         'Formula: (importo − $0,30) × 0,965 × 0,975 — Stripe ~3,5% + buffer FX 2,5%.',
-      stripeDepositLegalNote:
-        'Pagando accetti la commissione piattaforma del 12% su tutti i futuri prelievi.',
       stripeMinimumCharge: 'Addebito minimo equivalente a ~25 USD. Aumenta l’importo.',
-      depositCurrencyUsd: 'USD',
       amountUsd: 'Importo (USD)',
-      frozenDepositInfoTitle: 'Deposito vincolato',
-      frozenDepositInfoBody:
-        'Questo importo è riservato alle tue offerte e missioni attive. Verrà sbloccato al completamento o all’annullamento delle missioni.',
       whatNeedsCleaning: 'Cosa va pulito?',
       cleanCityArea: 'Pulisci area città',
       cleanYourHomeOffice: 'Pulisci casa/ufficio',
@@ -2166,7 +2128,7 @@ const resources = {
       withdrawalBalanceHint:
         'Máx. retiro: {{max}} USD (cartera menos {{frozen}} USD congelados). Comisión 12%.',
       withdrawalExceedsAvailable:
-        'El importe supera el saldo disponible (cartera menos depósito congelado).',
+        'El importe supera el saldo disponible.',
       withdrawalRequestQueued: 'Solicitud enviada.',
       continueToConfirmWithdrawal: 'Revisar y confirmar',
       withdrawalBackToEdit: 'Atrás',
@@ -2318,7 +2280,6 @@ const resources = {
       payWithCardStripe: 'Pagar con tarjeta (Stripe)',
       stripeCommissionNote: '💡 Stripe commission: 3.5% + $0.3c per tx',
       availableToWithdraw: 'Disponible para retirar: {{amount}} USD',
-      frozenDepositTag: '🔒 Depósito retenido: {{amount}} USD',
       payoutFeeNote: '*Comisión de plataforma del 12% al retirar.',
       cardNumber: 'Número de tarjeta',
       expiry: 'Vencimiento',
@@ -2336,14 +2297,8 @@ const resources = {
         'Las tarjetas internacionales pueden liquidar en otra moneda; el abono es en USD como se muestra.',
       stripeFeeTransparentHint:
         'Fórmula: (importe − $0,30) × 0,965 × 0,975 — Stripe ~3,5% + colchón FX 2,5%.',
-      stripeDepositLegalNote:
-        'Al pagar aceptas la comisión del 12% en todos los retiros futuros.',
       stripeMinimumCharge: 'Cargo mínimo equivalente a ~25 USD. Aumenta el importe.',
-      depositCurrencyUsd: 'USD',
       amountUsd: 'Importe (USD)',
-      frozenDepositInfoTitle: 'Depósito retenido',
-      frozenDepositInfoBody:
-        'Este importe está reservado para tus pujas y misiones activas. Se liberará cuando las misiones se completen o cancelen.',
       whatNeedsCleaning: '¿Qué hay que limpiar?',
       cleanCityArea: 'Limpiar zona ciudad',
       cleanYourHomeOffice: 'Limpiar casa/oficina',

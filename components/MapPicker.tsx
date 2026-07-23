@@ -19,7 +19,11 @@ import NotificationBell from './NotificationBell';
 import MissionFeedCard from './MissionFeedCard';
 import MissionBriefing, { type AssignedWorkerProfile } from './MissionBriefing';
 import { useNavigate } from 'react-router-dom';
-import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
+import { checkHomeMissionWorkerVerification } from '../src/lib/homeMissionAccess';
+import {
+  getMissionClientPhone,
+  getOwnPhoneNumber,
+} from '../src/lib/missionContact';
 import CreateMission from './CreateMission';
 import {
   validateMissionDescription,
@@ -293,7 +297,6 @@ interface JobOnMap {
   creator?: {
     full_name?: string | null;
     avatar_url?: string | null;
-    phone_number?: string | null;
     is_verified?: boolean | null;
   } | null;
 }
@@ -963,18 +966,6 @@ interface MapPickerProps {
   onRequestAuth?: () => void;
   flyToTarget?: { lat: number; lng: number } | null;
   onFlyToComplete?: () => void;
-  orders?: any[]; // legacy, ignored
-  currentAmount?: number; // legacy
-  currentType?: 'home' | 'city'; // legacy
-  hasFullAccess?: boolean; // legacy
-  currentUserId?: string | null; // legacy
-  onRequestPayment?: (params: {
-    lat: number;
-    lng: number;
-    amount: number;
-    type: 'home' | 'city';
-  }) => void; // legacy, ignored
-  showPayment?: boolean; // legacy
 }
 
 const customDarkStyle: any = {
@@ -2079,7 +2070,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
     setUnlockLeadLoading(true);
     try {
-      const { getMissionClientPhone } = await import('../src/lib/missionContact');
       const phone = await getMissionClientPhone(missionId);
       if (!phone) {
         setUnlockedLeadPhone(null);
@@ -3014,7 +3004,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      // SaaS model: no security deposit — access is subscription/token gated only.
+      // SaaS model: subscription/token gated only (no bid security deposit).
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('is_verified')
@@ -3035,7 +3025,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
 
       try {
-        const { getOwnPhoneNumber } = await import('../src/lib/missionContact');
         const ownPhone = await getOwnPhoneNumber();
         if (!ownPhone) {
           toast.notice(t('mapToastWhatsAppProfileTip'));
@@ -4511,7 +4500,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
             handleCloseMissionBriefing();
             onAvatarClick?.();
           }}
-          onUnlockLead={() => void handleUnlockLead()}
           onSubscribe={() => setShowWorkerSubscriptionGate(true)}
           onSubmitReview={handleSubmitReview}
           onSelectRating={setSelectedRating}

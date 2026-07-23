@@ -33,7 +33,8 @@ import {
   filterMissionsByMarketCity,
   MARKETPLACE_ALL_EGYPT_ID,
 } from '../src/lib/egyptMarketplace';
-import { checkHomeMissionWorkerVerification } from '../src/lib/trustDeposit';
+import { checkHomeMissionWorkerVerification } from '../src/lib/homeMissionAccess';
+import { getMissionWorkerPhone, getOwnPhoneNumber } from '../src/lib/missionContact';
 import { creatorRejectProof, submitMissionProof } from '../src/lib/submitMissionProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import RatingReviewModal, { type RatingTarget } from './RatingReviewModal';
@@ -479,7 +480,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       }
       let phone: string | null = null;
       try {
-        const { getMissionWorkerPhone } = await import('../src/lib/missionContact');
         phone = await getMissionWorkerPhone(missionId);
       } catch (e) {
         console.warn('get_mission_worker_phone failed', e);
@@ -695,7 +695,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       const profileRow = profile as ProfileRow | null;
       let ownPhone = '';
       try {
-        const { getOwnPhoneNumber } = await import('../src/lib/missionContact');
         ownPhone = (await getOwnPhoneNumber()) || '';
       } catch (e) {
         console.warn('get_own_phone_number failed', e);

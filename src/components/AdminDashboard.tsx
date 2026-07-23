@@ -39,11 +39,11 @@ async function withAdminPhones(rows: ProfileRow[]): Promise<ProfileRow[]> {
     console.warn('admin_get_profile_phones', error.message);
     return rows;
   }
-  const map = new Map<string, string | null>();
+  const phoneById = new globalThis.Map<string, string | null>();
   for (const row of (data || []) as { user_id: string; phone_number: string | null }[]) {
-    map.set(row.user_id, row.phone_number);
+    phoneById.set(row.user_id, row.phone_number);
   }
-  return rows.map((r) => ({ ...r, phone_number: map.get(r.id) ?? null }));
+  return rows.map((r) => ({ ...r, phone_number: phoneById.get(r.id) ?? null }));
 }
 
 interface MissionRow {

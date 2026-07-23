@@ -2,7 +2,7 @@
  * [[Architecture_Overview.md]]
  * Mission detail panel — bids, crowdfunding progress + Stripe contribute.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { MapPin, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import TranslatableMissionDescription from './TranslatableMissionDescription';
@@ -24,7 +24,12 @@ import {
   isCrowdfundingOpen,
 } from '../src/lib/crowdfunding';
 import { type MissionBidRow, bidWorkerDisplayName } from '../src/lib/missionBids';
-import { LOCKED_PHONE_MASK, toTelHref, toWhatsAppHref } from '../src/lib/missionContact';
+import {
+  LOCKED_PHONE_MASK,
+  toTelHref,
+  toWhatsAppHref,
+} from '../src/lib/missionContact';
+import { sanitizeIntegerUsdDigits, parseIntegerUsdFromInput } from '../src/lib/integerUsdInput';
 
 export type AssignedWorkerProfile = {
   full_name?: string | null;
@@ -32,7 +37,6 @@ export type AssignedWorkerProfile = {
   rating?: number | null;
   telegram_username?: string | null;
 };
-import { sanitizeIntegerUsdDigits, parseIntegerUsdFromInput } from '../src/lib/integerUsdInput';
 
 export type MissionBriefingMission = {
   id: string;
@@ -91,8 +95,6 @@ export type MissionBriefingProps = {
   onSheetTouchEnd: () => void;
   onViewPhotos: () => void;
   onStartWork: () => void;
-  /** @deprecated Phone unlock is automatic via get_mission_client_phone; kept for call-site compat. */
-  onUnlockLead: () => void;
   onSubscribe: () => void;
   onSubmitReview: (rating: number, comment: string) => void;
   onSelectRating: (rating: number) => void;
@@ -173,7 +175,6 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   onSheetTouchEnd,
   onViewPhotos,
   onStartWork,
-  onUnlockLead: _onUnlockLead,
   onSubscribe,
   onSubmitReview,
   onSelectRating,
@@ -205,6 +206,17 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const targetUsd = Math.max(0, Math.floor(Number(mission.expected_price ?? 0)));
   const fundingPct =
     targetUsd > 0 ? Math.min(100, Math.round((fundedUsd / targetUsd) * 100)) : 0;
+
+  const revealedPhone =
+    leadPhoneVisible && unlockedLeadPhone?.trim() ? unlockedLeadPhone.trim() : null;
+  const telHref = useMemo(
+    () => (revealedPhone ? toTelHref(revealedPhone) : ''),
+    [revealedPhone]
+  );
+  const whatsappHref = useMemo(
+    () => (revealedPhone ? toWhatsAppHref(revealedPhone) : null),
+    [revealedPhone]
+  );
 
   const [reviewComment, setReviewComment] = useState('');
   const [fundingNowMs, setFundingNowMs] = useState(() => Date.now());
@@ -791,36 +803,44 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
 
                   {isExecutorViewer && !isCrowdfundingMissionFlag && (
                     <div className="space-y-3">
-                      {leadPhoneVisible && unlockedLeadPhone ? (
+                      {revealedPhone ? (
                         <div className="space-y-3 border-t border-white/5 pt-4">
                           <div className="flex items-center justify-between gap-4">
                             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
                               {t('contactCustomer')}
                             </span>
-                            <a
-                              href={toTelHref(unlockedLeadPhone) || undefined}
-                              className="text-right text-sm font-black text-emerald-300 break-all underline-offset-2 hover:underline"
-                            >
-                              {unlockedLeadPhone}
-                            </a>
+                            {telHref ? (
+                              <a
+                                href={telHref}
+                                className="text-right text-sm font-black text-emerald-300 break-all underline-offset-2 hover:underline"
+                              >
+                                {revealedPhone}
+                              </a>
+                            ) : (
+                              <span className="text-right text-sm font-black text-emerald-300 break-all">
+                                {revealedPhone}
+                              </span>
+                            )}
                           </div>
                           <div className="flex gap-2">
-                            <a
-                              href={toTelHref(unlockedLeadPhone) || undefined}
-                              className="flex min-h-[44px] flex-1 touch-manipulation items-center justify-center rounded-2xl border border-emerald-400/35 bg-emerald-600/80 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-white"
-                            >
-                              {t('callClient')}
-                            </a>
-                            {toWhatsAppHref(unlockedLeadPhone) && (
+                            {telHref ? (
                               <a
-                                href={toWhatsAppHref(unlockedLeadPhone)!}
+                                href={telHref}
+                                className="flex min-h-[44px] flex-1 touch-manipulation items-center justify-center rounded-2xl border border-emerald-400/35 bg-emerald-600/80 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-white"
+                              >
+                                {t('callClient')}
+                              </a>
+                            ) : null}
+                            {whatsappHref ? (
+                              <a
+                                href={whatsappHref}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex min-h-[44px] flex-1 touch-manipulation items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/80 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-white"
                               >
                                 WhatsApp
                               </a>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                       ) : (

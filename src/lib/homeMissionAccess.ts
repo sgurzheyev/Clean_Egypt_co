@@ -1,6 +1,6 @@
 /**
- * SaaS model: the legacy security/trust deposit (50% escrow) is removed.
- * The only remaining worker-trust rule is ID verification for home/office missions.
+ * Home/office mission access gates (KYC).
+ * Legacy 50% security/trust deposit escrow was removed — subscription + tokens only.
  */
 
 export function isHomeMissionCategory(category: string | null | undefined): boolean {

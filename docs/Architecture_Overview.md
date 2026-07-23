@@ -61,7 +61,7 @@
 | Money formatters | [[../src/lib/formatMoney.ts]] |
 | Service → sector / pin icon | [[../src/lib/serviceSectors.ts]] |
 | City PDF payload (expiry) | [[../src/lib/cityNotification.ts]] |
-| Trust / home KYC gate | [[../src/lib/trustDeposit.ts]] |
+| Trust / home KYC gate | [[../src/lib/homeMissionAccess.ts]] |
 
 ## Database migrations
 
