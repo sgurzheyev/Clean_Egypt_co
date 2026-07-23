@@ -205,6 +205,12 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const locationTranslation = useMissionTextTranslation(locationSource);
   const budgetValue = formatWorkBudgetUsd(missionWorkBudgetUsd(mission));
   const isInProgress = mission.status === 'in_progress';
+  const isFundingStatus = String(mission.status || '').toLowerCase() === 'funding';
+  const acceptedFundingBid = missionBids.find(
+    (b) => String(b.status || '').toLowerCase() === 'accepted'
+  );
+  const hasPreselectedCleanerDuringFunding =
+    isFundingStatus && (!!mission.cleaner_id || !!acceptedFundingBid);
   const showBidsSection =
     !isInProgress &&
     (isMissionCreator || canPlaceBid || missionBids.length > 0 || bidsLoading);
@@ -602,6 +608,14 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       target: formatWorkBudgetUsd(targetUsd),
                     })}
                   </p>
+                  {hasPreselectedCleanerDuringFunding && (
+                    <p className="mt-2 rounded-xl border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-[11px] font-semibold leading-relaxed text-violet-100/95">
+                      {t('selectedCleanerWaitingFunds', {
+                        defaultValue:
+                          'Selected Cleaner — waiting for remaining funds',
+                      })}
+                    </p>
+                  )}
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
                     <div
                       className="h-full rounded-full bg-amber-400/80 transition-all"
@@ -671,71 +685,91 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     const avatarUrl = bid.cleaner?.avatar_url;
                     const rating = bid.cleaner?.rating;
                     const bidStatus = String(bid.status || '').toLowerCase();
+                    const isAcceptedBid = bidStatus === 'accepted';
+                    const showWaitingFundsBadge =
+                      isAcceptedBid && hasPreselectedCleanerDuringFunding;
                     const canChatWithBidder =
                       isMissionCreator &&
                       !!bid.cleaner_id &&
                       (bidStatus === 'pending' || bidStatus === 'accepted');
+                    const canAcceptOrDecline =
+                      isMissionCreator &&
+                      bidStatus === 'pending' &&
+                      !mission.cleaner_id &&
+                      !acceptedFundingBid;
 
                     return (
                       <li
                         key={bid.id}
-                        className="flex items-center gap-3 border-b border-white/5 py-3 last:border-b-0"
+                        className="border-b border-white/5 py-3 last:border-b-0"
                       >
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/5">
-                          {avatarUrl ? (
-                            <img
-                              src={avatarUrl}
-                              alt={displayName}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-[10px] font-bold text-emerald-300">
-                              {(displayName || 'E')[0]}
-                            </span>
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-white">{displayName}</p>
-                          {typeof rating === 'number' && !Number.isNaN(rating) && (
-                            <p className="text-[10px] font-medium text-amber-300">
-                              {rating.toFixed(1)} ⭐
-                            </p>
-                          )}
-                        </div>
-                        <p className="shrink-0 text-sm font-black tabular-nums text-orange-300">
-                          {formatWorkBudgetUsd(Number(bid.bid_amount))}
-                        </p>
-                        {canChatWithBidder && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setChatPeer({ id: bid.cleaner_id, name: displayName })
-                            }
-                            className="shrink-0 rounded-full border border-violet-400/35 bg-violet-600/80 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-white transition-transform hover:bg-violet-500/90 active:scale-95"
-                            aria-label={t('missionChatOpen', { defaultValue: 'Chat' })}
-                          >
-                            💬 {t('missionChatOpen', { defaultValue: 'Chat' })}
-                          </button>
-                        )}
-                        {isMissionCreator && bid.status === 'pending' && (
-                          <div className="flex shrink-0 items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => onAcceptBid(bid)}
-                              className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/15 text-base transition-transform hover:bg-emerald-500/25 active:scale-95"
-                              aria-label={t('acceptBidAria')}
-                            >
-                              ✅
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onDeclineBid(bid.id)}
-                              className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/15 text-base transition-transform hover:bg-red-500/25 active:scale-95"
-                              aria-label={t('declineBidAria')}
-                            >
-                              ❌
-                            </button>
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/5">
+                            {avatarUrl ? (
+                              <img
+                                src={avatarUrl}
+                                alt={displayName}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-[10px] font-bold text-emerald-300">
+                                {(displayName || 'E')[0]}
+                              </span>
+                            )}
                           </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-white">
+                              {displayName}
+                            </p>
+                            {typeof rating === 'number' && !Number.isNaN(rating) && (
+                              <p className="text-[10px] font-medium text-amber-300">
+                                {rating.toFixed(1)} ⭐
+                              </p>
+                            )}
+                          </div>
+                          <p className="shrink-0 text-sm font-black tabular-nums text-orange-300">
+                            {formatWorkBudgetUsd(Number(bid.bid_amount))}
+                          </p>
+                          {canChatWithBidder && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setChatPeer({ id: bid.cleaner_id, name: displayName })
+                              }
+                              className="shrink-0 rounded-full border border-violet-400/35 bg-violet-600/80 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-white transition-transform hover:bg-violet-500/90 active:scale-95"
+                              aria-label={t('missionChatOpen', { defaultValue: 'Chat' })}
+                            >
+                              💬 {t('missionChatOpen', { defaultValue: 'Chat' })}
+                            </button>
+                          )}
+                          {canAcceptOrDecline && (
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => onAcceptBid(bid)}
+                                className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/15 text-base transition-transform hover:bg-emerald-500/25 active:scale-95"
+                                aria-label={t('acceptBidAria')}
+                              >
+                                ✅
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onDeclineBid(bid.id)}
+                                className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/15 text-base transition-transform hover:bg-red-500/25 active:scale-95"
+                                aria-label={t('declineBidAria')}
+                              >
+                                ❌
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        {showWaitingFundsBadge && (
+                          <p className="mt-2 rounded-lg border border-violet-400/25 bg-violet-500/10 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-violet-200">
+                            {t('selectedCleanerWaitingFunds', {
+                              defaultValue:
+                                'Selected Cleaner — waiting for remaining funds',
+                            })}
+                          </p>
                         )}
                       </li>
                     );

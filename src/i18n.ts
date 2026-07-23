@@ -282,6 +282,9 @@ const resources = {
       missionChatEmpty: 'No messages yet. Start negotiating job details!',
       missionChatPlaceholder: 'Type a message…',
       missionChatSend: 'Send',
+      selectedCleanerWaitingFunds: 'Selected Cleaner — waiting for remaining funds',
+      mapToastBidAcceptedWaitingFunds:
+        'Cleaner selected. Waiting for remaining crowdfunding…',
       subscriptionRequired: 'Subscription required to unlock leads.',
       availableLeads: 'Available Leads',
       activeServiceRequests: 'Active Service Requests',
@@ -763,6 +766,8 @@ const resources = {
       missionChatEmpty: 'لا رسائل بعد. ابدأ مناقشة تفاصيل العمل!',
       missionChatPlaceholder: 'اكتب رسالة…',
       missionChatSend: 'إرسال',
+      selectedCleanerWaitingFunds: 'تم اختيار المنفذ — بانتظار بقية التمويل',
+      mapToastBidAcceptedWaitingFunds: 'تم اختيار المنفذ. بانتظار بقية التمويل الجماعي…',
       subscriptionRequired: 'الاشتراك مطلوب لفتح العملاء المحتملين.',
       availableLeads: 'عملاء محتملون متاحون',
       activeServiceRequests: 'طلبات خدمة نشطة',
@@ -1222,6 +1227,9 @@ const resources = {
       missionChatEmpty: 'Сообщений пока нет. Начните обсуждение деталей!',
       missionChatPlaceholder: 'Введите сообщение…',
       missionChatSend: 'Отправить',
+      selectedCleanerWaitingFunds: 'Исполнитель выбран — ждём добора средств',
+      mapToastBidAcceptedWaitingFunds:
+        'Исполнитель выбран. Ждём добора краудфандинга…',
       subscriptionRequired: 'Нужна подписка, чтобы открывать лиды.',
       availableLeads: 'Доступные лиды',
       activeServiceRequests: 'Активные заявки',

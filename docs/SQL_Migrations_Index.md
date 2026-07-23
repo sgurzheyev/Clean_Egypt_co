@@ -46,6 +46,7 @@ Chronological — June–July 2026 token / crowdfunding / privacy stack.
 | 2026-07-23 | [[20260723_hide_client_phone_until_bid_accept.sql]] | Phase 3: phone column lockdown + RPCs until accepted bid. |
 | 2026-07-23 | [[20260723_public_profile_contract_phone.sql]] | Public profile member_since + contract-gated client phone RPC. |
 | 2026-07-23 | [[20260723_p2p_chat_system.sql]] | Phase 4: `mission_chats` table, participant RLS, Realtime publication. |
+| 2026-07-23 | [[20260723_dynamic_funding_bid_acceptance.sql]] | Accept bids during `funding`; bump `expected_price` to market bid; pre-lock cleaner until funds catch up. |
 
 ### Roadmap phase quick links
 

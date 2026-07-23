@@ -1708,7 +1708,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   const hasCoords =
                     typeof job.location_lat === 'number' && typeof job.location_lng === 'number';
                   const statusKey = String(job.status || '').toLowerCase();
-                  const openForBids = statusKey === 'pending' || statusKey === 'available';
+                  const openForBids =
+                    (statusKey === 'pending' || statusKey === 'available' || statusKey === 'funding') &&
+                    !job.cleaner_id;
+                  const waitingSelectedCleaner =
+                    statusKey === 'funding' && !!job.cleaner_id;
                   return (
                     <div key={job.id} className={`${PROFILE_GLASS_PANEL} p-4`}>
                       <div className="flex justify-between items-center mb-2">
@@ -1754,6 +1758,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       </div>
 
                       <p className="text-xs text-slate-400">{t('profileOwnedMissionHint')}</p>
+
+                      {waitingSelectedCleaner && (
+                        <p className="mt-3 rounded-xl border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-[11px] font-semibold leading-relaxed text-violet-100/95">
+                          {t('selectedCleanerWaitingFunds', {
+                            defaultValue:
+                              'Selected Cleaner — waiting for remaining funds',
+                          })}
+                        </p>
+                      )}
 
                       {isAdmin && (
                         <button

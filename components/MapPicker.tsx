@@ -2732,20 +2732,40 @@ const MapPicker: React.FC<MapPickerProps> = ({
         if (rpcErr) throw rpcErr;
 
         const budgetUsd = Math.max(1, Math.floor(missionValue));
+        const raisedUsd = Math.max(
+          0,
+          Math.floor(Number(selectedMission.current_funding ?? 0))
+        );
+        const wasFunding =
+          String(selectedMission.status || '').toLowerCase() === 'funding' ||
+          !!selectedMission.crowdfunding_mode;
+        const waitingForFunds = wasFunding && raisedUsd < budgetUsd;
+        const nextStatus = waitingForFunds ? 'funding' : 'in_progress';
+
         setSelectedMission((prev) =>
           prev
             ? {
                 ...prev,
-                status: 'in_progress',
+                status: nextStatus,
                 cleaner_id: bid.cleaner_id,
                 expected_price: budgetUsd,
+                amount_target: budgetUsd,
               }
             : prev
         );
         setAssignedWorker(bid.cleaner ?? null);
-        setMissionBids([]);
-
-        toast.success(t('mapToastMissionAcceptedProfile'));
+        if (waitingForFunds) {
+          await refreshMissionBids();
+          toast.success(
+            t('mapToastBidAcceptedWaitingFunds', {
+              defaultValue:
+                'Cleaner selected. Waiting for remaining crowdfunding…',
+            })
+          );
+        } else {
+          setMissionBids([]);
+          toast.success(t('mapToastMissionAcceptedProfile'));
+        }
         void fetchMissions();
       } catch (e: any) {
         console.error('handleBriefingAcceptBid', e);
@@ -2754,7 +2774,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         setBriefingBidSubmitting(false);
       }
     },
-    [briefingBidSubmitting, fetchMissions, selectedMission, t, toast]
+    [briefingBidSubmitting, fetchMissions, refreshMissionBids, selectedMission, t, toast]
   );
 
   const handleBriefingDeclineBid = useCallback(
@@ -4486,6 +4506,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           canPlaceBid={
             !!currentUserId &&
             currentUserId !== selectedMission.creator_id &&
+            !selectedMission.cleaner_id &&
             (OPEN_BID_MISSION_STATUSES.has(String(selectedMission.status || '')) ||
               (isCrowdfundingOpen(selectedMission) &&
                 !getCrowdfundingCountdownParts(
