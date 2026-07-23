@@ -177,19 +177,20 @@ funding ──(target met)──► available ──(accept bid)──► in_pro
 > **Goal:** Negotiate on-platform before tender win; delay WhatsApp leakage until contact unlock.
 
 ### Business rules (canonical)
-- [ ] Direct messaging between **client and interested workers** on a mission thread.
-- [ ] Allowed **before** bid accept (negotiate price / scope) and after (coordination).
-- [ ] Scope RLS: only mission creator + bidders / assigned cleaner.
-- [ ] No broadcasting phone numbers inside chat system messages until unlock (Phase 3).
+- [x] Direct messaging between **client and interested workers** on a mission thread (schema + RLS + Realtime scaffold).
+- [x] Allowed **before** bid accept (negotiate price / scope) and after (coordination) — participant = creator / pending|accepted bidder / assigned cleaner.
+- [x] Scope RLS: only mission creator + bidders / assigned cleaner (`mission_chats` policies).
+- [ ] No broadcasting phone numbers inside chat system messages until unlock (Phase 3) — enforce in UI/moderation next.
 - [ ] Optional: soft-prompt WhatsApp **only after** accept as secondary channel.
 
 ### Engineering notes
-- New tables e.g. `conversations` / `messages` + Realtime channel.
-- UI panel on [[../components/MissionBriefing]] or dedicated sheet.
+- Migration: [[../supabase/migrations/20260723_p2p_chat_system.sql]] → table `mission_chats` + Realtime publication.
+- Hook: [[../src/hooks/useMissionChat.ts]] (`useMissionChat(missionId, otherUserId)`).
+- UI panel on [[../components/MissionBriefing]] or dedicated sheet — **next**.
 - Hooks into Phase 5 push (“new message”).
 
 ### Exit criteria
-- [ ] Client and bidder exchange messages without leaving the app.
+- [ ] Client and bidder exchange messages without leaving the app (UI pending).
 - [ ] Unrelated users cannot read the thread (RLS verified).
 
 ---

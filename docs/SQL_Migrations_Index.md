@@ -44,6 +44,8 @@ Chronological — June–July 2026 token / crowdfunding / privacy stack.
 | 2026-07-22 | [[20260722_city_notification_pipeline.sql]] | Phase 2: PDF pipeline columns, storage bucket, completion enqueue, pg_net trigger. |
 | 2026-07-23 | [[20260723_city_notification_webhook_app_config.sql]] | Stores Edge URL/key in `private.app_config` (no `ALTER DATABASE`). |
 | 2026-07-23 | [[20260723_hide_client_phone_until_bid_accept.sql]] | Phase 3: phone column lockdown + RPCs until accepted bid. |
+| 2026-07-23 | [[20260723_public_profile_contract_phone.sql]] | Public profile member_since + contract-gated client phone RPC. |
+| 2026-07-23 | [[20260723_p2p_chat_system.sql]] | Phase 4: `mission_chats` table, participant RLS, Realtime publication. |
 
 ### Roadmap phase quick links
 
