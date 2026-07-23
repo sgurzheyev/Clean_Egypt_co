@@ -9,6 +9,11 @@ export type NotificationType =
   | 'proof_rejected'
   | 'mission_approved'
   | 'new_review'
+  | 'chat_message'
+  | 'bid_new'
+  | 'bid_accepted'
+  | 'funding_bumped'
+  | 'funding_complete'
   | string;
 
 export interface NotificationRow {
@@ -17,9 +22,16 @@ export interface NotificationRow {
   actor_id: string | null;
   mission_id: string | null;
   type: NotificationType;
+  title: string | null;
+  message: string | null;
   is_read: boolean;
   created_at: string;
 }
+
+export type OpenNotificationOptions = {
+  /** For chat_message: open P2P chat with this peer after briefing loads. */
+  openChatWith?: string | null;
+};
 
 export async function fetchNotifications(
   userId: string,
@@ -27,7 +39,7 @@ export async function fetchNotifications(
 ): Promise<NotificationRow[]> {
   const { data, error } = await supabase
     .from('notifications')
-    .select('id, user_id, actor_id, mission_id, type, is_read, created_at')
+    .select('id, user_id, actor_id, mission_id, type, title, message, is_read, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit);

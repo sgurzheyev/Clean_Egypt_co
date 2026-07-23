@@ -2064,6 +2064,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   // Stripe is the only payment gateway now. Mission creation is token-backed (no redirect flow).
 
   const [selectedMission, setSelectedMission] = useState<JobOnMap | null>(null);
+  const [pendingNotifChatUserId, setPendingNotifChatUserId] = useState<string | null>(null);
 
   /** Reveal client phone only via RPC (creator / accepted bid / assigned cleaner). */
   const handleUnlockLead = useCallback(async () => {
@@ -2595,6 +2596,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleCloseMissionBriefing = useCallback(() => {
     setSelectedMission(null);
+    setPendingNotifChatUserId(null);
     setShowBidInput(false);
     setMissionBidAmount('');
     setLeadPhoneVisible(false);
@@ -3510,7 +3512,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, []);
 
   /** Open a mission by id (from a notification): always refetch for fresh status/cleaner. */
-  const openMissionById = useCallback(async (missionId: string) => {
+  const openMissionById = useCallback(async (
+    missionId: string,
+    opts?: { openChatWith?: string | null }
+  ) => {
+    if (opts?.openChatWith) {
+      setPendingNotifChatUserId(opts.openChatWith);
+    }
     try {
       const { data, error } = await supabase
         .from('missions')
@@ -4157,7 +4165,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
-      <NotificationBell userId={currentUserId} onOpenMission={(id) => void openMissionById(id)} />
+      <NotificationBell
+        userId={currentUserId}
+        onOpenMission={(id, opts) => void openMissionById(id, opts)}
+      />
 
       {/* Unified 3-in-1 map "joystick": top = zoom in, bottom = zoom out, center = geolocate. */}
       {showProfileFab && (
@@ -4582,6 +4593,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 }
               : undefined
           }
+          autoOpenChatWithUserId={pendingNotifChatUserId}
+          onAutoOpenChatConsumed={() => setPendingNotifChatUserId(null)}
         />
       )}
 

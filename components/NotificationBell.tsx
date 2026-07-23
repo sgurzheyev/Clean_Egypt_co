@@ -1,6 +1,6 @@
 /**
  * Notification bell for the map header: unread badge + dropdown feed.
- * Clicking a notification marks it read and navigates to the mission or profile.
+ * Clicking a notification marks it read and navigates to the mission (and chat when relevant).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, CheckCheck } from 'lucide-react';
@@ -12,12 +12,13 @@ import {
   markNotificationRead,
   subscribeToNotifications,
   type NotificationRow,
+  type OpenNotificationOptions,
 } from '../src/lib/notifications';
 import { formatSubmittedRelative } from '../src/lib/missionFilterSort';
 
 interface NotificationBellProps {
   userId: string | null;
-  onOpenMission?: (missionId: string) => void;
+  onOpenMission?: (missionId: string, opts?: OpenNotificationOptions) => void;
 }
 
 const TYPE_LABEL_KEYS: Record<string, string> = {
@@ -25,6 +26,11 @@ const TYPE_LABEL_KEYS: Record<string, string> = {
   proof_rejected: 'notifProofRejected',
   mission_approved: 'notifMissionApproved',
   new_review: 'notifNewReview',
+  chat_message: 'notifChatMessage',
+  bid_new: 'notifBidNew',
+  bid_accepted: 'notifBidAccepted',
+  funding_bumped: 'notifFundingBumped',
+  funding_complete: 'notifFundingComplete',
 };
 
 const TYPE_ICON: Record<string, string> = {
@@ -32,7 +38,21 @@ const TYPE_ICON: Record<string, string> = {
   proof_rejected: '↩️',
   mission_approved: '✅',
   new_review: '⭐',
+  chat_message: '💬',
+  bid_new: '🙋',
+  bid_accepted: '✅',
+  funding_bumped: '📈',
+  funding_complete: '🎯',
 };
+
+function notificationBody(
+  n: NotificationRow,
+  fallback: string
+): string {
+  if (n.message?.trim()) return n.message.trim();
+  if (n.title?.trim()) return n.title.trim();
+  return fallback;
+}
 
 const NotificationBell: React.FC<NotificationBellProps> = ({ userId, onOpenMission }) => {
   const { t, i18n } = useTranslation();
@@ -46,7 +66,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, onOpenMissi
   const load = useCallback(async () => {
     if (!userId) return;
     try {
-      setItems(await fetchNotifications(userId, 30));
+      setItems(await fetchNotifications(userId, 40));
     } catch (err) {
       console.warn('fetchNotifications failed:', err);
     }
@@ -93,7 +113,9 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, onOpenMissi
     }
     setOpen(false);
     if (n.mission_id && onOpenMission) {
-      onOpenMission(n.mission_id);
+      const openChat =
+        n.type === 'chat_message' || n.type === 'CHAT' ? n.actor_id : null;
+      onOpenMission(n.mission_id, { openChatWith: openChat });
     } else if (n.actor_id) {
       navigate(`/profile/${n.actor_id}`);
     }
@@ -119,13 +141,17 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, onOpenMissi
       <button
         type="button"
         onClick={handleToggle}
-        className="relative flex h-11 w-11 items-center justify-center rounded-full border border-cyan-400/50 bg-black/70 text-cyan-200 shadow-[0_0_18px_rgba(34,211,238,0.28)] backdrop-blur-lg transition-transform active:scale-95"
+        className={`relative flex h-11 w-11 items-center justify-center rounded-full border bg-black/70 text-cyan-200 backdrop-blur-lg transition-transform active:scale-95 ${
+          unread > 0
+            ? 'border-cyan-300/80 shadow-[0_0_22px_rgba(34,211,238,0.55)] animate-pulse'
+            : 'border-cyan-400/50 shadow-[0_0_18px_rgba(34,211,238,0.28)]'
+        }`}
         aria-label={t('notifications')}
         aria-expanded={open}
       >
         <Bell className="h-5 w-5" strokeWidth={2.25} />
         {unread > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full border border-black/40 bg-red-500 px-1 text-[10px] font-black text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full border border-red-300/60 bg-red-500 px-1 text-[10px] font-black text-white shadow-[0_0_12px_rgba(239,68,68,0.75)]">
             {unread > 99 ? '99+' : unread}
           </span>
         )}
@@ -136,6 +162,11 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, onOpenMissi
           <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-300">
               {t('notifications')}
+              {unread > 0 ? (
+                <span className="ml-2 rounded-full bg-red-500/90 px-1.5 py-0.5 text-[9px] text-white">
+                  {unread}
+                </span>
+              ) : null}
             </p>
             {unread > 0 && (
               <button
@@ -154,7 +185,12 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, onOpenMissi
               <p className="px-4 py-8 text-center text-xs text-slate-500">{t('notifEmpty')}</p>
             ) : (
               items.map((n) => {
+                const headline = n.title?.trim() || null;
                 const labelKey = TYPE_LABEL_KEYS[n.type] || 'notifGeneric';
+                const body = notificationBody(
+                  n,
+                  t(labelKey, { defaultValue: 'New notification' })
+                );
                 return (
                   <button
                     key={n.id}
@@ -168,15 +204,20 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, onOpenMissi
                       {TYPE_ICON[n.type] || '🔔'}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-xs font-semibold text-slate-100">
-                        {t(labelKey, { defaultValue: 'New notification' })}
+                      {headline && (
+                        <span className="mb-0.5 block text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300/90">
+                          {headline}
+                        </span>
+                      )}
+                      <span className="block text-xs font-semibold leading-snug text-slate-100">
+                        {body}
                       </span>
                       <span className="mt-0.5 block text-[10px] uppercase tracking-[0.1em] text-slate-500">
                         {formatSubmittedRelative(n.created_at, i18n.language)}
                       </span>
                     </span>
                     {!n.is_read && (
-                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-cyan-400" aria-hidden />
+                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" aria-hidden />
                     )}
                   </button>
                 );

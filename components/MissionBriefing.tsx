@@ -107,6 +107,9 @@ export type MissionBriefingProps = {
   creatorName?: string | null;
   creatorIsVerified?: boolean | null;
   onCreatorClick?: () => void;
+  /** Open P2P chat with this user when the briefing mounts (e.g. from notification). */
+  autoOpenChatWithUserId?: string | null;
+  onAutoOpenChatConsumed?: () => void;
 };
 
 function missionLocationLine(
@@ -189,6 +192,8 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   creatorName,
   creatorIsVerified = false,
   onCreatorClick,
+  autoOpenChatWithUserId = null,
+  onAutoOpenChatConsumed,
 }) => {
   const { t } = useTranslation();
   const creatorInitial = (creatorName || '?').trim().charAt(0).toUpperCase() || '?';
@@ -281,6 +286,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
 
   const [reviewComment, setReviewComment] = useState('');
   const [fundingNowMs, setFundingNowMs] = useState(() => Date.now());
+
   useEffect(() => {
     if (!crowdfundingOpen) return;
     setFundingNowMs(Date.now());
@@ -305,6 +311,37 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
         ? `@${assignedWorker.telegram_username.trim()}`
         : 'Eco Hero')
     : null;
+
+  useEffect(() => {
+    const peerId = autoOpenChatWithUserId?.trim();
+    if (!peerId || !mission.id) return;
+    if (peerId === currentUserId) {
+      onAutoOpenChatConsumed?.();
+      return;
+    }
+    const bidMatch = missionBids.find((b) => b.cleaner_id === peerId);
+    const peerName =
+      peerId === mission.creator_id
+        ? creatorName
+        : peerId === mission.cleaner_id
+          ? assignedWorkerName
+          : bidMatch
+            ? bidWorkerDisplayName(bidMatch)
+            : null;
+    setChatPeer({ id: peerId, name: peerName });
+    onAutoOpenChatConsumed?.();
+  }, [
+    autoOpenChatWithUserId,
+    mission.id,
+    mission.creator_id,
+    mission.cleaner_id,
+    currentUserId,
+    creatorName,
+    assignedWorkerName,
+    missionBids,
+    onAutoOpenChatConsumed,
+  ]);
+
   const isOwnActive = isInProgress && mission.cleaner_id === currentUserId;
   const statusLabel = String(mission.status || '').replace(/_/g, ' ');
 
