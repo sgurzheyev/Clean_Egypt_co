@@ -30,6 +30,7 @@ import {
   toWhatsAppHref,
 } from '../src/lib/missionContact';
 import { sanitizeIntegerUsdDigits, parseIntegerUsdFromInput } from '../src/lib/integerUsdInput';
+import MissionChatPanel from '../src/components/chat/MissionChatPanel';
 
 export type AssignedWorkerProfile = {
   full_name?: string | null;
@@ -192,6 +193,10 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const { t } = useTranslation();
   const creatorInitial = (creatorName || '?').trim().charAt(0).toUpperCase() || '?';
   const [bidInput, setBidInput] = React.useState('');
+  const [chatPeer, setChatPeer] = useState<{
+    id: string;
+    name?: string | null;
+  } | null>(null);
   const photos = mission.photo_urls?.filter(Boolean) ?? [];
   const placeholderVariant = placeholderVariantFor(mission);
   const placeholderIcon = missionPinIcon(mission.service_type, mission.category);
@@ -230,12 +235,43 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
         b.cleaner_id === currentUserId &&
         String(b.status || '').toLowerCase() === 'accepted'
     );
+  const hasPendingBid =
+    !!currentUserId &&
+    missionBids.some(
+      (b) =>
+        b.cleaner_id === currentUserId &&
+        ['pending', 'active'].includes(String(b.status || '').toLowerCase())
+    );
+  const canWorkerChat =
+    !!currentUserId &&
+    !!mission.creator_id &&
+    mission.creator_id !== currentUserId &&
+    (isAssignedCleaner || hasAcceptedBid || hasPendingBid);
   const contactUnlocked = isAssignedCleaner || hasAcceptedBid || !!revealedPhone;
   /** Private missions: show contact panel to workers (role cleaner OR contracted). */
   const showWorkerContactPanel =
     !isCrowdfundingMissionFlag &&
     !!currentUserId &&
     (isExecutorViewer || contactUnlocked || isAssignedCleaner);
+
+  const openWorkerClientChat = () => {
+    if (!mission.creator_id) return;
+    setChatPeer({
+      id: mission.creator_id,
+      name: creatorName,
+    });
+  };
+
+  const workerChatButton = canWorkerChat ? (
+    <button
+      type="button"
+      onClick={openWorkerClientChat}
+      className="flex min-h-[48px] w-full touch-manipulation items-center justify-center gap-2 rounded-2xl border border-violet-400/40 bg-violet-600/85 px-4 text-[11px] font-bold uppercase tracking-[0.14em] text-white shadow-[0_4px_16px_rgba(139,92,246,0.28)] transition-all hover:bg-violet-500/95 active:scale-[0.98]"
+    >
+      <span aria-hidden>💬</span>
+      {t('missionChatWithClient', { defaultValue: 'Chat with Client' })}
+    </button>
+  ) : null;
 
   const [reviewComment, setReviewComment] = useState('');
   const [fundingNowMs, setFundingNowMs] = useState(() => Date.now());
@@ -269,6 +305,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const workerContactPanel =
     showWorkerContactPanel ? (
       <div className="space-y-3 border-t border-white/5 pt-4">
+        {workerChatButton}
         {revealedPhone ? (
           <>
             <div className="flex items-center justify-between gap-4">
@@ -340,9 +377,12 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           </>
         )}
       </div>
+    ) : workerChatButton ? (
+      <div className="space-y-3 border-t border-white/5 pt-4">{workerChatButton}</div>
     ) : null;
 
   return (
+    <>
     <div
       className="absolute inset-0 z-[10030] flex items-end justify-center pt-[env(safe-area-inset-top)] isolate pointer-events-none"
       aria-hidden="false"
@@ -630,6 +670,11 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     const displayName = bidWorkerDisplayName(bid);
                     const avatarUrl = bid.cleaner?.avatar_url;
                     const rating = bid.cleaner?.rating;
+                    const bidStatus = String(bid.status || '').toLowerCase();
+                    const canChatWithBidder =
+                      isMissionCreator &&
+                      !!bid.cleaner_id &&
+                      (bidStatus === 'pending' || bidStatus === 'accepted');
 
                     return (
                       <li
@@ -660,6 +705,18 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                         <p className="shrink-0 text-sm font-black tabular-nums text-orange-300">
                           {formatWorkBudgetUsd(Number(bid.bid_amount))}
                         </p>
+                        {canChatWithBidder && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setChatPeer({ id: bid.cleaner_id, name: displayName })
+                            }
+                            className="shrink-0 rounded-full border border-violet-400/35 bg-violet-600/80 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-white transition-transform hover:bg-violet-500/90 active:scale-95"
+                            aria-label={t('missionChatOpen', { defaultValue: 'Chat' })}
+                          >
+                            💬 {t('missionChatOpen', { defaultValue: 'Chat' })}
+                          </button>
+                        )}
                         {isMissionCreator && bid.status === 'pending' && (
                           <div className="flex shrink-0 items-center gap-1.5">
                             <button
@@ -772,6 +829,21 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       </p>
                     </div>
                   </div>
+                  {isMissionCreator && mission.cleaner_id && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setChatPeer({
+                          id: mission.cleaner_id as string,
+                          name: assignedWorkerName,
+                        })
+                      }
+                      className="mt-3 flex min-h-[44px] w-full touch-manipulation items-center justify-center gap-2 rounded-2xl border border-violet-400/40 bg-violet-600/85 px-4 text-[11px] font-bold uppercase tracking-[0.14em] text-white shadow-[0_4px_16px_rgba(139,92,246,0.28)] transition-all hover:bg-violet-500/95 active:scale-[0.98]"
+                    >
+                      <span aria-hidden>💬</span>
+                      {t('missionChatWithWorker', { defaultValue: 'Chat with Worker' })}
+                    </button>
+                  )}
                 </section>
               )}
 
@@ -923,6 +995,14 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
         )}
       </div>
     </div>
+    <MissionChatPanel
+      open={!!chatPeer}
+      missionId={mission.id}
+      otherUserId={chatPeer?.id || ''}
+      otherUserName={chatPeer?.name}
+      onClose={() => setChatPeer(null)}
+    />
+    </>
   );
 };
 

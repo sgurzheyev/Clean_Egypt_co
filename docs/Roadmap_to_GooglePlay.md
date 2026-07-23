@@ -186,11 +186,11 @@ funding ──(target met)──► available ──(accept bid)──► in_pro
 ### Engineering notes
 - Migration: [[../supabase/migrations/20260723_p2p_chat_system.sql]] → table `mission_chats` + Realtime publication.
 - Hook: [[../src/hooks/useMissionChat.ts]] (`useMissionChat(missionId, otherUserId)`).
-- UI panel on [[../components/MissionBriefing]] or dedicated sheet — **next**.
+- UI: [[../src/components/chat/MissionChatPanel.tsx]] + CTAs in [[../components/MissionBriefing]].
 - Hooks into Phase 5 push (“new message”).
 
 ### Exit criteria
-- [ ] Client and bidder exchange messages without leaving the app (UI pending).
+- [x] Client and bidder exchange messages without leaving the app (MissionChatPanel + briefing CTAs).
 - [ ] Unrelated users cannot read the thread (RLS verified).
 
 ---
