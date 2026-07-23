@@ -336,13 +336,25 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     return Number.isFinite(exp) && exp > Date.now();
   }, [userProfile?.subscription_expires_at]);
 
-  const profileInfoClosedSummary = useMemo(
-    () =>
-      `${tokenBalance} ${t('tokens')} · ${
-        subscriptionIsActive ? t('subscriptionActive') : t('subscriptionExpired')
-      }`,
-    [tokenBalance, subscriptionIsActive, t]
-  );
+  const verificationStatusKey = useMemo(() => {
+    const raw =
+      userProfile?.verification_status ?? (userProfile?.is_verified ? 'verified' : 'unverified');
+    return String(raw || 'unverified').toLowerCase();
+  }, [userProfile?.verification_status, userProfile?.is_verified]);
+
+  const profileInfoClosedSummary = useMemo(() => {
+    const verifyLabel =
+      verificationStatusKey === 'pending'
+        ? t('underReview', { defaultValue: 'Under Review' })
+        : verificationStatusKey === 'verified'
+          ? t('trusted', { defaultValue: 'Trusted' })
+          : verificationStatusKey === 'rejected'
+            ? t('kycRejectedBadge', { defaultValue: 'Rejected' })
+            : t('unverified', { defaultValue: 'Unverified' });
+    return `${tokenBalance} ${t('tokens')} · ${
+      subscriptionIsActive ? t('subscriptionActive') : t('subscriptionExpired')
+    } · ${verifyLabel}`;
+  }, [tokenBalance, subscriptionIsActive, verificationStatusKey, t]);
 
   const ownedOpenMissions = useMemo(() => {
     const merged = [...(myHomeJobs || []), ...(myCityJobs || [])];
@@ -1588,81 +1600,47 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 {t('subscriptionStatus')}:{' '}
                 {subscriptionIsActive ? t('subscriptionActive') : t('subscriptionExpired')}
               </span>
+              {verificationStatusKey === 'verified' ? (
+                <span className="inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-200">
+                  {t('kycTrustedBadge', { defaultValue: 'Trusted' })}
+                </span>
+              ) : verificationStatusKey === 'pending' ? (
+                <span className="inline-flex items-center rounded-full border border-amber-400/30 bg-amber-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-amber-200">
+                  {t('kycUnderReviewBadge', { defaultValue: 'Under Review' })}
+                </span>
+              ) : verificationStatusKey === 'rejected' ? (
+                <span className="inline-flex items-center rounded-full border border-red-400/30 bg-red-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-red-200">
+                  {t('kycRejectedBadge', { defaultValue: 'Rejected' })}
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-slate-200">
+                  {t('kycUnverifiedBadge', { defaultValue: 'Unverified' })}
+                </span>
+              )}
             </div>
-            <p className="text-[11px] leading-relaxed text-slate-400">
-              {t('profileEconomyHint')}
-            </p>
+
+            {verificationStatusKey === 'verified' ? (
+              <p className="text-[11px] leading-relaxed text-slate-300">
+                {t('kycVerifiedHint', {
+                  defaultValue: 'You can accept restricted Home/Private missions.',
+                })}
+              </p>
+            ) : verificationStatusKey === 'pending' ? (
+              <p className="text-[11px] leading-relaxed text-slate-400">
+                {t('kycPendingHint', { defaultValue: 'We are reviewing your documents.' })}
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowVerificationModal(true)}
+                className="w-full rounded-full border border-cyan-400/35 bg-cyan-600/90 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-white shadow-[0_4px_18px_rgba(34,211,238,0.16)] transition-colors hover:bg-cyan-500/95"
+              >
+                {t('kycStartButton', { defaultValue: 'Start KYC' })}
+              </button>
+            )}
+
+            <p className="text-[11px] leading-relaxed text-slate-400">{t('profileEconomyHint')}</p>
           </div>
-        </ProfileAccordion>
-
-        {/* KYC verification status */}
-        <ProfileAccordion
-          title={t('verificationStatusSection', { defaultValue: 'Verification Status' })}
-          icon={<Target className="w-5 h-5 shrink-0 text-cyan-400/90" aria-hidden />}
-          closedSummary={
-            userProfile?.verification_status === 'pending'
-              ? t('underReview', { defaultValue: 'Under Review' })
-              : userProfile?.is_verified
-                ? t('trusted', { defaultValue: 'Trusted' })
-                : t('unverified', { defaultValue: 'Unverified' })
-          }
-        >
-          {(() => {
-            const raw = userProfile?.verification_status ?? (userProfile?.is_verified ? 'verified' : 'unverified');
-            const s = String(raw || '').toLowerCase();
-            const badge = s === 'verified'
-              ? (
-                  <span className="inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-emerald-200">
-                    {t('kycTrustedBadge', { defaultValue: 'Trusted' })}
-                  </span>
-                )
-              : s === 'pending'
-                ? (
-                    <span className="inline-flex items-center rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-amber-200">
-                      {t('kycUnderReviewBadge', { defaultValue: 'Under Review' })}
-                    </span>
-                  )
-                : s === 'rejected'
-                  ? (
-                      <span className="inline-flex items-center rounded-full border border-red-400/30 bg-red-500/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-red-200">
-                        {t('kycRejectedBadge', { defaultValue: 'Rejected' })}
-                      </span>
-                    )
-                  : (
-                      <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-200">
-                        {t('kycUnverifiedBadge', { defaultValue: 'Unverified' })}
-                      </span>
-                    );
-
-            return (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-3">
-                  {badge}
-                  {s === 'pending' && (
-                    <span className="text-[11px] text-slate-400">
-                      {t('kycPendingHint', { defaultValue: 'We are reviewing your documents.' })}
-                    </span>
-                  )}
-                </div>
-
-                {s === 'unverified' || s === 'rejected' ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowVerificationModal(true)}
-                    className="w-full py-3 rounded-full border border-cyan-400/35 bg-cyan-600/90 text-white font-black uppercase tracking-[0.12em] hover:bg-cyan-500/95 transition-colors shadow-[0_4px_22px_rgba(34,211,238,0.18)]"
-                  >
-                    {t('kycStartButton', { defaultValue: 'Start KYC' })}
-                  </button>
-                ) : null}
-
-                {s === 'verified' && (
-                  <p className="text-sm text-slate-300 leading-relaxed">
-                    {t('kycVerifiedHint', { defaultValue: 'You can accept restricted Home/Private missions.' })}
-                  </p>
-                )}
-              </div>
-            );
-          })()}
         </ProfileAccordion>
 
         {/* MY ORDERS — owned pins (home + public) + active worker jobs */}
