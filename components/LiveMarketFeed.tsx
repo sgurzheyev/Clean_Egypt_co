@@ -55,7 +55,28 @@ interface LiveMarketFeedProps {
   currentUserId?: string | null;
 }
 
-const ACTIVE_MARKET_STATUSES = ['pending', 'available', 'funding', 'in_progress'] as const;
+const ACTIVE_MARKET_STATUSES = ['pending', 'available', 'open', 'funding', 'in_progress'] as const;
+
+/** Crowdfunding stays listed while funding — even with a pre-locked cleaner. */
+function isPublicMarketMission(mission: LiveMarketMission): boolean {
+  const status = String(mission.status || '').toLowerCase() as (typeof ACTIVE_MARKET_STATUSES)[number];
+  if (!ACTIVE_MARKET_STATUSES.includes(status)) return false;
+  if (status === 'funding') return true;
+  if (status === 'in_progress') return true;
+  return !mission.cleaner_id;
+}
+
+function fundingCleanerLockRemaining(mission: LiveMarketMission): number | null {
+  if (String(mission.status || '').toLowerCase() !== 'funding' || !mission.cleaner_id) {
+    return null;
+  }
+  const target = Math.max(
+    0,
+    Math.floor(Number(mission.expected_price ?? mission.amount_target ?? 0))
+  );
+  const raised = Math.max(0, Math.floor(Number(mission.current_funding ?? 0)));
+  return Math.max(0, target - raised);
+}
 
 const statusClass = (status: string) =>
   status === 'in_progress'
@@ -152,9 +173,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
             (mission) =>
               Number.isFinite(mission.location_lat) &&
               Number.isFinite(mission.location_lng) &&
-              ACTIVE_MARKET_STATUSES.includes(
-                mission.status as (typeof ACTIVE_MARKET_STATUSES)[number]
-              )
+              isPublicMarketMission(mission)
           )
         );
       }
@@ -230,6 +249,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                     const isOwnTask =
                       !!currentUserId && mission.creator_id === currentUserId;
                     const isHome = missionSector(mission.service_type, mission.category) === 'home';
+                    const remainingForStart = fundingCleanerLockRemaining(mission);
                     const statusLabel =
                       mission.status === 'in_progress' ? t('accepted') : mission.status;
 
@@ -278,6 +298,17 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                           >
                             {t('status')}: {statusLabel}
                           </span>
+                        }
+                        callout={
+                          remainingForStart != null ? (
+                            <span className="inline-flex max-w-full rounded-lg border border-violet-400/45 bg-violet-600/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-[0_4px_14px_rgba(139,92,246,0.35)] backdrop-blur-sm">
+                              {t('feedCleanerLockedNeedsMore', {
+                                amount: remainingForStart,
+                                defaultValue:
+                                  'Cleaner locked in! Needs ${{amount}} more to start',
+                              })}
+                            </span>
+                          ) : undefined
                         }
                         onClick={() => onSelectMission(mission)}
                         onLocate={() => onSelectMission(mission)}

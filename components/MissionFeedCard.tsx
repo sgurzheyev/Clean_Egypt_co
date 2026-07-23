@@ -20,6 +20,8 @@ export interface MissionFeedCardProps {
   description?: string;
   statusBadge?: React.ReactNode;
   topLeftBadge?: React.ReactNode;
+  /** Prominent urgency / social-proof line under the main card content. */
+  callout?: React.ReactNode;
   metaLine?: string;
   /** Human-readable submission time, e.g. "Submitted: 2 hours ago". */
   submittedLabel?: string;
@@ -47,6 +49,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
   description,
   statusBadge,
   topLeftBadge,
+  callout,
   metaLine,
   submittedLabel,
   footer,
@@ -199,6 +202,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
               </div>
             )}
             {statusBadge && <div className="mt-2 flex flex-wrap gap-1.5">{statusBadge}</div>}
+            {callout && <div className="mt-2">{callout}</div>}
             {submittedLabel && (
               <p className="mt-1.5 truncate text-[10px] font-medium uppercase tracking-[0.1em] text-slate-300/70">
                 {submittedLabel}

@@ -320,11 +320,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
   const openMarketplaceJobs = useMemo(
     () =>
-      (marketplaceJobs || []).filter(
-        (job) =>
-          ['pending', 'available', 'funding'].includes(job.status) &&
-          job.cleaner_id == null
-      ),
+      (marketplaceJobs || []).filter((job) => {
+        const status = String(job.status || '').toLowerCase();
+        // Crowdfunding campaigns stay public until fully funded → in_progress,
+        // even when a cleaner is pre-locked during funding.
+        if (status === 'funding') return true;
+        return (
+          ['pending', 'available', 'open'].includes(status) && job.cleaner_id == null
+        );
+      }),
     [marketplaceJobs]
   );
 
@@ -2008,6 +2012,25 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         {(job.category || 'UNKNOWN').toUpperCase()}
                       </span>
                     }
+                    callout={(() => {
+                      const status = String(job.status || '').toLowerCase();
+                      if (status !== 'funding' || !job.cleaner_id) return undefined;
+                      const target = Math.max(
+                        0,
+                        Math.floor(Number(job.expected_price ?? job.amount_target ?? 0))
+                      );
+                      const raised = Math.max(0, Math.floor(Number(job.current_funding ?? 0)));
+                      const remaining = Math.max(0, target - raised);
+                      return (
+                        <span className="inline-flex max-w-full rounded-lg border border-violet-400/45 bg-violet-600/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-[0_4px_14px_rgba(139,92,246,0.35)] backdrop-blur-sm">
+                          {t('feedCleanerLockedNeedsMore', {
+                            amount: remaining,
+                            defaultValue:
+                              'Cleaner locked in! Needs ${{amount}} more to start',
+                          })}
+                        </span>
+                      );
+                    })()}
                     onLocate={() => {
                       if (
                         onNavigateToJob &&

@@ -285,6 +285,8 @@ const resources = {
       selectedCleanerWaitingFunds: 'Selected Cleaner — waiting for remaining funds',
       mapToastBidAcceptedWaitingFunds:
         'Cleaner selected. Waiting for remaining crowdfunding…',
+      feedCleanerLockedNeedsMore:
+        'Cleaner locked in! Needs ${{amount}} more to start',
       subscriptionRequired: 'Subscription required to unlock leads.',
       availableLeads: 'Available Leads',
       activeServiceRequests: 'Active Service Requests',
@@ -768,6 +770,8 @@ const resources = {
       missionChatSend: 'إرسال',
       selectedCleanerWaitingFunds: 'تم اختيار المنفذ — بانتظار بقية التمويل',
       mapToastBidAcceptedWaitingFunds: 'تم اختيار المنفذ. بانتظار بقية التمويل الجماعي…',
+      feedCleanerLockedNeedsMore:
+        'تم تأمين المنفذ! تحتاج ${{amount}} إضافية للبدء',
       subscriptionRequired: 'الاشتراك مطلوب لفتح العملاء المحتملين.',
       availableLeads: 'عملاء محتملون متاحون',
       activeServiceRequests: 'طلبات خدمة نشطة',
@@ -1230,6 +1234,8 @@ const resources = {
       selectedCleanerWaitingFunds: 'Исполнитель выбран — ждём добора средств',
       mapToastBidAcceptedWaitingFunds:
         'Исполнитель выбран. Ждём добора краудфандинга…',
+      feedCleanerLockedNeedsMore:
+        'Исполнитель найден! Осталось добрать ${{amount}} для старта',
       subscriptionRequired: 'Нужна подписка, чтобы открывать лиды.',
       availableLeads: 'Доступные лиды',
       activeServiceRequests: 'Активные заявки',
