@@ -1841,11 +1841,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
   );
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setCurrentUserId(session?.user?.id ?? null);
-      setAuthEmail(session?.user?.email ?? null);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        setCurrentUserId(session?.user?.id ?? null);
+        setAuthEmail(session?.user?.email ?? null);
+      })
+      .catch(() => {
+        setCurrentUserId(null);
+        setAuthEmail(null);
+      });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setCurrentUserId(session?.user?.id ?? null);
       setAuthEmail(session?.user?.email ?? null);
     });
@@ -1947,6 +1955,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const merged = mergeFetchedMissions(prev || [], list);
       jobsRef.current = merged;
       return merged;
+    });
+    setSelectedMission((prev) => {
+      if (!prev?.id) return prev;
+      const fresh = list.find((j) => j.id === prev.id);
+      return fresh ? { ...prev, ...fresh } : prev;
     });
 
     // Fetch active bid counts (pending bids) for marker badges
@@ -2097,13 +2110,40 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   // Auto-reveal client phone when RPC allows (accepted bid / assigned / creator).
   useEffect(() => {
+    let cancelled = false;
     setLeadPhoneVisible(false);
     setUnlockedLeadPhone(null);
-    if (!selectedMission?.id || !currentUserId || selectedMission.crowdfunding_mode) return;
-    void handleUnlockLead();
+    if (!selectedMission?.id || !currentUserId || selectedMission.crowdfunding_mode) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    void (async () => {
+      setUnlockLeadLoading(true);
+      try {
+        const phone = await getMissionClientPhone(selectedMission.id);
+        if (cancelled) return;
+        if (!phone) {
+          setUnlockedLeadPhone(null);
+          setLeadPhoneVisible(false);
+          return;
+        }
+        setUnlockedLeadPhone(phone);
+        setLeadPhoneVisible(true);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('auto unlock lead phone', err);
+        setUnlockedLeadPhone(null);
+        setLeadPhoneVisible(false);
+      } finally {
+        if (!cancelled) setUnlockLeadLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [
     currentUserId,
-    handleUnlockLead,
     selectedMission?.cleaner_id,
     selectedMission?.crowdfunding_mode,
     selectedMission?.id,
@@ -2177,7 +2217,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         )
       `)
       .eq('mission_id', missionId)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'accepted'])
       .order('created_at', { ascending: false })
       .limit(100);
     if (error) throw error;
@@ -2660,16 +2700,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleBriefingAcceptBid = useCallback(
     async (bid: MissionBidRow) => {
-      if (!selectedMission) return;
+      if (!selectedMission || briefingBidSubmitting) return;
       const missionValue = Number(bid.bid_amount ?? 0);
       if (!Number.isFinite(missionValue) || missionValue <= 0) return;
 
+      setBriefingBidSubmitting(true);
       const { data: workerProf, error: workerProfErr } = await supabase
         .from('profiles')
         .select('is_verified')
         .eq('id', bid.cleaner_id)
         .maybeSingle();
       if (workerProfErr) {
+        setBriefingBidSubmitting(false);
         toast.error(workerProfErr.message || t('unexpectedErrorTryAgain'));
         return;
       }
@@ -2678,6 +2720,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         workerProf?.is_verified
       );
       if (!homeOk.ok) {
+        setBriefingBidSubmitting(false);
         setShowVerificationModal(true);
         return;
       }
@@ -2707,9 +2750,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
       } catch (e: any) {
         console.error('handleBriefingAcceptBid', e);
         toast.error(e?.message || t('unexpectedErrorTryAgain'));
+      } finally {
+        setBriefingBidSubmitting(false);
       }
     },
-    [fetchMissions, selectedMission, t, toast]
+    [briefingBidSubmitting, fetchMissions, selectedMission, t, toast]
   );
 
   const handleBriefingDeclineBid = useCallback(
@@ -3444,22 +3489,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
   }, []);
 
-  /** Open a mission by id (from a notification): use loaded jobs or fetch it. */
+  /** Open a mission by id (from a notification): always refetch for fresh status/cleaner. */
   const openMissionById = useCallback(async (missionId: string) => {
-    const existing = (jobsRef.current || []).find((j) => String(j.id) === String(missionId));
-    if (existing) {
-      openMyOrderMission(existing);
-      return;
-    }
     try {
       const { data, error } = await supabase
         .from('missions')
         .select(
-          'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, location_lat, location_lng, status, building_id, cleaner_id, creator_id, description, photo_urls, after_photo_urls, created_at, started_at'
+          'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, location_lat, location_lng, status, building_id, cleaner_id, creator_id, description, photo_urls, after_photo_urls, created_at, started_at, creator:profiles!creator_id (full_name, avatar_url, is_verified)'
         )
         .eq('id', missionId)
         .maybeSingle();
-      if (error || !data) return;
+      if (error || !data) {
+        const existing = (jobsRef.current || []).find((j) => String(j.id) === String(missionId));
+        if (existing) openMyOrderMission(existing);
+        return;
+      }
       openMyOrderMission(data as JobOnMap);
     } catch (err) {
       console.warn('openMissionById failed:', err);
@@ -4496,9 +4540,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           }}
           onViewPhotos={() => setHallOfFameMission(selectedMission)}
           onStartWork={() => {
-            toast.success(t('mapToastMissionAcceptedProfile'));
+            setProofUploadMission(selectedMission);
             handleCloseMissionBriefing();
-            onAvatarClick?.();
           }}
           onSubscribe={() => setShowWorkerSubscriptionGate(true)}
           onSubmitReview={handleSubmitReview}

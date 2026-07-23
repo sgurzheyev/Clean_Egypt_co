@@ -114,7 +114,10 @@ function missionLocationLine(
 ): string {
   const descLine = String(mission.description ?? '').split('\n')[0]?.trim();
   if (descLine.startsWith('📍')) return descLine;
-  const hub = closestMarketplaceCity(mission.location_lat, mission.location_lng);
+  const lat = Number(mission.location_lat);
+  const lng = Number(mission.location_lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return t('pinLocationLabel');
+  const hub = closestMarketplaceCity(lat, lng);
   if (hub) {
     return formatPinLocationTag(
       { areaName: '', closestCityId: hub.id, closestCityNameKey: hub.nameKey },
@@ -122,7 +125,7 @@ function missionLocationLine(
       t('pinLocationLabel')
     );
   }
-  return `${mission.location_lat.toFixed(4)}, ${mission.location_lng.toFixed(4)}`;
+  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 }
 
 function placeholderVariantFor(mission: MissionBriefingMission): MissionFeedPlaceholderVariant {
@@ -227,12 +230,12 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
         b.cleaner_id === currentUserId &&
         String(b.status || '').toLowerCase() === 'accepted'
     );
-  const contactUnlocked = isAssignedCleaner || hasAcceptedBid;
+  const contactUnlocked = isAssignedCleaner || hasAcceptedBid || !!revealedPhone;
   /** Private missions: show contact panel to workers (role cleaner OR contracted). */
   const showWorkerContactPanel =
     !isCrowdfundingMissionFlag &&
     !!currentUserId &&
-    (isExecutorViewer || contactUnlocked);
+    (isExecutorViewer || contactUnlocked || isAssignedCleaner);
 
   const [reviewComment, setReviewComment] = useState('');
   const [fundingNowMs, setFundingNowMs] = useState(() => Date.now());
@@ -266,7 +269,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const workerContactPanel =
     showWorkerContactPanel ? (
       <div className="space-y-3 border-t border-white/5 pt-4">
-        {revealedPhone && contactUnlocked ? (
+        {revealedPhone ? (
           <>
             <div className="flex items-center justify-between gap-4">
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">

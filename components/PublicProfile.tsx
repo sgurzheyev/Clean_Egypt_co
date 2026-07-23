@@ -69,7 +69,12 @@ const PublicProfile: React.FC = () => {
   const [phoneChecked, setPhoneChecked] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      setLoading(false);
+      setError(t('publicProfileNotFound'));
+      setProfile(null);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setError(null);
