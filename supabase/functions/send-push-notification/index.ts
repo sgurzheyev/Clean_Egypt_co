@@ -16,9 +16,13 @@
  * Choose ONE push provider path:
  *
  * A) Firebase Cloud Messaging (recommended for Android / Capacitor / Web FCM)
- *   FCM_SERVER_KEY               — Legacy HTTP server key from Firebase Console
- *                                  (Cloud Messaging → Cloud Messaging API (Legacy))
- *   OR for HTTP v1 (preferred long-term):
+ *   FCM_SERVER_KEY               — REQUIRED for production dispatch today.
+ *                                  Firebase Console → Project settings → Cloud Messaging
+ *                                  → Cloud Messaging API (Legacy) → Server key
+ *                                  Set with:  supabase secrets set FCM_SERVER_KEY="...."
+ *   Without FCM_SERVER_KEY the function returns dry_run:true (safe no-op).
+ *
+ *   Optional HTTP v1 (future):
  *   FCM_SERVICE_ACCOUNT_JSON     — full service-account JSON string
  *   FCM_PROJECT_ID               — Firebase project id
  *

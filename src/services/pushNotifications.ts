@@ -1,23 +1,17 @@
 /**
- * Phase 5 — browser / PWA push registration.
+ * Phase 5 — browser / PWA push registration (FCM + Web Push).
  *
- * Saves FCM or Web Push tokens into `public.user_push_tokens` via
- * `upsert_user_push_token` (or direct table upsert).
- *
- * Env (Vite):
- *   FCM Web (add `firebase` package when enabling):
- *     VITE_FIREBASE_API_KEY
- *     VITE_FIREBASE_AUTH_DOMAIN
- *     VITE_FIREBASE_PROJECT_ID
- *     VITE_FIREBASE_MESSAGING_SENDER_ID
- *     VITE_FIREBASE_APP_ID
- *     VITE_FCM_VAPID_KEY
- *
- *   Pure Web Push:
- *     VITE_VAPID_PUBLIC_KEY
- *
- * Without secrets, DEV mode still writes a stub token so DB wiring can be tested.
+ * Env (Vite) — accept either VAPID name:
+ *   VITE_FIREBASE_API_KEY
+ *   VITE_FIREBASE_AUTH_DOMAIN (optional)
+ *   VITE_FIREBASE_PROJECT_ID
+ *   VITE_FIREBASE_MESSAGING_SENDER_ID
+ *   VITE_FIREBASE_APP_ID
+ *   VITE_FIREBASE_VAPID_KEY  (preferred) or VITE_FCM_VAPID_KEY
+ *   VITE_VAPID_PUBLIC_KEY    (pure Web Push fallback)
  */
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getMessaging, getToken, isSupported } from 'firebase/messaging';
 import { supabase } from '../../services/supabase';
 
 export type PushPlatform = 'web' | 'android' | 'ios';
@@ -30,6 +24,14 @@ export type PushRegistrationResult = {
   reason?: string;
 };
 
+function env(name: string): string {
+  return String(import.meta.env[name] || '').trim();
+}
+
+function vapidKey(): string {
+  return env('VITE_FIREBASE_VAPID_KEY') || env('VITE_FCM_VAPID_KEY');
+}
+
 function detectPlatform(): PushPlatform {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   if (/android/i.test(ua)) return 'android';
@@ -37,14 +39,29 @@ function detectPlatform(): PushPlatform {
   return 'web';
 }
 
+function firebaseWebConfig(): {
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  messagingSenderId: string;
+  appId: string;
+} | null {
+  const apiKey = env('VITE_FIREBASE_API_KEY');
+  const projectId = env('VITE_FIREBASE_PROJECT_ID');
+  const messagingSenderId = env('VITE_FIREBASE_MESSAGING_SENDER_ID');
+  const appId = env('VITE_FIREBASE_APP_ID');
+  if (!apiKey || !projectId || !messagingSenderId || !appId) return null;
+  return {
+    apiKey,
+    authDomain: env('VITE_FIREBASE_AUTH_DOMAIN') || `${projectId}.firebaseapp.com`,
+    projectId,
+    messagingSenderId,
+    appId,
+  };
+}
+
 function hasFirebaseEnv(): boolean {
-  return !!(
-    String(import.meta.env.VITE_FIREBASE_API_KEY || '').trim() &&
-    String(import.meta.env.VITE_FIREBASE_PROJECT_ID || '').trim() &&
-    String(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '').trim() &&
-    String(import.meta.env.VITE_FIREBASE_APP_ID || '').trim() &&
-    String(import.meta.env.VITE_FCM_VAPID_KEY || '').trim()
-  );
+  return !!(firebaseWebConfig() && vapidKey());
 }
 
 async function persistToken(token: string, platform: PushPlatform): Promise<void> {
@@ -72,20 +89,41 @@ async function persistToken(token: string, platform: PushPlatform): Promise<void
   if (error) throw error || rpcErr;
 }
 
-/**
- * FCM token path — enable after `npm i firebase` and setting VITE_FIREBASE_*.
- * Left as an explicit stub so the Vite build does not require the firebase package yet.
- */
 async function getFcmToken(): Promise<string | null> {
-  if (!hasFirebaseEnv()) return null;
-  console.info(
-    '[push] VITE_FIREBASE_* detected. Install `firebase`, then implement getToken() in getFcmToken() (see Phase 5 comments).'
-  );
-  return null;
+  const cfg = firebaseWebConfig();
+  const key = vapidKey();
+  if (!cfg || !key) return null;
+
+  const supported = await isSupported().catch(() => false);
+  if (!supported) {
+    console.info('[push] Firebase Messaging not supported in this browser');
+    return null;
+  }
+  if (!('serviceWorker' in navigator)) return null;
+
+  const app = getApps().length > 0 ? getApp() : initializeApp(cfg);
+  // Prefer env-injected SW (Vite plugin); fall back to placeholder public SW.
+  const swUrl = '/firebase-messaging-sw.generated.js';
+  let reg: ServiceWorkerRegistration;
+  try {
+    reg = await navigator.serviceWorker.register(swUrl, { scope: '/' });
+  } catch {
+    reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+      scope: '/',
+    });
+  }
+  await navigator.serviceWorker.ready;
+
+  const messaging = getMessaging(app);
+  const token = await getToken(messaging, {
+    vapidKey: key,
+    serviceWorkerRegistration: reg,
+  });
+  return token || null;
 }
 
 async function getWebPushSubscriptionToken(): Promise<string | null> {
-  const vapid = String(import.meta.env.VITE_VAPID_PUBLIC_KEY || '').trim();
+  const vapid = env('VITE_VAPID_PUBLIC_KEY');
   if (!vapid || !('serviceWorker' in navigator) || !('PushManager' in window)) {
     return null;
   }
@@ -93,10 +131,10 @@ async function getWebPushSubscriptionToken(): Promise<string | null> {
   await navigator.serviceWorker.ready;
   let sub = await reg.pushManager.getSubscription();
   if (!sub) {
-    const key = urlBase64ToUint8Array(vapid);
+    const applicationServerKey = urlBase64ToUint8Array(vapid);
     sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: key,
+      applicationServerKey,
     });
   }
   return JSON.stringify(sub.toJSON());
@@ -113,6 +151,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 /**
  * Request permission (if needed), obtain a device token, persist to Supabase.
+ * Never throws to callers — returns a structured result for denied/unsupported cases.
  */
 export async function registerPushNotifications(): Promise<PushRegistrationResult> {
   const platform = detectPlatform();
@@ -135,16 +174,37 @@ export async function registerPushNotifications(): Promise<PushRegistrationResul
 
   let permission = Notification.permission;
   if (permission === 'default') {
-    permission = await Notification.requestPermission();
+    try {
+      permission = await Notification.requestPermission();
+    } catch (err) {
+      return {
+        ok: false,
+        platform,
+        permission: 'denied',
+        reason: err instanceof Error ? err.message : 'permission_request_failed',
+      };
+    }
   }
   if (permission !== 'granted') {
     return { ok: false, platform, permission, reason: 'permission_denied' };
   }
 
   try {
-    let token = (await getFcmToken()) || (await getWebPushSubscriptionToken());
+    let token: string | null = null;
+    try {
+      token = await getFcmToken();
+    } catch (err) {
+      console.warn('[push] FCM getToken failed, trying Web Push fallback', err);
+    }
+    if (!token) {
+      try {
+        token = await getWebPushSubscriptionToken();
+      } catch (err) {
+        console.warn('[push] Web Push subscribe failed', err);
+      }
+    }
 
-    if (!token && import.meta.env.DEV) {
+    if (!token && import.meta.env.DEV && !hasFirebaseEnv()) {
       token = `dev-stub-${session.user.id.slice(0, 8)}-${Date.now()}`;
     }
 
@@ -153,7 +213,7 @@ export async function registerPushNotifications(): Promise<PushRegistrationResul
         ok: false,
         platform,
         permission,
-        reason: 'missing_fcm_or_vapid_env',
+        reason: hasFirebaseEnv() ? 'token_unavailable' : 'missing_fcm_or_vapid_env',
       };
     }
 

@@ -17,6 +17,9 @@ dist-ssr
 .env.*
 !.env.example
 
+# Vite-injected FCM SW (contains local Firebase web config)
+public/firebase-messaging-sw.generated.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

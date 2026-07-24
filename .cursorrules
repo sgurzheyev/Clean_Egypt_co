@@ -1,34 +1,43 @@
 # CleanEgypt.co — Project Rules & Architecture Context
 
-You are an expert Senior Full-Stack Engineer and UI/UX Designer specializing in Cyberpunk/Cyber-neon aesthetics, React, Supabase, and Mapbox.
+You are an expert Senior Full-Stack Engineer and UI/UX Designer specializing in Cyberpunk/Cyber-neon aesthetics, React, Supabase, Mapbox, and Realtime distributed architectures.
 
-## 1. Core Business Model & Crowdfunding
-- CleanEgypt.co is a marketplace/SaaS terminal for garbage cleaning and municipal tasks.
-- NO INTERNAL FIAT ESCROW PAYMENTS: Direct P2P for standard services.
-- CROWDFUNDING FOR GARBAGE: For "Garbage Removal" tasks, users can contribute partial amounts via Stripe. These funds are held by the platform until the target is met.
-- TOKENS MODEL: Tokens are used for posting, boosting, and platform interactions.
-- CITY NOTIFICATION FALLBACK: If a crowdfunding task expires, funds are NOT refunded to cards. The system generates a PDF report and notifies local municipal authorities; funds are retained as a processing fee.
+## 1. Core Business Model, Token Economy & Privacy
+- CleanEgypt.co is a decentralized marketplace/SaaS terminal for municipal cleaning and garbage removal.
+- NO INTERNAL FIAT ESCROW PAYMENTS: Direct P2P negotiation and settlement for standard tasks.
+- TOKEN ECONOMY: Tokens are the platform currency. Every user starts with a balance (e.g., 50 tokens). Placing a bid on any mission costs exactly 1 Token. 
+- THE "HUNGRY-GAMES" ANTI-SPAM & PRIVACY LOCK: Mission Creator contact details (Phone / WhatsApp) MUST REMAIN STRICTLY LOCKED/HIDDEN on both the mission card and their Public Profile. Contacts are automatically unlocked for a worker ONLY after the Creator explicitly accepts their bid (or when assigned as `cleaner_id`).
+- CROWDFUNDING FOR GARBAGE: For "Garbage Removal" tasks, users contribute funds via Stripe. Funds are held until the target amount is reached.
+- CITY NOTIFICATION FALLBACK: If a crowdfunding task expires without reaching the goal, funds are NOT refunded. The platform retains the funds as a processing fee, automatically generates an asynchronous PDF report, and logs events to dispatch formal notices to municipal authorities.
 
 ## 2. Critical UI/UX Rules (Cyberpunk / Neon Minimalism)
-- PROFILE SIDEBAR: Keep it compact and dense.
+- PROFILE SIDEBAR: Compact, dense, and glassmorphic.
   - Top Header: "Top Up" button must live next to the Language switcher.
-  - Collapsable UI: All sections (INFO, ORDERS, CITY, HISTORY) MUST be inside accordions, closed by default.
-- MAP INTERFACE:
+  - Collapsible UI: Sections (INFO, ORDERS, CITY, HISTORY) MUST be inside accordions, closed by default. No cluttered badges.
+- MAP & FEED INTERFACE:
   - Task pins: Minimalist "broom" (standard) and "target" (crowdfunding) icons.
-  - Crowdfunding UI: If `crowdfunding_mode` is true, show progress bar and "Contribute" button instead of bid.
+  - Live Market Feed Rule: Missions in `funding` status MUST ALWAYS remain visible in the general "Рынок услуг" (Service Market Feed) even if a cleaner is already assigned (`cleaner_id IS NOT NULL`). If a cleaner is locked during funding, display a prominent violet callout badge: *"Cleaner locked in! Needs $X more to start"*.
+- IN-APP NOTIFICATION HUB: The top-right Notification Bell is wired to Realtime DB inserts. Clicking an unread notification marks it as read and deep-links directly to the target Mission Briefing or P2P Chat.
 
-## 3. Mission Status Flow (State Machine)
-- STANDARD FLOW: `available` -> `in_progress` -> `review` -> `completed` (P2P verified).
-- CROWDFUNDING FLOW: `funding` (collecting funds) -> `available` (target met) -> `in_progress` -> `review` -> `completed`.
-- CITY NOTIFICATION FLOW: If `funding` task expires -> `expired` (+ `city_notification_events` queue; PDF pipeline is async).
-- Legacy aliases still seen in data/UI: `pending` (open like available), `finished` (like completed), `pending_approval` (like review).
+## 3. Mission Status Flow & Dynamic Crowdfunding State Machine
+- STANDARD FLOW: `open`/`available` -> `in_progress` (cleaner assigned) -> `review` (proof uploaded) -> `completed`.
+- DYNAMIC CROWDFUNDING FLOW: 
+  - Starts in `funding` (7-day default timer; Stripe contributions dynamically bump timer by +30 days).
+  - Bid Acceptance During Funding: Creators CAN accept worker bids during `funding`. If the accepted bid amount is higher than the current target, the mission goal (`target_amount`) dynamically bumps to match the bid.
+  - Conditional State Transition: When a bid is accepted during `funding`, the worker is assigned (`cleaner_id`), but the mission STAYS in `funding` status until community donations fill the gap. Once Stripe donations hit 100% of the new goal, the mission automatically transitions to `in_progress` (skipping re-bidding).
+- CITY NOTIFICATION FLOW: If `funding` timer expires -> `expired` -> queues `city_notification_events`.
+- Legacy aliases: `pending` (same as open/available), `finished` (completed), `pending_approval` (review).
 
-## 4. Admin Powers & Moderation
-- Admins exist strictly for CONTENT MODERATION and manual `admin_delete_mission` RPC triggers.
-- NO manual payout verification.
+## 4. Realtime P2P Chat & Global Push Notifications (FCM)
+- IN-APP P2P CHAT: Integrated into `MissionBriefing`. Accessible to active/pending bidders and the assigned cleaner to negotiate details prior to contact unlocking. Runs on Supabase Realtime (`mission_chats`).
+- GLOBAL PUSH ARCHITECTURE: We use asynchronous database triggers (`pg_net`) calling a Supabase Edge Function (`send-push-notification`) to dispatch alerts via Firebase Cloud Messaging (FCM / Web Push) using device tokens stored in `public.user_push_tokens`. Never put heavy FCM dispatch logic on the frontend client.
 
-## 5. Technology Stack & Fallbacks
-- Frontend: React + Tailwind CSS (Neon green, glassmorphism).
-- Backend: Supabase (PostgreSQL with RLS, custom RPCs).
-- Language: Strictly RU and EN.
-- Safety Fallback: Use token rendering for values < 100 to avoid fiat confusion.
+## 5. Admin Powers & Moderation
+- Admins exist strictly for CONTENT MODERATION, resolving disputes, and manual `admin_delete_mission` RPC triggers.
+- NO manual fiat payout verification.
+
+## 6. Technology Stack & Fallbacks
+- Frontend: React + Vite + Tailwind CSS (Cyberpunk neon green/cyan, dark glassmorphism) + Mapbox GL.
+- Backend: Supabase (PostgreSQL, strict RLS policies, custom RPCs, pg_net, Edge Functions).
+- Localization: Strictly bilingual RU and EN (using clean i18n key mappings).
+- Safety Fallback: Use token rendering for UI values < 100 to avoid fiat/crypto confusion. Always implement double-submit guards on critical actions (e.g., bid acceptance, payments).
