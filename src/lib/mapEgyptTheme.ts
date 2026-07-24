@@ -88,9 +88,12 @@ export const EGYPT_ROAD_COLOR = '#8B909A';
 export const EGYPT_ROAD_MAJOR_COLOR = '#C5CAD3';
 export const EGYPT_ROAD_GLOW_COLOR = '#A8ADB8';
 
-/** Deep steel water + matte graphite land (map canvas only). */
-export const MAP_STEEL_WATER = '#15151A';
-export const MAP_STEEL_WATERWAY = '#4A5060';
+/** Deep metallic gunmetal-blue water (map canvas only — not flat black). */
+export const MAP_STEEL_WATER = '#1A1A2E';
+/** Brighter sheen used for the flickering metallic overlay. */
+export const MAP_STEEL_WATER_SHEEN = '#2A3355';
+export const MAP_STEEL_WATERWAY = '#3D4A6A';
+export const MAP_STEEL_WATERWAY_GLOW = '#2A3558';
 export const MAP_GRAPHITE_LAND = '#202025';
 
 /** Geolocate / report-mode cinematic camera. */
@@ -212,4 +215,131 @@ export function applyEgyptMapTheme(map: MapLike, options?: { beforeLayerId?: str
       safePaint(map, id, 'line-opacity', 0.4);
     }
   }
+}
+
+type WaterFlickerMap = MapLike & {
+  hasImage?: (id: string) => boolean;
+  addImage?: (
+    id: string,
+    image:
+      | HTMLCanvasElement
+      | ImageData
+      | ImageBitmap
+      | { width: number; height: number; data: Uint8Array | Uint8ClampedArray },
+    options?: { pixelRatio?: number }
+  ) => void;
+  getCanvas?: () => HTMLCanvasElement | undefined;
+};
+
+const WATER_NOISE_IMAGE_ID = 'ce-water-metal-noise';
+const WATER_FLICKER_LAYER_ID = 'water-metallic-flicker';
+const WATER_TEXTURE_LAYER_ID = 'water-metallic-texture';
+
+/** Procedural gunmetal noise tile for Mapbox `fill-pattern`. */
+function buildWaterMetalNoiseImage(): {
+  width: number;
+  height: number;
+  data: Uint8Array;
+} {
+  const size = 64;
+  const data = new Uint8Array(size * size * 4);
+  for (let i = 0; i < data.length; i += 4) {
+    const n = Math.random();
+    const cool = n > 0.82;
+    data[i] = cool ? 70 + Math.floor(n * 40) : 22 + Math.floor(n * 28);
+    data[i + 1] = cool ? 80 + Math.floor(n * 35) : 26 + Math.floor(n * 30);
+    data[i + 2] = cool ? 120 + Math.floor(n * 50) : 48 + Math.floor(n * 42);
+    data[i + 3] = cool ? 90 + Math.floor(n * 80) : 40 + Math.floor(n * 50);
+  }
+  return { width: size, height: size, data };
+}
+
+/**
+ * Ensure metallic water texture + sheen layers exist, then run a slow opacity
+ * flicker so the surface reads as living gunmetal metal (not flat black oil).
+ * Returns a cancel function for cleanup.
+ */
+export function ensureMetallicWaterEffect(map: WaterFlickerMap): () => void {
+  try {
+    if (!map.hasImage?.(WATER_NOISE_IMAGE_ID)) {
+      map.addImage?.(WATER_NOISE_IMAGE_ID, buildWaterMetalNoiseImage(), { pixelRatio: 2 });
+    }
+  } catch (e) {
+    console.warn('[ensureMetallicWaterEffect] addImage failed', e);
+  }
+
+  const beforeId = map.getLayer?.('place_label') ? 'place_label' : undefined;
+  // Keep texture under the animated sheen (and under labels/roads when possible).
+  const textureBefore = map.getLayer?.(WATER_FLICKER_LAYER_ID)
+    ? WATER_FLICKER_LAYER_ID
+    : beforeId;
+
+  if (!map.getLayer?.(WATER_TEXTURE_LAYER_ID)) {
+    try {
+      if (map.hasImage?.(WATER_NOISE_IMAGE_ID)) {
+        map.addLayer?.(
+          {
+            id: WATER_TEXTURE_LAYER_ID,
+            type: 'fill',
+            source: 'composite',
+            'source-layer': 'water',
+            paint: {
+              'fill-pattern': WATER_NOISE_IMAGE_ID,
+              'fill-opacity': 0.32,
+            },
+          },
+          textureBefore
+        );
+      }
+    } catch (e) {
+      console.warn('[ensureMetallicWaterEffect] texture layer failed', e);
+    }
+  }
+
+  if (!map.getLayer?.(WATER_FLICKER_LAYER_ID)) {
+    try {
+      map.addLayer?.(
+        {
+          id: WATER_FLICKER_LAYER_ID,
+          type: 'fill',
+          source: 'composite',
+          'source-layer': 'water',
+          paint: {
+            'fill-color': MAP_STEEL_WATER_SHEEN,
+            'fill-opacity': 0.18,
+          },
+        },
+        beforeId
+      );
+    } catch (e) {
+      console.warn('[ensureMetallicWaterEffect] flicker layer failed', e);
+    }
+  }
+
+  // Base water + waterways — keep gunmetal (never re-blacken).
+  safePaint(map, 'water', 'fill-color', MAP_STEEL_WATER);
+  safePaint(map, 'water', 'fill-opacity', 0.96);
+  safePaint(map, 'waterway-glow', 'line-color', MAP_STEEL_WATERWAY_GLOW);
+  safePaint(map, 'waterway-core', 'line-color', MAP_STEEL_WATERWAY);
+  safePaint(map, WATER_FLICKER_LAYER_ID, 'fill-color', MAP_STEEL_WATER_SHEEN);
+
+  let raf = 0;
+  let cancelled = false;
+  const tick = (t: number) => {
+    if (cancelled) return;
+    // Slow dual-frequency shimmer (~2.4s + ~5.1s) — subtle metallic flicker.
+    const a = 0.5 + 0.5 * Math.sin(t / 2400);
+    const b = 0.5 + 0.5 * Math.sin(t / 5100 + 1.2);
+    const sheenOpacity = 0.1 + 0.16 * a + 0.06 * b;
+    const textureOpacity = 0.22 + 0.16 * b;
+    safePaint(map, WATER_FLICKER_LAYER_ID, 'fill-opacity', sheenOpacity);
+    safePaint(map, WATER_TEXTURE_LAYER_ID, 'fill-opacity', textureOpacity);
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+
+  return () => {
+    cancelled = true;
+    if (raf) cancelAnimationFrame(raf);
+  };
 }

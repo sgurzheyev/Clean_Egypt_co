@@ -96,11 +96,14 @@ import {
 import {
   applyEgyptMapTheme,
   egyptRoadLineColorExpr,
+  ensureMetallicWaterEffect,
   EGYPT_ROAD_GLOW_COLOR,
   EGYPT_ROAD_MAJOR_COLOR,
   MAP_CINEMATIC_FLY,
   MAP_STEEL_WATER,
+  MAP_STEEL_WATER_SHEEN,
   MAP_STEEL_WATERWAY,
+  MAP_STEEL_WATERWAY_GLOW,
 } from '../src/lib/mapEgyptTheme';
 import {
   applyWeatherFog,
@@ -1260,8 +1263,19 @@ const customDarkStyle: any = {
       source: 'composite',
       'source-layer': 'water',
       paint: {
-        'fill-color': '#15151A',
-        'fill-opacity': 0.95,
+        'fill-color': MAP_STEEL_WATER,
+        'fill-opacity': 0.96,
+      },
+    },
+    // Metallic sheen — opacity is animated at runtime for a living gunmetal flicker.
+    {
+      id: 'water-metallic-flicker',
+      type: 'fill',
+      source: 'composite',
+      'source-layer': 'water',
+      paint: {
+        'fill-color': MAP_STEEL_WATER_SHEEN,
+        'fill-opacity': 0.18,
       },
     },
     // Steel shoreline / waterways.
@@ -1271,9 +1285,9 @@ const customDarkStyle: any = {
       source: 'composite',
       'source-layer': 'waterway',
       paint: {
-        'line-color': '#3A3F4A',
+        'line-color': MAP_STEEL_WATERWAY_GLOW,
         'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.3, 12, 1.2, 16, 2.4],
-        'line-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.2, 12, 0.35, 16, 0.45],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.22, 12, 0.4, 16, 0.5],
         'line-blur': 2,
       },
     },
@@ -1283,9 +1297,9 @@ const customDarkStyle: any = {
       source: 'composite',
       'source-layer': 'waterway',
       paint: {
-        'line-color': '#4A5060',
+        'line-color': MAP_STEEL_WATERWAY,
         'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.1, 12, 0.6, 16, 1.2],
-        'line-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.3, 12, 0.55, 16, 0.7],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.35, 12, 0.6, 16, 0.75],
       },
     },
     {
@@ -1404,6 +1418,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     window.matchMedia('(max-width: 640px)').matches;
   const mapRef = React.useRef<MapRef>(null);
   const mapInstanceRef = React.useRef<any>(null);
+  const waterFlickerCancelRef = React.useRef<(() => void) | null>(null);
   const orderFormRef = React.useRef<HTMLFormElement>(null);
   const jobsRef = React.useRef<JobOnMap[]>([]);
   const selectedMissionTagsRef = React.useRef<string[]>([]);
@@ -1738,6 +1753,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const id = window.setInterval(updateAtmosphere, 5 * 60 * 1000);
     return () => window.clearInterval(id);
   }, [updateAtmosphere]);
+
+  useEffect(() => {
+    return () => {
+      waterFlickerCancelRef.current?.();
+      waterFlickerCancelRef.current = null;
+    };
+  }, []);
 
   // Re-apply fog when simulated weather changes.
   useEffect(() => {
@@ -4241,13 +4263,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
             (layer: any) => typeof layer?.id === 'string' && layer.id.includes('water')
           );
           for (const layer of waterLikeLayers) {
-            if (layer.type === 'fill') {
-              map.setPaintProperty(layer.id, 'fill-color', MAP_STEEL_WATER);
-              map.setPaintProperty(layer.id, 'fill-opacity', 0.95);
+            const id = String(layer.id);
+            // Metallic flicker / texture overlays keep their own paint — don't flatten them.
+            if (id.includes('metallic') || id.includes('metal')) continue;
+            if (layer.type === 'fill' && (id === 'water' || id.endsWith('-water') || id.startsWith('water'))) {
+              if (id === 'water') {
+                map.setPaintProperty(layer.id, 'fill-color', MAP_STEEL_WATER);
+                map.setPaintProperty(layer.id, 'fill-opacity', 0.96);
+              }
             }
             if (layer.type === 'line') {
-              map.setPaintProperty(layer.id, 'line-color', MAP_STEEL_WATERWAY);
-              map.setPaintProperty(layer.id, 'line-opacity', 0.55);
+              const isGlow = id.includes('glow');
+              map.setPaintProperty(
+                layer.id,
+                'line-color',
+                isGlow ? MAP_STEEL_WATERWAY_GLOW : MAP_STEEL_WATERWAY
+              );
+              map.setPaintProperty(layer.id, 'line-opacity', isGlow ? 0.45 : 0.6);
             }
           }
 
@@ -4255,10 +4287,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
           // Steel-grey thematic restyle: graphite extrusions + chrome roads.
           applyEgyptMapTheme(map, { beforeLayerId: 'place_label' });
+          // Gunmetal water sheen + noise texture + slow metallic flicker.
+          try {
+            waterFlickerCancelRef.current?.();
+            waterFlickerCancelRef.current = ensureMetallicWaterEffect(map);
+          } catch {
+            /* ignore */
+          }
           // Neon road layers mount after first paint — re-apply once map is idle.
           map.once?.('idle', () => {
             try {
               applyEgyptMapTheme(map, { beforeLayerId: 'place_label' });
+              waterFlickerCancelRef.current?.();
+              waterFlickerCancelRef.current = ensureMetallicWaterEffect(map);
             } catch {
               /* ignore */
             }
