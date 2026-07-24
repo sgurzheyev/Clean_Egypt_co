@@ -459,47 +459,51 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           </div>
         ) : (
           <>
-            <div className="relative w-full max-h-[40vh] shrink-0 aspect-video overflow-hidden bg-slate-900">
-              {photos.length > 0 ? (
-                <>
+            {/* Immersive magazine hero — photo extends behind status + description, fades into drawer bg */}
+            <div className="relative w-full shrink-0 overflow-hidden bg-slate-900 min-h-[min(58vh,26rem)] sm:min-h-[28rem]">
+              <div className="absolute inset-0">
+                {photos.length > 0 ? (
+                  <>
+                    <div
+                      className="flex h-full w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain overscroll-y-none touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                      style={{ WebkitOverflowScrolling: 'touch' }}
+                    >
+                      {photos.map((url, index) => (
+                        <div
+                          key={`${url}-${index}`}
+                          className="relative h-full w-full shrink-0 snap-center snap-always overflow-hidden"
+                        >
+                          <img
+                            src={url}
+                            alt={`Mission photo ${index + 1}`}
+                            draggable={false}
+                            className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {photos.length > 1 && (
+                      <p className="pointer-events-none absolute top-12 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/20 bg-black/45 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white/80 backdrop-blur-sm">
+                        {t('swipeForMorePhotos')} · {photos.length}
+                      </p>
+                    )}
+                  </>
+                ) : (
                   <div
-                    className="flex h-full w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain overscroll-y-none touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-                    style={{ WebkitOverflowScrolling: 'touch' }}
+                    className={`flex h-full w-full items-center justify-center ${missionFeedPlaceholderGradient(
+                      placeholderVariant
+                    )}`}
                   >
-                    {photos.map((url, index) => (
-                      <div
-                        key={`${url}-${index}`}
-                        className="relative h-full w-full shrink-0 snap-center snap-always overflow-hidden"
-                      >
-                        <img
-                          src={url}
-                          alt={`Mission photo ${index + 1}`}
-                          draggable={false}
-                          className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover"
-                        />
-                      </div>
-                    ))}
+                    <span className="text-4xl opacity-90" aria-hidden>
+                      {placeholderIcon}
+                    </span>
                   </div>
-                  {photos.length > 1 && (
-                    <p className="pointer-events-none absolute top-12 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/20 bg-black/45 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white/80 backdrop-blur-sm">
-                      {t('swipeForMorePhotos')} · {photos.length}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <div
-                  className={`flex h-full w-full items-center justify-center ${missionFeedPlaceholderGradient(
-                    placeholderVariant
-                  )}`}
-                >
-                  <span className="text-4xl opacity-90" aria-hidden>
-                    {placeholderIcon}
-                  </span>
-                </div>
-              )}
+                )}
+              </div>
 
+              {/* Seamless fade into drawer `bg-slate-950` (#020617) before Bids */}
               <div
-                className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/95 via-black/35 to-transparent"
+                className="pointer-events-none absolute inset-0 z-[5] bg-gradient-to-t from-[#020617] via-[#020617]/90 from-0% via-35% to-transparent to-75%"
                 aria-hidden
               />
 
@@ -529,93 +533,96 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 )}
               </div>
 
-              <div
-                className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4 pt-8 ${
-                  onCreatorClick ? 'pr-28' : ''
-                }`}
-              >
-                <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-300/80">
-                  {t('missionBriefing')}
-                </p>
-                <p className="text-2xl font-black leading-none tracking-tight text-orange-300 drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)] sm:text-3xl">
-                  {budgetValue}
-                </p>
-                <div className="mt-2 flex items-start gap-1.5">
-                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300/90" strokeWidth={2.25} />
-                  <p className="line-clamp-2 text-xs font-medium leading-snug text-slate-100/90">
-                    {locationTranslation.displayText}
-                  </p>
+              {/* Editorial stack over the fade — price overlays preserved; status + copy sit on top */}
+              <div className="pointer-events-none relative z-10 flex min-h-[min(58vh,26rem)] flex-col justify-end sm:min-h-[28rem]">
+                <div className="relative px-4 pb-3 pt-24">
+                  <div className={onCreatorClick ? 'pr-28' : ''}>
+                    <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-300/80">
+                      {t('missionBriefing')}
+                    </p>
+                    <p className="text-2xl font-black leading-none tracking-tight text-orange-300 drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)] sm:text-3xl">
+                      {budgetValue}
+                    </p>
+                    <div className="mt-2 flex items-start gap-1.5">
+                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300/90" strokeWidth={2.25} />
+                      <p className="line-clamp-2 text-xs font-medium leading-snug text-slate-100/90">
+                        {locationTranslation.displayText}
+                      </p>
+                    </div>
+                  </div>
+
+                  {onCreatorClick && (
+                    <button
+                      type="button"
+                      onClick={onCreatorClick}
+                      className="pointer-events-auto absolute bottom-3 right-3 z-30 flex items-center gap-2 rounded-full border border-emerald-300/50 bg-black/55 py-1 pl-1 pr-2.5 text-emerald-100 shadow-lg backdrop-blur-md transition-transform hover:border-emerald-200/80 active:scale-95"
+                      aria-label={t('viewCreatorProfile')}
+                      title={creatorName || t('viewCreatorProfile')}
+                    >
+                      <span className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-slate-800">
+                        {creatorAvatarUrl ? (
+                          <img
+                            src={creatorAvatarUrl}
+                            alt=""
+                            draggable={false}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-xs font-black uppercase text-emerald-200">
+                            {creatorInitial}
+                          </span>
+                        )}
+                        {creatorIsVerified && (
+                          <span
+                            className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-slate-950 bg-cyan-400 text-[8px] font-black text-slate-950"
+                            aria-hidden
+                          >
+                            ✓
+                          </span>
+                        )}
+                      </span>
+                      <span className="max-w-[5.5rem] truncate text-[11px] font-bold">
+                        {creatorName || t('publicProfileAnonymous')}
+                      </span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="pointer-events-auto relative z-10 space-y-3 px-5 pb-5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${statusBadgeClass(
+                        mission.status
+                      )}`}
+                    >
+                      {t('status')}: {statusLabel}
+                    </span>
+                    <span className="text-[10px] font-medium text-slate-200/90 drop-shadow-sm">
+                      {t('missionTokenBidLabel')}: {formatTokens(missionTokenBid(mission))}
+                    </span>
+                    {activeBidCount > 0 && (
+                      <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 drop-shadow-sm">
+                        {t('activeBidsOnMission')}
+                      </span>
+                    )}
+                  </div>
+
+                  {feedDescription && (
+                    <section>
+                      <TranslatableMissionDescription
+                        text={feedDescription}
+                        autoTranslate
+                        showTranslateButton
+                        clampClassName=""
+                        className="text-sm font-medium leading-relaxed text-slate-100 drop-shadow-[0_1px_8px_rgba(0,0,0,0.65)]"
+                      />
+                    </section>
+                  )}
                 </div>
               </div>
-
-              {onCreatorClick && (
-                <button
-                  type="button"
-                  onClick={onCreatorClick}
-                  className="pointer-events-auto absolute bottom-4 right-3 z-30 flex items-center gap-2 rounded-full border border-emerald-300/50 bg-black/55 py-1 pl-1 pr-2.5 text-emerald-100 shadow-lg backdrop-blur-md transition-transform hover:border-emerald-200/80 active:scale-95"
-                  aria-label={t('viewCreatorProfile')}
-                  title={creatorName || t('viewCreatorProfile')}
-                >
-                  <span className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-slate-800">
-                    {creatorAvatarUrl ? (
-                      <img
-                        src={creatorAvatarUrl}
-                        alt=""
-                        draggable={false}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-xs font-black uppercase text-emerald-200">
-                        {creatorInitial}
-                      </span>
-                    )}
-                    {creatorIsVerified && (
-                      <span
-                        className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-slate-950 bg-cyan-400 text-[8px] font-black text-slate-950"
-                        aria-hidden
-                      >
-                        ✓
-                      </span>
-                    )}
-                  </span>
-                  <span className="max-w-[5.5rem] truncate text-[11px] font-bold">
-                    {creatorName || t('publicProfileAnonymous')}
-                  </span>
-                </button>
-              )}
             </div>
 
-            <div className="relative z-[1] space-y-5 px-5 pt-5 pb-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${statusBadgeClass(
-                    mission.status
-                  )}`}
-                >
-                  {t('status')}: {statusLabel}
-                </span>
-                <span className="text-[10px] font-medium text-slate-400">
-                  {t('missionTokenBidLabel')}: {formatTokens(missionTokenBid(mission))}
-                </span>
-                {activeBidCount > 0 && (
-                  <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-400">
-                    {t('activeBidsOnMission')}
-                  </span>
-                )}
-              </div>
-
-              {feedDescription && (
-                <section>
-                  <TranslatableMissionDescription
-                    text={feedDescription}
-                    autoTranslate
-                    showTranslateButton
-                    clampClassName=""
-                    className="text-sm font-medium leading-relaxed text-slate-200"
-                  />
-                </section>
-              )}
-
+            <div className="relative z-[1] space-y-5 bg-[#020617] px-5 pt-1 pb-1">
               {crowdfundingOpen && (
                 <section className="border-t border-white/5 pt-4">
                   <div className="flex items-start justify-between gap-3">
