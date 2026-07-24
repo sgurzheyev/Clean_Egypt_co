@@ -138,8 +138,6 @@ import {
 } from '../src/lib/mapboxReverseGeocode';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
-// Egypt approximate bounding box (used only to validate pin placement — map view is global).
-const EGYPT_MAX_BOUNDS: [[number, number], [number, number]] = [[24.7, 22.0], [36.9, 31.6]];
 const PROOF_IMAGE_COMPRESSION = {
   maxWidthOrHeight: 1200,
   initialQuality: 0.7,
@@ -147,11 +145,14 @@ const PROOF_IMAGE_COMPRESSION = {
   fileType: 'image/jpeg' as const,
 };
 
-const isInsideEgyptBounds = (lng: number, lat: number) =>
-  lng >= EGYPT_MAX_BOUNDS[0][0] &&
-  lng <= EGYPT_MAX_BOUNDS[1][0] &&
-  lat >= EGYPT_MAX_BOUNDS[0][1] &&
-  lat <= EGYPT_MAX_BOUNDS[1][1];
+/** Basic WGS84 sanity check — any land/sea coordinate worldwide. */
+const isValidWorldCoordinate = (lng: number, lat: number) =>
+  Number.isFinite(lng) &&
+  Number.isFinite(lat) &&
+  lat >= -90 &&
+  lat <= 90 &&
+  lng >= -180 &&
+  lng <= 180;
 
 /** Mission pin radii (px) — scale up to z17, then plateau so pins do not balloon at z18+. */
 const MISSION_PIN_CORE_RADIUS: mapboxgl.Expression = [
@@ -2056,7 +2057,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const lat = Number(center?.lat ?? viewState.latitude);
       const lng = Number(center?.lng ?? viewState.longitude);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return prev;
-      if (!isInsideEgyptBounds(lng, lat)) return prev;
+      if (!isValidWorldCoordinate(lng, lat)) return prev;
       return { lat, lng };
     });
   }, [taskTypeSelected, viewState.latitude, viewState.longitude]);
@@ -2853,8 +2854,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       if (!event?.lngLat) return;
       const { lng, lat } = event.lngLat;
 
-      if (!isInsideEgyptBounds(lng, lat)) {
-        toast.error(t('geofenceEgyptShelf'));
+      if (!isValidWorldCoordinate(lng, lat)) {
         return;
       }
 
@@ -4160,21 +4160,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setReportMode(true);
 
     const placeAt = (lat: number, lng: number) => {
-      let nextLat = lat;
-      let nextLng = lng;
-      if (!isInsideEgyptBounds(nextLng, nextLat)) {
+      if (!isValidWorldCoordinate(lng, lat)) {
         const map = mapRef.current?.getMap();
         const c = map?.getCenter();
-        if (c && isInsideEgyptBounds(c.lng, c.lat)) {
-          nextLat = c.lat;
-          nextLng = c.lng;
-        } else {
-          toast.error(t('geofenceEgyptShelf'));
-          return;
+        if (c && isValidWorldCoordinate(c.lng, c.lat)) {
+          setReportPin({ lat: c.lat, lng: c.lng });
+          flyMapTo(map, [c.lng, c.lat], { ...MAP_CINEMATIC_FLY });
         }
+        return;
       }
-      setReportPin({ lat: nextLat, lng: nextLng });
-      flyMapTo(mapRef.current?.getMap?.(), [nextLng, nextLat], { ...MAP_CINEMATIC_FLY });
+      setReportPin({ lat, lng });
+      flyMapTo(mapRef.current?.getMap?.(), [lng, lat], { ...MAP_CINEMATIC_FLY });
     };
 
     toast.notice(

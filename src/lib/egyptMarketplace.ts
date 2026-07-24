@@ -60,7 +60,10 @@ export function haversineKm(
   return R * c;
 }
 
-/** Nearest predefined hub for a mission coordinate (no radius cutoff). */
+/** Assign Egypt hub only when the pin is within this radius (km); else null (global). */
+const MARKETPLACE_HUB_MAX_KM = 450;
+
+/** Nearest predefined hub for a mission coordinate (Egypt network only). */
 export function closestMarketplaceCity(
   lat: number | null | undefined,
   lng: number | null | undefined
@@ -79,6 +82,7 @@ export function closestMarketplaceCity(
     }
   }
 
+  if (!best || bestDist > MARKETPLACE_HUB_MAX_KM) return null;
   return best;
 }
 

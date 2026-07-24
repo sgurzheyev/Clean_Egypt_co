@@ -4,10 +4,16 @@ export type PinLocationContext = {
   areaName: string;
   closestCityId: string;
   closestCityNameKey: string;
+  /**
+   * Free-form place/region/country from Mapbox (preferred for global pins).
+   * When set, location tags use this instead of translating an Egypt hub key.
+   */
+  placeLabel?: string;
 };
 
 /**
  * Reverse-geocode coordinates via Mapbox Geocoding v5.
+ * Accepts any valid WGS84 coordinate worldwide.
  *
  * Notes (422 gotchas):
  * - `types` must be known values only (no `village`).
@@ -20,9 +26,10 @@ export async function reverseGeocodePinLocation(
   accessToken: string | undefined
 ): Promise<PinLocationContext | null> {
   if (!accessToken || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
 
+  /** Soft Egypt hub only when the pin is near the marketplace network. */
   const closest = closestMarketplaceCity(lat, lng);
-  if (!closest) return null;
 
   try {
     // Path must be "lng,lat" (longitude first).
@@ -31,13 +38,13 @@ export async function reverseGeocodePinLocation(
     );
     url.searchParams.set('access_token', accessToken);
     url.searchParams.set('language', 'en');
-    // Valid v5 types only — `village` is NOT valid and causes HTTP 422.
-    url.searchParams.set('types', 'neighborhood,locality,place');
+    // Valid v5 types — include region/country for international pins.
+    url.searchParams.set('types', 'neighborhood,locality,place,district,region,country');
 
     const res = await fetch(url.toString());
     if (!res.ok) {
       console.warn('[reverseGeocode] Mapbox HTTP', res.status, await res.text().catch(() => ''));
-      return fallbackContext(closest);
+      return fallbackContext(closest, lat, lng);
     }
 
     const data = (await res.json()) as {
@@ -45,35 +52,72 @@ export async function reverseGeocodePinLocation(
     };
 
     const features = data.features ?? [];
-    const preference = ['neighborhood', 'locality', 'place'] as const;
+    const pick = (type: string) => features.find((f) => f.place_type?.includes(type));
+
+    const areaPreference = ['neighborhood', 'locality', 'place', 'district'] as const;
     let areaFeature = features[0];
-    for (const pref of preference) {
-      const hit = features.find((f) => f.place_type?.includes(pref));
+    for (const pref of areaPreference) {
+      const hit = pick(pref);
       if (hit) {
         areaFeature = hit;
         break;
       }
     }
 
+    const placeFeature = pick('place') ?? pick('locality') ?? pick('district');
+    const regionFeature = pick('region');
+    const countryFeature = pick('country');
+
     const areaName = String(areaFeature?.text ?? areaFeature?.place_name ?? '').trim();
-    if (!areaName) return fallbackContext(closest);
+    const placeParts = [
+      placeFeature?.text,
+      regionFeature?.text,
+      countryFeature?.text,
+    ]
+      .map((s) => String(s ?? '').trim())
+      .filter(Boolean);
+    // Deduplicate consecutive repeats (e.g. locality === place).
+    const placeLabel = placeParts
+      .filter((part, i, arr) => i === 0 || part.toLowerCase() !== arr[i - 1].toLowerCase())
+      .join(', ');
+
+    if (!areaName && !placeLabel && !closest) {
+      return fallbackContext(null, lat, lng);
+    }
 
     return {
-      areaName,
-      closestCityId: closest.id,
-      closestCityNameKey: closest.nameKey,
+      areaName: areaName || placeLabel,
+      placeLabel: placeLabel || areaName || undefined,
+      closestCityId: closest?.id ?? '',
+      closestCityNameKey: closest?.nameKey ?? '',
     };
   } catch (e) {
     console.warn('[reverseGeocode] failed:', e);
-    return fallbackContext(closest);
+    return fallbackContext(closest, lat, lng);
   }
 }
 
-function fallbackContext(closest: NonNullable<ReturnType<typeof closestMarketplaceCity>>) {
+function fallbackContext(
+  closest: NonNullable<ReturnType<typeof closestMarketplaceCity>> | null,
+  lat?: number,
+  lng?: number
+): PinLocationContext {
+  if (closest) {
+    return {
+      areaName: '',
+      closestCityId: closest.id,
+      closestCityNameKey: closest.nameKey,
+    };
+  }
+  const coordLabel =
+    lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng)
+      ? `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+      : '';
   return {
-    areaName: '',
-    closestCityId: closest.id,
-    closestCityNameKey: closest.nameKey,
+    areaName: coordLabel,
+    placeLabel: coordLabel || undefined,
+    closestCityId: '',
+    closestCityNameKey: '',
   };
 }
 
@@ -83,10 +127,29 @@ export function formatPinLocationTag(
   translateCity: (nameKey: string) => string,
   locationLabel: string
 ): string {
-  const cityLabel = translateCity(ctx.closestCityNameKey);
+  const placeFromMapbox = String(ctx.placeLabel ?? '').trim();
+  const hubLabel = ctx.closestCityNameKey ? translateCity(ctx.closestCityNameKey) : '';
   const areaLabel = ctx.areaName.trim();
-  if (!areaLabel || areaLabel === ctx.closestCityNameKey) {
-    return `📍 ${locationLabel}: near ${cityLabel}`;
+
+  if (placeFromMapbox) {
+    if (!areaLabel || areaLabel === placeFromMapbox) {
+      return `📍 ${locationLabel}: ${placeFromMapbox}`;
+    }
+    // Avoid duplicating when area is already the first segment of placeLabel.
+    if (placeFromMapbox.toLowerCase().startsWith(areaLabel.toLowerCase())) {
+      return `📍 ${locationLabel}: ${placeFromMapbox}`;
+    }
+    return `📍 ${locationLabel}: ${areaLabel}, ${placeFromMapbox}`;
   }
-  return `📍 ${locationLabel}: ${areaLabel}, near ${cityLabel}`;
+
+  if (!hubLabel && !areaLabel) {
+    return `📍 ${locationLabel}`;
+  }
+  if (!hubLabel) {
+    return `📍 ${locationLabel}: ${areaLabel}`;
+  }
+  if (!areaLabel || areaLabel === ctx.closestCityNameKey) {
+    return `📍 ${locationLabel}: near ${hubLabel}`;
+  }
+  return `📍 ${locationLabel}: ${areaLabel}, near ${hubLabel}`;
 }

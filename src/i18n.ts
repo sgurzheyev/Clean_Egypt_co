@@ -489,7 +489,7 @@ const resources = {
       serviceWaterTankCleaning: 'Water Tank Cleaning',
       serviceJunkRemoval: 'Junk Removal',
       serviceBeachStreetCleanup: 'Clean beach / street',
-      geofenceEgyptShelf: 'You can place a bid only in Egypt',
+      geofenceEgyptShelf: 'Invalid map coordinates',
       uploadPhoto: 'Upload photo',
       photosSelected: 'photo(s) selected',
       tapToAddReferencePhotos: 'Tap to add reference photos (up to 10)',
@@ -932,7 +932,7 @@ const resources = {
       serviceWaterTankCleaning: 'تنظيف خزان المياه',
       serviceJunkRemoval: 'إزالة المخلفات',
       serviceBeachStreetCleanup: 'تنظيف الشاطئ / الشارع',
-      geofenceEgyptShelf: 'يمكنك وضع عرض فقط داخل مصر',
+      geofenceEgyptShelf: 'إحداثيات الخريطة غير صالحة',
       descriptionContactWarning:
         'ممنوع إدخال جهات اتصال خارجية أو صفقات خارج المنصة في الوصف.',
       mapToastDonationThanks: 'شكراً لتبرعك!',
@@ -1499,7 +1499,7 @@ const resources = {
       serviceWaterTankCleaning: 'Чистка водяного бака',
       serviceJunkRemoval: 'Вывоз хлама',
       serviceBeachStreetCleanup: 'Уборка пляжа / улицы',
-      geofenceEgyptShelf: 'Ставку можно сделать только в Египте',
+      geofenceEgyptShelf: 'Некорректные координаты на карте',
       descriptionContactWarning:
         'В описании нельзя указывать контакты и сделки в обход платформы.',
       mapToastDonationThanks: 'Спасибо за пожертвование!',
@@ -1822,7 +1822,7 @@ const resources = {
       location: 'Standort',
       tapMapToSetLocation: 'Tippe auf die Karte, um den Standort zu setzen.',
       serviceBeachStreetCleanup: 'Strand- / Straßenreinigung',
-      geofenceEgyptShelf: 'Du kannst nur in Ägypten bieten',
+      geofenceEgyptShelf: 'Ungültige Kartenkoordinaten',
       descriptionContactWarning:
         'Externe Kontakte und Deals ausserhalb der Plattform sind in der Beschreibung nicht erlaubt.',
       mapToastDonationThanks: 'Danke für deine Spende!',
@@ -2150,7 +2150,7 @@ const resources = {
       location: 'Posizione',
       tapMapToSetLocation: 'Tocca la mappa per impostare la posizione.',
       serviceBeachStreetCleanup: 'Pulizia spiaggia / strada',
-      geofenceEgyptShelf: 'Puoi fare un’offerta solo in Egitto',
+      geofenceEgyptShelf: 'Coordinate della mappa non valide',
       descriptionContactWarning:
         'Nella descrizione non sono ammessi contatti esterni o accordi fuori piattaforma.',
       mapToastDonationThanks: 'Grazie per la donazione!',
@@ -2478,7 +2478,7 @@ const resources = {
       location: 'Ubicación',
       tapMapToSetLocation: 'Toca el mapa para fijar la ubicación.',
       serviceBeachStreetCleanup: 'Limpieza de playa / calle',
-      geofenceEgyptShelf: 'Solo puedes pujar en Egipto',
+      geofenceEgyptShelf: 'Coordenadas de mapa no válidas',
       descriptionContactWarning:
         'No se permiten contactos externos ni acuerdos fuera de la plataforma en la descripción.',
       mapToastDonationThanks: '¡Gracias por tu donación!',
