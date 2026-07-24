@@ -10,6 +10,9 @@ import {
 } from './missionDescription';
 import { isGarbageRemovalService } from './crowdfunding';
 
+/** Free civic report photo cap (MissionBriefing carousel already supports multi-image). */
+export const MAX_GARBAGE_ZONE_REPORT_PHOTOS = 5;
+
 const COMPRESSION = {
   maxSizeMB: 0.4,
   maxWidthOrHeight: 1280,
@@ -50,7 +53,10 @@ export async function createGarbageZoneReport(input: {
   lat: number;
   lng: number;
   description: string;
-  photoFile: File;
+  /** Preferred: 1–5 photo files. */
+  photoFiles?: File[];
+  /** @deprecated Use photoFiles — kept for a single-file call site. */
+  photoFile?: File;
   serviceType?: string;
 }): Promise<string> {
   const raw = input.description.trim().slice(0, MISSION_SHORT_DESCRIPTION_MAX);
@@ -69,13 +75,29 @@ export async function createGarbageZoneReport(input: {
     processMissionDescription(filteredText.trim() || raw || '#GarbageZone', serviceType) ||
     '#GarbageZone Needs attention';
 
-  const photoUrl = await uploadReportPhoto(input.photoFile);
+  const files = (input.photoFiles?.length
+    ? input.photoFiles
+    : input.photoFile
+      ? [input.photoFile]
+      : []
+  )
+    .filter((f) => f && f.type?.startsWith('image/'))
+    .slice(0, MAX_GARBAGE_ZONE_REPORT_PHOTOS);
+
+  if (files.length < 1) {
+    throw new Error('At least one photo is required');
+  }
+
+  const photoUrls: string[] = [];
+  for (const file of files) {
+    photoUrls.push(await uploadReportPhoto(file));
+  }
 
   const { data, error } = await supabase.rpc('create_garbage_zone_report', {
     p_location_lat: input.lat,
     p_location_lng: input.lng,
     p_description: body,
-    p_photo_urls: [photoUrl],
+    p_photo_urls: photoUrls,
     p_service_type: serviceType,
   });
 
