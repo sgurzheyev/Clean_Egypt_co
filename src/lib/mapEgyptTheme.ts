@@ -1,18 +1,18 @@
 /**
- * [[Architecture_Overview.md]] · [[Stripe_USD_Flow]]
- * Programmatic Mapbox “Egypt / Orient” restyle — sandstone extrusions + sandy roads.
+ * Cyberpunk steel-grey Mapbox restyle — graphite land, deep steel water, chrome roads.
+ * UI chrome / branding colors are intentionally untouched (map canvas only).
  */
 
-/** Muted dusty-desert palette for 3D buildings (chameleon over satellite). */
+/** Graphite building extrusions for 3D terminal look. */
 export const EGYPT_BUILDING_COLORS = [
-  '#D8D0C1', // dusty bone
-  '#C5BFA9', // dry khaki
-  '#B8AD9A', // muted clay
-  '#E1DACB', // pale sand
-  '#CBC4B4', // limestone dust
-  '#B0A796', // dry ash clay
-  '#D4CCBC', // bleached khaki
-  '#A89F8E', // shadow limestone
+  '#2A2A30',
+  '#323238',
+  '#3A3A42',
+  '#26262C',
+  '#34343C',
+  '#2E2E34',
+  '#383840',
+  '#242428',
 ] as const;
 
 /**
@@ -43,29 +43,29 @@ export const egyptBuildingExtrusionColorExpr: unknown[] = [
   EGYPT_BUILDING_COLORS[7],
 ];
 
-/** Fallback when height is missing: type-based dusty tones (no red/peach). */
+/** Fallback when height is missing: type-based graphite tones. */
 export const egyptBuildingColorByTypeExpr: unknown[] = [
   'match',
   ['downcase', ['to-string', ['coalesce', ['get', 'type'], '']]],
   'residential',
-  '#D8D0C1',
+  '#2A2A30',
   'apartments',
-  '#C5BFA9',
+  '#323238',
   'house',
-  '#E1DACB',
+  '#2E2E34',
   'commercial',
-  '#B8AD9A',
+  '#3A3A42',
   'retail',
-  '#CBC4B4',
+  '#34343C',
   'industrial',
-  '#A89F8E',
+  '#242428',
   'mosque',
-  '#D4CCBC',
+  '#303036',
   'church',
-  '#D4CCBC',
+  '#303036',
   'hotel',
-  '#C5BFA9',
-  '#D8D0C1',
+  '#323238',
+  '#2A2A30',
 ];
 
 export const egyptBuildingExtrusionPaint = {
@@ -77,17 +77,29 @@ export const egyptBuildingExtrusionPaint = {
   ],
   'fill-extrusion-height': ['get', 'height'],
   'fill-extrusion-base': ['get', 'min_height'],
-  // Semi-transparent so satellite (desert / green) tints the walls naturally.
-  'fill-extrusion-opacity': 0.5,
+  'fill-extrusion-opacity': 0.72,
   'fill-extrusion-vertical-gradient': true,
-  'fill-extrusion-ambient-occlusion-intensity': 0.35,
+  'fill-extrusion-ambient-occlusion-intensity': 0.45,
   'fill-extrusion-ambient-occlusion-radius': 2.8,
 } as const;
 
-/** Sandy / amber road colors (desert complementary). */
-export const EGYPT_ROAD_COLOR = '#EDC9AF';
-export const EGYPT_ROAD_MAJOR_COLOR = '#C2B280';
-export const EGYPT_ROAD_GLOW_COLOR = '#E8C39E';
+/** Chrome / steel road colors. */
+export const EGYPT_ROAD_COLOR = '#8B909A';
+export const EGYPT_ROAD_MAJOR_COLOR = '#C5CAD3';
+export const EGYPT_ROAD_GLOW_COLOR = '#A8ADB8';
+
+/** Deep steel water + matte graphite land (map canvas only). */
+export const MAP_STEEL_WATER = '#15151A';
+export const MAP_STEEL_WATERWAY = '#4A5060';
+export const MAP_GRAPHITE_LAND = '#202025';
+
+/** Geolocate / report-mode cinematic camera. */
+export const MAP_CINEMATIC_FLY = {
+  zoom: 17,
+  pitch: 60,
+  duration: 1800,
+  essential: true,
+} as const;
 
 export const egyptRoadLineColorExpr: unknown[] = [
   'match',
@@ -97,15 +109,15 @@ export const egyptRoadLineColorExpr: unknown[] = [
   'trunk',
   EGYPT_ROAD_MAJOR_COLOR,
   'primary',
-  '#D4C4A8',
+  '#B4B9C4',
   'secondary',
   EGYPT_ROAD_COLOR,
   'tertiary',
   EGYPT_ROAD_COLOR,
   'street',
-  '#E6D5C3',
+  '#7A7F88',
   'path',
-  '#E8D5B7',
+  '#6E737C',
   EGYPT_ROAD_COLOR,
 ];
 
@@ -156,7 +168,7 @@ export function applyEgyptMapTheme(map: MapLike, options?: { beforeLayerId?: str
   }
 
   // Optional foundation tint (supported on newer Mapbox GL only).
-  safePaint(map, '3d-buildings', 'fill-extrusion-base-color', '#A89F8E');
+  safePaint(map, '3d-buildings', 'fill-extrusion-base-color', '#1E1E22');
 
   // --- Road / border / admin lines ---
   const style = map.getStyle?.();
@@ -187,17 +199,17 @@ export function applyEgyptMapTheme(map: MapLike, options?: { beforeLayerId?: str
     if (isRoad) {
       if (idLower.includes('glow')) {
         safePaint(map, id, 'line-color', EGYPT_ROAD_GLOW_COLOR);
-        safePaint(map, id, 'line-opacity', 0.28);
+        safePaint(map, id, 'line-opacity', 0.22);
       } else if (idLower === 'neon-roads' || idLower.includes('motorway') || idLower.includes('trunk')) {
         safePaint(map, id, 'line-color', EGYPT_ROAD_MAJOR_COLOR);
-        safePaint(map, id, 'line-opacity', 0.75);
+        safePaint(map, id, 'line-opacity', 0.8);
       } else {
         safePaint(map, id, 'line-color', egyptRoadLineColorExpr);
-        safePaint(map, id, 'line-opacity', 0.85);
+        safePaint(map, id, 'line-opacity', 0.82);
       }
     } else if (isAdminBorder) {
-      safePaint(map, id, 'line-color', '#C2B280');
-      safePaint(map, id, 'line-opacity', 0.45);
+      safePaint(map, id, 'line-color', '#6E737C');
+      safePaint(map, id, 'line-opacity', 0.4);
     }
   }
 }

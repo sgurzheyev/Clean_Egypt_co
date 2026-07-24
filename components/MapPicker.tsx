@@ -93,7 +93,15 @@ import {
   isCrowdfundingOpen,
   isGarbageRemovalService,
 } from '../src/lib/crowdfunding';
-import { applyEgyptMapTheme, egyptRoadLineColorExpr } from '../src/lib/mapEgyptTheme';
+import {
+  applyEgyptMapTheme,
+  egyptRoadLineColorExpr,
+  EGYPT_ROAD_GLOW_COLOR,
+  EGYPT_ROAD_MAJOR_COLOR,
+  MAP_CINEMATIC_FLY,
+  MAP_STEEL_WATER,
+  MAP_STEEL_WATERWAY,
+} from '../src/lib/mapEgyptTheme';
 import {
   applyWeatherFog,
   isWeatherDebugEnabled,
@@ -1127,7 +1135,7 @@ const customDarkStyle: any = {
       type: 'vector',
       url: 'mapbox://mapbox.mapbox-streets-v8',
     },
-    // Dark satellite base (aero-photo desert realism).
+    // Desaturated satellite underlay for steel-grey terminal look.
     'satellite': {
       type: 'raster',
       url: 'mapbox://mapbox.satellite',
@@ -1141,7 +1149,7 @@ const customDarkStyle: any = {
       id: 'background',
       type: 'background',
       paint: {
-        'background-color': '#000000',
+        'background-color': '#202025',
       },
     },
     {
@@ -1149,14 +1157,14 @@ const customDarkStyle: any = {
       type: 'raster',
       source: 'satellite',
       paint: {
-        'raster-saturation': 0.1,
-        'raster-brightness-max': 0.45,
-        'raster-brightness-min': 0.05,
-        'raster-contrast': 0.2,
-        'raster-opacity': 0.8,
+        'raster-saturation': -0.9,
+        'raster-brightness-max': 0.32,
+        'raster-brightness-min': 0.02,
+        'raster-contrast': 0.12,
+        'raster-opacity': 0.28,
       },
     },
-    // Landcover / landuse base palette (Egypt sand + mountains).
+    // Landcover / landuse — matte graphite-slate terminal base.
     // These layers stay below roads and below our 3D mission cylinders.
     {
       id: 'landcover',
@@ -1164,7 +1172,6 @@ const customDarkStyle: any = {
       source: 'composite',
       'source-layer': 'landcover',
       paint: {
-        // Sand / scrub / rock tint that becomes slightly richer as you zoom in.
         'fill-color': [
           'interpolate',
           ['linear'],
@@ -1173,41 +1180,37 @@ const customDarkStyle: any = {
           [
             'match',
             ['get', 'class'],
-            // Desert / sand
             'sand',
-            '#d2b48c',
+            '#2A2A30',
             'desert',
-            '#e3bc9a',
-            // Bare rock / mountains
+            '#26262C',
             'bare_rock',
-            '#4b3621',
+            '#1E1E22',
             'rock',
-            '#5d4037',
-            // Scrub / dry vegetation
+            '#242428',
             'scrub',
-            '#8b8680',
+            '#2C2C32',
             'grass',
-            '#8b8680',
-            // Default: warm sand
-            '#d2b48c',
+            '#2C2C32',
+            '#202025',
           ],
           12,
           [
             'match',
             ['get', 'class'],
             'sand',
-            '#e3bc9a',
+            '#303036',
             'desert',
-            '#e3bc9a',
+            '#2C2C32',
             'bare_rock',
-            '#5d4037',
+            '#222226',
             'rock',
-            '#5d4037',
+            '#28282E',
             'scrub',
-            '#8b8680',
+            '#323238',
             'grass',
-            '#8b8680',
-            '#e3bc9a',
+            '#323238',
+            '#26262C',
           ],
         ],
         'fill-opacity': [
@@ -1215,9 +1218,9 @@ const customDarkStyle: any = {
           ['linear'],
           ['zoom'],
           5,
-          0.55,
+          0.82,
           12,
-          0.78,
+          0.9,
         ],
       },
     },
@@ -1230,26 +1233,24 @@ const customDarkStyle: any = {
         'fill-color': [
           'match',
           ['get', 'class'],
-          // Nile delta greenery (subtle emissive tint over satellite).
           'park',
-          '#047857',
+          '#25282C',
           'national_park',
-          '#047857',
+          '#25282C',
           'agriculture',
-          '#047857',
+          '#282A2E',
           'grass',
-          '#047857',
-          // Default: transparent-ish sand overlay
-          '#d2b48c',
+          '#25282C',
+          '#202025',
         ],
         'fill-opacity': [
           'interpolate',
           ['linear'],
           ['zoom'],
           5,
-          0.1,
+          0.35,
           12,
-          0.15,
+          0.45,
         ],
       },
     },
@@ -1259,20 +1260,20 @@ const customDarkStyle: any = {
       source: 'composite',
       'source-layer': 'water',
       paint: {
-        'fill-color': '#082f49',
-        'fill-opacity': 0.85,
+        'fill-color': '#15151A',
+        'fill-opacity': 0.95,
       },
     },
-    // Nile glow: subtle bioluminescent shoreline / waterways.
+    // Steel shoreline / waterways.
     {
       id: 'waterway-glow',
       type: 'line',
       source: 'composite',
       'source-layer': 'waterway',
       paint: {
-        'line-color': '#06b6d4',
+        'line-color': '#3A3F4A',
         'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.3, 12, 1.2, 16, 2.4],
-        'line-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.25, 12, 0.55, 16, 0.75],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.2, 12, 0.35, 16, 0.45],
         'line-blur': 2,
       },
     },
@@ -1282,9 +1283,9 @@ const customDarkStyle: any = {
       source: 'composite',
       'source-layer': 'waterway',
       paint: {
-        'line-color': '#06b6d4',
+        'line-color': '#4A5060',
         'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.1, 12, 0.6, 16, 1.2],
-        'line-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.35, 12, 0.7, 16, 0.9],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.3, 12, 0.55, 16, 0.7],
       },
     },
     {
@@ -1303,7 +1304,7 @@ const customDarkStyle: any = {
           16,
           2.5,
         ],
-        'line-opacity': 0.9,
+        'line-opacity': 0.85,
       },
     },
     {
@@ -1320,8 +1321,8 @@ const customDarkStyle: any = {
         'text-max-width': 10,
       },
       paint: {
-        'text-color': '#e0e0e0',
-        'text-halo-color': 'rgba(0, 0, 0, 0.8)',
+        'text-color': '#C8CAD0',
+        'text-halo-color': 'rgba(12, 12, 16, 0.85)',
         'text-halo-width': 1.5,
       },
     },
@@ -3950,7 +3951,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
         setUserLocation({ lat: latitude, lng: longitude, accuracy });
-        mapRef.current?.flyTo({ center: [longitude, latitude], zoom: 15, duration: 1500 });
+        mapRef.current?.flyTo({
+          center: [longitude, latitude],
+          ...MAP_CINEMATIC_FLY,
+        });
         setGeolocating(false);
       },
       (err) => {
@@ -3996,13 +4000,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
       setReportPin({ lat: nextLat, lng: nextLng });
       try {
-        const map = mapRef.current?.getMap();
-        const zoom = map ? Math.max(map.getZoom(), 15) : 15;
         mapRef.current?.flyTo({
           center: [nextLng, nextLat],
-          zoom,
-          essential: true,
-          duration: 900,
+          ...MAP_CINEMATIC_FLY,
         });
       } catch {
         /* map may be disposing */
@@ -4180,9 +4180,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   type: 'hillshade',
                   source: 'mapbox-dem',
                   paint: {
-                    'hillshade-shadow-color': '#0b0e14',
-                    'hillshade-highlight-color': '#ff9e64',
-                    'hillshade-accent-color': '#022c22',
+                    'hillshade-shadow-color': '#0c0c10',
+                    'hillshade-highlight-color': '#6E737C',
+                    'hillshade-accent-color': '#2A2A30',
                     'hillshade-exaggeration': [
                       'interpolate',
                       ['linear'],
@@ -4242,18 +4242,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
           );
           for (const layer of waterLikeLayers) {
             if (layer.type === 'fill') {
-              map.setPaintProperty(layer.id, 'fill-color', '#1a2b3c');
-              map.setPaintProperty(layer.id, 'fill-opacity', 0.55);
+              map.setPaintProperty(layer.id, 'fill-color', MAP_STEEL_WATER);
+              map.setPaintProperty(layer.id, 'fill-opacity', 0.95);
             }
             if (layer.type === 'line') {
-              map.setPaintProperty(layer.id, 'line-color', '#3ecfff');
+              map.setPaintProperty(layer.id, 'line-color', MAP_STEEL_WATERWAY);
               map.setPaintProperty(layer.id, 'line-opacity', 0.55);
             }
           }
 
           // SaaS lead-gen: legacy crowdfunding heatmap removed (2D bubble pins only).
 
-          // Egypt / Orient thematic restyle: sandstone extrusions + sandy roads.
+          // Steel-grey thematic restyle: graphite extrusions + chrome roads.
           applyEgyptMapTheme(map, { beforeLayerId: 'place_label' });
           // Neon road layers mount after first paint — re-apply once map is idle.
           map.once?.('idle', () => {
@@ -4275,7 +4275,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             source-layer="road"
             filter={['in', ['get', 'class'], ['literal', ['motorway', 'primary', 'secondary', 'trunk']]]}
             paint={{
-              'line-color': '#E8C39E',
+              'line-color': EGYPT_ROAD_GLOW_COLOR,
               'line-width': 3.5,
               'line-opacity': 0.22,
               'line-blur': 1.5,
@@ -4287,9 +4287,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
             source-layer="road"
             filter={['in', ['get', 'class'], ['literal', ['motorway', 'primary', 'secondary', 'trunk']]]}
             paint={{
-              'line-color': '#C2B280',
+              'line-color': EGYPT_ROAD_MAJOR_COLOR,
               'line-width': 1.5,
-              'line-opacity': 0.7,
+              'line-opacity': 0.75,
             }}
           />
         </Source>
