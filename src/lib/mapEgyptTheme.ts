@@ -250,6 +250,25 @@ export const MAP_CINEMATIC_FLY = {
   maxDuration: 2200,
 } as const;
 
+/**
+ * Default map center when GPS is denied/unavailable —
+ * La Cumbre Peak overlooking Santa Barbara, California.
+ */
+export const MAP_FALLBACK_CENTER = {
+  lat: 34.4897,
+  lng: -119.7183,
+  label: 'La Cumbre Peak, Santa Barbara',
+} as const;
+
+/** First-paint viewport before (or without) geolocation. */
+export const MAP_INITIAL_VIEW = {
+  latitude: MAP_FALLBACK_CENTER.lat,
+  longitude: MAP_FALLBACK_CENTER.lng,
+  zoom: 12.5,
+  pitch: 60,
+  bearing: -28,
+} as const;
+
 /** Shorter fly used when opening a mission / feed pin. */
 export const MAP_QUICK_FLY = {
   zoom: 16,

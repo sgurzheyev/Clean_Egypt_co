@@ -102,6 +102,8 @@ import {
   EGYPT_ROAD_GLOW_COLOR,
   EGYPT_ROAD_MAJOR_COLOR,
   MAP_CINEMATIC_FLY,
+  MAP_FALLBACK_CENTER,
+  MAP_INITIAL_VIEW,
   MAP_QUICK_FLY,
   MAP_STEEL_WATER_SHEEN,
   MAP_STEEL_WATERWAY,
@@ -1537,14 +1539,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
     weatherControl === 'auto' ? liveWeather.mode : weatherControl;
   mapWeatherRef.current = mapWeather;
 
-  const [viewState, setViewState] = useState({
-    latitude: 27.2579,
-    longitude: 33.8116,
-    zoom: 12,
-    pitch: 60,
-    bearing: -20,
+  const [viewState, setViewState] = useState<{
+    latitude: number;
+    longitude: number;
+    zoom: number;
+    pitch: number;
+    bearing: number;
+  }>({
+    latitude: MAP_INITIAL_VIEW.latitude,
+    longitude: MAP_INITIAL_VIEW.longitude,
+    zoom: MAP_INITIAL_VIEW.zoom,
+    pitch: MAP_INITIAL_VIEW.pitch,
+    bearing: MAP_INITIAL_VIEW.bearing,
   });
-
+  const initialLocateDoneRef = React.useRef(false);
   const [jobs, setJobs] = useState<JobOnMap[]>([]);
   const [mapReady, setMapReady] = useState(false);
   /** True while Mapbox is flying/panning — freezes pin GeoJSON + pauses water FX. */
@@ -4114,6 +4122,65 @@ const MapPicker: React.FC<MapPickerProps> = ({
   } | null>(null);
   const [geolocating, setGeolocating] = useState(false);
 
+  /**
+   * Boot camera: prefer the user's GPS; otherwise cinematic settle on
+   * La Cumbre Peak (Santa Barbara) — the global fallback center.
+   */
+  useEffect(() => {
+    if (!mapReady || initialLocateDoneRef.current) return;
+    initialLocateDoneRef.current = true;
+
+    const settleOn = (lat: number, lng: number, opts?: { fromGps?: boolean; accuracy?: number }) => {
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        lat = MAP_FALLBACK_CENTER.lat;
+        lng = MAP_FALLBACK_CENTER.lng;
+      }
+      setWeatherFetchCenter({ lat, lng });
+      if (opts?.fromGps) {
+        setUserLocation({ lat, lng, accuracy: opts.accuracy });
+      }
+      const map = mapRef.current?.getMap?.() ?? mapInstanceRef.current;
+      flyMapTo(map, [lng, lat], {
+        ...MAP_CINEMATIC_FLY,
+        zoom: opts?.fromGps ? 15 : 13.5,
+        pitch: 60,
+        bearing: opts?.fromGps ? -20 : MAP_INITIAL_VIEW.bearing,
+        duration: opts?.fromGps ? 1800 : 1600,
+      });
+      // Keep controlled React viewState in sync after programmatic fly.
+      setViewState((prev) => ({
+        ...prev,
+        latitude: lat,
+        longitude: lng,
+        zoom: opts?.fromGps ? 15 : 13.5,
+        pitch: 60,
+      }));
+    };
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      settleOn(MAP_FALLBACK_CENTER.lat, MAP_FALLBACK_CENTER.lng);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        settleOn(pos.coords.latitude, pos.coords.longitude, {
+          fromGps: true,
+          accuracy: pos.coords.accuracy,
+        });
+      },
+      (err) => {
+        console.info('[map-boot] geolocation unavailable — La Cumbre Peak fallback', err?.code);
+        settleOn(MAP_FALLBACK_CENTER.lat, MAP_FALLBACK_CENTER.lng);
+      },
+      {
+        enableHighAccuracy: false,
+        timeout: 9000,
+        maximumAge: 120_000,
+      }
+    );
+  }, [mapReady]);
+
   const handleZoomIn = useCallback(() => {
     mapRef.current?.getMap()?.zoomIn({ duration: 280, essential: true });
   }, []);
@@ -4134,6 +4201,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
         setUserLocation({ lat: latitude, lng: longitude, accuracy });
+        setWeatherFetchCenter({ lat: latitude, lng: longitude });
         flyMapTo(mapRef.current?.getMap?.(), [longitude, latitude], { ...MAP_CINEMATIC_FLY });
         setGeolocating(false);
       },
