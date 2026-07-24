@@ -379,6 +379,11 @@ const resources = {
       contributionAmountLabel: 'Contribution (USD)',
       contributeButton: 'Contribute',
       contributeWithStripe: 'Contribute (Stripe)',
+      ecoHeroesLabel: 'Eco Heroes',
+      ecoHeroAnonymous: 'Eco Hero',
+      ecoHeroesMore: '+{{count}} more',
+      ecoHeroToast:
+        '{{name}} · contributed {{amount}} ({{count}}×) — a true Eco Hero!',
       signInToContribute: 'Sign in to contribute to this campaign.',
       crowdfundingOwnerWait: 'Waiting for community contributions. Bidding opens when the target is reached.',
       contributionThanks: 'Thank you for your contribution!',
@@ -1344,6 +1349,11 @@ const resources = {
       contributionAmountLabel: 'Взнос (USD)',
       contributeButton: 'Внести вклад',
       contributeWithStripe: 'Внести вклад (Stripe)',
+      ecoHeroesLabel: 'Герои сбора',
+      ecoHeroAnonymous: 'Эко-герой',
+      ecoHeroesMore: 'ещё {{count}}',
+      ecoHeroToast:
+        '{{name}} · внёс вклад {{amount}} ({{count}}×) — настоящий Эко-Герой!',
       signInToContribute: 'Войдите, чтобы поддержать кампанию.',
       crowdfundingOwnerWait: 'Ждём взносы сообщества. Ставки откроются после достижения цели.',
       contributionThanks: 'Спасибо за вклад!',

@@ -39,6 +39,7 @@ import {
   updateMissionDetails,
 } from '../src/lib/updateMissionDetails';
 import MissionChatPanel from '../src/components/chat/MissionChatPanel';
+import EcoHeroesRibbon from './EcoHeroesRibbon';
 
 export type AssignedWorkerProfile = {
   full_name?: string | null;
@@ -777,6 +778,12 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                   <p className="mt-1 text-[10px] font-bold tabular-nums text-amber-200/90">
                     {fundingPct}%
                   </p>
+
+                  <EcoHeroesRibbon
+                    missionId={mission.id}
+                    refreshKey={`${fundedUsd}-${mission.crowdfunding_expires_at ?? ''}`}
+                  />
+
                   {canContribute && onContribute && (
                     <form
                       className="mt-4 flex gap-2"
