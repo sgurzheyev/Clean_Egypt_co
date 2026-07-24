@@ -78,6 +78,12 @@ import ReportGarbageZoneModal from './ReportGarbageZoneModal';
 import MissionBriefingErrorBoundary from './MissionBriefingErrorBoundary';
 import { isGarbageZoneReport } from '../src/lib/garbageZoneReport';
 import {
+  filterMissionsByFreeReports,
+  readShowFreeReports,
+  subscribeShowFreeReports,
+  writeShowFreeReports,
+} from '../src/lib/showFreeReports';
+import {
   getCrowdfundingCountdownParts,
   getCrowdfundingExpiresAt,
   isCrowdfundingOpen,
@@ -1397,6 +1403,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const jobsRef = React.useRef<JobOnMap[]>([]);
   const selectedMissionTagsRef = React.useRef<string[]>([]);
   const marketCityIdRef = React.useRef<string>(MARKETPLACE_ALL_EGYPT_ID);
+  const showFreeReportsRef = React.useRef(true);
   const hoveredMissionIdRef = React.useRef<string | null>(null);
   // Latest map event closures. Native Mapbox listeners are bound ONCE (on map load) and delegate
   // through these refs, so updating React state never detaches/re-attaches the canvas listeners.
@@ -1748,18 +1755,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [missionSortMode, setMissionSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
   const [selectedMissionTags, setSelectedMissionTags] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_EGYPT_ID);
+  const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
   const toggleMissionTag = useCallback((tag: string) => {
     setSelectedMissionTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
   }, []);
   const clearMissionTags = useCallback(() => setSelectedMissionTags([]), []);
+  const handleShowFreeReportsChange = useCallback((show: boolean) => {
+    setShowFreeReports(show);
+    writeShowFreeReports(show);
+  }, []);
+  useEffect(() => subscribeShowFreeReports(setShowFreeReports), []);
   useEffect(() => {
     selectedMissionTagsRef.current = selectedMissionTags;
   }, [selectedMissionTags]);
   useEffect(() => {
     marketCityIdRef.current = marketCityId;
   }, [marketCityId]);
+  useEffect(() => {
+    showFreeReportsRef.current = showFreeReports;
+  }, [showFreeReports]);
   const [mapDraftPin, setMapDraftPin] = useState<{ lat: number; lng: number } | null>(null);
   const [reportMode, setReportMode] = useState(false);
   const [reportDraft, setReportDraft] = useState<{ lat: number; lng: number } | null>(null);
@@ -2550,10 +2566,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
 
       // Occlusion-proof fallback: screen-space distance to each eligible pin.
-      // Respect the active tag filter so hidden pins stay unclickable.
-      const visibleJobs = filterMissionsByMarketCity(
-        filterMissionsByTags(jobsRef.current || [], selectedMissionTagsRef.current),
-        marketCityIdRef.current
+      // Respect the active tag / city / free-report filters so hidden pins stay unclickable.
+      const visibleJobs = filterMissionsByFreeReports(
+        filterMissionsByMarketCity(
+          filterMissionsByTags(jobsRef.current || [], selectedMissionTagsRef.current),
+          marketCityIdRef.current
+        ),
+        showFreeReportsRef.current
       );
       let best: JobOnMap | null = null;
       let bestDist = Infinity;
@@ -3617,9 +3636,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   /** Service-colored mission pins on the map (always visible in 2D mode). */
   const missionPinsGeoJSON = useMemo(() => {
-    const features = filterMissionsByMarketCity(
-      filterMissionsByTags(jobs || [], selectedMissionTags),
-      marketCityId
+    const features = filterMissionsByFreeReports(
+      filterMissionsByMarketCity(
+        filterMissionsByTags(jobs || [], selectedMissionTags),
+        marketCityId
+      ),
+      showFreeReports
     )
       .filter(missionEligibleForMapPin)
       .filter((j) => {
@@ -3648,7 +3670,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         },
       }));
     return { type: 'FeatureCollection' as const, features };
-  }, [jobs, selectedMissionTags, marketCityId, serviceTypeForMission]);
+  }, [jobs, selectedMissionTags, marketCityId, showFreeReports, serviceTypeForMission]);
 
   const activeWorkerMission = useMemo(
     () =>
@@ -4501,6 +4523,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           resultCount={missionPinsGeoJSON.features.length}
           cityId={marketCityId}
           onCityChange={setMarketCityId}
+          showFreeReports={showFreeReports}
+          onShowFreeReportsChange={handleShowFreeReportsChange}
         />
       )}
 

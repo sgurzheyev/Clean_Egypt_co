@@ -33,6 +33,12 @@ import {
   filterMissionsByMarketCity,
   MARKETPLACE_ALL_EGYPT_ID,
 } from '../src/lib/egyptMarketplace';
+import {
+  filterMissionsByFreeReports,
+  readShowFreeReports,
+  subscribeShowFreeReports,
+  writeShowFreeReports,
+} from '../src/lib/showFreeReports';
 import { checkHomeMissionWorkerVerification } from '../src/lib/homeMissionAccess';
 import { getMissionWorkerPhone, getOwnPhoneNumber } from '../src/lib/missionContact';
 import { creatorRejectProof, submitMissionProof } from '../src/lib/submitMissionProof';
@@ -69,6 +75,8 @@ interface Job {
   amount_target: number;
   expected_price?: number | null;
   current_funding?: number | null;
+  crowdfunding_mode?: boolean | null;
+  is_report?: boolean | null;
   location_lat?: number | null;
   location_lng?: number | null;
   status: string;
@@ -223,12 +231,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [marketSortMode, setMarketSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
   const [marketSelectedTags, setMarketSelectedTags] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_EGYPT_ID);
+  const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
   const toggleMarketTag = useCallback((tag: string) => {
     setMarketSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
   }, []);
   const clearMarketTags = useCallback(() => setMarketSelectedTags([]), []);
+  useEffect(() => subscribeShowFreeReports(setShowFreeReports), []);
   const [loading, setLoading] = useState(true);
   const [marketLoading, setMarketplaceLoading] = useState(true);
   const [marketError, setMarketplaceError] = useState<string | null>(null);
@@ -322,6 +332,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     () =>
       (marketplaceJobs || []).filter((job) => {
         const status = String(job.status || '').toLowerCase();
+        if (status === 'reported' || job.is_report) return true;
         // Crowdfunding campaigns stay public until fully funded → in_progress,
         // even when a cleaner is pre-locked during funding.
         if (status === 'funding') return true;
@@ -385,17 +396,20 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     return `${t('profileOwnedShort')}: ${openOwned} · ${t('profileActiveWorkShort')}: ${activeWork}`;
   }, [ownedOpenMissions.length, activeWorkJobs.length, t]);
 
-  // Filtered by city + selected tags, then ranked by the chosen sort (default: token boost).
+  // Filtered by city + tags + free-report visibility, then ranked by sort (default: token boost).
   const displayedMarketplaceJobs = useMemo(
     () =>
       sortMissions(
-        filterMissionsByMarketCity(
-          filterMissionsByTags(openMarketplaceJobs, marketSelectedTags),
-          marketCityId
+        filterMissionsByFreeReports(
+          filterMissionsByMarketCity(
+            filterMissionsByTags(openMarketplaceJobs, marketSelectedTags),
+            marketCityId
+          ),
+          showFreeReports
         ),
         marketSortMode
       ),
-    [openMarketplaceJobs, marketSelectedTags, marketCityId, marketSortMode]
+    [openMarketplaceJobs, marketSelectedTags, marketCityId, showFreeReports, marketSortMode]
   );
 
   // Real-time token balance subscription
@@ -834,6 +848,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           expected_price,
           current_funding,
           crowdfunding_mode,
+          is_report,
           location_lat,
           location_lng,
           status,
@@ -847,7 +862,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           )
         `
         )
-        .in('status', ['available', 'funding', 'pending'])
+        .in('status', ['available', 'funding', 'pending', 'reported'])
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -2169,6 +2184,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               resultCount={displayedMarketplaceJobs.length}
               cityId={marketCityId}
               onCityChange={setMarketCityId}
+              showFreeReports={showFreeReports}
+              onShowFreeReportsChange={(show) => {
+                setShowFreeReports(show);
+                writeShowFreeReports(show);
+              }}
             />
           </div>
 

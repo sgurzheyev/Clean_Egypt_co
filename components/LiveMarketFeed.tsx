@@ -26,6 +26,12 @@ import {
 } from '../src/lib/missionFilterSort';
 import MissionFeedCard from './MissionFeedCard';
 import MissionFilterPanel from './MissionFilterPanel';
+import {
+  filterMissionsByFreeReports,
+  readShowFreeReports,
+  subscribeShowFreeReports,
+  writeShowFreeReports,
+} from '../src/lib/showFreeReports';
 
 export interface LiveMarketMission {
   id: string;
@@ -34,6 +40,7 @@ export interface LiveMarketMission {
   amount_target: number;
   expected_price?: number | null;
   current_funding?: number | null;
+  is_report?: boolean | null;
   location_lat: number;
   location_lng: number;
   status: string;
@@ -55,12 +62,20 @@ interface LiveMarketFeedProps {
   currentUserId?: string | null;
 }
 
-const ACTIVE_MARKET_STATUSES = ['pending', 'available', 'open', 'funding', 'in_progress'] as const;
+const ACTIVE_MARKET_STATUSES = [
+  'pending',
+  'available',
+  'open',
+  'funding',
+  'in_progress',
+  'reported',
+] as const;
 
 /** Crowdfunding stays listed while funding — even with a pre-locked cleaner. */
 function isPublicMarketMission(mission: LiveMarketMission): boolean {
   const status = String(mission.status || '').toLowerCase() as (typeof ACTIVE_MARKET_STATUSES)[number];
   if (!ACTIVE_MARKET_STATUSES.includes(status)) return false;
+  if (status === 'reported' || mission.is_report) return true;
   if (status === 'funding') return true;
   if (status === 'in_progress') return true;
   return !mission.cleaner_id;
@@ -114,20 +129,33 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   const [sortMode, setSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_EGYPT_ID);
+  const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
 
   const toggleTag = (tag: string) =>
     setSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((x) => x !== tag) : [...prev, tag]
     );
   const clearTags = () => setSelectedTags([]);
+  const handleShowFreeReportsChange = (show: boolean) => {
+    setShowFreeReports(show);
+    writeShowFreeReports(show);
+  };
+
+  useEffect(() => subscribeShowFreeReports(setShowFreeReports), []);
 
   const visibleMissions = useMemo(
     () =>
       sortMissions(
-        filterMissionsByMarketCity(filterMissionsByTags(missions, selectedTags), marketCityId),
+        filterMissionsByFreeReports(
+          filterMissionsByMarketCity(
+            filterMissionsByTags(missions, selectedTags),
+            marketCityId
+          ),
+          showFreeReports
+        ),
         sortMode
       ),
-    [missions, selectedTags, marketCityId, sortMode]
+    [missions, selectedTags, marketCityId, showFreeReports, sortMode]
   );
 
   useEffect(() => {
@@ -145,6 +173,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
           amount_target,
           expected_price,
           current_funding,
+          is_report,
           location_lat,
           location_lng,
           status,
@@ -237,6 +266,8 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                   resultCount={visibleMissions.length}
                   cityId={marketCityId}
                   onCityChange={setMarketCityId}
+                  showFreeReports={showFreeReports}
+                  onShowFreeReportsChange={handleShowFreeReportsChange}
                 />
 
                 <div className="space-y-3">

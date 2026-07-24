@@ -51,6 +51,12 @@ export interface MissionFilterPanelProps {
   cityId?: string;
   onCityChange?: (cityId: string) => void;
   /**
+   * Free civic Attention Zone reports (`is_report` / status `reported`).
+   * Default true when omitted. Toggle does not close the drawer.
+   */
+  showFreeReports?: boolean;
+  onShowFreeReportsChange?: (show: boolean) => void;
+  /**
    * `inline` (default) = compact expandable bar for list views.
    * `floating`        = round FAB + bottom-sheet for the map overlay.
    */
@@ -66,6 +72,8 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
   resultCount,
   cityId,
   onCityChange,
+  showFreeReports = true,
+  onShowFreeReportsChange,
   variant = 'inline',
 }) => {
   const { t } = useTranslation();
@@ -75,8 +83,10 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
   const showCityFilter = typeof onCityChange === 'function';
   const cityValue = cityId ?? MARKETPLACE_ALL_EGYPT_ID;
   const cityActive = showCityFilter && cityValue !== MARKETPLACE_ALL_EGYPT_ID;
-  // FAB badge counts every applied constraint (tags + a non-default city).
-  const badgeCount = activeCount + (cityActive ? 1 : 0);
+  const showReportsToggle = typeof onShowFreeReportsChange === 'function';
+  const reportsMuted = showReportsToggle && !showFreeReports;
+  // FAB badge counts every applied constraint (tags + city + muted free reports).
+  const badgeCount = activeCount + (cityActive ? 1 : 0) + (reportsMuted ? 1 : 0);
 
   // Bottom-sheet: lock body scroll + close on Escape while it is open.
   useEffect(() => {
@@ -152,6 +162,36 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
         </button>
       );
     });
+
+  const renderFreeReportsToggle = () => {
+    if (!showReportsToggle) return null;
+    const active = showFreeReports;
+    return (
+      <section>
+        <p className={SECTION_LABEL}>
+          {t('missionTypesLabel', { defaultValue: 'Mission types' })}
+        </p>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={active}
+          onClick={() => onShowFreeReportsChange?.(!showFreeReports)}
+          className={`flex w-full min-h-[2.75rem] items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-center text-[11px] font-medium leading-snug tracking-wide transition-all active:scale-[0.99] ${
+            active
+              ? 'border border-rose-500/50 bg-rose-500/20 text-rose-400 shadow-[0_0_12px_rgba(244,63,94,0.3)]'
+              : 'border border-white/5 bg-white/5 text-gray-500 opacity-60'
+          }`}
+        >
+          <span aria-hidden>⚠️</span>
+          <span>
+            {t('filterAttentionZones', {
+              defaultValue: 'Attention Zones (Free Reports)',
+            })}
+          </span>
+        </button>
+      </section>
+    );
+  };
 
   // ── Floating layout: round FAB (top-left) + elegant bottom-sheet ──────────────
   if (variant === 'floating') {
@@ -281,6 +321,8 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                       </div>
                       <div className="flex flex-wrap gap-2">{renderTagButtons()}</div>
                     </section>
+
+                    {renderFreeReportsToggle()}
                   </div>
                 </div>
               </motion.div>
@@ -371,6 +413,8 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
             </div>
             <div className="flex flex-wrap gap-2">{renderTagButtons()}</div>
           </div>
+
+          {renderFreeReportsToggle()}
 
           {typeof resultCount === 'number' && (
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
