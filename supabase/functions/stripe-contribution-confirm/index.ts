@@ -168,6 +168,7 @@ Deno.serve(async (req) => {
         target_budget: Number(row.target_budget ?? 0),
         opened_for_bidding: !!row.opened_for_bidding,
         crowdfunding_expires_at: row.crowdfunding_expires_at ?? null,
+        started_work: !!row.started_work,
         idempotent: !!row.idempotent,
       }),
       {

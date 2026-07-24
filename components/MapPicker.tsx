@@ -2909,16 +2909,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
           .maybeSingle();
 
         if (!cancelled && missionRow) {
+          const nextStatus = result.started_work
+            ? 'in_progress'
+            : result.opened_for_bidding
+              ? 'available'
+              : String((missionRow as JobOnMap).status || 'funding');
           const updated: JobOnMap = {
             ...(missionRow as JobOnMap),
             current_funding: result.current_funding,
+            expected_price:
+              result.target_budget > 0
+                ? result.target_budget
+                : (missionRow as JobOnMap).expected_price,
             crowdfunding_expires_at:
               result.crowdfunding_expires_at ??
               (missionRow as JobOnMap).crowdfunding_expires_at ??
               null,
-            status: result.opened_for_bidding
-              ? 'available'
-              : String((missionRow as JobOnMap).status || 'funding'),
+            status: nextStatus,
           };
           setSelectedMission(updated);
           setJobs((prev) => {
@@ -2933,7 +2940,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
 
         toast.success(
-          result.opened_for_bidding
+          result.started_work || result.opened_for_bidding
             ? t('crowdfundingTargetReached')
             : t('contributionThanks')
         );

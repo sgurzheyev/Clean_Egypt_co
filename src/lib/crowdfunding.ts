@@ -38,7 +38,7 @@ export function isCrowdfundingOpen(mission: {
 }
 
 /** Effective funding deadline (crowdfunding_expires_at, else created_at + 7d).
- * Phase 1: create = +7d; each successful contribution resets to payment time + 30d (DB).
+ * Create = +7d; each successful contribution sets GREATEST(expires, now+30d) in DB.
  */
 export function getCrowdfundingExpiresAt(mission: {
   crowdfunding_expires_at?: string | null;
