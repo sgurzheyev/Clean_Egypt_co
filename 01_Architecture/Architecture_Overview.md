@@ -18,7 +18,10 @@
 - **Map:** Mapbox via `react-map-gl` ([[../components/MapPicker.tsx]])
 - **AR:** WebXR via `@react-three/xr` ([[../src/components/AROverlay.tsx]])
 - **Backend:** Supabase (PostgreSQL + RLS + Edge Functions)
-- **Economy:** USD-only fiat + platform tokens (no EGP) — [[Stripe_USD_Flow]], [[Security_and_RPCs]]
+- **Economy:** USD-only fiat + platform tokens (no EGP) — [[01_Architecture/Stripe_USD_Flow]], [[01_Architecture/Security_and_RPCs]]
+- **Master index:** [[🗺️ GARBAGIN Master Index]]
+- **Frontend map:** [[02_Frontend/Frontend_Components]]
+- **Migrations MOC:** [[03_Backend_SQL/SQL_Migrations_Index]]
 
 ## Entry & shell
 
@@ -39,7 +42,7 @@
 | Auth overlay | [[../components/AuthOverlay.tsx]] |
 | Live market feed | [[../components/LiveMarketFeed.tsx]] |
 | WebXR AR overlay | [[../src/components/AROverlay.tsx]] |
-| Admin moderation + [[KYC_Verification]] queue | [[../src/components/AdminDashboard.tsx]], [[../src/components/KYCReviewDashboard.tsx]] |
+| Admin moderation + [[01_Architecture/KYC_Verification]] queue | [[../src/components/AdminDashboard.tsx]], [[../src/components/KYCReviewDashboard.tsx]] |
 | KYC modal | [[../components/VerificationModal.tsx]] |
 
 ## Data clients

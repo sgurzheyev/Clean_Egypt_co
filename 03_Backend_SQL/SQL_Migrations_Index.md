@@ -126,8 +126,24 @@ Superseded or pre–token-economy scripts. Kept for archaeology; prefer active f
 
 ---
 
+## Edge functions & API (linked from Master Index)
+
+Full list lives on [[🗺️ GARBAGIN Master Index]] under **Backend & Supabase Schemas**. Primary touchpoints:
+
+- [[supabase/functions/stripe-contribution-checkout/index.ts]]
+- [[supabase/functions/stripe-contribution-confirm/index.ts]]
+- [[supabase/functions/stripe-webhook/index.ts]]
+- [[supabase/functions/kyc-admin-signed-urls/index.ts]]
+- [[supabase/functions/city-notification-pipeline/index.ts]]
+- [[supabase/functions/send-push-notification/index.ts]]
+- [[api/process-expired-crowdfunding.ts]]
+- [[03_Backend_SQL/AUDIT_phone_missions_access]]
+
+---
+
 ## How to use in Obsidian
 
-1. Open graph view → this note should sit at the center of all `*.sql` migration nodes.
+1. Open graph view → center on [[🗺️ GARBAGIN Master Index]], then expand this MOC for SQL density.
 2. Prefer linking new migrations from this MOC when you add files under `supabase/migrations/`.
 3. Keep product narrative in [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]]; keep schema history here.
+4. Always add a back-link from new backend notes to [[🗺️ GARBAGIN Master Index]].

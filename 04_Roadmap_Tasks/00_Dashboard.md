@@ -10,6 +10,7 @@
 - [[01_Architecture/Stripe_USD_Flow]] — Checkout contribute, tokens, crowdfunding expiry
 - [[02_Frontend/Frontend_Components]] — UI / map component map
 - [[03_Backend_SQL/SQL_Migrations_Index]] — migrations MOC
+- [[03_Backend_SQL/Backend_Edge_and_API]] — edge functions & API routes
 
 ## 1. Активная разработка
 - [[AROverlay]]: Статус внедрения WebXR → [[01_Architecture/Architecture_Overview]]
