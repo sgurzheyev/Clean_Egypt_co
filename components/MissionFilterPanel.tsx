@@ -191,87 +191,97 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                 role="dialog"
                 aria-modal="true"
                 aria-label={t('filtersLabel')}
-                className="relative flex max-h-[min(85vh,100dvh)] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-slate-950/95 shadow-[0_-8px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl sm:rounded-3xl"
+                className="relative w-full max-w-md overflow-hidden rounded-t-2xl border-t border-white/10 bg-[#0A0A12]/95 shadow-[0_-8px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl sm:rounded-3xl sm:border"
+                style={{ maxHeight: 'min(85dvh, 85vh)' }}
                 initial={{ y: '100%', opacity: 0.6 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: '100%', opacity: 0.4 }}
                 transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+                onClick={(e) => e.stopPropagation()}
               >
-                {/* Sticky chrome: grabber + title/close stay pinned while tags scroll */}
-                <div className="sticky top-0 z-10 shrink-0 border-b border-white/10 bg-slate-950/95 backdrop-blur-xl">
-                  <div className="flex justify-center pt-3 sm:hidden" aria-hidden>
-                    <span className="h-1.5 w-10 rounded-full bg-white/20" />
-                  </div>
-                  <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-3">
-                    <div>
-                      <p className="text-[12px] font-black uppercase tracking-[0.2em] text-cyan-300">
-                        {t('filtersLabel')}
-                      </p>
-                      {typeof resultCount === 'number' && (
-                        <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-                          {t('resultsCount', { count: resultCount })}
+                <div
+                  className="flex max-h-[inherit] flex-col overflow-y-auto overscroll-contain touch-pan-y"
+                  style={{
+                    maxHeight: 'min(85dvh, 85vh)',
+                    WebkitOverflowScrolling: 'touch',
+                  }}
+                  onTouchMove={(e) => e.stopPropagation()}
+                >
+                  {/* Sticky chrome — stays pinned while the body scrolls */}
+                  <div className="sticky top-0 z-10 shrink-0 border-b border-white/10 bg-[#0A0A12]/95 backdrop-blur-xl">
+                    <div className="flex justify-center pt-3 sm:hidden" aria-hidden>
+                      <span className="h-1.5 w-10 rounded-full bg-white/20" />
+                    </div>
+                    <div className="flex items-center justify-between gap-3 p-4 pt-3">
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-black uppercase tracking-[0.2em] text-cyan-300">
+                          {t('filtersLabel')}
                         </p>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setOpen(false)}
-                      aria-label={t('close', { defaultValue: 'Close' })}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
-                    >
-                      <X className="h-4 w-4" strokeWidth={2.25} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* min-h-0 is required so flex-1 can shrink and overflow-y-auto actually scrolls */}
-                <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pt-5 pb-[max(6rem,calc(env(safe-area-inset-bottom)+5rem))]">
-                  {showCityFilter && (
-                    <section>
-                      <p className={SECTION_LABEL}>{t('selectCity')}</p>
-                      <div className="relative">
-                        <MapPin
-                          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300"
-                          strokeWidth={2.25}
-                          aria-hidden
-                        />
-                        <select
-                          value={cityValue}
-                          onChange={(e) => onCityChange?.(e.target.value)}
-                          aria-label={t('selectCity')}
-                          className="w-full appearance-none rounded-xl border border-emerald-400/30 bg-emerald-500/10 py-2.5 pl-9 pr-9 text-sm font-bold text-emerald-100 outline-none transition-colors focus:border-emerald-400/60"
-                        >
-                          {cityOptions}
-                        </select>
-                        <ChevronDown
-                          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300/70"
-                          aria-hidden
-                        />
+                        {typeof resultCount === 'number' && (
+                          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                            {t('resultsCount', { count: resultCount })}
+                          </p>
+                        )}
                       </div>
-                    </section>
-                  )}
-
-                  <section>
-                    <p className={SECTION_LABEL}>{t('sortByLabel')}</p>
-                    <div className="grid grid-cols-2 gap-2">{renderSortButtons()}</div>
-                  </section>
-
-                  <section className="pb-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className={`${SECTION_LABEL} mb-0`}>{t('filterByTags')}</p>
-                      {activeCount > 0 && (
-                        <button
-                          type="button"
-                          onClick={onClearTags}
-                          className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 hover:text-slate-200"
-                        >
-                          <X className="h-3 w-3" strokeWidth={2.5} />
-                          {t('clearFilters')}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setOpen(false)}
+                        aria-label={t('close', { defaultValue: 'Close' })}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
+                      >
+                        <X className="h-4 w-4" strokeWidth={2.25} />
+                      </button>
                     </div>
-                    <div className="flex flex-wrap gap-2">{renderTagButtons()}</div>
-                  </section>
+                  </div>
+
+                  <div className="space-y-6 p-4 pb-12">
+                    {showCityFilter && (
+                      <section>
+                        <p className={SECTION_LABEL}>{t('selectCity')}</p>
+                        <div className="relative">
+                          <MapPin
+                            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300"
+                            strokeWidth={2.25}
+                            aria-hidden
+                          />
+                          <select
+                            value={cityValue}
+                            onChange={(e) => onCityChange?.(e.target.value)}
+                            aria-label={t('selectCity')}
+                            className="w-full appearance-none rounded-xl border border-emerald-400/30 bg-emerald-500/10 py-2.5 pl-9 pr-9 text-sm font-bold text-emerald-100 outline-none transition-colors focus:border-emerald-400/60"
+                          >
+                            {cityOptions}
+                          </select>
+                          <ChevronDown
+                            className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300/70"
+                            aria-hidden
+                          />
+                        </div>
+                      </section>
+                    )}
+
+                    <section>
+                      <p className={SECTION_LABEL}>{t('sortByLabel')}</p>
+                      <div className="grid grid-cols-2 gap-2">{renderSortButtons()}</div>
+                    </section>
+
+                    <section>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className={`${SECTION_LABEL} mb-0`}>{t('filterByTags')}</p>
+                        {activeCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={onClearTags}
+                            className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 hover:text-slate-200"
+                          >
+                            <X className="h-3 w-3" strokeWidth={2.5} />
+                            {t('clearFilters')}
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">{renderTagButtons()}</div>
+                    </section>
+                  </div>
                 </div>
               </motion.div>
             </motion.div>

@@ -200,23 +200,34 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
             exit={{ y: 32, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 280, damping: 24 }}
             onClick={(e) => e.stopPropagation()}
-            className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[88vh] w-full max-w-xl flex-col rounded-t-2xl bg-slate-950/95 shadow-[0_-12px_40px_rgba(0,0,0,0.45)]"
+            className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-xl overflow-hidden rounded-t-2xl border-t border-white/10 bg-[#0A0A12]/95 shadow-[0_-12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+            style={{ maxHeight: 'min(85dvh, 85vh)' }}
           >
-            <div className="relative shrink-0 px-4 pb-2 pt-3">
-              <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-white/20" />
-              <button
-                type="button"
-                onClick={onClose}
-                className="absolute right-3 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-slate-300"
-                aria-label={t('close')}
-              >
-                ✕
-              </button>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
-                {t('serviceMarketplace')}
-              </p>
-              <p className="mt-0.5 text-xs text-slate-500">{t('liveMarketBrowseHint')}</p>
-              <div className="mt-3">
+            <div
+              className="overflow-y-auto overscroll-contain touch-pan-y"
+              style={{
+                maxHeight: 'min(85dvh, 85vh)',
+                WebkitOverflowScrolling: 'touch',
+              }}
+              onTouchMove={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 z-10 relative border-b border-white/10 bg-[#0A0A12]/95 p-4 backdrop-blur-xl">
+                <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-white/20" aria-hidden />
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="absolute right-3 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-slate-300"
+                  aria-label={t('close')}
+                >
+                  ✕
+                </button>
+                <p className="pr-10 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                  {t('serviceMarketplace')}
+                </p>
+                <p className="mt-0.5 pr-10 text-xs text-slate-500">{t('liveMarketBrowseHint')}</p>
+              </div>
+
+              <div className="space-y-4 px-3 pt-3 pb-12">
                 <MissionFilterPanel
                   sortMode={sortMode}
                   onSortChange={setSortMode}
@@ -227,95 +238,93 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                   cityId={marketCityId}
                   onCityChange={setMarketCityId}
                 />
-              </div>
-            </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-              <div className="space-y-3">
-                {loading && <p className="py-4 text-center text-xs text-slate-400">{t('loading')}</p>}
-                {!loading && loadError && (
-                  <p className="py-4 text-center text-xs text-red-300">{loadError}</p>
-                )}
-                {!loading && !loadError && missions.length === 0 && (
-                  <p className="py-4 text-center text-xs text-slate-400">{t('noLiveMissions')}</p>
-                )}
-                {!loading && !loadError && missions.length > 0 && visibleMissions.length === 0 && (
-                  <p className="py-4 text-center text-xs text-slate-400">{t('noMissionsMatchFilters')}</p>
-                )}
-                {!loading &&
-                  !loadError &&
-                  visibleMissions.map((mission) => {
-                    const budget = missionWorkBudgetUsd(mission);
-                    const isOwnTask =
-                      !!currentUserId && mission.creator_id === currentUserId;
-                    const isHome = missionSector(mission.service_type, mission.category) === 'home';
-                    const remainingForStart = fundingCleanerLockRemaining(mission);
-                    const statusLabel =
-                      mission.status === 'in_progress' ? t('accepted') : mission.status;
+                <div className="space-y-3">
+                  {loading && <p className="py-4 text-center text-xs text-slate-400">{t('loading')}</p>}
+                  {!loading && loadError && (
+                    <p className="py-4 text-center text-xs text-red-300">{loadError}</p>
+                  )}
+                  {!loading && !loadError && missions.length === 0 && (
+                    <p className="py-4 text-center text-xs text-slate-400">{t('noLiveMissions')}</p>
+                  )}
+                  {!loading && !loadError && missions.length > 0 && visibleMissions.length === 0 && (
+                    <p className="py-4 text-center text-xs text-slate-400">{t('noMissionsMatchFilters')}</p>
+                  )}
+                  {!loading &&
+                    !loadError &&
+                    visibleMissions.map((mission) => {
+                      const budget = missionWorkBudgetUsd(mission);
+                      const isOwnTask =
+                        !!currentUserId && mission.creator_id === currentUserId;
+                      const isHome = missionSector(mission.service_type, mission.category) === 'home';
+                      const remainingForStart = fundingCleanerLockRemaining(mission);
+                      const statusLabel =
+                        mission.status === 'in_progress' ? t('accepted') : mission.status;
 
-                    return (
-                      <MissionFeedCard
-                        key={mission.id}
-                        photoUrl={mission.photo_urls?.[0] ?? null}
-                        placeholderVariant={isHome ? 'home' : 'city'}
-                        placeholderIcon={missionPinIcon(mission.service_type, mission.category)}
-                        budgetValue={formatWorkBudgetUsd(budget)}
-                        locationLine={missionLocationLine(mission, t)}
-                        description={extractMissionFeedDescription(mission.description)}
-                        metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
-                        submittedLabel={
-                          mission.created_at
-                            ? `${t('submittedLabel')}: ${formatSubmittedRelative(
-                                mission.created_at,
-                                i18n.language
-                              )}`
-                            : undefined
-                        }
-                        creatorAvatarUrl={mission.creator?.avatar_url ?? null}
-                        creatorName={mission.creator?.full_name ?? null}
-                        creatorAriaLabel={t('viewCreatorProfile')}
-                        onCreatorClick={
-                          mission.creator_id
-                            ? () => {
-                                onClose();
-                                navigate(`/profile/${mission.creator_id}`);
-                              }
-                            : undefined
-                        }
-                        highlighted={isOwnTask}
-                        topLeftBadge={
-                          isOwnTask ? (
-                            <span className="rounded-full border border-emerald-400/50 bg-emerald-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100 backdrop-blur-sm">
-                              {t('yourTaskBadge')}
+                      return (
+                        <MissionFeedCard
+                          key={mission.id}
+                          photoUrl={mission.photo_urls?.[0] ?? null}
+                          placeholderVariant={isHome ? 'home' : 'city'}
+                          placeholderIcon={missionPinIcon(mission.service_type, mission.category)}
+                          budgetValue={formatWorkBudgetUsd(budget)}
+                          locationLine={missionLocationLine(mission, t)}
+                          description={extractMissionFeedDescription(mission.description)}
+                          metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
+                          submittedLabel={
+                            mission.created_at
+                              ? `${t('submittedLabel')}: ${formatSubmittedRelative(
+                                  mission.created_at,
+                                  i18n.language
+                                )}`
+                              : undefined
+                          }
+                          creatorAvatarUrl={mission.creator?.avatar_url ?? null}
+                          creatorName={mission.creator?.full_name ?? null}
+                          creatorAriaLabel={t('viewCreatorProfile')}
+                          onCreatorClick={
+                            mission.creator_id
+                              ? () => {
+                                  onClose();
+                                  navigate(`/profile/${mission.creator_id}`);
+                                }
+                              : undefined
+                          }
+                          highlighted={isOwnTask}
+                          topLeftBadge={
+                            isOwnTask ? (
+                              <span className="rounded-full border border-emerald-400/50 bg-emerald-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100 backdrop-blur-sm">
+                                {t('yourTaskBadge')}
+                              </span>
+                            ) : undefined
+                          }
+                          statusBadge={
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${statusClass(
+                                mission.status
+                              )}`}
+                            >
+                              {t('status')}: {statusLabel}
                             </span>
-                          ) : undefined
-                        }
-                        statusBadge={
-                          <span
-                            className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${statusClass(
-                              mission.status
-                            )}`}
-                          >
-                            {t('status')}: {statusLabel}
-                          </span>
-                        }
-                        callout={
-                          remainingForStart != null ? (
-                            <span className="inline-flex max-w-full rounded-lg border border-violet-400/45 bg-violet-600/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-[0_4px_14px_rgba(139,92,246,0.35)] backdrop-blur-sm">
-                              {t('feedCleanerLockedNeedsMore', {
-                                amount: remainingForStart,
-                                defaultValue:
-                                  'Cleaner locked in! Needs ${{amount}} more to start',
-                              })}
-                            </span>
-                          ) : undefined
-                        }
-                        onClick={() => onSelectMission(mission)}
-                        onLocate={() => onSelectMission(mission)}
-                        locateAriaLabel={t('locateOnMap')}
-                      />
-                    );
-                  })}
+                          }
+                          callout={
+                            remainingForStart != null ? (
+                              <span className="inline-flex max-w-full rounded-lg border border-violet-400/45 bg-violet-600/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-[0_4px_14px_rgba(139,92,246,0.35)] backdrop-blur-sm">
+                                {t('feedCleanerLockedNeedsMore', {
+                                  amount: remainingForStart,
+                                  defaultValue:
+                                    'Cleaner locked in! Needs ${{amount}} more to start',
+                                })}
+                              </span>
+                            ) : undefined
+                          }
+                          onClick={() => onSelectMission(mission)}
+                          onLocate={() => onSelectMission(mission)}
+                          locateAriaLabel={t('locateOnMap')}
+                        />
+                      );
+                    })}
+                </div>
               </div>
             </div>
           </motion.div>
