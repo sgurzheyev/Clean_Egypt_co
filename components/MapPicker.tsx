@@ -13,7 +13,7 @@ import { supabase } from '../services/supabase';
 import { getWorkerGeolocation, submitMissionProof } from '../src/lib/submitMissionProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import { resolveMissionCleanerId, submitReview } from '../src/lib/reviews';
-import { Navigation, Camera, X, User, Plus, Minus, Crosshair, Loader2 } from 'lucide-react';
+import { Navigation, Camera, X, User, Plus, Minus, Crosshair, Loader2, TriangleAlert } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import NotificationBell from './NotificationBell';
 import MissionFeedCard from './MissionFeedCard';
@@ -72,7 +72,10 @@ import {
   missionPinIconImage,
   PIN_ICON_IMAGE_SPONGE,
   PIN_ICON_IMAGE_MOP,
+  PIN_ICON_IMAGE_REPORT,
 } from '../src/lib/serviceSectors';
+import ReportGarbageZoneModal from './ReportGarbageZoneModal';
+import { isGarbageZoneReport } from '../src/lib/garbageZoneReport';
 import {
   getCrowdfundingCountdownParts,
   getCrowdfundingExpiresAt,
@@ -136,19 +139,38 @@ const MISSION_PIN_CORE_RADIUS: mapboxgl.Expression = [
   10,
 ];
 const MISSION_PIN_GLOW_RADIUS: mapboxgl.Expression = [
-  'interpolate',
-  ['linear'],
-  ['zoom'],
-  8,
-  8,
-  12,
-  14,
-  15,
-  16,
-  18,
-  20,
-  22,
-  20,
+  'case',
+  ['==', ['get', 'is_report'], 1],
+  [
+    'interpolate',
+    ['linear'],
+    ['zoom'],
+    8,
+    14,
+    12,
+    22,
+    15,
+    28,
+    18,
+    34,
+    22,
+    34,
+  ],
+  [
+    'interpolate',
+    ['linear'],
+    ['zoom'],
+    8,
+    8,
+    12,
+    14,
+    15,
+    16,
+    18,
+    20,
+    22,
+    20,
+  ],
 ];
 const DRAFT_PIN_RADIUS: mapboxgl.Expression = [
   'interpolate',
@@ -180,41 +202,46 @@ const MISSION_PIN_CATEGORY_FALLBACK: mapboxgl.Expression = [
 ];
 
 const MISSION_PIN_CORE_COLOR: mapboxgl.Expression = [
-  'match',
-  ['coalesce', ['get', 'service_type'], ''],
-  'home_office',
-  '#10b981',
-  'ac_cleaning',
-  '#0ea5e9',
-  'pool_maintenance',
-  '#06b6d4',
-  'pest_control',
-  '#65a30d',
-  'windows_facades',
-  '#3b82f6',
-  'terrace_garden',
-  '#16a34a',
-  'car_detailing',
-  '#f59e0b',
-  'yacht_boat_cleaning',
-  '#6366f1',
-  'solar_panels',
-  '#eab308',
-  'ultrasound_cleaning',
-  '#8b5cf6',
-  'carpets_mattresses',
-  '#f43f5e',
-  'kitchen_hoods_grease',
-  '#f97316',
-  'laundry_ironing',
-  '#14b8a6',
-  'water_tank_cleaning',
-  '#0284c7',
-  'junk_removal',
-  '#94a3b8',
-  'beach_street_cleanup',
-  '#22c55e',
-  MISSION_PIN_CATEGORY_FALLBACK,
+  'case',
+  ['==', ['get', 'is_report'], 1],
+  '#ff2d55',
+  [
+    'match',
+    ['coalesce', ['get', 'service_type'], ''],
+    'home_office',
+    '#10b981',
+    'ac_cleaning',
+    '#0ea5e9',
+    'pool_maintenance',
+    '#06b6d4',
+    'pest_control',
+    '#65a30d',
+    'windows_facades',
+    '#3b82f6',
+    'terrace_garden',
+    '#16a34a',
+    'car_detailing',
+    '#f59e0b',
+    'yacht_boat_cleaning',
+    '#6366f1',
+    'solar_panels',
+    '#eab308',
+    'ultrasound_cleaning',
+    '#8b5cf6',
+    'carpets_mattresses',
+    '#f43f5e',
+    'kitchen_hoods_grease',
+    '#f97316',
+    'laundry_ironing',
+    '#14b8a6',
+    'water_tank_cleaning',
+    '#0284c7',
+    'junk_removal',
+    '#94a3b8',
+    'beach_street_cleanup',
+    '#22c55e',
+    MISSION_PIN_CATEGORY_FALLBACK,
+  ],
 ];
 
 const MISSION_PIN_HOVER_STROKE_WIDTH: mapboxgl.Expression = [
@@ -267,6 +294,7 @@ function registerEmojiPinImages(map: any) {
   };
   addEmojiImage(PIN_ICON_IMAGE_SPONGE, '🧽');
   addEmojiImage(PIN_ICON_IMAGE_MOP, '🧹');
+  addEmojiImage(PIN_ICON_IMAGE_REPORT, '⚠️');
 }
 
 type TaskType = 'city' | 'home';
@@ -280,6 +308,7 @@ interface JobOnMap {
   current_funding?: number | null;
   crowdfunding_mode?: boolean | null;
   crowdfunding_expires_at?: string | null;
+  is_report?: boolean | null;
   location_lat: number;
   location_lng: number;
   status: string;
@@ -305,6 +334,7 @@ interface JobOnMap {
 function missionEligibleForMapPin(job: JobOnMap): boolean {
   // Phantom pins (unpaid drafts) must never appear on the map.
   if (job.status === 'pending_payment') return false;
+  if (job.status === 'reported' || job.is_report) return true;
   if (job.status === 'pending') return true;
   if (job.status === 'available') return true;
   if (job.status === 'funding') return true;
@@ -1619,6 +1649,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     marketCityIdRef.current = marketCityId;
   }, [marketCityId]);
   const [mapDraftPin, setMapDraftPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [reportMode, setReportMode] = useState(false);
+  const [reportDraft, setReportDraft] = useState<{ lat: number; lng: number } | null>(null);
   const [draftPinMenuExpanded, setDraftPinMenuExpanded] = useState(false);
   const [proofUploadMission, setProofUploadMission] = useState<JobOnMap | null>(null);
   const [taskType, setTaskType] = useState<TaskType>('city');
@@ -1905,6 +1937,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         current_funding,
         crowdfunding_mode,
         crowdfunding_expires_at,
+        is_report,
         location_lat,
         location_lng,
         status,
@@ -2439,7 +2472,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // Skipped while the creation form is open: the briefing sheet (z-10030) renders
       // BELOW the form overlay (z-10050), so opening it there would be invisible.
       // Taps then reposition the draft pin instead.
-      if (!taskTypeSelected) {
+      if (!taskTypeSelected && !reportMode) {
         const job = findMissionPinAtPoint(event?.point, 15);
         if (job) {
           handleMarkerClick(job);
@@ -2453,6 +2486,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       if (!isInsideEgyptBounds(lng, lat)) {
         toast.error(t('geofenceEgyptShelf'));
+        return;
+      }
+
+      // Free garbage-zone report mode: tap places report draft + opens lightweight modal.
+      if (reportMode && !taskTypeSelected) {
+        setReportDraft({ lat, lng });
+        setMapDraftPin(null);
+        setDraftPinMenuExpanded(false);
+        setShowLiveMarketFeed(false);
         return;
       }
 
@@ -2470,7 +2512,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setShowLiveMarketFeed(false);
       onLocationSelect?.(lat, lng);
     },
-    [findMissionPinAtPoint, handleMarkerClick, onLocationSelect, orderSubmitting, t, taskTypeSelected]
+    [
+      findMissionPinAtPoint,
+      handleMarkerClick,
+      onLocationSelect,
+      orderSubmitting,
+      reportMode,
+      t,
+      taskTypeSelected,
+      toast,
+    ]
   );
 
   const handleMapMouseMove = useCallback(
@@ -2623,6 +2674,35 @@ const MapPicker: React.FC<MapPickerProps> = ({
       toast.success(t('missionUpdatedSuccess'));
     },
     [t, toast]
+  );
+
+  const handleReportConverted = useCallback(
+    (patch: {
+      id: string;
+      status: string;
+      is_report: boolean;
+      crowdfunding_mode: boolean;
+      expected_price: number | null;
+      amount_target: number | null;
+      current_funding: number | null;
+      crowdfunding_expires_at: string | null;
+    }) => {
+      setSelectedMission((prev) => (prev && prev.id === patch.id ? { ...prev, ...patch } : prev));
+      setJobs((prev) => {
+        const next = (prev || []).map((job) =>
+          job.id === patch.id ? { ...job, ...patch } : job
+        );
+        jobsRef.current = next;
+        return next;
+      });
+      toast.success(
+        t('reportZoneConverted', {
+          defaultValue: 'Report converted — crowdfunding is live!',
+        })
+      );
+      void fetchMissions();
+    },
+    [fetchMissions, t, toast]
   );
 
   const handleAdminDeleteMission = useCallback(async () => {
@@ -2903,7 +2983,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const { data: missionRow } = await supabase
           .from('missions')
           .select(
-            'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls, created_at'
+            'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, is_report, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls, created_at'
           )
           .eq('id', result.mission_id)
           .maybeSingle();
@@ -3438,7 +3518,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
           status: j.status,
           service_type: serviceTypeForMission(j),
           category: j.category,
-          pin_icon_image: missionPinIconImage(serviceTypeForMission(j), j.category),
+          is_report: isGarbageZoneReport(j) ? 1 : 0,
+          pin_icon_image: missionPinIconImage(
+            serviceTypeForMission(j),
+            j.category,
+            isGarbageZoneReport(j)
+          ),
         },
       }));
     return { type: 'FeatureCollection' as const, features };
@@ -3566,7 +3651,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const { data, error } = await supabase
         .from('missions')
         .select(
-          'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, location_lat, location_lng, status, building_id, cleaner_id, creator_id, description, photo_urls, after_photo_urls, created_at, started_at, creator:profiles!creator_id (full_name, avatar_url, is_verified)'
+          'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, is_report, location_lat, location_lng, status, building_id, cleaner_id, creator_id, description, photo_urls, after_photo_urls, created_at, started_at, creator:profiles!creator_id (full_name, avatar_url, is_verified)'
         )
         .eq('id', missionId)
         .maybeSingle();
@@ -4283,6 +4368,71 @@ const MapPicker: React.FC<MapPickerProps> = ({
       )}
 
       {showProfileFab && (
+        <button
+          type="button"
+          onClick={() => {
+            if (!currentUserId) {
+              onRequestAuth?.();
+              return;
+            }
+            setReportMode((v) => {
+              const next = !v;
+              if (!next) setReportDraft(null);
+              if (next) {
+                setMapDraftPin(null);
+                setDraftPinMenuExpanded(false);
+                setShowLiveMarketFeed(false);
+                toast.notice(
+                  t('reportModeHint', {
+                    defaultValue: 'Tap the map to drop a free garbage-zone report.',
+                  })
+                );
+              }
+              return next;
+            });
+          }}
+          className={`fixed left-3 top-[max(4.25rem,calc(env(safe-area-inset-top)+3.5rem))] z-[10015] flex h-12 w-12 items-center justify-center rounded-full border backdrop-blur-lg transition-transform active:scale-95 ${
+            reportMode
+              ? 'border-rose-400 bg-rose-500/90 text-white shadow-[0_0_22px_rgba(244,63,94,0.55)]'
+              : 'border-rose-400/50 bg-black/70 text-rose-300 shadow-[0_0_18px_rgba(244,63,94,0.28)]'
+          }`}
+          aria-label={t('reportZoneTitle', { defaultValue: 'Report Garbage Zone' })}
+          aria-pressed={reportMode}
+        >
+          <span className="relative flex h-6 w-6 items-center justify-center">
+            {reportMode && (
+              <span
+                className="absolute inset-0 animate-ping rounded-full bg-rose-400/50"
+                aria-hidden
+              />
+            )}
+            <TriangleAlert className="relative h-5 w-5" strokeWidth={2.25} />
+          </span>
+        </button>
+      )}
+
+      {reportDraft && (
+        <ReportGarbageZoneModal
+          open
+          lat={reportDraft.lat}
+          lng={reportDraft.lng}
+          onClose={() => {
+            setReportDraft(null);
+            setReportMode(false);
+          }}
+          onCreated={async (missionId) => {
+            setReportDraft(null);
+            setReportMode(false);
+            toast.success(
+              t('reportZoneCreated', { defaultValue: 'Garbage zone reported — thank you!' })
+            );
+            await fetchMissions();
+            void openMissionById(missionId);
+          }}
+        />
+      )}
+
+      {showProfileFab && (
         <div className="fixed inset-x-0 bottom-0 z-[10020] flex justify-center pointer-events-none pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))]">
           <button
             type="button"
@@ -4643,6 +4793,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           autoOpenChatWithUserId={pendingNotifChatUserId}
           onAutoOpenChatConsumed={() => setPendingNotifChatUserId(null)}
           onMissionUpdated={handleMissionDetailsUpdated}
+          onReportConverted={handleReportConverted}
         />
       )}
 

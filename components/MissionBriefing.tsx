@@ -38,6 +38,11 @@ import {
   MAX_MISSION_PHOTOS,
   updateMissionDetails,
 } from '../src/lib/updateMissionDetails';
+import {
+  convertReportToMission,
+  isGarbageZoneReport,
+} from '../src/lib/garbageZoneReport';
+import { CITY_MIN_PRICE } from '../constants';
 import MissionChatPanel from '../src/components/chat/MissionChatPanel';
 import EcoHeroesRibbon from './EcoHeroesRibbon';
 
@@ -66,6 +71,7 @@ export type MissionBriefingMission = {
   description?: string | null;
   photo_urls?: string[] | null;
   completion_distance_meters?: number | null;
+  is_report?: boolean | null;
 };
 
 export type MissionBriefingProps = {
@@ -124,6 +130,17 @@ export type MissionBriefingProps = {
     id: string;
     description: string | null;
     photo_urls: string[] | null;
+  }) => void;
+  /** After any user converts a free report pin into funding/available. */
+  onReportConverted?: (patch: {
+    id: string;
+    status: string;
+    is_report: boolean;
+    crowdfunding_mode: boolean;
+    expected_price: number | null;
+    amount_target: number | null;
+    current_funding: number | null;
+    crowdfunding_expires_at: string | null;
   }) => void;
 };
 
@@ -210,6 +227,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   autoOpenChatWithUserId = null,
   onAutoOpenChatConsumed,
   onMissionUpdated,
+  onReportConverted,
 }) => {
   const { t } = useTranslation();
   const creatorInitial = (creatorName || '?').trim().charAt(0).toUpperCase() || '?';
@@ -224,11 +242,17 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const [editPreviews, setEditPreviews] = useState<string[]>([]);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [convertOpen, setConvertOpen] = useState(false);
+  const [convertBudget, setConvertBudget] = useState('50');
+  const [convertCrowdfund, setConvertCrowdfund] = useState(true);
+  const [convertSubmitting, setConvertSubmitting] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
   const photos = mission.photo_urls?.filter(Boolean) ?? [];
   const placeholderVariant = placeholderVariantFor(mission);
   const placeholderIcon = missionPinIcon(mission.service_type, mission.category);
   const feedDescription = extractMissionFeedDescription(mission.description);
+  const isReportPin = isGarbageZoneReport(mission);
   const canEditMission =
     isMissionCreator &&
     !!currentUserId &&
@@ -246,6 +270,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const hasPreselectedCleanerDuringFunding =
     isFundingStatus && (!!mission.cleaner_id || !!acceptedFundingBid);
   const showBidsSection =
+    !isReportPin &&
     !isInProgress &&
     (isMissionCreator || canPlaceBid || missionBids.length > 0 || bidsLoading);
   const crowdfundingOpen = isCrowdfundingOpen(mission);
@@ -357,6 +382,52 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
       );
     } finally {
       setEditSubmitting(false);
+    }
+  };
+
+  const submitReportConversion = async () => {
+    if (convertSubmitting) return;
+    if (!currentUserId) {
+      setConvertError(t('signInToContribute', { defaultValue: 'Sign in to continue.' }));
+      return;
+    }
+    const amount = parseIntegerUsdFromInput(convertBudget);
+    if (amount < CITY_MIN_PRICE) {
+      setConvertError(
+        t('cityPriceRangeUsd', {
+          min: CITY_MIN_PRICE,
+          max: 10000,
+          defaultValue: `Budget must be at least $${CITY_MIN_PRICE}`,
+        })
+      );
+      return;
+    }
+    setConvertSubmitting(true);
+    setConvertError(null);
+    try {
+      const row = await convertReportToMission({
+        missionId: mission.id,
+        expectedPriceUsd: amount,
+        crowdfundingMode: convertCrowdfund,
+      });
+      onReportConverted?.({
+        id: row.id,
+        status: row.status,
+        is_report: !!row.is_report,
+        crowdfunding_mode: !!row.crowdfunding_mode,
+        expected_price: row.expected_price,
+        amount_target: row.amount_target,
+        current_funding: row.current_funding,
+        crowdfunding_expires_at: row.crowdfunding_expires_at,
+      });
+      setConvertOpen(false);
+    } catch (err: any) {
+      setConvertError(
+        err?.message ||
+          t('reportZoneConvertFailed', { defaultValue: 'Could not convert this report.' })
+      );
+    } finally {
+      setConvertSubmitting(false);
     }
   };
 
@@ -604,15 +675,21 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
               </button>
 
               <div className="pointer-events-none absolute left-3 top-3 z-20 flex max-w-[calc(100%-4.5rem)] flex-wrap gap-1.5">
-                <span
-                  className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${
-                    placeholderVariant === 'home'
-                      ? 'border-amber-400/50 bg-amber-500/25 text-amber-100'
-                      : 'border-emerald-400/50 bg-emerald-500/25 text-emerald-100'
-                  }`}
-                >
-                  {placeholderVariant === 'home' ? t('homeCleaning') : t('cityCleaning')}
-                </span>
+                {isReportPin ? (
+                  <span className="rounded-full border border-rose-400/55 bg-rose-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-rose-100 backdrop-blur-sm">
+                    {t('reportZoneBadge', { defaultValue: 'Reported Zone' })}
+                  </span>
+                ) : (
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${
+                      placeholderVariant === 'home'
+                        ? 'border-amber-400/50 bg-amber-500/25 text-amber-100'
+                        : 'border-emerald-400/50 bg-emerald-500/25 text-emerald-100'
+                    }`}
+                  >
+                    {placeholderVariant === 'home' ? t('homeCleaning') : t('cityCleaning')}
+                  </span>
+                )}
                 {isOwnActive && (
                   <span className="rounded-full border border-sky-400/50 bg-sky-500/25 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-sky-100 backdrop-blur-sm">
                     {t('yourActiveMission')}
@@ -732,6 +809,39 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
             </div>
 
             <div className="relative z-[1] space-y-5 bg-[#020617] px-5 pt-1 pb-1">
+              {isReportPin && (
+                <section className="border-t border-white/5 pt-4">
+                  <p className="text-[11px] leading-relaxed text-slate-300">
+                    {t('reportZoneBridgeHint', {
+                      defaultValue:
+                        'Civic report — free. Launch crowdfunding or set a bounty so cleaners can take it on.',
+                    })}
+                  </p>
+                  {currentUserId ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConvertBudget(String(Math.max(CITY_MIN_PRICE, 50)));
+                        setConvertCrowdfund(true);
+                        setConvertError(null);
+                        setConvertOpen(true);
+                      }}
+                      className="mt-3 w-full rounded-full border border-amber-400/50 bg-gradient-to-r from-amber-500/90 to-rose-500/90 py-3.5 text-[11px] font-black uppercase tracking-[0.16em] text-slate-950 shadow-[0_0_24px_rgba(251,191,36,0.35)] transition-transform active:scale-[0.98]"
+                    >
+                      {t('reportZoneConvertCta', {
+                        defaultValue: '🚀 Launch Crowdfunding / Set bounty',
+                      })}
+                    </button>
+                  ) : (
+                    <p className="mt-3 text-xs italic text-slate-500">
+                      {t('signInToContribute', {
+                        defaultValue: 'Sign in to convert this report.',
+                      })}
+                    </p>
+                  )}
+                </section>
+              )}
+
               {crowdfundingOpen && (
                 <section className="border-t border-white/5 pt-4">
                   <div className="flex items-start justify-between gap-3">
@@ -1312,6 +1422,84 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
               {editSubmitting
                 ? t('processing')
                 : t('saveMissionChanges', { defaultValue: 'Save changes' })}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {convertOpen && (
+      <div
+        className="absolute inset-0 z-[10080] flex items-end justify-center pointer-events-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('reportZoneConvertTitle', { defaultValue: 'Convert report' })}
+      >
+        <button
+          type="button"
+          className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+          aria-label={t('close')}
+          onClick={() => setConvertOpen(false)}
+        />
+        <div
+          className="relative z-[1] w-full max-w-xl overflow-y-auto rounded-t-3xl border border-white/10 bg-slate-950/95 px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_-16px_48px_rgba(251,191,36,0.18)]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-white/15" aria-hidden />
+          <h3 className="mb-1 text-sm font-black uppercase tracking-[0.18em] text-amber-200">
+            {t('reportZoneConvertTitle', { defaultValue: 'Launch paid cleanup' })}
+          </h3>
+          <p className="mb-4 text-[11px] leading-relaxed text-slate-400">
+            {t('reportZoneConvertHint', {
+              defaultValue:
+                'Set a target bounty. Crowdfunding collects community funds; direct mode opens the pin for bids immediately.',
+            })}
+          </p>
+
+          <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+            {t('missionWorkBudgetLabel', { defaultValue: 'Target (USD)' })}
+          </label>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={convertBudget}
+            onChange={(e) => setConvertBudget(sanitizeIntegerUsdDigits(e.target.value))}
+            className="mb-4 w-full rounded-2xl border border-white/12 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/45"
+            placeholder="50"
+          />
+
+          <label className="mb-4 flex items-center gap-2 text-xs text-slate-200">
+            <input
+              type="checkbox"
+              checked={convertCrowdfund}
+              onChange={(e) => setConvertCrowdfund(e.target.checked)}
+              className="h-4 w-4 rounded border-white/20 bg-black/40 text-amber-500 focus:ring-amber-400/40"
+            />
+            {t('crowdfundingModeLabel', { defaultValue: 'Crowdfunding mode' })}
+          </label>
+
+          {convertError && (
+            <p className="mb-3 text-[11px] font-medium text-red-400">{convertError}</p>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setConvertOpen(false)}
+              disabled={convertSubmitting}
+              className="flex-1 rounded-full border border-white/15 bg-white/5 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-200 active:scale-95 disabled:opacity-50"
+            >
+              {t('cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={submitReportConversion}
+              disabled={convertSubmitting}
+              className="flex-1 rounded-full border border-amber-400/40 bg-amber-500/90 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-black active:scale-95 disabled:cursor-wait disabled:opacity-60"
+            >
+              {convertSubmitting
+                ? t('processing')
+                : t('reportZoneConvertConfirm', { defaultValue: 'Convert & go live' })}
             </button>
           </div>
         </div>

@@ -80,22 +80,27 @@ export function missionSector(
   return c === 'home' || c === 'office' ? 'home' : 'city';
 }
 
-/** Map pin + list icon: sponge = home/office, mop = street/city/beach. */
+/** Map pin + list icon: sponge = home/office, mop = street/city/beach, warning = report. */
 export function missionPinIcon(
   serviceType: string | null | undefined,
-  category?: string | null
+  category?: string | null,
+  isReport?: boolean | null
 ): string {
+  if (isReport) return '⚠️';
   return missionSector(serviceType, category) === 'home' ? '🧽' : '🧹';
 }
 
 /** Mapbox image ids for emoji pin icons (registered via canvas at map load). */
 export const PIN_ICON_IMAGE_SPONGE = 'pin-icon-sponge';
 export const PIN_ICON_IMAGE_MOP = 'pin-icon-mop';
+export const PIN_ICON_IMAGE_REPORT = 'pin-icon-report';
 
 export function missionPinIconImage(
   serviceType: string | null | undefined,
-  category?: string | null
+  category?: string | null,
+  isReport?: boolean | null
 ): string {
+  if (isReport) return PIN_ICON_IMAGE_REPORT;
   return missionSector(serviceType, category) === 'home'
     ? PIN_ICON_IMAGE_SPONGE
     : PIN_ICON_IMAGE_MOP;
