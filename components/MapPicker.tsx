@@ -84,6 +84,10 @@ import {
   writeShowFreeReports,
 } from '../src/lib/showFreeReports';
 import {
+  filterMissionsByMutedCreators,
+} from '../src/lib/mutedCreators';
+import { useMutedCreators } from '../src/hooks/useMutedCreators';
+import {
   getCrowdfundingCountdownParts,
   getCrowdfundingExpiresAt,
   isCrowdfundingOpen,
@@ -1404,6 +1408,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const selectedMissionTagsRef = React.useRef<string[]>([]);
   const marketCityIdRef = React.useRef<string>(MARKETPLACE_ALL_EGYPT_ID);
   const showFreeReportsRef = React.useRef(true);
+  const mutedCreatorIdsRef = React.useRef<string[]>([]);
   const hoveredMissionIdRef = React.useRef<string | null>(null);
   // Latest map event closures. Native Mapbox listeners are bound ONCE (on map load) and delegate
   // through these refs, so updating React state never detaches/re-attaches the canvas listeners.
@@ -1756,6 +1761,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [selectedMissionTags, setSelectedMissionTags] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_EGYPT_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
+  const { mutedIds, muteCreator } = useMutedCreators();
   const toggleMissionTag = useCallback((tag: string) => {
     setSelectedMissionTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
@@ -1776,6 +1782,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
   useEffect(() => {
     showFreeReportsRef.current = showFreeReports;
   }, [showFreeReports]);
+  useEffect(() => {
+    mutedCreatorIdsRef.current = mutedIds;
+  }, [mutedIds]);
+
   const [mapDraftPin, setMapDraftPin] = useState<{ lat: number; lng: number } | null>(null);
   const [reportMode, setReportMode] = useState(false);
   const [reportDraft, setReportDraft] = useState<{ lat: number; lng: number } | null>(null);
@@ -2232,6 +2242,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [selectedMission, setSelectedMission] = useState<JobOnMap | null>(null);
   const [pendingNotifChatUserId, setPendingNotifChatUserId] = useState<string | null>(null);
 
+  // If the open briefing belongs to a newly muted author, drop it immediately.
+  useEffect(() => {
+    const creatorId = selectedMission?.creator_id;
+    if (!creatorId) return;
+    if (mutedIds.includes(String(creatorId))) {
+      setSelectedMission(null);
+    }
+  }, [mutedIds, selectedMission?.creator_id]);
+
   /** Reveal client phone only via RPC (creator / accepted bid / assigned cleaner). */
   const handleUnlockLead = useCallback(async () => {
     if (!currentUserId) {
@@ -2566,13 +2585,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
 
       // Occlusion-proof fallback: screen-space distance to each eligible pin.
-      // Respect the active tag / city / free-report filters so hidden pins stay unclickable.
-      const visibleJobs = filterMissionsByFreeReports(
-        filterMissionsByMarketCity(
-          filterMissionsByTags(jobsRef.current || [], selectedMissionTagsRef.current),
-          marketCityIdRef.current
+      // Respect the active tag / city / free-report / muted-creator filters.
+      const visibleJobs = filterMissionsByMutedCreators(
+        filterMissionsByFreeReports(
+          filterMissionsByMarketCity(
+            filterMissionsByTags(jobsRef.current || [], selectedMissionTagsRef.current),
+            marketCityIdRef.current
+          ),
+          showFreeReportsRef.current
         ),
-        showFreeReportsRef.current
+        mutedCreatorIdsRef.current
       );
       let best: JobOnMap | null = null;
       let bestDist = Infinity;
@@ -2790,6 +2812,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setUnlockedLeadPhone(null);
     setSelectedRating(0);
   }, []);
+
+  const handleMuteCreator = useCallback(
+    (creatorId: string) => {
+      muteCreator(creatorId);
+      handleCloseMissionBriefing();
+      toast.success(
+        t('muteCreatorToast', {
+          defaultValue: 'Missions from this creator are muted',
+        })
+      );
+    },
+    [muteCreator, handleCloseMissionBriefing, t, toast]
+  );
 
   const handleMissionDetailsUpdated = useCallback(
     (patch: { id: string; description: string | null; photo_urls: string[] | null }) => {
@@ -3636,12 +3671,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   /** Service-colored mission pins on the map (always visible in 2D mode). */
   const missionPinsGeoJSON = useMemo(() => {
-    const features = filterMissionsByFreeReports(
-      filterMissionsByMarketCity(
-        filterMissionsByTags(jobs || [], selectedMissionTags),
-        marketCityId
+    const features = filterMissionsByMutedCreators(
+      filterMissionsByFreeReports(
+        filterMissionsByMarketCity(
+          filterMissionsByTags(jobs || [], selectedMissionTags),
+          marketCityId
+        ),
+        showFreeReports
       ),
-      showFreeReports
+      mutedIds
     )
       .filter(missionEligibleForMapPin)
       .filter((j) => {
@@ -3670,7 +3708,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         },
       }));
     return { type: 'FeatureCollection' as const, features };
-  }, [jobs, selectedMissionTags, marketCityId, showFreeReports, serviceTypeForMission]);
+  }, [jobs, selectedMissionTags, marketCityId, showFreeReports, mutedIds, serviceTypeForMission]);
 
   const activeWorkerMission = useMemo(
     () =>
@@ -5034,6 +5072,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 }
               : undefined
           }
+          onMuteCreator={handleMuteCreator}
           autoOpenChatWithUserId={pendingNotifChatUserId}
           onAutoOpenChatConsumed={() => setPendingNotifChatUserId(null)}
           onMissionUpdated={handleMissionDetailsUpdated}

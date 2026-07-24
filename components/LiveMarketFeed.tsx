@@ -32,6 +32,8 @@ import {
   subscribeShowFreeReports,
   writeShowFreeReports,
 } from '../src/lib/showFreeReports';
+import { filterMissionsByMutedCreators } from '../src/lib/mutedCreators';
+import { useMutedCreators } from '../src/hooks/useMutedCreators';
 
 export interface LiveMarketMission {
   id: string;
@@ -130,6 +132,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_EGYPT_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
+  const { mutedIds } = useMutedCreators();
 
   const toggleTag = (tag: string) =>
     setSelectedTags((prev) =>
@@ -146,16 +149,19 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   const visibleMissions = useMemo(
     () =>
       sortMissions(
-        filterMissionsByFreeReports(
-          filterMissionsByMarketCity(
-            filterMissionsByTags(missions, selectedTags),
-            marketCityId
+        filterMissionsByMutedCreators(
+          filterMissionsByFreeReports(
+            filterMissionsByMarketCity(
+              filterMissionsByTags(missions, selectedTags),
+              marketCityId
+            ),
+            showFreeReports
           ),
-          showFreeReports
+          mutedIds
         ),
         sortMode
       ),
-    [missions, selectedTags, marketCityId, showFreeReports, sortMode]
+    [missions, selectedTags, marketCityId, showFreeReports, mutedIds, sortMode]
   );
 
   useEffect(() => {

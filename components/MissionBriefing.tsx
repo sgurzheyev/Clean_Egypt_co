@@ -3,7 +3,7 @@
  * Mission detail panel — bids, crowdfunding progress + Stripe contribute.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, MapPin, Pencil, X } from 'lucide-react';
+import { Camera, EyeOff, MapPin, Pencil, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import TranslatableMissionDescription from './TranslatableMissionDescription';
 import { useMissionTextTranslation } from '../src/hooks/useMissionTextTranslation';
@@ -124,6 +124,8 @@ export type MissionBriefingProps = {
   creatorName?: string | null;
   creatorIsVerified?: boolean | null;
   onCreatorClick?: () => void;
+  /** Local mute — hide this author's pins from map/feed (not shown on own missions). */
+  onMuteCreator?: (creatorId: string) => void;
   /** Open P2P chat with this user when the briefing mounts (e.g. from notification). */
   autoOpenChatWithUserId?: string | null;
   onAutoOpenChatConsumed?: () => void;
@@ -226,6 +228,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   creatorName,
   creatorIsVerified = false,
   onCreatorClick,
+  onMuteCreator,
   autoOpenChatWithUserId = null,
   onAutoOpenChatConsumed,
   onMissionUpdated,
@@ -717,7 +720,13 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
               {/* Editorial stack over the fade — price overlays preserved; status + copy sit on top */}
               <div className="pointer-events-none relative z-10 flex min-h-[min(58vh,26rem)] flex-col justify-end sm:min-h-[28rem]">
                 <div className="relative px-4 pb-3 pt-24">
-                  <div className={onCreatorClick ? 'pr-28' : ''}>
+                  <div
+                    className={
+                      onCreatorClick || (onMuteCreator && !isMissionCreator && mission.creator_id)
+                        ? 'pr-36'
+                        : ''
+                    }
+                  >
                     <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-300/80">
                       {t('missionBriefing')}
                     </p>
@@ -732,40 +741,58 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     </div>
                   </div>
 
-                  {onCreatorClick && (
-                    <button
-                      type="button"
-                      onClick={onCreatorClick}
-                      className="pointer-events-auto absolute bottom-3 right-3 z-30 flex items-center gap-2 rounded-full border border-emerald-300/50 bg-black/55 py-1 pl-1 pr-2.5 text-emerald-100 shadow-lg backdrop-blur-md transition-transform hover:border-emerald-200/80 active:scale-95"
-                      aria-label={t('viewCreatorProfile')}
-                      title={creatorName || t('viewCreatorProfile')}
-                    >
-                      <span className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-slate-800">
-                        {creatorAvatarUrl ? (
-                          <img
-                            src={creatorAvatarUrl}
-                            alt=""
-                            draggable={false}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-xs font-black uppercase text-emerald-200">
-                            {creatorInitial}
+                  {(onCreatorClick ||
+                    (onMuteCreator && !isMissionCreator && !!mission.creator_id)) && (
+                    <div className="pointer-events-auto absolute bottom-3 right-3 z-30 flex max-w-[min(100%,14rem)] items-center gap-1.5">
+                      {onMuteCreator && !isMissionCreator && mission.creator_id && (
+                        <button
+                          type="button"
+                          onClick={() => onMuteCreator(String(mission.creator_id))}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rose-400/40 bg-black/60 text-rose-200 shadow-lg backdrop-blur-md transition-transform hover:border-rose-300/70 hover:bg-rose-500/20 active:scale-95"
+                          aria-label={t('muteCreatorAction', {
+                            defaultValue: 'Hide creator',
+                          })}
+                          title={t('muteCreatorAction', { defaultValue: 'Hide creator' })}
+                        >
+                          <EyeOff className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+                        </button>
+                      )}
+                      {onCreatorClick && (
+                        <button
+                          type="button"
+                          onClick={onCreatorClick}
+                          className="flex min-w-0 items-center gap-2 rounded-full border border-emerald-300/50 bg-black/55 py-1 pl-1 pr-2.5 text-emerald-100 shadow-lg backdrop-blur-md transition-transform hover:border-emerald-200/80 active:scale-95"
+                          aria-label={t('viewCreatorProfile')}
+                          title={creatorName || t('viewCreatorProfile')}
+                        >
+                          <span className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-slate-800">
+                            {creatorAvatarUrl ? (
+                              <img
+                                src={creatorAvatarUrl}
+                                alt=""
+                                draggable={false}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-xs font-black uppercase text-emerald-200">
+                                {creatorInitial}
+                              </span>
+                            )}
+                            {creatorIsVerified && (
+                              <span
+                                className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-slate-950 bg-cyan-400 text-[8px] font-black text-slate-950"
+                                aria-hidden
+                              >
+                                ✓
+                              </span>
+                            )}
                           </span>
-                        )}
-                        {creatorIsVerified && (
-                          <span
-                            className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-slate-950 bg-cyan-400 text-[8px] font-black text-slate-950"
-                            aria-hidden
-                          >
-                            ✓
+                          <span className="max-w-[5.5rem] truncate text-[11px] font-bold">
+                            {creatorName || t('publicProfileAnonymous')}
                           </span>
-                        )}
-                      </span>
-                      <span className="max-w-[5.5rem] truncate text-[11px] font-bold">
-                        {creatorName || t('publicProfileAnonymous')}
-                      </span>
-                    </button>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 

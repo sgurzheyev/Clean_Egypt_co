@@ -39,6 +39,8 @@ import {
   subscribeShowFreeReports,
   writeShowFreeReports,
 } from '../src/lib/showFreeReports';
+import { filterMissionsByMutedCreators } from '../src/lib/mutedCreators';
+import { useMutedCreators } from '../src/hooks/useMutedCreators';
 import { checkHomeMissionWorkerVerification } from '../src/lib/homeMissionAccess';
 import { getMissionWorkerPhone, getOwnPhoneNumber } from '../src/lib/missionContact';
 import { creatorRejectProof, submitMissionProof } from '../src/lib/submitMissionProof';
@@ -232,6 +234,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [marketSelectedTags, setMarketSelectedTags] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_EGYPT_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
+  const { mutedIds, mutedCount, clearMuted } = useMutedCreators();
   const toggleMarketTag = useCallback((tag: string) => {
     setMarketSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
@@ -396,20 +399,30 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     return `${t('profileOwnedShort')}: ${openOwned} · ${t('profileActiveWorkShort')}: ${activeWork}`;
   }, [ownedOpenMissions.length, activeWorkJobs.length, t]);
 
-  // Filtered by city + tags + free-report visibility, then ranked by sort (default: token boost).
+  // Filtered by city + tags + free-report visibility + muted creators, then ranked.
   const displayedMarketplaceJobs = useMemo(
     () =>
       sortMissions(
-        filterMissionsByFreeReports(
-          filterMissionsByMarketCity(
-            filterMissionsByTags(openMarketplaceJobs, marketSelectedTags),
-            marketCityId
+        filterMissionsByMutedCreators(
+          filterMissionsByFreeReports(
+            filterMissionsByMarketCity(
+              filterMissionsByTags(openMarketplaceJobs, marketSelectedTags),
+              marketCityId
+            ),
+            showFreeReports
           ),
-          showFreeReports
+          mutedIds
         ),
         marketSortMode
       ),
-    [openMarketplaceJobs, marketSelectedTags, marketCityId, showFreeReports, marketSortMode]
+    [
+      openMarketplaceJobs,
+      marketSelectedTags,
+      marketCityId,
+      showFreeReports,
+      mutedIds,
+      marketSortMode,
+    ]
   );
 
   // Real-time token balance subscription
@@ -1640,6 +1653,31 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   </span>
                 )}
               </div>
+
+              {mutedCount > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2">
+                  <p className="text-[11px] font-semibold text-rose-100">
+                    {t('mutedCreatorsCount', {
+                      count: mutedCount,
+                      defaultValue: 'Muted creators: {{count}}',
+                    })}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearMuted();
+                      toast.success(
+                        t('mutedCreatorsCleared', {
+                          defaultValue: 'Muted creators list cleared — pins restored',
+                        })
+                      );
+                    }}
+                    className="rounded-full border border-rose-400/40 bg-black/30 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-rose-200 transition-colors hover:bg-rose-500/20 active:scale-95"
+                  >
+                    {t('mutedCreatorsReset', { defaultValue: 'Reset' })}
+                  </button>
+                </div>
+              )}
 
               {verificationStatusKey === 'verified' ? (
                 <p className="text-[11px] leading-relaxed text-slate-300">
