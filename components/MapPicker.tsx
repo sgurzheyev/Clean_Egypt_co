@@ -4189,47 +4189,52 @@ const MapPicker: React.FC<MapPickerProps> = ({
         onOpenMission={(id, opts) => void openMissionById(id, opts)}
       />
 
-      {/* Vertical map nav stack — matches top FABs (h-12); isolated hit targets (no overlap). */}
+      {/* Unified target joystick — one h-12 circle (matches Filter FAB); three internal hit zones. */}
       {showProfileFab && (
         <div className="fixed right-3 bottom-[max(1.5rem,calc(env(safe-area-inset-bottom)+5.5rem))] z-[10015] pointer-events-none">
           <div
             role="group"
             aria-label={t('mapControls', { defaultValue: 'Map controls' })}
-            className="pointer-events-auto flex w-12 flex-col items-center gap-2"
+            className={`pointer-events-auto relative flex h-12 w-12 flex-col overflow-hidden rounded-full border border-cyan-400/50 bg-black/70 shadow-[0_0_18px_rgba(34,211,238,0.28)] backdrop-blur-lg transition-transform duration-150 ease-out active:scale-95 ${
+              geolocating ? 'ring-2 ring-emerald-400/50' : ''
+            }`}
           >
+            {/* Top — Zoom in (cyan) */}
             <button
               type="button"
               onClick={handleZoomIn}
               aria-label={t('zoomIn', { defaultValue: 'Zoom in' })}
-              className="flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center overflow-hidden rounded-full border border-cyan-400/50 bg-black/70 text-cyan-400 shadow-[0_0_18px_rgba(34,211,238,0.28)] backdrop-blur-lg transition-all duration-150 hover:bg-cyan-500/15 hover:border-cyan-300/60 active:scale-95 active:bg-cyan-500/20 active:shadow-[0_0_15px_rgba(34,211,238,0.5)]"
+              className="flex min-h-0 flex-[1_1_0%] touch-manipulation items-end justify-center pb-px text-cyan-400 transition-colors hover:bg-cyan-500/20 active:bg-cyan-500/30"
             >
-              <Plus className="h-5 w-5 shrink-0" strokeWidth={2.75} aria-hidden />
+              <Plus className="h-3 w-3 shrink-0" strokeWidth={3} aria-hidden />
             </button>
 
+            {/* Center — Geolocate (emerald target) */}
             <button
               type="button"
               onClick={handleGeolocate}
               disabled={geolocating}
               aria-label={t('geolocate', { defaultValue: 'My location' })}
               aria-busy={geolocating}
-              className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center overflow-hidden rounded-full border border-emerald-400/45 bg-black/70 text-emerald-300 shadow-[0_0_18px_rgba(16,185,129,0.28)] backdrop-blur-lg transition-all duration-150 hover:bg-emerald-500/15 hover:border-emerald-300/60 active:scale-95 active:bg-emerald-500/20 active:shadow-[0_0_15px_rgba(16,185,129,0.45)] disabled:cursor-wait ${
-                geolocating ? 'animate-pulse ring-2 ring-emerald-400/40' : ''
+              className={`relative z-[1] mx-auto flex h-[1.35rem] w-[1.35rem] shrink-0 touch-manipulation items-center justify-center rounded-full border border-emerald-400/55 bg-slate-950/95 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.4)] transition-colors hover:bg-emerald-500/25 active:bg-emerald-500/35 disabled:cursor-wait ${
+                geolocating ? 'animate-pulse' : ''
               }`}
             >
               {geolocating ? (
-                <Loader2 className="h-5 w-5 shrink-0 animate-spin" strokeWidth={2.25} aria-hidden />
+                <Loader2 className="h-3 w-3 shrink-0 animate-spin" strokeWidth={2.5} aria-hidden />
               ) : (
-                <Crosshair className="h-5 w-5 shrink-0" strokeWidth={2.25} aria-hidden />
+                <Crosshair className="h-3 w-3 shrink-0" strokeWidth={2.5} aria-hidden />
               )}
             </button>
 
+            {/* Bottom — Zoom out (rose) */}
             <button
               type="button"
               onClick={handleZoomOut}
               aria-label={t('zoomOut', { defaultValue: 'Zoom out' })}
-              className="flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center overflow-hidden rounded-full border border-rose-400/45 bg-black/70 text-rose-400 shadow-[0_0_18px_rgba(244,63,94,0.22)] backdrop-blur-lg transition-all duration-150 hover:bg-rose-500/15 hover:border-rose-300/55 active:scale-95 active:bg-rose-500/20 active:shadow-[0_0_15px_rgba(244,63,94,0.5)]"
+              className="flex min-h-0 flex-[1_1_0%] touch-manipulation items-start justify-center pt-px text-rose-400 transition-colors hover:bg-rose-500/20 active:bg-rose-500/30"
             >
-              <Minus className="h-5 w-5 shrink-0" strokeWidth={2.75} aria-hidden />
+              <Minus className="h-3 w-3 shrink-0" strokeWidth={3} aria-hidden />
             </button>
           </div>
         </div>
