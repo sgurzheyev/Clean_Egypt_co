@@ -154,7 +154,7 @@ export const mapWaterZoomColorExpr: unknown[] = [
   '#2AB0BE',
 ];
 
-/** Soft turquoise wash that strengthens as you zoom into the coastline. */
+/** Soft turquoise wash — kept light so satellite reefs stay readable under glass water. */
 export const mapWaterShallowsOpacityExpr: unknown[] = [
   'interpolate',
   ['linear'],
@@ -162,15 +162,77 @@ export const mapWaterShallowsOpacityExpr: unknown[] = [
   8,
   0.02,
   10,
-  0.1,
+  0.06,
   12,
-  0.22,
+  0.1,
   14,
-  0.32,
+  0.14,
   16,
-  0.4,
+  0.18,
   18,
-  0.48,
+  0.22,
+];
+
+/**
+ * Glass water body opacity — semi-transparent so desaturated satellite
+ * (coral / shallows) can ghost through, while deep gunmetal still reads.
+ * Target band: ~0.60–0.75.
+ */
+export const mapWaterGlassOpacityExpr: unknown[] = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  5,
+  0.75,
+  9,
+  0.72,
+  12,
+  0.68,
+  14,
+  0.64,
+  16,
+  0.62,
+  18,
+  0.6,
+];
+
+/**
+ * Bathymetry opacity by depth: shallows more transparent (reef peek),
+ * abyss richer / darker.
+ */
+export const mapBathymetryGlassOpacityExpr: unknown[] = [
+  'interpolate',
+  ['linear'],
+  ['to-number', ['coalesce', ['get', 'min_depth'], 7000]],
+  0,
+  0.42,
+  50,
+  0.55,
+  200,
+  0.65,
+  1000,
+  0.72,
+  4000,
+  0.78,
+  7000,
+  0.82,
+];
+
+/** Satellite underlay — slightly stronger at coastal zooms for ghost-coral read. */
+export const mapSatelliteGlassOpacityExpr: unknown[] = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  8,
+  0.28,
+  11,
+  0.36,
+  13,
+  0.44,
+  15,
+  0.52,
+  17,
+  0.58,
 ];
 
 /** Geolocate / report-mode cinematic camera. */
@@ -379,17 +441,7 @@ export function ensureMetallicWaterEffect(map: WaterFlickerMap): () => void {
           maxzoom: 8,
           paint: {
             'fill-color': mapBathymetryColorExpr,
-            'fill-opacity': [
-              'interpolate',
-              ['linear'],
-              ['zoom'],
-              0,
-              0.95,
-              6,
-              0.9,
-              8,
-              0.35,
-            ],
+            'fill-opacity': mapBathymetryGlassOpacityExpr,
           },
         },
         beforeWater
@@ -399,21 +451,13 @@ export function ensureMetallicWaterEffect(map: WaterFlickerMap): () => void {
     }
   } else if (map.getLayer?.(WATER_BATHYMETRY_LAYER_ID)) {
     safePaint(map, WATER_BATHYMETRY_LAYER_ID, 'fill-color', mapBathymetryColorExpr);
+    safePaint(map, WATER_BATHYMETRY_LAYER_ID, 'fill-opacity', mapBathymetryGlassOpacityExpr);
   }
 
-  // Streets water — zoom proxy gradient (continues past bathymetry maxzoom).
+  // Streets water — zoom proxy gradient + glass opacity for coral peek-through.
   safePaint(map, 'water', 'fill-color', mapWaterZoomColorExpr);
-  safePaint(map, 'water', 'fill-opacity', [
-    'interpolate',
-    ['linear'],
-    ['zoom'],
-    5,
-    0.88,
-    10,
-    0.82,
-    14,
-    0.78,
-  ]);
+  safePaint(map, 'water', 'fill-opacity', mapWaterGlassOpacityExpr);
+  safePaint(map, 'satellite-base', 'raster-opacity', mapSatelliteGlassOpacityExpr);
 
   if (!map.getLayer?.(WATER_SHALLOWS_LAYER_ID)) {
     try {
@@ -506,7 +550,7 @@ export function ensureMetallicWaterEffect(map: WaterFlickerMap): () => void {
             'source-layer': 'water',
             paint: {
               'fill-pattern': WATER_NOISE_IMAGE_ID,
-              'fill-opacity': 0.22,
+              'fill-opacity': 0.12,
             },
           },
           textureBefore
@@ -527,7 +571,7 @@ export function ensureMetallicWaterEffect(map: WaterFlickerMap): () => void {
           'source-layer': 'water',
           paint: {
             'fill-color': MAP_STEEL_WATER_SHEEN,
-            'fill-opacity': 0.14,
+            'fill-opacity': 0.08,
           },
         },
         beforeId
@@ -545,11 +589,11 @@ export function ensureMetallicWaterEffect(map: WaterFlickerMap): () => void {
   let cancelled = false;
   const tick = (t: number) => {
     if (cancelled) return;
-    // Subtle metallic flicker — kept gentler so depth turquoise still reads.
+    // Slow dual-frequency shimmer — kept light so glass water / reefs stay readable.
     const a = 0.5 + 0.5 * Math.sin(t / 2400);
     const b = 0.5 + 0.5 * Math.sin(t / 5100 + 1.2);
-    const sheenOpacity = 0.06 + 0.1 * a + 0.04 * b;
-    const textureOpacity = 0.14 + 0.1 * b;
+    const sheenOpacity = 0.04 + 0.06 * a + 0.03 * b;
+    const textureOpacity = 0.08 + 0.06 * b;
     safePaint(map, WATER_FLICKER_LAYER_ID, 'fill-opacity', sheenOpacity);
     safePaint(map, WATER_TEXTURE_LAYER_ID, 'fill-opacity', textureOpacity);
     raf = requestAnimationFrame(tick);

@@ -104,6 +104,9 @@ import {
   MAP_STEEL_WATERWAY,
   MAP_STEEL_WATERWAY_GLOW,
   MAP_WATER_SHALLOW,
+  mapBathymetryGlassOpacityExpr,
+  mapSatelliteGlassOpacityExpr,
+  mapWaterGlassOpacityExpr,
   mapWaterShallowsOpacityExpr,
   mapWaterZoomColorExpr,
 } from '../src/lib/mapEgyptTheme';
@@ -1168,10 +1171,10 @@ const customDarkStyle: any = {
       source: 'satellite',
       paint: {
         'raster-saturation': -0.9,
-        'raster-brightness-max': 0.32,
-        'raster-brightness-min': 0.02,
-        'raster-contrast': 0.12,
-        'raster-opacity': 0.28,
+        'raster-brightness-max': 0.38,
+        'raster-brightness-min': 0.04,
+        'raster-contrast': 0.14,
+        'raster-opacity': mapSatelliteGlassOpacityExpr,
       },
     },
     // Landcover / landuse — matte graphite-slate terminal base.
@@ -1292,17 +1295,7 @@ const customDarkStyle: any = {
           7000,
           '#1A1A2E',
         ],
-        'fill-opacity': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          0,
-          0.95,
-          6,
-          0.9,
-          8,
-          0.35,
-        ],
+        'fill-opacity': mapBathymetryGlassOpacityExpr,
       },
     },
     {
@@ -1312,17 +1305,7 @@ const customDarkStyle: any = {
       'source-layer': 'water',
       paint: {
         'fill-color': mapWaterZoomColorExpr,
-        'fill-opacity': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          5,
-          0.88,
-          10,
-          0.82,
-          14,
-          0.78,
-        ],
+        'fill-opacity': mapWaterGlassOpacityExpr,
       },
     },
     {
@@ -1355,7 +1338,7 @@ const customDarkStyle: any = {
       'source-layer': 'water',
       paint: {
         'fill-color': MAP_STEEL_WATER_SHEEN,
-        'fill-opacity': 0.14,
+        'fill-opacity': 0.08,
       },
     },
     // Steel shoreline / waterways.
@@ -4356,17 +4339,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }
             if (layer.type === 'fill' && id === 'water') {
               map.setPaintProperty(layer.id, 'fill-color', mapWaterZoomColorExpr);
-              map.setPaintProperty(layer.id, 'fill-opacity', [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                5,
-                0.88,
-                10,
-                0.82,
-                14,
-                0.78,
-              ]);
+              map.setPaintProperty(layer.id, 'fill-opacity', mapWaterGlassOpacityExpr);
             }
             if (layer.type === 'line' && (id === 'waterway-glow' || id === 'waterway-core')) {
               const isGlow = id.includes('glow');
