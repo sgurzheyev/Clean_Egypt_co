@@ -75,6 +75,7 @@ import {
   PIN_ICON_IMAGE_REPORT,
 } from '../src/lib/serviceSectors';
 import ReportGarbageZoneModal from './ReportGarbageZoneModal';
+import MissionBriefingErrorBoundary from './MissionBriefingErrorBoundary';
 import { isGarbageZoneReport } from '../src/lib/garbageZoneReport';
 import {
   getCrowdfundingCountdownParts,
@@ -362,6 +363,117 @@ function mergeFetchedMissions(existing: JobOnMap[], fetched: JobOnMap[]): JobOnM
     const tb = new Date(b.created_at ?? 0).getTime();
     return tb - ta;
   });
+}
+
+/** PostgREST sometimes returns embedded relations as a 1-element array. */
+function normalizeMissionCreator(
+  raw: JobOnMap['creator'] | JobOnMap['creator'][] | null | undefined
+): JobOnMap['creator'] {
+  if (!raw) return null;
+  const row = Array.isArray(raw) ? raw[0] : raw;
+  if (!row || typeof row !== 'object') return null;
+  return {
+    full_name: row.full_name ?? null,
+    avatar_url: row.avatar_url ?? null,
+    is_verified: row.is_verified ?? null,
+  };
+}
+
+/**
+ * Coerce Supabase mission rows into a Mapbox-safe JobOnMap.
+ * Free reports often arrive with 0 budgets / missing nested objects — never crash on those.
+ */
+function normalizeJobOnMap(row: any): JobOnMap | null {
+  if (!row?.id) return null;
+  const lat = Number(row.location_lat);
+  const lng = Number(row.location_lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  const status = String(row.status || 'available');
+  const isReport =
+    !!row.is_report || status.toLowerCase() === 'reported';
+  const photos = Array.isArray(row.photo_urls)
+    ? row.photo_urls.filter((u: unknown) => typeof u === 'string' && u.length > 0)
+    : [];
+  const afterPhotos = Array.isArray(row.after_photo_urls)
+    ? row.after_photo_urls.filter((u: unknown) => typeof u === 'string' && u.length > 0)
+    : null;
+
+  return {
+    id: String(row.id),
+    category: row.category ?? (isReport ? 'public' : null),
+    service_type: row.service_type ?? (isReport ? 'beach_street_cleanup' : null),
+    amount_target: Number.isFinite(Number(row.amount_target)) ? Number(row.amount_target) : 0,
+    expected_price: Number.isFinite(Number(row.expected_price)) ? Number(row.expected_price) : 0,
+    current_funding: Number.isFinite(Number(row.current_funding))
+      ? Number(row.current_funding)
+      : 0,
+    crowdfunding_mode: !!row.crowdfunding_mode,
+    crowdfunding_expires_at: row.crowdfunding_expires_at ?? null,
+    is_report: isReport,
+    location_lat: lat,
+    location_lng: lng,
+    status: isReport && !status ? 'reported' : status,
+    building_id: row.building_id ?? null,
+    cleaner_id: row.cleaner_id ?? null,
+    creator_id: row.creator_id ?? null,
+    description: row.description ?? null,
+    photo_urls: photos,
+    after_photo_urls: afterPhotos,
+    created_at: row.created_at ?? null,
+    started_at: row.started_at ?? null,
+    completion_lat:
+      row.completion_lat == null ? null : Number(row.completion_lat),
+    completion_lng:
+      row.completion_lng == null ? null : Number(row.completion_lng),
+    completion_distance_meters:
+      row.completion_distance_meters == null
+        ? null
+        : Number(row.completion_distance_meters),
+    creator: normalizeMissionCreator(row.creator),
+  };
+}
+
+function buildOptimisticReportMission(
+  missionId: string,
+  location: { lat: number; lng: number },
+  sessionUserId: string | null,
+  description: string | null,
+  photoUrls: string[],
+  viewerProfile: any
+): JobOnMap {
+  return {
+    id: String(missionId),
+    category: 'public',
+    service_type: 'beach_street_cleanup',
+    amount_target: 0,
+    expected_price: 0,
+    current_funding: 0,
+    crowdfunding_mode: false,
+    crowdfunding_expires_at: null,
+    is_report: true,
+    location_lat: Number(location.lat),
+    location_lng: Number(location.lng),
+    status: 'reported',
+    building_id: null,
+    cleaner_id: null,
+    creator_id: sessionUserId,
+    description: description || '#GarbageZone Needs attention',
+    photo_urls: photoUrls || [],
+    after_photo_urls: null,
+    created_at: new Date().toISOString(),
+    started_at: null,
+    completion_lat: null,
+    completion_lng: null,
+    completion_distance_meters: null,
+    creator: viewerProfile
+      ? {
+          full_name: viewerProfile?.full_name ?? null,
+          avatar_url: viewerProfile?.avatar_url ?? null,
+          is_verified: viewerProfile?.is_verified ?? null,
+        }
+      : null,
+  };
 }
 
 function buildOptimisticLeadMission(
@@ -1958,7 +2070,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
           is_verified
         )
       `)
-      .in('status', ['pending', 'available', 'funding', 'in_progress', 'review', 'pending_approval'])
+      .in('status', [
+        'pending',
+        'available',
+        'funding',
+        'in_progress',
+        'review',
+        'pending_approval',
+        'reported',
+      ])
       .not('status', 'eq', 'pending_payment')
       // Ranking pivot: token promotion (amount_target) first, newest as tiebreaker.
       .order('amount_target', { ascending: false })
@@ -1978,11 +2098,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
     const list: JobOnMap[] = (data || [])
       .filter((row: any) => row.status !== 'pending_payment')
-      .filter(
-        (row: any) =>
-          typeof row.location_lat === 'number' &&
-          typeof row.location_lng === 'number'
-      ) as JobOnMap[];
+      .map((row: any) => normalizeJobOnMap(row))
+      .filter((row): row is JobOnMap => !!row);
 
     setJobs((prev) => {
       const merged = mergeFetchedMissions(prev || [], list);
@@ -3505,13 +3622,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
       marketCityId
     )
       .filter(missionEligibleForMapPin)
-      .filter((j) => Number.isFinite(j.location_lat) && Number.isFinite(j.location_lng))
+      .filter((j) => {
+        const lat = Number(j.location_lat);
+        const lng = Number(j.location_lng);
+        return Number.isFinite(lat) && Number.isFinite(lng);
+      })
       .map((j) => ({
         type: 'Feature' as const,
         id: String(j.id),
         geometry: {
           type: 'Point' as const,
-          coordinates: [j.location_lng, j.location_lat],
+          coordinates: [Number(j.location_lng), Number(j.location_lat)] as [number, number],
         },
         properties: {
           mission_id: String(j.id),
@@ -3626,16 +3747,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, []);
 
   const openMyOrderMission = useCallback((mission: JobOnMap) => {
+    const safe = normalizeJobOnMap(mission) ?? mission;
+    const lat = Number(safe.location_lat);
+    const lng = Number(safe.location_lng);
     setShowMyOrdersPanel(false);
     setMapDraftPin(null);
-    setSelectedMission(mission);
-    if (Number.isFinite(mission.location_lat) && Number.isFinite(mission.location_lng)) {
-      mapRef.current?.flyTo({
-        center: [mission.location_lng, mission.location_lat],
-        zoom: 16,
-        essential: true,
-        duration: 1300,
-      });
+    setSelectedMission(safe);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      try {
+        mapRef.current?.flyTo({
+          center: [lng, lat],
+          zoom: 16,
+          essential: true,
+          duration: 1300,
+        });
+      } catch (err) {
+        console.warn('flyTo after open mission failed:', err);
+      }
     }
   }, []);
 
@@ -3660,11 +3788,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
         if (existing) openMyOrderMission(existing);
         return;
       }
-      openMyOrderMission(data as JobOnMap);
+      const normalized = normalizeJobOnMap(data);
+      if (!normalized) {
+        throw new Error('Mission has invalid map coordinates');
+      }
+      openMyOrderMission(normalized);
     } catch (err) {
       console.warn('openMissionById failed:', err);
+      toast.error(
+        t('reportZoneRenderError', {
+          defaultValue: 'Ошибка при отрисовке метки. Перезагрузите карту.',
+        })
+      );
     }
-  }, [openMyOrderMission]);
+  }, [openMyOrderMission, t, toast]);
 
   const handleOpenMarketFeed = useCallback(() => {
     setShowMyOrdersPanel(false);
@@ -4421,13 +4558,67 @@ const MapPicker: React.FC<MapPickerProps> = ({
             setReportMode(false);
           }}
           onCreated={async (missionId) => {
-            setReportDraft(null);
-            setReportMode(false);
-            toast.success(
-              t('reportZoneCreated', { defaultValue: 'Garbage zone reported — thank you!' })
-            );
-            await fetchMissions();
-            void openMissionById(missionId);
+            try {
+              const draft = reportDraft;
+              setReportDraft(null);
+              setReportMode(false);
+
+              const optimistic = buildOptimisticReportMission(
+                missionId,
+                {
+                  lat: Number(draft?.lat),
+                  lng: Number(draft?.lng),
+                },
+                currentUserId,
+                null,
+                [],
+                viewerProfile
+              );
+
+              // Only inject when coordinates are valid — otherwise wait for refetch.
+              if (
+                Number.isFinite(optimistic.location_lat) &&
+                Number.isFinite(optimistic.location_lng)
+              ) {
+                setJobs((prev) => {
+                  const without = (prev || []).filter(
+                    (j) => String(j.id) !== String(missionId)
+                  );
+                  const next = [optimistic, ...without];
+                  jobsRef.current = next;
+                  return next;
+                });
+                setSelectedMission(optimistic);
+                try {
+                  mapRef.current?.flyTo({
+                    center: [optimistic.location_lng, optimistic.location_lat],
+                    zoom: 16,
+                    essential: true,
+                    duration: 1100,
+                  });
+                } catch {
+                  /* map may be disposing */
+                }
+              }
+
+              toast.success(
+                t('reportZoneCreated', {
+                  defaultValue: 'Garbage zone reported — thank you!',
+                })
+              );
+
+              await fetchMissions();
+              await openMissionById(missionId);
+            } catch (err) {
+              console.error('[reportZone] post-submit UI failed:', err);
+              setReportDraft(null);
+              setReportMode(false);
+              toast.error(
+                t('reportZoneRenderError', {
+                  defaultValue: 'Ошибка при отрисовке метки. Перезагрузите карту.',
+                })
+              );
+            }
           }}
         />
       )}
@@ -4698,6 +4889,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
 
       {selectedMission && (
+        <MissionBriefingErrorBoundary
+          onError={() => {
+            setSelectedMission(null);
+            toast.error(
+              t('reportZoneRenderError', {
+                defaultValue: 'Ошибка при отрисовке метки. Перезагрузите карту.',
+              })
+            );
+          }}
+        >
         <MissionBriefing
           mission={selectedMission}
           booting={missionBriefingBooting}
@@ -4778,9 +4979,28 @@ const MapPicker: React.FC<MapPickerProps> = ({
           isPlatformAdmin={isPlatformAdminViewer}
           adminDeleteSubmitting={adminDeleteMissionId === selectedMission.id}
           onAdminDeleteMission={() => void handleAdminDeleteMission()}
-          creatorAvatarUrl={selectedMission.creator?.avatar_url ?? null}
-          creatorName={selectedMission.creator?.full_name ?? null}
-          creatorIsVerified={selectedMission.creator?.is_verified ?? false}
+          creatorAvatarUrl={
+            selectedMission.creator?.avatar_url ??
+            (Array.isArray((selectedMission as any).creator)
+              ? (selectedMission as any).creator?.[0]?.avatar_url
+              : null) ??
+            null
+          }
+          creatorName={
+            selectedMission.creator?.full_name ||
+            (Array.isArray((selectedMission as any).creator)
+              ? (selectedMission as any).creator?.[0]?.full_name
+              : null) ||
+            (isGarbageZoneReport(selectedMission)
+              ? t('reportZoneCitizenLabel', { defaultValue: 'Гражданский репорт' })
+              : null)
+          }
+          creatorIsVerified={
+            selectedMission.creator?.is_verified ??
+            (Array.isArray((selectedMission as any).creator)
+              ? !!((selectedMission as any).creator?.[0]?.is_verified)
+              : false)
+          }
           onCreatorClick={
             selectedMission.creator_id
               ? () => {
@@ -4795,6 +5015,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           onMissionUpdated={handleMissionDetailsUpdated}
           onReportConverted={handleReportConverted}
         />
+        </MissionBriefingErrorBoundary>
       )}
 
 

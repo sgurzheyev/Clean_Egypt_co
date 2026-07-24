@@ -232,7 +232,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   onReportConverted,
 }) => {
   const { t } = useTranslation();
-  const creatorInitial = (creatorName || '?').trim().charAt(0).toUpperCase() || '?';
+  const creatorInitial = String(creatorName || '?').trim().charAt(0).toUpperCase() || '?';
   const [bidInput, setBidInput] = React.useState('');
   const [chatPeer, setChatPeer] = useState<{
     id: string;
@@ -251,11 +251,17 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const [convertError, setConvertError] = useState<string | null>(null);
   const [impactOpen, setImpactOpen] = useState(false);
   const editFileInputRef = useRef<HTMLInputElement>(null);
-  const photos = mission.photo_urls?.filter(Boolean) ?? [];
+  const photos = (mission?.photo_urls ?? []).filter(
+    (u): u is string => typeof u === 'string' && u.length > 0
+  );
   const placeholderVariant = placeholderVariantFor(mission);
-  const placeholderIcon = missionPinIcon(mission.service_type, mission.category);
-  const feedDescription = extractMissionFeedDescription(mission.description);
   const isReportPin = isGarbageZoneReport(mission);
+  const placeholderIcon = missionPinIcon(
+    mission?.service_type,
+    mission?.category,
+    isReportPin
+  );
+  const feedDescription = extractMissionFeedDescription(mission?.description);
   const canEditMission =
     isMissionCreator &&
     !!currentUserId &&
@@ -265,8 +271,9 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const locationSource = missionLocationLine(mission, t);
   const locationTranslation = useMissionTextTranslation(locationSource);
   const budgetValue = formatWorkBudgetUsd(missionWorkBudgetUsd(mission));
+  const isInProgress = String(mission?.status || '').toLowerCase() === 'in_progress';
   const isCompletedStatus = ['completed', 'finished'].includes(
-    String(mission.status || '').toLowerCase()
+    String(mission?.status || '').toLowerCase()
   );
   const isFundingStatus = String(mission.status || '').toLowerCase() === 'funding';
   const acceptedFundingBid = missionBids.find(
@@ -506,7 +513,12 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   ]);
 
   const isOwnActive = isInProgress && mission.cleaner_id === currentUserId;
-  const statusLabel = String(mission.status || '').replace(/_/g, ' ');
+  const statusLabel = isReportPin
+    ? t('reportZoneBadge', { defaultValue: 'Reported Zone' })
+    : String(mission?.status || '').replace(/_/g, ' ');
+  const statusBadgeTone = isReportPin
+    ? 'border-rose-400/55 bg-rose-500/25 text-rose-100'
+    : statusBadgeClass(String(mission?.status || ''));
 
   const workerContactPanel =
     showWorkerContactPanel ? (
@@ -760,14 +772,14 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 <div className="pointer-events-auto relative z-10 space-y-3 px-5 pb-5">
                   <div className="flex flex-wrap items-center gap-2">
                     <span
-                      className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${statusBadgeClass(
-                        mission.status
-                      )}`}
+                      className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${statusBadgeTone}`}
                     >
                       {t('status')}: {statusLabel}
                     </span>
                     <span className="text-[10px] font-medium text-slate-200/90 drop-shadow-sm">
-                      {t('missionTokenBidLabel')}: {formatTokens(missionTokenBid(mission))}
+                      {isReportPin
+                        ? t('reportZoneFreeLabel', { defaultValue: 'Free civic report' })
+                        : `${t('missionTokenBidLabel')}: ${formatTokens(missionTokenBid(mission))}`}
                     </span>
                     {activeBidCount > 0 && (
                       <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 drop-shadow-sm">
@@ -1160,13 +1172,14 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                   GPS Integrity
                 </h3>
                 <p className="mt-2 text-xs leading-relaxed text-slate-300">
-                  {typeof mission.completion_distance_meters === 'number'
+                  {typeof mission?.completion_distance_meters === 'number' &&
+                  Number.isFinite(mission.completion_distance_meters)
                     ? `Verification Distance at Completion: ${
                         mission.completion_distance_meters < 1000
                           ? `${Math.round(mission.completion_distance_meters)} m`
                           : `${(mission.completion_distance_meters / 1000).toFixed(2)} km`
                       }`
-                    : gpsDistanceMeters != null
+                    : typeof gpsDistanceMeters === 'number' && Number.isFinite(gpsDistanceMeters)
                       ? `Current distance to mission: ${
                           gpsDistanceMeters < 1000
                             ? `${Math.round(gpsDistanceMeters)} m`
@@ -1174,7 +1187,8 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                         }`
                       : gpsDistanceError || 'Calculating distance...'}
                 </p>
-                {typeof mission.completion_distance_meters === 'number' &&
+                {typeof mission?.completion_distance_meters === 'number' &&
+                  Number.isFinite(mission.completion_distance_meters) &&
                   mission.completion_distance_meters > 500 && (
                     <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.16em] text-red-300">
                       ⚠ Verification distance &gt; 500m

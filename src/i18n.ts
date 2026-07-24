@@ -396,6 +396,9 @@ const resources = {
       reportZonePhotoRequired: 'Add a photo of the zone.',
       reportZoneCreateFailed: 'Could not publish this report.',
       reportZoneCreated: 'Garbage zone reported — thank you!',
+      reportZoneRenderError: 'Ошибка при отрисовке метки. Перезагрузите карту.',
+      reportZoneCitizenLabel: 'Citizen report',
+      reportZoneFreeLabel: 'Free civic report',
       reportModeHint: 'Tap the map to drop a free garbage-zone report.',
       reportZoneBadge: 'Reported Zone',
       reportZoneBridgeHint:
@@ -1394,6 +1397,9 @@ const resources = {
       reportZonePhotoRequired: 'Добавьте фото зоны.',
       reportZoneCreateFailed: 'Не удалось опубликовать отчёт.',
       reportZoneCreated: 'Зона отмечена — спасибо!',
+      reportZoneRenderError: 'Ошибка при отрисовке метки. Перезагрузите карту.',
+      reportZoneCitizenLabel: 'Гражданский репорт',
+      reportZoneFreeLabel: 'Бесплатный гражданский репорт',
       reportModeHint: 'Нажмите на карту, чтобы поставить бесплатный отчёт о мусоре.',
       reportZoneBadge: 'Зона внимания',
       reportZoneBridgeHint:

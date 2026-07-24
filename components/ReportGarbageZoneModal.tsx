@@ -14,7 +14,7 @@ type Props = {
   lat: number;
   lng: number;
   onClose: () => void;
-  onCreated: (missionId: string) => void;
+  onCreated: (missionId: string) => void | Promise<void>;
 };
 
 const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCreated }) => {
@@ -57,17 +57,25 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
       setError(t('reportZonePhotoRequired', { defaultValue: 'Add a photo of the zone.' }));
       return;
     }
+    const safeLat = Number(lat);
+    const safeLng = Number(lng);
+    if (!Number.isFinite(safeLat) || !Number.isFinite(safeLng)) {
+      setError(
+        t('reportZoneCreateFailed', { defaultValue: 'Could not publish this report.' })
+      );
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
       const id = await createGarbageZoneReport({
-        lat,
-        lng,
+        lat: safeLat,
+        lng: safeLng,
         description,
         photoFile,
       });
       resetLocal();
-      onCreated(id);
+      await onCreated(id);
     } catch (err: any) {
       setError(
         err?.message ||
