@@ -88,13 +88,90 @@ export const EGYPT_ROAD_COLOR = '#8B909A';
 export const EGYPT_ROAD_MAJOR_COLOR = '#C5CAD3';
 export const EGYPT_ROAD_GLOW_COLOR = '#A8ADB8';
 
-/** Deep metallic gunmetal-blue water (map canvas only — not flat black). */
-export const MAP_STEEL_WATER = '#1A1A2E';
+/** Deep royal marine blue (far from coast / deep bathymetry). */
+export const MAP_WATER_DEEP = '#1A1A2E';
+/** Mid marine transition. */
+export const MAP_WATER_MID = '#1E5A72';
+/** Clear turquoise shallows / coastline. */
+export const MAP_WATER_SHALLOW = '#40E0D0';
+export const MAP_WATER_TURQUOISE = '#00CED1';
+
+/** @deprecated alias — deep sea base. Prefer MAP_WATER_DEEP / depth exprs. */
+export const MAP_STEEL_WATER = MAP_WATER_DEEP;
 /** Brighter sheen used for the flickering metallic overlay. */
 export const MAP_STEEL_WATER_SHEEN = '#2A3355';
-export const MAP_STEEL_WATERWAY = '#3D4A6A';
-export const MAP_STEEL_WATERWAY_GLOW = '#2A3558';
+export const MAP_STEEL_WATERWAY = '#3D6A7A';
+export const MAP_STEEL_WATERWAY_GLOW = '#40E0D0';
 export const MAP_GRAPHITE_LAND = '#202025';
+
+/**
+ * True depth gradient from Mapbox Bathymetry v2 (`min_depth`, meters).
+ * Shallows → turquoise; abyss → deep royal marine.
+ */
+export const mapBathymetryColorExpr: unknown[] = [
+  'interpolate',
+  ['cubic-bezier', 0, 0.45, 0.55, 1],
+  ['to-number', ['coalesce', ['get', 'min_depth'], 7000]],
+  0,
+  MAP_WATER_SHALLOW,
+  25,
+  MAP_WATER_TURQUOISE,
+  80,
+  '#2AA8B8',
+  200,
+  '#1E7A92',
+  500,
+  MAP_WATER_MID,
+  1200,
+  '#1A4560',
+  3000,
+  '#1A3048',
+  7000,
+  MAP_WATER_DEEP,
+];
+
+/**
+ * Zoom proxy for Streets `water` polygons (bathymetry tiles end ~z7).
+ * Stays marine-deep offshore; lifts toward turquoise at coastal working zooms.
+ */
+export const mapWaterZoomColorExpr: unknown[] = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  4,
+  MAP_WATER_DEEP,
+  7,
+  '#1A2740',
+  10,
+  '#1A3A55',
+  12,
+  '#1C4F68',
+  14,
+  '#1E6A80',
+  16,
+  '#228FA0',
+  18,
+  '#2AB0BE',
+];
+
+/** Soft turquoise wash that strengthens as you zoom into the coastline. */
+export const mapWaterShallowsOpacityExpr: unknown[] = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  8,
+  0.02,
+  10,
+  0.1,
+  12,
+  0.22,
+  14,
+  0.32,
+  16,
+  0.4,
+  18,
+  0.48,
+];
 
 /** Geolocate / report-mode cinematic camera. */
 export const MAP_CINEMATIC_FLY = {
@@ -228,12 +305,18 @@ type WaterFlickerMap = MapLike & {
       | { width: number; height: number; data: Uint8Array | Uint8ClampedArray },
     options?: { pixelRatio?: number }
   ) => void;
+  getSource?: (id: string) => unknown;
+  addSource?: (id: string, source: Record<string, unknown>) => void;
   getCanvas?: () => HTMLCanvasElement | undefined;
 };
 
 const WATER_NOISE_IMAGE_ID = 'ce-water-metal-noise';
 const WATER_FLICKER_LAYER_ID = 'water-metallic-flicker';
 const WATER_TEXTURE_LAYER_ID = 'water-metallic-texture';
+const WATER_BATHYMETRY_SOURCE_ID = 'mapbox-bathymetry';
+const WATER_BATHYMETRY_LAYER_ID = 'water-bathymetry';
+const WATER_SHALLOWS_LAYER_ID = 'water-shallows';
+const WATER_SHORE_GLOW_LAYER_ID = 'water-shore-glow';
 
 /** Procedural gunmetal noise tile for Mapbox `fill-pattern`. */
 function buildWaterMetalNoiseImage(): {
@@ -255,9 +338,8 @@ function buildWaterMetalNoiseImage(): {
 }
 
 /**
- * Ensure metallic water texture + sheen layers exist, then run a slow opacity
- * flicker so the surface reads as living gunmetal metal (not flat black oil).
- * Returns a cancel function for cleanup.
+ * Depth-based water gradient (bathymetry + zoom/shallows/shore) plus the
+ * existing metallic sheen/noise flicker. Returns a cancel fn for the RAF loop.
  */
 export function ensureMetallicWaterEffect(map: WaterFlickerMap): () => void {
   try {
@@ -268,11 +350,150 @@ export function ensureMetallicWaterEffect(map: WaterFlickerMap): () => void {
     console.warn('[ensureMetallicWaterEffect] addImage failed', e);
   }
 
+  // Bathymetry source — true ocean depth (available ~z0–7).
+  try {
+    if (!map.getSource?.(WATER_BATHYMETRY_SOURCE_ID)) {
+      map.addSource?.(WATER_BATHYMETRY_SOURCE_ID, {
+        type: 'vector',
+        url: 'mapbox://mapbox.mapbox-bathymetry-v2',
+      });
+    }
+  } catch (e) {
+    console.warn('[ensureMetallicWaterEffect] bathymetry source failed', e);
+  }
+
+  const beforeWater = map.getLayer?.('water') ? 'water' : undefined;
   const beforeId = map.getLayer?.('place_label') ? 'place_label' : undefined;
-  // Keep texture under the animated sheen (and under labels/roads when possible).
   const textureBefore = map.getLayer?.(WATER_FLICKER_LAYER_ID)
     ? WATER_FLICKER_LAYER_ID
     : beforeId;
+
+  if (!map.getLayer?.(WATER_BATHYMETRY_LAYER_ID) && map.getSource?.(WATER_BATHYMETRY_SOURCE_ID)) {
+    try {
+      map.addLayer?.(
+        {
+          id: WATER_BATHYMETRY_LAYER_ID,
+          type: 'fill',
+          source: WATER_BATHYMETRY_SOURCE_ID,
+          'source-layer': 'depth',
+          maxzoom: 8,
+          paint: {
+            'fill-color': mapBathymetryColorExpr,
+            'fill-opacity': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              0,
+              0.95,
+              6,
+              0.9,
+              8,
+              0.35,
+            ],
+          },
+        },
+        beforeWater
+      );
+    } catch (e) {
+      console.warn('[ensureMetallicWaterEffect] bathymetry layer failed', e);
+    }
+  } else if (map.getLayer?.(WATER_BATHYMETRY_LAYER_ID)) {
+    safePaint(map, WATER_BATHYMETRY_LAYER_ID, 'fill-color', mapBathymetryColorExpr);
+  }
+
+  // Streets water — zoom proxy gradient (continues past bathymetry maxzoom).
+  safePaint(map, 'water', 'fill-color', mapWaterZoomColorExpr);
+  safePaint(map, 'water', 'fill-opacity', [
+    'interpolate',
+    ['linear'],
+    ['zoom'],
+    5,
+    0.88,
+    10,
+    0.82,
+    14,
+    0.78,
+  ]);
+
+  if (!map.getLayer?.(WATER_SHALLOWS_LAYER_ID)) {
+    try {
+      map.addLayer?.(
+        {
+          id: WATER_SHALLOWS_LAYER_ID,
+          type: 'fill',
+          source: 'composite',
+          'source-layer': 'water',
+          paint: {
+            'fill-color': MAP_WATER_SHALLOW,
+            'fill-opacity': mapWaterShallowsOpacityExpr,
+          },
+        },
+        map.getLayer?.(WATER_TEXTURE_LAYER_ID)
+          ? WATER_TEXTURE_LAYER_ID
+          : map.getLayer?.(WATER_FLICKER_LAYER_ID)
+            ? WATER_FLICKER_LAYER_ID
+            : beforeId
+      );
+    } catch (e) {
+      console.warn('[ensureMetallicWaterEffect] shallows layer failed', e);
+    }
+  } else {
+    safePaint(map, WATER_SHALLOWS_LAYER_ID, 'fill-color', MAP_WATER_SHALLOW);
+    safePaint(map, WATER_SHALLOWS_LAYER_ID, 'fill-opacity', mapWaterShallowsOpacityExpr);
+  }
+
+  // Turquoise shoreline band — reads as shallow water hugging the coast.
+  if (!map.getLayer?.(WATER_SHORE_GLOW_LAYER_ID)) {
+    try {
+      map.addLayer?.(
+        {
+          id: WATER_SHORE_GLOW_LAYER_ID,
+          type: 'line',
+          source: 'composite',
+          'source-layer': 'water',
+          paint: {
+            'line-color': MAP_WATER_TURQUOISE,
+            'line-width': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              8,
+              1.5,
+              12,
+              6,
+              16,
+              14,
+            ],
+            'line-opacity': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              8,
+              0.15,
+              12,
+              0.35,
+              16,
+              0.55,
+            ],
+            'line-blur': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              8,
+              1,
+              12,
+              4,
+              16,
+              8,
+            ],
+          },
+        },
+        map.getLayer?.(WATER_FLICKER_LAYER_ID) ? WATER_FLICKER_LAYER_ID : beforeId
+      );
+    } catch (e) {
+      console.warn('[ensureMetallicWaterEffect] shore glow failed', e);
+    }
+  }
 
   if (!map.getLayer?.(WATER_TEXTURE_LAYER_ID)) {
     try {
@@ -285,7 +506,7 @@ export function ensureMetallicWaterEffect(map: WaterFlickerMap): () => void {
             'source-layer': 'water',
             paint: {
               'fill-pattern': WATER_NOISE_IMAGE_ID,
-              'fill-opacity': 0.32,
+              'fill-opacity': 0.22,
             },
           },
           textureBefore
@@ -306,7 +527,7 @@ export function ensureMetallicWaterEffect(map: WaterFlickerMap): () => void {
           'source-layer': 'water',
           paint: {
             'fill-color': MAP_STEEL_WATER_SHEEN,
-            'fill-opacity': 0.18,
+            'fill-opacity': 0.14,
           },
         },
         beforeId
@@ -316,9 +537,6 @@ export function ensureMetallicWaterEffect(map: WaterFlickerMap): () => void {
     }
   }
 
-  // Base water + waterways — keep gunmetal (never re-blacken).
-  safePaint(map, 'water', 'fill-color', MAP_STEEL_WATER);
-  safePaint(map, 'water', 'fill-opacity', 0.96);
   safePaint(map, 'waterway-glow', 'line-color', MAP_STEEL_WATERWAY_GLOW);
   safePaint(map, 'waterway-core', 'line-color', MAP_STEEL_WATERWAY);
   safePaint(map, WATER_FLICKER_LAYER_ID, 'fill-color', MAP_STEEL_WATER_SHEEN);
@@ -327,11 +545,11 @@ export function ensureMetallicWaterEffect(map: WaterFlickerMap): () => void {
   let cancelled = false;
   const tick = (t: number) => {
     if (cancelled) return;
-    // Slow dual-frequency shimmer (~2.4s + ~5.1s) — subtle metallic flicker.
+    // Subtle metallic flicker — kept gentler so depth turquoise still reads.
     const a = 0.5 + 0.5 * Math.sin(t / 2400);
     const b = 0.5 + 0.5 * Math.sin(t / 5100 + 1.2);
-    const sheenOpacity = 0.1 + 0.16 * a + 0.06 * b;
-    const textureOpacity = 0.22 + 0.16 * b;
+    const sheenOpacity = 0.06 + 0.1 * a + 0.04 * b;
+    const textureOpacity = 0.14 + 0.1 * b;
     safePaint(map, WATER_FLICKER_LAYER_ID, 'fill-opacity', sheenOpacity);
     safePaint(map, WATER_TEXTURE_LAYER_ID, 'fill-opacity', textureOpacity);
     raf = requestAnimationFrame(tick);

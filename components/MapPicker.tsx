@@ -100,10 +100,12 @@ import {
   EGYPT_ROAD_GLOW_COLOR,
   EGYPT_ROAD_MAJOR_COLOR,
   MAP_CINEMATIC_FLY,
-  MAP_STEEL_WATER,
   MAP_STEEL_WATER_SHEEN,
   MAP_STEEL_WATERWAY,
   MAP_STEEL_WATERWAY_GLOW,
+  MAP_WATER_SHALLOW,
+  mapWaterShallowsOpacityExpr,
+  mapWaterZoomColorExpr,
 } from '../src/lib/mapEgyptTheme';
 import {
   applyWeatherFog,
@@ -1144,6 +1146,11 @@ const customDarkStyle: any = {
       url: 'mapbox://mapbox.satellite',
       tileSize: 256,
     },
+    // Ocean depth polygons (z0–7) for true shallows→deep gradient.
+    'mapbox-bathymetry': {
+      type: 'vector',
+      url: 'mapbox://mapbox.mapbox-bathymetry-v2',
+    },
   },
   sprite: 'mapbox://sprites/mapbox/dark-v10',
   glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
@@ -1258,13 +1265,86 @@ const customDarkStyle: any = {
       },
     },
     {
+      id: 'water-bathymetry',
+      type: 'fill',
+      source: 'mapbox-bathymetry',
+      'source-layer': 'depth',
+      maxzoom: 8,
+      paint: {
+        'fill-color': [
+          'interpolate',
+          ['cubic-bezier', 0, 0.45, 0.55, 1],
+          ['to-number', ['coalesce', ['get', 'min_depth'], 7000]],
+          0,
+          '#40E0D0',
+          25,
+          '#00CED1',
+          80,
+          '#2AA8B8',
+          200,
+          '#1E7A92',
+          500,
+          '#1E5A72',
+          1200,
+          '#1A4560',
+          3000,
+          '#1A3048',
+          7000,
+          '#1A1A2E',
+        ],
+        'fill-opacity': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          0,
+          0.95,
+          6,
+          0.9,
+          8,
+          0.35,
+        ],
+      },
+    },
+    {
       id: 'water',
       type: 'fill',
       source: 'composite',
       'source-layer': 'water',
       paint: {
-        'fill-color': MAP_STEEL_WATER,
-        'fill-opacity': 0.96,
+        'fill-color': mapWaterZoomColorExpr,
+        'fill-opacity': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          5,
+          0.88,
+          10,
+          0.82,
+          14,
+          0.78,
+        ],
+      },
+    },
+    {
+      id: 'water-shallows',
+      type: 'fill',
+      source: 'composite',
+      'source-layer': 'water',
+      paint: {
+        'fill-color': MAP_WATER_SHALLOW,
+        'fill-opacity': mapWaterShallowsOpacityExpr,
+      },
+    },
+    {
+      id: 'water-shore-glow',
+      type: 'line',
+      source: 'composite',
+      'source-layer': 'water',
+      paint: {
+        'line-color': '#00CED1',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.5, 12, 6, 16, 14],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 8, 0.15, 12, 0.35, 16, 0.55],
+        'line-blur': ['interpolate', ['linear'], ['zoom'], 8, 1, 12, 4, 16, 8],
       },
     },
     // Metallic sheen — opacity is animated at runtime for a living gunmetal flicker.
@@ -1275,7 +1355,7 @@ const customDarkStyle: any = {
       'source-layer': 'water',
       paint: {
         'fill-color': MAP_STEEL_WATER_SHEEN,
-        'fill-opacity': 0.18,
+        'fill-opacity': 0.14,
       },
     },
     // Steel shoreline / waterways.
@@ -4264,15 +4344,31 @@ const MapPicker: React.FC<MapPickerProps> = ({
           );
           for (const layer of waterLikeLayers) {
             const id = String(layer.id);
-            // Metallic flicker / texture overlays keep their own paint — don't flatten them.
-            if (id.includes('metallic') || id.includes('metal')) continue;
-            if (layer.type === 'fill' && (id === 'water' || id.endsWith('-water') || id.startsWith('water'))) {
-              if (id === 'water') {
-                map.setPaintProperty(layer.id, 'fill-color', MAP_STEEL_WATER);
-                map.setPaintProperty(layer.id, 'fill-opacity', 0.96);
-              }
+            // Depth gradient / metallic overlays keep their own paint — don't flatten them.
+            if (
+              id.includes('metallic') ||
+              id.includes('metal') ||
+              id.includes('bathymetry') ||
+              id.includes('shallows') ||
+              id.includes('shore')
+            ) {
+              continue;
             }
-            if (layer.type === 'line') {
+            if (layer.type === 'fill' && id === 'water') {
+              map.setPaintProperty(layer.id, 'fill-color', mapWaterZoomColorExpr);
+              map.setPaintProperty(layer.id, 'fill-opacity', [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                5,
+                0.88,
+                10,
+                0.82,
+                14,
+                0.78,
+              ]);
+            }
+            if (layer.type === 'line' && (id === 'waterway-glow' || id === 'waterway-core')) {
               const isGlow = id.includes('glow');
               map.setPaintProperty(
                 layer.id,
