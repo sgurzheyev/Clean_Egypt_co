@@ -128,11 +128,14 @@ import WeatherOverlay from '../src/components/WeatherOverlay';
 import WeatherDebugPanel from '../src/components/WeatherDebugPanel';
 import { confirmContributionCheckout, startContributionCheckout } from '../src/lib/contributions';
 import { isEdgeFunctionUnreachable } from '../src/lib/supabaseFunctionError';
+import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import {
-  closestMarketplaceCity,
-  filterMissionsByMarketCity,
-  MARKETPLACE_ALL_EGYPT_ID,
-} from '../src/lib/egyptMarketplace';
+  MARKETPLACE_ALL_CITIES_ID,
+  MARKETPLACE_ALL_WORLD_ID,
+  buildLocationCatalog,
+  filterMissionsByCountryCity,
+  resolveFilterFlyTarget,
+} from '../src/lib/globalMarketplace';
 import {
   type PinLocationContext,
   formatPinLocationTag,
@@ -350,6 +353,8 @@ interface JobOnMap {
   is_report?: boolean | null;
   location_lat: number;
   location_lng: number;
+  country?: string | null;
+  city?: string | null;
   status: string;
   building_id?: number | string | null;
   cleaner_id?: string | null;
@@ -451,6 +456,8 @@ function normalizeJobOnMap(row: any): JobOnMap | null {
     is_report: isReport,
     location_lat: lat,
     location_lng: lng,
+    country: row.country ? String(row.country) : null,
+    city: row.city ? String(row.city) : null,
     status: isReport && !status ? 'reported' : status,
     building_id: row.building_id ?? null,
     cleaner_id: row.cleaner_id ?? null,
@@ -478,7 +485,9 @@ function buildOptimisticReportMission(
   sessionUserId: string | null,
   description: string | null,
   photoUrls: string[],
-  viewerProfile: any
+  viewerProfile: any,
+  country?: string | null,
+  city?: string | null
 ): JobOnMap {
   return {
     id: String(missionId),
@@ -492,6 +501,8 @@ function buildOptimisticReportMission(
     is_report: true,
     location_lat: Number(location.lat),
     location_lng: Number(location.lng),
+    country: country ?? null,
+    city: city ?? null,
     status: 'reported',
     building_id: null,
     cleaner_id: null,
@@ -524,7 +535,9 @@ function buildOptimisticLeadMission(
   viewerProfile: any,
   tokenBid: number,
   expectedPrice: number,
-  crowdfundingMode = false
+  crowdfundingMode = false,
+  country?: string | null,
+  city?: string | null
 ): JobOnMap {
   const isCrowdfund =
     crowdfundingMode && isGarbageRemovalService(serviceType);
@@ -538,6 +551,8 @@ function buildOptimisticLeadMission(
     crowdfunding_mode: isCrowdfund,
     location_lat: Number(location.lat),
     location_lng: Number(location.lng),
+    country: country ?? null,
+    city: city ?? null,
     status: isCrowdfund ? 'funding' : 'available',
     building_id: null,
     cleaner_id: null,
@@ -1508,7 +1523,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const orderFormRef = React.useRef<HTMLFormElement>(null);
   const jobsRef = React.useRef<JobOnMap[]>([]);
   const selectedMissionTagsRef = React.useRef<string[]>([]);
-  const marketCityIdRef = React.useRef<string>(MARKETPLACE_ALL_EGYPT_ID);
+  const marketCountryIdRef = React.useRef<string>(MARKETPLACE_ALL_WORLD_ID);
+  const marketCityIdRef = React.useRef<string>(MARKETPLACE_ALL_CITIES_ID);
   const showFreeReportsRef = React.useRef(true);
   const mutedCreatorIdsRef = React.useRef<string[]>([]);
   const hoveredMissionIdRef = React.useRef<string | null>(null);
@@ -1915,7 +1931,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   // selection means "show everything". Sort is shared with the market feed.
   const [missionSortMode, setMissionSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
   const [selectedMissionTags, setSelectedMissionTags] = useState<string[]>([]);
-  const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_EGYPT_ID);
+  const [marketCountryId, setMarketCountryId] = useState<string>(MARKETPLACE_ALL_WORLD_ID);
+  const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_CITIES_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
   const { mutedIds, muteCreator } = useMutedCreators();
   const toggleMissionTag = useCallback((tag: string) => {
@@ -1932,6 +1949,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   useEffect(() => {
     selectedMissionTagsRef.current = selectedMissionTags;
   }, [selectedMissionTags]);
+  useEffect(() => {
+    marketCountryIdRef.current = marketCountryId;
+  }, [marketCountryId]);
   useEffect(() => {
     marketCityIdRef.current = marketCityId;
   }, [marketCityId]);
@@ -2263,6 +2283,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         is_report,
         location_lat,
         location_lng,
+        country,
+        city,
         status,
         building_id,
         cleaner_id,
@@ -2770,8 +2792,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // Respect the active tag / city / free-report / muted-creator filters.
       const visibleJobs = filterMissionsByMutedCreators(
         filterMissionsByFreeReports(
-          filterMissionsByMarketCity(
+          filterMissionsByCountryCity(
             filterMissionsByTags(jobsRef.current || [], selectedMissionTagsRef.current),
+            marketCountryIdRef.current,
             marketCityIdRef.current
           ),
           showFreeReportsRef.current
@@ -3748,6 +3771,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
             description: descriptionToSave || orderDescription || '',
             token_bid: placementTokens,
             expected_price: budgetRaw,
+            country: String(pinLocationContext?.country ?? '').trim() || null,
+            city: String(pinLocationContext?.city ?? '').trim() || null,
           })
         );
         setOrderSubmitting(false);
@@ -3805,6 +3830,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
           ? crypto.randomUUID()
           : `pending-${Date.now()}`;
 
+      const pinCountry = String(pinLocationContext?.country ?? '').trim() || null;
+      const pinCity = String(pinLocationContext?.city ?? '').trim() || null;
+
       const optimisticPending = buildOptimisticLeadMission(
         pendingMissionId,
         serviceType,
@@ -3815,7 +3843,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
         viewerProfile,
         placementTokens,
         budgetRaw,
-        crowdfundingMode
+        crowdfundingMode,
+        pinCountry,
+        pinCity
       );
 
       setJobs((prev) => {
@@ -3836,6 +3866,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         p_expected_price: budgetRaw,
         p_crowdfunding_mode:
           crowdfundingMode && isGarbageRemovalService(serviceType),
+        p_country: pinCountry,
+        p_city: pinCity,
       });
       if (leadErr) {
         setJobs((prev) => {
@@ -3916,12 +3948,31 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return { type: 'FeatureCollection' as const, features };
   }, [jobs, currentUserId]);
 
+  const locationCatalog = useMemo(() => buildLocationCatalog(jobs || []), [jobs]);
+
+  const filterFlySkipRef = React.useRef(true);
+  useEffect(() => {
+    if (filterFlySkipRef.current) {
+      filterFlySkipRef.current = false;
+      return;
+    }
+    const target = resolveFilterFlyTarget(locationCatalog, marketCountryId, marketCityId);
+    if (!target) return;
+    const map = mapRef.current?.getMap?.();
+    if (!map) return;
+    flyMapTo(map, [target.lng, target.lat], {
+      ...MAP_CINEMATIC_FLY,
+      zoom: target.zoom,
+    });
+  }, [marketCountryId, marketCityId, locationCatalog]);
+
   /** Service-colored mission pins on the map (always visible in 2D mode). */
   const missionPinsGeoJSON = useMemo(() => {
     const features = filterMissionsByMutedCreators(
       filterMissionsByFreeReports(
-        filterMissionsByMarketCity(
+        filterMissionsByCountryCity(
           filterMissionsByTags(jobs || [], selectedMissionTags),
+          marketCountryId,
           marketCityId
         ),
         showFreeReports
@@ -3955,7 +4006,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
         },
       }));
     return { type: 'FeatureCollection' as const, features };
-  }, [jobs, selectedMissionTags, marketCityId, showFreeReports, mutedIds, serviceTypeForMission]);
+  }, [
+    jobs,
+    selectedMissionTags,
+    marketCountryId,
+    marketCityId,
+    showFreeReports,
+    mutedIds,
+    serviceTypeForMission,
+  ]);
 
   /** Hold pin FeatureCollection steady during flyTo so Source doesn't rebuild mid-animation. */
   const idleMissionPinsRef = React.useRef(missionPinsGeoJSON);
@@ -5047,8 +5106,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
           onToggleTag={toggleMissionTag}
           onClearTags={clearMissionTags}
           resultCount={missionPinsGeoJSON.features.length}
+          countryId={marketCountryId}
+          onCountryChange={setMarketCountryId}
           cityId={marketCityId}
           onCityChange={setMarketCityId}
+          locationCatalog={locationCatalog}
           showFreeReports={showFreeReports}
           onShowFreeReportsChange={handleShowFreeReportsChange}
         />

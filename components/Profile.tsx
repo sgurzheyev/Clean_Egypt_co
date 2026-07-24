@@ -31,9 +31,11 @@ import {
   type MissionSortMode,
 } from '../src/lib/missionFilterSort';
 import {
-  filterMissionsByMarketCity,
-  MARKETPLACE_ALL_EGYPT_ID,
-} from '../src/lib/egyptMarketplace';
+  MARKETPLACE_ALL_CITIES_ID,
+  MARKETPLACE_ALL_WORLD_ID,
+  buildLocationCatalog,
+  filterMissionsByCountryCity,
+} from '../src/lib/globalMarketplace';
 import {
   filterMissionsByFreeReports,
   readShowFreeReports,
@@ -88,6 +90,8 @@ interface Job {
   is_report?: boolean | null;
   location_lat?: number | null;
   location_lng?: number | null;
+  country?: string | null;
+  city?: string | null;
   status: string;
   title?: string | null;
   description?: string | null;
@@ -239,7 +243,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   // is token-boost first (see DEFAULT_MISSION_SORT).
   const [marketSortMode, setMarketSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
   const [marketSelectedTags, setMarketSelectedTags] = useState<string[]>([]);
-  const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_EGYPT_ID);
+  const [marketCountryId, setMarketCountryId] = useState<string>(MARKETPLACE_ALL_WORLD_ID);
+  const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_CITIES_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
   const { mutedIds, mutedCount, clearMuted } = useMutedCreators();
   const toggleMarketTag = useCallback((tag: string) => {
@@ -406,14 +411,20 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     return `${t('profileOwnedShort')}: ${openOwned} · ${t('profileActiveWorkShort')}: ${activeWork}`;
   }, [ownedOpenMissions.length, activeWorkJobs.length, t]);
 
-  // Filtered by city + tags + free-report visibility + muted creators, then ranked.
+  // Filtered by country/city + tags + free-report visibility + muted creators, then ranked.
+  const locationCatalog = useMemo(
+    () => buildLocationCatalog(openMarketplaceJobs),
+    [openMarketplaceJobs]
+  );
+
   const displayedMarketplaceJobs = useMemo(
     () =>
       sortMissions(
         filterMissionsByMutedCreators(
           filterMissionsByFreeReports(
-            filterMissionsByMarketCity(
+            filterMissionsByCountryCity(
               filterMissionsByTags(openMarketplaceJobs, marketSelectedTags),
+              marketCountryId,
               marketCityId
             ),
             showFreeReports
@@ -425,6 +436,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     [
       openMarketplaceJobs,
       marketSelectedTags,
+      marketCountryId,
       marketCityId,
       showFreeReports,
       mutedIds,
@@ -871,6 +883,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           is_report,
           location_lat,
           location_lng,
+          country,
+          city,
           status,
           title,
           description,
@@ -2244,8 +2258,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               onToggleTag={toggleMarketTag}
               onClearTags={clearMarketTags}
               resultCount={displayedMarketplaceJobs.length}
+              countryId={marketCountryId}
+              onCountryChange={setMarketCountryId}
               cityId={marketCityId}
               onCityChange={setMarketCityId}
+              locationCatalog={locationCatalog}
               showFreeReports={showFreeReports}
               onShowFreeReportsChange={(show) => {
                 setShowFreeReports(show);

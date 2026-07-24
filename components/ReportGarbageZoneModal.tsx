@@ -9,12 +9,15 @@ import {
   MAX_GARBAGE_ZONE_REPORT_PHOTOS,
   createGarbageZoneReport,
 } from '../src/lib/garbageZoneReport';
+import { reverseGeocodePinLocation } from '../src/lib/mapboxReverseGeocode';
 import {
   BOTTOM_SHEET_FOOTER_PB,
   BOTTOM_SHEET_MAX_HEIGHT_STYLE,
   STEEL_GLASS_PANEL,
   STEEL_GLASS_PANEL_STYLE,
 } from '../constants';
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 const QUICK_TAGS = ['#BeachTrash', '#DumpingGround', '#StreetLitter', '#HazardZone'] as const;
 
@@ -120,11 +123,14 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
     setSubmitting(true);
     setError(null);
     try {
+      const geo = await reverseGeocodePinLocation(safeLat, safeLng, MAPBOX_TOKEN);
       const id = await createGarbageZoneReport({
         lat: safeLat,
         lng: safeLng,
         description,
         photoFiles: photos.map((p) => p.file).slice(0, MAX_GARBAGE_ZONE_REPORT_PHOTOS),
+        country: geo?.country ?? null,
+        city: geo?.city ?? null,
       });
       resetLocal();
       await onCreated(id);

@@ -58,6 +58,10 @@ export async function createGarbageZoneReport(input: {
   /** @deprecated Use photoFiles — kept for a single-file call site. */
   photoFile?: File;
   serviceType?: string;
+  /** Mapbox reverse-geocode country display name. */
+  country?: string | null;
+  /** Mapbox reverse-geocode city / place display name. */
+  city?: string | null;
 }): Promise<string> {
   const raw = input.description.trim().slice(0, MISSION_SHORT_DESCRIPTION_MAX);
   if (raw.length > 0) {
@@ -93,12 +97,17 @@ export async function createGarbageZoneReport(input: {
     photoUrls.push(await uploadReportPhoto(file));
   }
 
+  const country = String(input.country ?? '').trim() || null;
+  const city = String(input.city ?? '').trim() || null;
+
   const { data, error } = await supabase.rpc('create_garbage_zone_report', {
     p_location_lat: input.lat,
     p_location_lng: input.lng,
     p_description: body,
     p_photo_urls: photoUrls,
     p_service_type: serviceType,
+    p_country: country,
+    p_city: city,
   });
 
   if (error) throw error;

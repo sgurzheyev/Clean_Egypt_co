@@ -66,6 +66,8 @@ export type MissionBriefingMission = {
   created_at?: string | null;
   location_lat: number;
   location_lng: number;
+  country?: string | null;
+  city?: string | null;
   status: string;
   cleaner_id?: string | null;
   creator_id?: string | null;
@@ -154,13 +156,35 @@ function missionLocationLine(
 ): string {
   const descLine = String(mission.description ?? '').split('\n')[0]?.trim();
   if (descLine.startsWith('📍')) return descLine;
+  const city = String(mission.city ?? '').trim();
+  const country = String(mission.country ?? '').trim();
+  if (city || country) {
+    const placeLabel = [city, country].filter(Boolean).join(', ');
+    return formatPinLocationTag(
+      {
+        areaName: '',
+        closestCityId: '',
+        closestCityNameKey: '',
+        placeLabel,
+        country: country || undefined,
+        city: city || undefined,
+      },
+      (key) => t(key),
+      t('pinLocationLabel')
+    );
+  }
   const lat = Number(mission.location_lat);
   const lng = Number(mission.location_lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return t('pinLocationLabel');
   const hub = closestMarketplaceCity(lat, lng);
   if (hub) {
     return formatPinLocationTag(
-      { areaName: '', closestCityId: hub.id, closestCityNameKey: hub.nameKey },
+      {
+        areaName: '',
+        closestCityId: hub.id,
+        closestCityNameKey: hub.nameKey,
+        country: 'Egypt',
+      },
       (key) => t(key),
       t('pinLocationLabel')
     );

@@ -9,6 +9,10 @@ export type PinLocationContext = {
    * When set, location tags use this instead of translating an Egypt hub key.
    */
   placeLabel?: string;
+  /** Country display name from Mapbox (e.g. "United States"). */
+  country?: string;
+  /** City / place display name from Mapbox (e.g. "Santa Barbara"). */
+  city?: string;
 };
 
 /**
@@ -69,11 +73,9 @@ export async function reverseGeocodePinLocation(
     const countryFeature = pick('country');
 
     const areaName = String(areaFeature?.text ?? areaFeature?.place_name ?? '').trim();
-    const placeParts = [
-      placeFeature?.text,
-      regionFeature?.text,
-      countryFeature?.text,
-    ]
+    const cityName = String(placeFeature?.text ?? '').trim();
+    const countryName = String(countryFeature?.text ?? '').trim();
+    const placeParts = [cityName || placeFeature?.text, regionFeature?.text, countryName]
       .map((s) => String(s ?? '').trim())
       .filter(Boolean);
     // Deduplicate consecutive repeats (e.g. locality === place).
@@ -81,7 +83,21 @@ export async function reverseGeocodePinLocation(
       .filter((part, i, arr) => i === 0 || part.toLowerCase() !== arr[i - 1].toLowerCase())
       .join(', ');
 
-    if (!areaName && !placeLabel && !closest) {
+    const country =
+      countryName ||
+      (closest ? 'Egypt' : '');
+    const city =
+      cityName ||
+      (closest
+        ? closest.id
+            .split('_')
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(' ')
+        : areaName && areaName !== countryName
+          ? areaName
+          : '');
+
+    if (!areaName && !placeLabel && !closest && !country) {
       return fallbackContext(null, lat, lng);
     }
 
@@ -90,6 +106,8 @@ export async function reverseGeocodePinLocation(
       placeLabel: placeLabel || areaName || undefined,
       closestCityId: closest?.id ?? '',
       closestCityNameKey: closest?.nameKey ?? '',
+      country: country || undefined,
+      city: city || undefined,
     };
   } catch (e) {
     console.warn('[reverseGeocode] failed:', e);
@@ -103,10 +121,16 @@ function fallbackContext(
   lng?: number
 ): PinLocationContext {
   if (closest) {
+    const city = closest.id
+      .split('_')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
     return {
       areaName: '',
       closestCityId: closest.id,
       closestCityNameKey: closest.nameKey,
+      country: 'Egypt',
+      city,
     };
   }
   const coordLabel =

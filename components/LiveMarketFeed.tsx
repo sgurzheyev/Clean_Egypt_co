@@ -10,11 +10,13 @@ import { supabase } from '../services/supabase';
 import { formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
+import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import {
-  closestMarketplaceCity,
-  filterMissionsByMarketCity,
-  MARKETPLACE_ALL_EGYPT_ID,
-} from '../src/lib/egyptMarketplace';
+  MARKETPLACE_ALL_CITIES_ID,
+  MARKETPLACE_ALL_WORLD_ID,
+  buildLocationCatalog,
+  filterMissionsByCountryCity,
+} from '../src/lib/globalMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
 import {
@@ -45,6 +47,8 @@ export interface LiveMarketMission {
   is_report?: boolean | null;
   location_lat: number;
   location_lng: number;
+  country?: string | null;
+  city?: string | null;
   status: string;
   cleaner_id?: string | null;
   creator_id?: string | null;
@@ -106,10 +110,32 @@ function missionLocationLine(
 ): string {
   const descLine = String(mission.description ?? '').split('\n')[0]?.trim();
   if (descLine.startsWith('📍')) return descLine;
+  const city = String(mission.city ?? '').trim();
+  const country = String(mission.country ?? '').trim();
+  if (city || country) {
+    const placeLabel = [city, country].filter(Boolean).join(', ');
+    return formatPinLocationTag(
+      {
+        areaName: '',
+        closestCityId: '',
+        closestCityNameKey: '',
+        placeLabel,
+        country: country || undefined,
+        city: city || undefined,
+      },
+      (key) => t(key),
+      t('pinLocationLabel')
+    );
+  }
   const hub = closestMarketplaceCity(mission.location_lat, mission.location_lng);
   if (hub) {
     return formatPinLocationTag(
-      { areaName: '', closestCityId: hub.id, closestCityNameKey: hub.nameKey },
+      {
+        areaName: '',
+        closestCityId: hub.id,
+        closestCityNameKey: hub.nameKey,
+        country: 'Egypt',
+      },
       (key) => t(key),
       t('pinLocationLabel')
     );
@@ -130,7 +156,8 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_EGYPT_ID);
+  const [marketCountryId, setMarketCountryId] = useState<string>(MARKETPLACE_ALL_WORLD_ID);
+  const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_CITIES_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
   const { mutedIds } = useMutedCreators();
 
@@ -146,13 +173,16 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
 
   useEffect(() => subscribeShowFreeReports(setShowFreeReports), []);
 
+  const locationCatalog = useMemo(() => buildLocationCatalog(missions), [missions]);
+
   const visibleMissions = useMemo(
     () =>
       sortMissions(
         filterMissionsByMutedCreators(
           filterMissionsByFreeReports(
-            filterMissionsByMarketCity(
+            filterMissionsByCountryCity(
               filterMissionsByTags(missions, selectedTags),
+              marketCountryId,
               marketCityId
             ),
             showFreeReports
@@ -161,7 +191,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
         ),
         sortMode
       ),
-    [missions, selectedTags, marketCityId, showFreeReports, mutedIds, sortMode]
+    [missions, selectedTags, marketCountryId, marketCityId, showFreeReports, mutedIds, sortMode]
   );
 
   useEffect(() => {
@@ -182,6 +212,8 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
           is_report,
           location_lat,
           location_lng,
+          country,
+          city,
           status,
           cleaner_id,
           creator_id,
@@ -267,8 +299,11 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                   onToggleTag={toggleTag}
                   onClearTags={clearTags}
                   resultCount={visibleMissions.length}
+                  countryId={marketCountryId}
+                  onCountryChange={setMarketCountryId}
                   cityId={marketCityId}
                   onCityChange={setMarketCityId}
+                  locationCatalog={locationCatalog}
                   showFreeReports={showFreeReports}
                   onShowFreeReportsChange={handleShowFreeReportsChange}
                 />

@@ -1,15 +1,13 @@
 /**
  * Filter + sort controls for the missions feed.
  *
- * Two layouts share the SAME logic (city closest-hub filter, boost-default sort,
+ * Two layouts share the SAME logic (global country/city filter, boost-default sort,
  * emerald eco-tag highlight):
  *  - `inline`   (default): compact expandable bar — used inside Profile / LiveMarketFeed lists.
- *  - `floating`         : round FAB (rounded-full, w-12 h-12) that opens an elegant
- *                          bottom-sheet — used over the fullscreen map so nothing
- *                          overlaps the canvas.
+ *  - `floating`         : round FAB that opens an elegant bottom-sheet — used over the map.
  */
-import React, { useEffect, useState } from 'react';
-import { SlidersHorizontal, ChevronDown, X, MapPin } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { SlidersHorizontal, ChevronDown, X, MapPin, Globe2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
@@ -21,10 +19,19 @@ import {
   type MissionSortMode,
 } from '../src/lib/missionFilterSort';
 import {
-  EGYPT_MARKETPLACE_CITIES,
-  MARKETPLACE_ALL_EGYPT_ID,
-} from '../src/lib/egyptMarketplace';
-import { STEEL_GLASS_PANEL, STEEL_GLASS_PANEL_STYLE, BOTTOM_SHEET_MAX_HEIGHT_STYLE, BOTTOM_SHEET_SCROLL_PB } from '../constants';
+  MARKETPLACE_ALL_CITIES_ID,
+  MARKETPLACE_ALL_WORLD_ID,
+  QUICK_REGION_COUNTRIES,
+  isAllCitiesFilter,
+  isAllWorldFilter,
+  type LocationCatalog,
+} from '../src/lib/globalMarketplace';
+import {
+  STEEL_GLASS_PANEL,
+  STEEL_GLASS_PANEL_STYLE,
+  BOTTOM_SHEET_MAX_HEIGHT_STYLE,
+  BOTTOM_SHEET_SCROLL_PB,
+} from '../constants';
 
 /**
  * Eco / community / crowdfunding-focused tags get a distinct green accent so they
@@ -43,6 +50,9 @@ const ECO_TAGS = new Set([
 const SECTION_LABEL =
   'mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400';
 
+const SELECT_CLASS =
+  'w-full appearance-none rounded-xl border border-emerald-400/30 bg-emerald-500/10 py-2.5 pl-9 pr-9 text-sm font-bold text-emerald-100 outline-none transition-colors focus:border-emerald-400/60';
+
 export interface MissionFilterPanelProps {
   sortMode: MissionSortMode;
   onSortChange: (mode: MissionSortMode) => void;
@@ -50,9 +60,14 @@ export interface MissionFilterPanelProps {
   onToggleTag: (tag: string) => void;
   onClearTags: () => void;
   resultCount?: number;
-  /** When provided, renders a City filter dropdown ("All Cities" + core hubs). */
+  /** Country filter (`all_world` | country display name). */
+  countryId?: string;
+  onCountryChange?: (countryId: string) => void;
+  /** City filter (empty = all cities in selected country). */
   cityId?: string;
   onCityChange?: (cityId: string) => void;
+  /** Dynamic country/city lists built from loaded missions. */
+  locationCatalog?: LocationCatalog;
   /**
    * Free civic Attention Zone reports (`is_report` / status `reported`).
    * Default true when omitted. Toggle does not close the drawer.
@@ -73,25 +88,49 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
   onToggleTag,
   onClearTags,
   resultCount,
+  countryId,
+  onCountryChange,
   cityId,
   onCityChange,
+  locationCatalog,
   showFreeReports = true,
   onShowFreeReportsChange,
   variant = 'inline',
 }) => {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false); // inline bar
-  const [open, setOpen] = useState(false); // floating sheet
+  const [expanded, setExpanded] = useState(false);
+  const [open, setOpen] = useState(false);
   const activeCount = selectedTags.length;
-  const showCityFilter = typeof onCityChange === 'function';
-  const cityValue = cityId ?? MARKETPLACE_ALL_EGYPT_ID;
-  const cityActive = showCityFilter && cityValue !== MARKETPLACE_ALL_EGYPT_ID;
+  const showLocationFilter =
+    typeof onCountryChange === 'function' || typeof onCityChange === 'function';
+  const countryValue = countryId ?? MARKETPLACE_ALL_WORLD_ID;
+  const cityValue = cityId ?? MARKETPLACE_ALL_CITIES_ID;
+  const locationActive =
+    showLocationFilter &&
+    (!isAllWorldFilter(countryValue) || !isAllCitiesFilter(cityValue));
   const showReportsToggle = typeof onShowFreeReportsChange === 'function';
   const reportsMuted = showReportsToggle && !showFreeReports;
-  // FAB badge counts every applied constraint (tags + city + muted free reports).
-  const badgeCount = activeCount + (cityActive ? 1 : 0) + (reportsMuted ? 1 : 0);
+  const badgeCount = activeCount + (locationActive ? 1 : 0) + (reportsMuted ? 1 : 0);
 
-  // Bottom-sheet: lock body scroll + close on Escape while it is open.
+  const countries = locationCatalog?.countries ?? [...QUICK_REGION_COUNTRIES];
+  const citiesForCountry = useMemo(() => {
+    if (!locationCatalog) return [] as string[];
+    if (isAllWorldFilter(countryValue)) {
+      return locationCatalog.citiesByCountry.__all__ ?? [];
+    }
+    return locationCatalog.citiesByCountry[countryValue] ?? [];
+  }, [locationCatalog, countryValue]);
+
+  const quickCountries = useMemo(() => {
+    const fromCatalog = countries.filter((c) =>
+      QUICK_REGION_COUNTRIES.some((q) => q.toLowerCase() === c.toLowerCase())
+    );
+    const seeded = QUICK_REGION_COUNTRIES.filter(
+      (q) => !fromCatalog.some((c) => c.toLowerCase() === q.toLowerCase())
+    );
+    return [...fromCatalog, ...seeded];
+  }, [countries]);
+
   useEffect(() => {
     if (variant !== 'floating' || !open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -106,20 +145,158 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
     };
   }, [variant, open]);
 
-  const cityOptions = (
-    <>
-      <option value={MARKETPLACE_ALL_EGYPT_ID} className="bg-slate-900 text-slate-100">
-        {t('marketplaceCityAll')}
-      </option>
-      {EGYPT_MARKETPLACE_CITIES.map((c) => (
-        <option key={c.id} value={c.id} className="bg-slate-900 text-slate-100">
-          {t(c.nameKey)}
-        </option>
-      ))}
-    </>
-  );
+  const handleCountryChange = (next: string) => {
+    onCountryChange?.(next);
+    if (!isAllCitiesFilter(cityValue) && onCityChange) {
+      const nextCities = isAllWorldFilter(next)
+        ? locationCatalog?.citiesByCountry.__all__ ?? []
+        : locationCatalog?.citiesByCountry[next] ?? [];
+      if (!nextCities.some((c) => c.toLowerCase() === cityValue.toLowerCase())) {
+        onCityChange(MARKETPLACE_ALL_CITIES_ID);
+      }
+    }
+  };
 
-  // Shared renderers — identical behaviour in both layouts; equal-size grid cells.
+  const renderLocationControls = (compact = false) => {
+    if (!showLocationFilter) return null;
+
+    const countrySelect = (
+      <div className={`relative ${compact ? 'min-w-[7.5rem]' : ''}`}>
+        <Globe2
+          className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-cyan-300"
+          strokeWidth={2.25}
+          aria-hidden
+        />
+        <label className="sr-only" htmlFor="mission-country-select">
+          {t('selectCountry', { defaultValue: 'Country' })}
+        </label>
+        <select
+          id="mission-country-select"
+          value={countryValue}
+          onChange={(e) => handleCountryChange(e.target.value)}
+          className={
+            compact
+              ? 'max-w-[9.5rem] appearance-none rounded-lg border-0 bg-transparent py-1.5 pl-7 pr-6 text-[11px] font-bold text-cyan-100 outline-none focus:ring-0'
+              : SELECT_CLASS
+          }
+        >
+          <option value={MARKETPLACE_ALL_WORLD_ID} className="bg-slate-900 text-slate-100">
+            {t('marketplaceWorldAll', { defaultValue: 'All World' })}
+          </option>
+          {countries.map((c) => (
+            <option key={c} value={c} className="bg-slate-900 text-slate-100">
+              {c}
+            </option>
+          ))}
+        </select>
+        {!compact && (
+          <ChevronDown
+            className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300/70"
+            aria-hidden
+          />
+        )}
+      </div>
+    );
+
+    const citySelect = (
+      <div className={`relative ${compact ? 'min-w-[7rem]' : ''}`}>
+        <MapPin
+          className={`pointer-events-none absolute ${compact ? 'left-2' : 'left-3'} top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-emerald-300`}
+          strokeWidth={2.25}
+          aria-hidden
+        />
+        <label className="sr-only" htmlFor="mission-city-select">
+          {t('selectCity')}
+        </label>
+        <select
+          id="mission-city-select"
+          value={cityValue}
+          onChange={(e) => onCityChange?.(e.target.value)}
+          className={
+            compact
+              ? 'max-w-[9rem] appearance-none rounded-lg border-0 bg-transparent py-1.5 pl-7 pr-5 text-[11px] font-bold text-emerald-100 outline-none focus:ring-0'
+              : SELECT_CLASS
+          }
+        >
+          <option value={MARKETPLACE_ALL_CITIES_ID} className="bg-slate-900 text-slate-100">
+            {t('marketplaceAllCities', { defaultValue: 'All Cities' })}
+          </option>
+          {citiesForCountry.map((c) => (
+            <option key={c} value={c} className="bg-slate-900 text-slate-100">
+              {c}
+            </option>
+          ))}
+        </select>
+        {!compact && (
+          <ChevronDown
+            className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300/70"
+            aria-hidden
+          />
+        )}
+      </div>
+    );
+
+    if (compact) {
+      return (
+        <>
+          <div className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-cyan-400/30 bg-cyan-500/10 pl-0.5">
+            {countrySelect}
+          </div>
+          <div className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-emerald-400/30 bg-emerald-500/10 pl-0.5">
+            {citySelect}
+          </div>
+        </>
+      );
+    }
+
+    return (
+      <section className="space-y-3">
+        <div>
+          <p className={SECTION_LABEL}>
+            {t('selectCountry', { defaultValue: 'Country' })}
+          </p>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => handleCountryChange(MARKETPLACE_ALL_WORLD_ID)}
+              className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] transition-colors ${
+                isAllWorldFilter(countryValue)
+                  ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,0.25)]'
+                  : 'border-white/12 bg-white/5 text-slate-400 hover:border-white/25 hover:text-slate-200'
+              }`}
+            >
+              {t('marketplaceWorldAll', { defaultValue: 'All World' })}
+            </button>
+            {quickCountries.map((c) => {
+              const active =
+                !isAllWorldFilter(countryValue) &&
+                countryValue.toLowerCase() === c.toLowerCase();
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => handleCountryChange(c)}
+                  className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] transition-colors ${
+                    active
+                      ? 'border-emerald-400/60 bg-emerald-500/25 text-emerald-100 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+                      : 'border-white/12 bg-white/5 text-slate-400 hover:border-white/25 hover:text-slate-200'
+                  }`}
+                >
+                  {c}
+                </button>
+              );
+            })}
+          </div>
+          {countrySelect}
+        </div>
+        <div>
+          <p className={SECTION_LABEL}>{t('selectCity')}</p>
+          {citySelect}
+        </div>
+      </section>
+    );
+  };
+
   const renderSortButtons = () =>
     MISSION_SORT_MODES.map((mode) => {
       const active = sortMode === mode;
@@ -147,7 +324,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
       'bg-rose-500/20 text-rose-400 border border-rose-500/50 shadow-[0_0_12px_rgba(244,63,94,0.3)] transition-all font-medium hover:bg-rose-500/30';
 
     const reportButtons = REPORT_PRIORITY_TAGS.map((tag) => {
-      const checked = selectedTags.some((t) => t.toLowerCase() === tag.id);
+      const checked = selectedTags.some((x) => x.toLowerCase() === tag.id);
       return (
         <button
           key={tag.id}
@@ -156,7 +333,6 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
           aria-checked={checked}
           onClick={() => {
             onToggleTag(tag.id);
-            // Isolating reports requires free-report pins to be visible.
             if (!checked && !showFreeReports) onShowFreeReportsChange?.(true);
           }}
           className={`inline-flex min-h-[2rem] items-center justify-center rounded-full px-3 py-1.5 text-[11px] tracking-wide ${
@@ -228,7 +404,6 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
     );
   };
 
-  // ── Floating layout: round FAB (top-left) + elegant bottom-sheet ──────────────
   if (variant === 'floating') {
     return (
       <>
@@ -282,7 +457,6 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                   style={{ WebkitOverflowScrolling: 'touch' }}
                   onTouchMove={(e) => e.stopPropagation()}
                 >
-                  {/* Sticky chrome — stays pinned while the body scrolls */}
                   <div
                     className="sticky top-0 z-10 shrink-0 border-b border-white/10 backdrop-blur-[16px] [-webkit-backdrop-filter:blur(16px)]"
                     style={STEEL_GLASS_PANEL_STYLE}
@@ -313,30 +487,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                   </div>
 
                   <div className={`space-y-6 p-4 ${BOTTOM_SHEET_SCROLL_PB}`}>
-                    {showCityFilter && (
-                      <section>
-                        <p className={SECTION_LABEL}>{t('selectCity')}</p>
-                        <div className="relative">
-                          <MapPin
-                            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300"
-                            strokeWidth={2.25}
-                            aria-hidden
-                          />
-                          <select
-                            value={cityValue}
-                            onChange={(e) => onCityChange?.(e.target.value)}
-                            aria-label={t('selectCity')}
-                            className="w-full appearance-none rounded-xl border border-emerald-400/30 bg-emerald-500/10 py-2.5 pl-9 pr-9 text-sm font-bold text-emerald-100 outline-none transition-colors focus:border-emerald-400/60"
-                          >
-                            {cityOptions}
-                          </select>
-                          <ChevronDown
-                            className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300/70"
-                            aria-hidden
-                          />
-                        </div>
-                      </section>
-                    )}
+                    {renderLocationControls(false)}
 
                     <section>
                       <p className={SECTION_LABEL}>{t('sortByLabel')}</p>
@@ -371,7 +522,6 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
     );
   }
 
-  // ── Inline layout (default): single-row header with horizontal scroll ─────────
   return (
     <div
       className={`rounded-xl ${STEEL_GLASS_PANEL}`}
@@ -386,9 +536,9 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
         >
           <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={2.25} />
           {t('filtersLabel')}
-          {activeCount > 0 && (
+          {badgeCount > 0 && (
             <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-400 px-1 text-[9px] font-black text-slate-950">
-              {activeCount}
+              {badgeCount}
             </span>
           )}
           <ChevronDown
@@ -397,22 +547,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
           />
         </button>
 
-        {showCityFilter && (
-          <div className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-500/10 pl-2">
-            <MapPin className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2.25} aria-hidden />
-            <label className="sr-only" htmlFor="mission-city-select">
-              {t('selectCity')}
-            </label>
-            <select
-              id="mission-city-select"
-              value={cityValue}
-              onChange={(e) => onCityChange?.(e.target.value)}
-              className="max-w-[9.5rem] rounded-lg border-0 bg-transparent px-1 py-1.5 text-[11px] font-bold text-emerald-100 outline-none focus:ring-0"
-            >
-              {cityOptions}
-            </select>
-          </div>
-        )}
+        {renderLocationControls(true)}
 
         <label className="sr-only" htmlFor="mission-sort-select">
           {t('sortByLabel')}
@@ -431,39 +566,42 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
         </select>
       </div>
 
-      {expanded && (
-        <div className="space-y-3 border-t border-white/10 p-3">
-          <div>
-            <p className={SECTION_LABEL}>{t('sortByLabel')}</p>
-            <div className="grid grid-cols-2 gap-2">{renderSortButtons()}</div>
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <p className={`${SECTION_LABEL} mb-0`}>{t('filterByTags')}</p>
-              {activeCount > 0 && (
-                <button
-                  type="button"
-                  onClick={onClearTags}
-                  className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 hover:text-slate-200"
-                >
-                  <X className="h-3 w-3" strokeWidth={2.5} />
-                  {t('clearFilters')}
-                </button>
-              )}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden border-t border-white/10"
+          >
+            <div className="space-y-4 p-3">
+              {renderLocationControls(false)}
+              <section>
+                <p className={SECTION_LABEL}>{t('sortByLabel')}</p>
+                <div className="grid grid-cols-2 gap-2">{renderSortButtons()}</div>
+              </section>
+              <section>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className={`${SECTION_LABEL} mb-0`}>{t('filterByTags')}</p>
+                  {activeCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={onClearTags}
+                      className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 hover:text-slate-200"
+                    >
+                      <X className="h-3 w-3" strokeWidth={2.5} />
+                      {t('clearFilters')}
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">{renderTagButtons()}</div>
+              </section>
+              {renderFreeReportsToggle()}
             </div>
-            <div className="flex flex-wrap gap-2">{renderTagButtons()}</div>
-          </div>
-
-          {renderFreeReportsToggle()}
-
-          {typeof resultCount === 'number' && (
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-              {t('resultsCount', { count: resultCount })}
-            </p>
-          )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
