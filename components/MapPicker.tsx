@@ -13,7 +13,7 @@ import { supabase } from '../services/supabase';
 import { getWorkerGeolocation, submitMissionProof } from '../src/lib/submitMissionProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import { resolveMissionCleanerId, submitReview } from '../src/lib/reviews';
-import { Navigation, Camera, X, User, Plus, Minus, Crosshair } from 'lucide-react';
+import { Navigation, Camera, X, User, Plus, Minus, Crosshair, Loader2 } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import NotificationBell from './NotificationBell';
 import MissionFeedCard from './MissionFeedCard';
@@ -3570,6 +3570,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     lng: number;
     accuracy?: number;
   } | null>(null);
+  const [geolocating, setGeolocating] = useState(false);
 
   const handleZoomIn = useCallback(() => {
     mapRef.current?.getMap()?.zoomIn({ duration: 300 });
@@ -3586,14 +3587,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
       );
       return;
     }
+    setGeolocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
         setUserLocation({ lat: latitude, lng: longitude, accuracy });
         mapRef.current?.flyTo({ center: [longitude, latitude], zoom: 15, duration: 1500 });
+        setGeolocating(false);
       },
       (err) => {
         console.warn('[geolocate] getCurrentPosition failed', err);
+        setGeolocating(false);
         toast.error(
           t('geolocateUnavailable', {
             defaultValue: 'Location unavailable. Please check your browser permissions.',
@@ -4185,52 +4189,47 @@ const MapPicker: React.FC<MapPickerProps> = ({
         onOpenMission={(id, opts) => void openMissionById(id, opts)}
       />
 
-      {/* Unified 3-in-1 map "joystick": top = zoom in, bottom = zoom out, center = geolocate. */}
+      {/* Vertical map nav stack — matches top FABs (h-12); isolated hit targets (no overlap). */}
       {showProfileFab && (
-        <div className="fixed right-3 bottom-[max(1.5rem,calc(env(safe-area-inset-bottom)+1rem))] z-[10015] pointer-events-none">
+        <div className="fixed right-3 bottom-[max(1.5rem,calc(env(safe-area-inset-bottom)+5.5rem))] z-[10015] pointer-events-none">
           <div
             role="group"
             aria-label={t('mapControls', { defaultValue: 'Map controls' })}
-            className="pointer-events-auto relative h-16 w-16 overflow-hidden rounded-full border border-cyan-400/40 bg-black/70 shadow-[0_0_18px_rgba(34,211,238,0.28)] backdrop-blur-lg"
+            className="pointer-events-auto flex w-12 flex-col items-center gap-2"
           >
-            {/* Hairline separators framing the center dial */}
-            <span
-              aria-hidden
-              className="pointer-events-none absolute left-1/2 top-0 h-4 w-px -translate-x-1/2 bg-white/10"
-            />
-            <span
-              aria-hidden
-              className="pointer-events-none absolute bottom-0 left-1/2 h-4 w-px -translate-x-1/2 bg-white/10"
-            />
-
-            {/* Top zone — Zoom in */}
             <button
               type="button"
               onClick={handleZoomIn}
               aria-label={t('zoomIn', { defaultValue: 'Zoom in' })}
-              className="absolute inset-x-0 top-0 flex h-1/2 items-start justify-center pt-1.5 text-cyan-200 transition-colors hover:bg-cyan-400/15 active:bg-cyan-400/30"
+              className="flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center overflow-hidden rounded-full border border-cyan-400/50 bg-black/70 text-cyan-400 shadow-[0_0_18px_rgba(34,211,238,0.28)] backdrop-blur-lg transition-all duration-150 hover:bg-cyan-500/15 hover:border-cyan-300/60 active:scale-95 active:bg-cyan-500/20 active:shadow-[0_0_15px_rgba(34,211,238,0.5)]"
             >
-              <Plus className="h-4 w-4" strokeWidth={2.75} aria-hidden />
+              <Plus className="h-5 w-5 shrink-0" strokeWidth={2.75} aria-hidden />
             </button>
 
-            {/* Bottom zone — Zoom out */}
+            <button
+              type="button"
+              onClick={handleGeolocate}
+              disabled={geolocating}
+              aria-label={t('geolocate', { defaultValue: 'My location' })}
+              aria-busy={geolocating}
+              className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center overflow-hidden rounded-full border border-emerald-400/45 bg-black/70 text-emerald-300 shadow-[0_0_18px_rgba(16,185,129,0.28)] backdrop-blur-lg transition-all duration-150 hover:bg-emerald-500/15 hover:border-emerald-300/60 active:scale-95 active:bg-emerald-500/20 active:shadow-[0_0_15px_rgba(16,185,129,0.45)] disabled:cursor-wait ${
+                geolocating ? 'animate-pulse ring-2 ring-emerald-400/40' : ''
+              }`}
+            >
+              {geolocating ? (
+                <Loader2 className="h-5 w-5 shrink-0 animate-spin" strokeWidth={2.25} aria-hidden />
+              ) : (
+                <Crosshair className="h-5 w-5 shrink-0" strokeWidth={2.25} aria-hidden />
+              )}
+            </button>
+
             <button
               type="button"
               onClick={handleZoomOut}
               aria-label={t('zoomOut', { defaultValue: 'Zoom out' })}
-              className="absolute inset-x-0 bottom-0 flex h-1/2 items-end justify-center pb-1.5 text-cyan-200 transition-colors hover:bg-cyan-400/15 active:bg-cyan-400/30"
+              className="flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center overflow-hidden rounded-full border border-rose-400/45 bg-black/70 text-rose-400 shadow-[0_0_18px_rgba(244,63,94,0.22)] backdrop-blur-lg transition-all duration-150 hover:bg-rose-500/15 hover:border-rose-300/55 active:scale-95 active:bg-rose-500/20 active:shadow-[0_0_15px_rgba(244,63,94,0.5)]"
             >
-              <Minus className="h-4 w-4" strokeWidth={2.75} aria-hidden />
-            </button>
-
-            {/* Center dial — Geolocate */}
-            <button
-              type="button"
-              onClick={handleGeolocate}
-              aria-label={t('geolocate', { defaultValue: 'My location' })}
-              className="absolute left-1/2 top-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-emerald-400/50 bg-slate-950/90 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.35)] transition-all hover:bg-emerald-500/25 active:scale-90"
-            >
-              <Crosshair className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+              <Minus className="h-5 w-5 shrink-0" strokeWidth={2.75} aria-hidden />
             </button>
           </div>
         </div>
