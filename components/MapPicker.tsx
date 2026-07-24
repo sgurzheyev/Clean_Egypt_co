@@ -95,11 +95,14 @@ import {
 } from '../src/lib/crowdfunding';
 import {
   applyEgyptMapTheme,
+  bindMapRenderBudget,
   egyptRoadLineColorExpr,
   ensureMetallicWaterEffect,
+  flyMapTo,
   EGYPT_ROAD_GLOW_COLOR,
   EGYPT_ROAD_MAJOR_COLOR,
   MAP_CINEMATIC_FLY,
+  MAP_QUICK_FLY,
   MAP_STEEL_WATER_SHEEN,
   MAP_STEEL_WATERWAY,
   MAP_STEEL_WATERWAY_GLOW,
@@ -109,6 +112,7 @@ import {
   mapWaterGlassOpacityExpr,
   mapWaterShallowsOpacityExpr,
   mapWaterZoomColorExpr,
+  type MetallicWaterController,
 } from '../src/lib/mapEgyptTheme';
 import {
   applyWeatherFog,
@@ -685,7 +689,7 @@ function ActiveMissionWidget({
   );
 }
 
-function DraftPinActionHub({
+const DraftPinActionHub = React.memo(function DraftPinActionHub({
   lat,
   lng,
   expanded,
@@ -806,7 +810,7 @@ function DraftPinActionHub({
       </div>
     </Marker>
   );
-}
+});
 
 function MyOrdersPanel({
   open,
@@ -1481,7 +1485,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
     window.matchMedia('(max-width: 640px)').matches;
   const mapRef = React.useRef<MapRef>(null);
   const mapInstanceRef = React.useRef<any>(null);
-  const waterFlickerCancelRef = React.useRef<(() => void) | null>(null);
+  const waterFxRef = React.useRef<MetallicWaterController | null>(null);
+  const mapPerfCleanupRef = React.useRef<(() => void) | null>(null);
+  const mapOnLoadCleanupRef = React.useRef<(() => void) | null>(null);
+  const cameraBusyRef = React.useRef(false);
+  const viewStateRafRef = React.useRef<number>(0);
+  const pendingViewStateRef = React.useRef<{
+    latitude: number;
+    longitude: number;
+    zoom: number;
+    pitch: number;
+    bearing: number;
+  } | null>(null);
   const orderFormRef = React.useRef<HTMLFormElement>(null);
   const jobsRef = React.useRef<JobOnMap[]>([]);
   const selectedMissionTagsRef = React.useRef<string[]>([]);
@@ -1526,6 +1541,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const [jobs, setJobs] = useState<JobOnMap[]>([]);
   const [mapReady, setMapReady] = useState(false);
+  /** True while Mapbox is flying/panning — freezes pin GeoJSON + pauses water FX. */
+  const [mapCameraBusy, setMapCameraBusy] = useState(false);
 
   const updateAtmosphere = useCallback(() => {
     const map = mapInstanceRef.current;
@@ -1819,9 +1836,48 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   useEffect(() => {
     return () => {
-      waterFlickerCancelRef.current?.();
-      waterFlickerCancelRef.current = null;
+      waterFxRef.current?.cancel();
+      waterFxRef.current = null;
+      mapPerfCleanupRef.current?.();
+      mapPerfCleanupRef.current = null;
+      mapOnLoadCleanupRef.current?.();
+      mapOnLoadCleanupRef.current = null;
+      if (viewStateRafRef.current) {
+        cancelAnimationFrame(viewStateRafRef.current);
+        viewStateRafRef.current = 0;
+      }
     };
+  }, []);
+
+  // Bind camera-busy render budget once the Mapbox instance exists.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !mapReady) return;
+    mapPerfCleanupRef.current?.();
+    mapPerfCleanupRef.current = bindMapRenderBudget(
+      map,
+      () => waterFxRef.current,
+      (busy) => {
+        cameraBusyRef.current = busy;
+        setMapCameraBusy(busy);
+      }
+    );
+    return () => {
+      mapPerfCleanupRef.current?.();
+      mapPerfCleanupRef.current = null;
+    };
+  }, [mapReady]);
+
+  const handleMapMove = useCallback((evt: { viewState: typeof viewState }) => {
+    // Coalesce controlled viewState updates to one React commit per animation frame.
+    // Skipping intermediate commits during flyTo keeps markers/overlays from thrashing.
+    pendingViewStateRef.current = evt.viewState as typeof viewState;
+    if (viewStateRafRef.current) return;
+    viewStateRafRef.current = requestAnimationFrame(() => {
+      viewStateRafRef.current = 0;
+      const next = pendingViewStateRef.current;
+      if (next) setViewState(next);
+    });
   }, []);
 
   // Re-apply fog when simulated weather changes.
@@ -2341,12 +2397,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     if (!flyToTarget || !mapRef.current) return;
     const map = mapRef.current.getMap();
     if (!map) return;
-    map.flyTo({
-      center: [flyToTarget.lng, flyToTarget.lat],
-      zoom: 16,
-      essential: true,
-      duration: 2000,
-    });
+    flyMapTo(map, [flyToTarget.lng, flyToTarget.lat], { ...MAP_QUICK_FLY });
     onFlyToComplete?.();
   }, [flyToTarget, onFlyToComplete]);
 
@@ -2748,6 +2799,49 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // BELOW the form overlay (z-10050), so opening it there would be invisible.
       // Taps then reposition the draft pin instead.
       if (!taskTypeSelected && !reportMode) {
+        const map = mapRef.current?.getMap();
+        const point = event?.point as { x: number; y: number } | undefined;
+        if (map && point) {
+          try {
+            const pad = 18;
+            const bbox: [mapboxgl.PointLike, mapboxgl.PointLike] = [
+              [point.x - pad, point.y - pad],
+              [point.x + pad, point.y + pad],
+            ];
+            const clusterHits = map.queryRenderedFeatures(bbox, {
+              layers: ['mission-pins-clusters'],
+            });
+            const cluster = clusterHits.find((hit) => hit.properties?.cluster_id != null);
+            if (cluster) {
+              const source = map.getSource('mission-pins') as {
+                getClusterExpansionZoom?: (
+                  clusterId: number,
+                  cb: (err: Error | null, zoom: number) => void
+                ) => void;
+              } | null;
+              const clusterId = Number(cluster.properties?.cluster_id);
+              const coords = (
+                cluster.geometry as { coordinates?: [number, number] } | undefined
+              )?.coordinates;
+              if (source?.getClusterExpansionZoom && Number.isFinite(clusterId) && coords) {
+                source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+                  if (err) return;
+                  flyMapTo(map, coords, {
+                    ...MAP_QUICK_FLY,
+                    zoom: Math.min(16, Math.max(Number(zoom) || 14, 13)),
+                    pitch: map.getPitch?.() ?? 60,
+                    bearing: map.getBearing?.() ?? 0,
+                    duration: 700,
+                  });
+                });
+                return;
+              }
+            }
+          } catch {
+            /* cluster layer may be absent */
+          }
+        }
+
         const job = findMissionPinAtPoint(event?.point, 15);
         if (job) {
           handleMarkerClick(job);
@@ -2883,7 +2977,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
       try {
         const layers = map.getStyle()?.layers;
         if (!layers || layers.length === 0) return;
-        const order = ['mission-pins-glow', 'mission-pins-core', 'mission-pins-icon'];
+        const order = [
+          'mission-pins-clusters',
+          'mission-pins-cluster-count',
+          'mission-pins-glow',
+          'mission-pins-core',
+          'mission-pins-icon',
+        ];
         const topIds = layers.slice(-order.length).map((l: { id: string }) => l.id);
         if (order.every((id, i) => topIds[i] === id)) return;
         for (const id of order) {
@@ -3844,6 +3944,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return { type: 'FeatureCollection' as const, features };
   }, [jobs, selectedMissionTags, marketCityId, showFreeReports, mutedIds, serviceTypeForMission]);
 
+  /** Hold pin FeatureCollection steady during flyTo so Source doesn't rebuild mid-animation. */
+  const idleMissionPinsRef = React.useRef(missionPinsGeoJSON);
+  useEffect(() => {
+    if (!mapCameraBusy) idleMissionPinsRef.current = missionPinsGeoJSON;
+  }, [mapCameraBusy, missionPinsGeoJSON]);
+  const missionPinsForMap = mapCameraBusy ? idleMissionPinsRef.current : missionPinsGeoJSON;
+
   const activeWorkerMission = useMemo(
     () =>
       (jobs || []).find(
@@ -3914,12 +4021,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const navigateToActiveMission = useCallback(() => {
     if (!activeWorkerMission) return;
-    mapRef.current?.flyTo({
-      center: [activeWorkerMission.location_lng, activeWorkerMission.location_lat],
-      zoom: 16,
-      essential: true,
-      duration: 1200,
-    });
+    flyMapTo(mapRef.current?.getMap?.(), [
+      activeWorkerMission.location_lng,
+      activeWorkerMission.location_lat,
+    ], { ...MAP_QUICK_FLY });
   }, [activeWorkerMission]);
 
   const openActiveMissionProof = useCallback(() => {
@@ -3932,11 +4037,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setShowLiveMarketFeed(false);
     setMapDraftPin(null);
     setSelectedMission(mission as JobOnMap);
-    mapRef.current?.flyTo({
-      center: [mission.location_lng, mission.location_lat],
-      zoom: 16,
-      essential: true,
-      duration: 1300,
+    flyMapTo(mapRef.current?.getMap?.(), [mission.location_lng, mission.location_lat], {
+      ...MAP_QUICK_FLY,
     });
   }, []);
 
@@ -3948,16 +4050,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setMapDraftPin(null);
     setSelectedMission(safe);
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      try {
-        mapRef.current?.flyTo({
-          center: [lng, lat],
-          zoom: 16,
-          essential: true,
-          duration: 1300,
-        });
-      } catch (err) {
-        console.warn('flyTo after open mission failed:', err);
-      }
+      flyMapTo(mapRef.current?.getMap?.(), [lng, lat], { ...MAP_QUICK_FLY });
     }
   }, []);
 
@@ -4017,10 +4110,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [geolocating, setGeolocating] = useState(false);
 
   const handleZoomIn = useCallback(() => {
-    mapRef.current?.getMap()?.zoomIn({ duration: 300 });
+    mapRef.current?.getMap()?.zoomIn({ duration: 280, essential: true });
   }, []);
   const handleZoomOut = useCallback(() => {
-    mapRef.current?.getMap()?.zoomOut({ duration: 300 });
+    mapRef.current?.getMap()?.zoomOut({ duration: 280, essential: true });
   }, []);
   const handleGeolocate = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -4036,10 +4129,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
         setUserLocation({ lat: latitude, lng: longitude, accuracy });
-        mapRef.current?.flyTo({
-          center: [longitude, latitude],
-          ...MAP_CINEMATIC_FLY,
-        });
+        flyMapTo(mapRef.current?.getMap?.(), [longitude, latitude], { ...MAP_CINEMATIC_FLY });
         setGeolocating(false);
       },
       (err) => {
@@ -4084,14 +4174,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
       }
       setReportPin({ lat: nextLat, lng: nextLng });
-      try {
-        mapRef.current?.flyTo({
-          center: [nextLng, nextLat],
-          ...MAP_CINEMATIC_FLY,
-        });
-      } catch {
-        /* map may be disposing */
-      }
+      flyMapTo(mapRef.current?.getMap?.(), [nextLng, nextLat], { ...MAP_CINEMATIC_FLY });
     };
 
     toast.notice(
@@ -4214,21 +4297,24 @@ const MapPicker: React.FC<MapPickerProps> = ({
           {...viewState}
           projection="globe"
           renderWorldCopies={false}
-          antialias
-          onMove={(evt) => setViewState(evt.viewState)}
+          // MSAA is expensive on mobile GPUs; keep it for desktop only.
+          antialias={!isMobile && !isTouchDevice}
+          onMove={handleMapMove}
           // 2D mode: pins are interactive, buildings are background only.
           // Click + hover are wired via native map.on(...) listeners (see the mapReady effect),
           // so no synthetic onClick/onMouseMove here.
-          interactiveLayerIds={['mission-pins-core']}
+          interactiveLayerIds={['mission-pins-core', 'mission-pins-clusters']}
           onLoad={(e: any) => {
           const map = e?.target;
           if (!map) return;
+          mapOnLoadCleanupRef.current?.();
           mapInstanceRef.current = map;
           setMapReady(true);
 
           // Emoji pin icons must exist as style images before the symbol layer draws.
           registerEmojiPinImages(map);
-          map.on('styleimagemissing', () => registerEmojiPinImages(map));
+          const onStyleImageMissing = () => registerEmojiPinImages(map);
+          map.on('styleimagemissing', onStyleImageMissing);
 
           // 3D Terrain + Mountains + realistic horizon.
           // DEM source must exist before `setTerrain`.
@@ -4358,21 +4444,36 @@ const MapPicker: React.FC<MapPickerProps> = ({
           applyEgyptMapTheme(map, { beforeLayerId: 'place_label' });
           // Gunmetal water sheen + noise texture + slow metallic flicker.
           try {
-            waterFlickerCancelRef.current?.();
-            waterFlickerCancelRef.current = ensureMetallicWaterEffect(map);
+            waterFxRef.current?.cancel();
+            waterFxRef.current = ensureMetallicWaterEffect(map);
           } catch {
             /* ignore */
           }
           // Neon road layers mount after first paint — re-apply once map is idle.
-          map.once?.('idle', () => {
+          const onFirstIdle = () => {
             try {
               applyEgyptMapTheme(map, { beforeLayerId: 'place_label' });
-              waterFlickerCancelRef.current?.();
-              waterFlickerCancelRef.current = ensureMetallicWaterEffect(map);
+              waterFxRef.current?.cancel();
+              waterFxRef.current = ensureMetallicWaterEffect(map);
             } catch {
               /* ignore */
             }
-          });
+          };
+          map.once?.('idle', onFirstIdle);
+
+          mapOnLoadCleanupRef.current = () => {
+            clearTimeout(atmosphereCamTimer);
+            try {
+              map.off?.('styleimagemissing', onStyleImageMissing);
+              map.off?.('moveend', updateAtmosphere);
+              map.off?.('zoom', scheduleAtmosphereCamera);
+              map.off?.('rotate', scheduleAtmosphereCamera);
+            } catch {
+              /* map may already be gone */
+            }
+            waterFxRef.current?.cancel();
+            waterFxRef.current = null;
+          };
         }}
         mapStyle={customDarkStyle}
         mapboxAccessToken={MAPBOX_TOKEN}
@@ -4479,20 +4580,69 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </Source>
 
         {/* Main mission pins — colors driven by service_type GeoJSON property */}
-        <Source id="mission-pins" type="geojson" data={missionPinsGeoJSON} promoteId="mission_id">
+        <Source
+          id="mission-pins"
+          type="geojson"
+          data={missionPinsForMap}
+          promoteId="mission_id"
+          cluster
+          clusterMaxZoom={12}
+          clusterRadius={52}
+        >
+          {/* Spatial clusters at city zoom — expands to individual pins past z12. */}
+          <Layer
+            id="mission-pins-clusters"
+            type="circle"
+            filter={['has', 'point_count']}
+            maxzoom={13}
+            paint={{
+              'circle-color': '#22d3ee',
+              'circle-radius': [
+                'step',
+                ['get', 'point_count'],
+                16,
+                8,
+                20,
+                25,
+                26,
+              ],
+              'circle-opacity': mapMarkerLayerSuppressed ? 0 : 0.75,
+              'circle-stroke-width': 2,
+              'circle-stroke-color': '#ecfeff',
+              'circle-stroke-opacity': mapMarkerLayerSuppressed ? 0 : 0.9,
+            }}
+          />
+          <Layer
+            id="mission-pins-cluster-count"
+            type="symbol"
+            filter={['has', 'point_count']}
+            maxzoom={13}
+            layout={{
+              'text-field': ['get', 'point_count_abbreviated'],
+              'text-size': 12,
+              'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+              'text-allow-overlap': true,
+            }}
+            paint={{
+              'text-color': '#020617',
+              'text-opacity': mapMarkerLayerSuppressed ? 0 : 1,
+            }}
+          />
           <Layer
             id="mission-pins-glow"
             type="circle"
+            filter={['!', ['has', 'point_count']]}
             paint={{
               'circle-radius': MISSION_PIN_GLOW_RADIUS,
               'circle-color': MISSION_PIN_CORE_COLOR,
-              'circle-blur': 0.85,
+              'circle-blur': mapCameraBusy ? 0.35 : 0.85,
               'circle-opacity': mapMarkerLayerSuppressed ? 0 : 0.35,
             }}
           />
           <Layer
             id="mission-pins-core"
             type="circle"
+            filter={['!', ['has', 'point_count']]}
             paint={{
               'circle-radius': MISSION_PIN_CORE_RADIUS,
               'circle-color': MISSION_PIN_CORE_COLOR,
@@ -4505,6 +4655,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           <Layer
             id="mission-pins-icon"
             type="symbol"
+            filter={['!', ['has', 'point_count']]}
             layout={{
               'icon-image': ['get', 'pin_icon_image'],
               'icon-size': MISSION_PIN_ICON_SIZE,
@@ -4908,16 +5059,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   return next;
                 });
                 setSelectedMission(optimistic);
-                try {
-                  mapRef.current?.flyTo({
-                    center: [optimistic.location_lng, optimistic.location_lat],
-                    zoom: 16,
-                    essential: true,
-                    duration: 1100,
-                  });
-                } catch {
-                  /* map may be disposing */
-                }
+                flyMapTo(mapRef.current?.getMap?.(), [
+                  optimistic.location_lng,
+                  optimistic.location_lat,
+                ], { ...MAP_QUICK_FLY });
               }
 
               toast.success(

@@ -235,13 +235,61 @@ export const mapSatelliteGlassOpacityExpr: unknown[] = [
   0.58,
 ];
 
-/** Geolocate / report-mode cinematic camera. */
+/**
+ * Geolocate / report-mode cinematic camera.
+ * `essential: true` keeps the animation running under Mapbox's reduced-motion
+ * policies so mobile Chrome doesn't skip frames mid-gesture.
+ */
 export const MAP_CINEMATIC_FLY = {
   zoom: 17,
   pitch: 60,
-  duration: 1800,
+  duration: 1600,
   essential: true,
+  curve: 1.42,
+  speed: 1.15,
+  maxDuration: 2200,
 } as const;
+
+/** Shorter fly used when opening a mission / feed pin. */
+export const MAP_QUICK_FLY = {
+  zoom: 16,
+  pitch: 60,
+  duration: 1100,
+  essential: true,
+  curve: 1.4,
+  speed: 1.2,
+  maxDuration: 1600,
+} as const;
+
+type FlyableMap = {
+  flyTo?: (options: Record<string, unknown>) => void;
+  easeTo?: (options: Record<string, unknown>) => void;
+};
+
+/** Unified flyTo / easeTo with mobile-safe duration curves. */
+export function flyMapTo(
+  map: FlyableMap | null | undefined,
+  center: [number, number],
+  options?: Record<string, unknown> & { ease?: boolean }
+) {
+  if (!map) return;
+  const { ease, ...rest } = options || {};
+  const payload = {
+    ...MAP_CINEMATIC_FLY,
+    ...rest,
+    center,
+    essential: true,
+  };
+  try {
+    if (ease && typeof map.easeTo === 'function') {
+      map.easeTo(payload);
+    } else {
+      map.flyTo?.(payload);
+    }
+  } catch {
+    /* map disposing */
+  }
+}
 
 export const egyptRoadLineColorExpr: unknown[] = [
   'match',
@@ -370,6 +418,26 @@ type WaterFlickerMap = MapLike & {
   getSource?: (id: string) => unknown;
   addSource?: (id: string, source: Record<string, unknown>) => void;
   getCanvas?: () => HTMLCanvasElement | undefined;
+  setLayoutProperty?: (layerId: string, name: string, value: unknown) => void;
+  on?: (type: string, listener: (...args: unknown[]) => void) => void;
+  off?: (type: string, listener: (...args: unknown[]) => void) => void;
+  isMoving?: () => boolean;
+  isZooming?: () => boolean;
+  isRotating?: () => boolean;
+};
+
+function safeLayout(map: WaterFlickerMap, layerId: string, prop: string, value: unknown) {
+  try {
+    map.setLayoutProperty?.(layerId, prop, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+export type MetallicWaterController = {
+  cancel: () => void;
+  /** Pause sheen/noise RAF + hide costly water overlays while the camera moves. */
+  setCameraBusy: (busy: boolean) => void;
 };
 
 const WATER_NOISE_IMAGE_ID = 'ce-water-metal-noise';
@@ -401,9 +469,10 @@ function buildWaterMetalNoiseImage(): {
 
 /**
  * Depth-based water gradient (bathymetry + zoom/shallows/shore) plus the
- * existing metallic sheen/noise flicker. Returns a cancel fn for the RAF loop.
+ * existing metallic sheen/noise flicker. Sheen/noise paint updates are deferred
+ * while the camera is busy so flyTo stays near 60 FPS on mobile.
  */
-export function ensureMetallicWaterEffect(map: WaterFlickerMap): () => void {
+export function ensureMetallicWaterEffect(map: WaterFlickerMap): MetallicWaterController {
   try {
     if (!map.hasImage?.(WATER_NOISE_IMAGE_ID)) {
       map.addImage?.(WATER_NOISE_IMAGE_ID, buildWaterMetalNoiseImage(), { pixelRatio: 2 });
@@ -587,21 +656,176 @@ export function ensureMetallicWaterEffect(map: WaterFlickerMap): () => void {
 
   let raf = 0;
   let cancelled = false;
-  const tick = (t: number) => {
-    if (cancelled) return;
-    // Slow dual-frequency shimmer — kept light so glass water / reefs stay readable.
+  let cameraBusy = false;
+  let frameSkip = 0;
+  /** Idle sheen updates ~12 Hz — enough shimmer, far cheaper than every paint frame. */
+  const IDLE_FRAME_STRIDE = 5;
+
+  const applySheen = (t: number) => {
     const a = 0.5 + 0.5 * Math.sin(t / 2400);
     const b = 0.5 + 0.5 * Math.sin(t / 5100 + 1.2);
     const sheenOpacity = 0.04 + 0.06 * a + 0.03 * b;
     const textureOpacity = 0.08 + 0.06 * b;
     safePaint(map, WATER_FLICKER_LAYER_ID, 'fill-opacity', sheenOpacity);
     safePaint(map, WATER_TEXTURE_LAYER_ID, 'fill-opacity', textureOpacity);
+  };
+
+  const tick = (t: number) => {
+    if (cancelled) return;
+    if (cameraBusy) {
+      raf = requestAnimationFrame(tick);
+      return;
+    }
+    frameSkip = (frameSkip + 1) % IDLE_FRAME_STRIDE;
+    if (frameSkip === 0) applySheen(t);
     raf = requestAnimationFrame(tick);
   };
   raf = requestAnimationFrame(tick);
 
+  const setCameraBusy = (busy: boolean) => {
+    if (cameraBusy === busy) return;
+    cameraBusy = busy;
+    if (busy) {
+      // Hide pattern/sheen fills and collapse expensive shoreline blur during fly/pan.
+      safeLayout(map, WATER_TEXTURE_LAYER_ID, 'visibility', 'none');
+      safeLayout(map, WATER_FLICKER_LAYER_ID, 'visibility', 'none');
+      safePaint(map, WATER_SHORE_GLOW_LAYER_ID, 'line-blur', 0);
+      safePaint(map, WATER_SHORE_GLOW_LAYER_ID, 'line-opacity', 0.12);
+      safePaint(map, 'neon-roads-glow', 'line-blur', 0);
+      safePaint(map, 'neon-roads-glow', 'line-opacity', 0.08);
+      safePaint(map, 'terrain-hillshade', 'hillshade-exaggeration', 0.15);
+    } else {
+      safeLayout(map, WATER_TEXTURE_LAYER_ID, 'visibility', 'visible');
+      safeLayout(map, WATER_FLICKER_LAYER_ID, 'visibility', 'visible');
+      safePaint(map, WATER_SHORE_GLOW_LAYER_ID, 'line-blur', [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        8,
+        1,
+        12,
+        4,
+        16,
+        8,
+      ]);
+      safePaint(map, WATER_SHORE_GLOW_LAYER_ID, 'line-opacity', [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        8,
+        0.15,
+        12,
+        0.35,
+        16,
+        0.55,
+      ]);
+      safePaint(map, 'neon-roads-glow', 'line-blur', 1.5);
+      safePaint(map, 'neon-roads-glow', 'line-opacity', 0.22);
+      safePaint(map, 'terrain-hillshade', 'hillshade-exaggeration', [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        8,
+        0.25,
+        14,
+        0.65,
+      ]);
+      applySheen(performance.now());
+    }
+  };
+
+  return {
+    cancel: () => {
+      cancelled = true;
+      cameraBusy = false;
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+    },
+    setCameraBusy,
+  };
+}
+
+type PerfBudgetMap = WaterFlickerMap & {
+  once?: (type: string, listener: (...args: unknown[]) => void) => void;
+};
+
+/**
+ * Pause heavy water / glow work for the duration of camera motion, then restore
+ * on the next idle tick. Returns an unsubscribe that must run on unmount.
+ */
+export function bindMapRenderBudget(
+  map: PerfBudgetMap,
+  getWater: () => MetallicWaterController | null | undefined,
+  onBusyChange?: (busy: boolean) => void
+): () => void {
+  let settleTimer: ReturnType<typeof setTimeout> | null = null;
+  let busy = false;
+
+  const setBusy = (next: boolean) => {
+    if (busy === next) return;
+    busy = next;
+    getWater()?.setCameraBusy(next);
+    onBusyChange?.(next);
+  };
+
+  const markBusy = () => {
+    if (settleTimer) {
+      clearTimeout(settleTimer);
+      settleTimer = null;
+    }
+    setBusy(true);
+  };
+
+  const markSettling = () => {
+    if (settleTimer) clearTimeout(settleTimer);
+    // Wait past Mapbox's ease curve / coalesced zoom+move end events.
+    settleTimer = setTimeout(() => {
+      settleTimer = null;
+      const stillMoving =
+        Boolean(map.isMoving?.()) || Boolean(map.isZooming?.()) || Boolean(map.isRotating?.());
+      if (!stillMoving) setBusy(false);
+    }, 100);
+  };
+
+  const onMoveStart = () => markBusy();
+  const onZoomStart = () => markBusy();
+  const onRotateStart = () => markBusy();
+  const onPitchStart = () => markBusy();
+  const onMoveEnd = () => markSettling();
+  const onZoomEnd = () => markSettling();
+  const onRotateEnd = () => markSettling();
+  const onPitchEnd = () => markSettling();
+  const onIdle = () => {
+    if (settleTimer) {
+      clearTimeout(settleTimer);
+      settleTimer = null;
+    }
+    const stillMoving =
+      Boolean(map.isMoving?.()) || Boolean(map.isZooming?.()) || Boolean(map.isRotating?.());
+    if (!stillMoving) setBusy(false);
+  };
+
+  map.on?.('movestart', onMoveStart);
+  map.on?.('zoomstart', onZoomStart);
+  map.on?.('rotatestart', onRotateStart);
+  map.on?.('pitchstart', onPitchStart);
+  map.on?.('moveend', onMoveEnd);
+  map.on?.('zoomend', onZoomEnd);
+  map.on?.('rotateend', onRotateEnd);
+  map.on?.('pitchend', onPitchEnd);
+  map.on?.('idle', onIdle);
+
   return () => {
-    cancelled = true;
-    if (raf) cancelAnimationFrame(raf);
+    if (settleTimer) clearTimeout(settleTimer);
+    map.off?.('movestart', onMoveStart);
+    map.off?.('zoomstart', onZoomStart);
+    map.off?.('rotatestart', onRotateStart);
+    map.off?.('pitchstart', onPitchStart);
+    map.off?.('moveend', onMoveEnd);
+    map.off?.('zoomend', onZoomEnd);
+    map.off?.('rotateend', onRotateEnd);
+    map.off?.('pitchend', onPitchEnd);
+    map.off?.('idle', onIdle);
+    setBusy(false);
   };
 }
