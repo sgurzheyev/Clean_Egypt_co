@@ -315,7 +315,7 @@ const resources = {
       topUpTokens: 'Top up tokens',
       buyTokens: 'Buy tokens',
       topUpShort: 'Top up',
-      profileInfoOverview: 'Info',
+      profileInfoOverview: 'Info & Security',
       profileLeadsShort: 'Leads',
       profileEconomyHint:
         'Tokens pay for crowdfunding and boosting pins. Work payment is direct (P2P) between client and worker.',
@@ -800,7 +800,7 @@ const resources = {
       topUpTokens: 'شحن التوكن',
       buyTokens: 'شراء توكن',
       topUpShort: 'شحن',
-      profileInfoOverview: 'معلومات',
+      profileInfoOverview: 'المعلومات والأمان',
       profileLeadsShort: 'عملاء',
       profileEconomyHint:
         'Tokens pay for pinning and ranking. Job pay is USD (P2P). Crowdfunding raises USD until bids open.',
@@ -1271,7 +1271,7 @@ const resources = {
       topUpTokens: 'Пополнить токены',
       buyTokens: 'Купить токены',
       topUpShort: 'Пополнить',
-      profileInfoOverview: 'Инфо',
+      profileInfoOverview: 'Инфо и безопасность',
       profileLeadsShort: 'Лиды',
       profileEconomyHint:
         'Токены — для краудфандинга и буста пинов. Оплата работы — напрямую между клиентом и исполнителем.',
