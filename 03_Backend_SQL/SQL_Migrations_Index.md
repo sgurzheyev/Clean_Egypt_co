@@ -6,9 +6,11 @@ aliases: [Database Migrations MOC, SQL Migrations Index]
 # 🗄️ Database Migrations MOC
 
 > Central index of all Supabase SQL migrations for **CleanEgypt.Co**.  
-> Product goals: [[Roadmap_to_GooglePlay.md]]
+> Product goals: [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] · Vault hub: [[🗺️ GARBAGIN Master Index]]
 
 This Map of Content (MOC) clusters every migration file into one Obsidian graph hub so the vault graph stays readable. Each row links the `.sql` note and summarizes what that change did in plain English.
+
+**Related audit:** [[03_Backend_SQL/AUDIT_phone_missions_access]]
 
 **Layout on disk:** active migrations live in `supabase/migrations/`; historical / superseded scripts live under `supabase/migrations/archive/`.
 
@@ -128,4 +130,4 @@ Superseded or pre–token-economy scripts. Kept for archaeology; prefer active f
 
 1. Open graph view → this note should sit at the center of all `*.sql` migration nodes.
 2. Prefer linking new migrations from this MOC when you add files under `supabase/migrations/`.
-3. Keep product narrative in [[Roadmap_to_GooglePlay.md]]; keep schema history here.
+3. Keep product narrative in [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]]; keep schema history here.

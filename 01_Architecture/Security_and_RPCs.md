@@ -1,6 +1,6 @@
 # Security and RPCs
 
-> Hardened server paths: no client escrow mutation, USD-only money columns, service-role Stripe apply. Links: [[Architecture_Overview]], [[KYC_Verification]], [[P2P_Deal_Flow]], [[Stripe_USD_Flow]].
+> Hardened server paths: no client escrow mutation, USD-only money columns, service-role Stripe apply. Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/KYC_Verification]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]].
 
 ## Principles
 
@@ -47,4 +47,4 @@ Supervisor / admin dispute path is P2P-aligned (no escrow reverse): [[../supabas
 ## Graph
 
 - Rules: [[../.cursorrules]]
-- Vault: [[../00_Dashboard]], [[Architecture_Overview]]
+- Vault: [[🗺️ GARBAGIN Master Index]], [[04_Roadmap_Tasks/00_Dashboard]], [[01_Architecture/Architecture_Overview]]

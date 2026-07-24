@@ -13,14 +13,17 @@ tags: [cleanegypt, roadmap, google-play, crowdfunding, tokens, ar, p2p]
 > Grounded in the post-audit stack (Stripe Checkout + webhook, token-boost, PostGIS GPS gate, neon map UI) and the **new business rules** for Hungry-Games bidding, dynamic crowdfunding timers, and municipal escalation.
 
 ## Hub links
-- Field dashboard → [[../00_Dashboard]]
-- Architecture → [[Architecture_Overview]]
-- Stripe / USD → [[Stripe_USD_Flow]]
-- P2P deals → [[P2P_Deal_Flow]]
-- Security & RPCs → [[Security_and_RPCs]]
-- KYC → [[KYC_Verification]]
-- Prior status note → [[CleanEgypt_Roadmap_Update]]
-- Project rules → [[../.cursorrules]]
+- Master index → [[🗺️ GARBAGIN Master Index]]
+- Field dashboard → [[04_Roadmap_Tasks/00_Dashboard]]
+- Architecture → [[01_Architecture/Architecture_Overview]]
+- Frontend → [[02_Frontend/Frontend_Components]]
+- Migrations → [[03_Backend_SQL/SQL_Migrations_Index]]
+- Stripe / USD → [[01_Architecture/Stripe_USD_Flow]]
+- P2P deals → [[01_Architecture/P2P_Deal_Flow]]
+- Security & RPCs → [[01_Architecture/Security_and_RPCs]]
+- KYC → [[01_Architecture/KYC_Verification]]
+- Prior status note → [[05_Archive/CleanEgypt_Roadmap_Update]]
+- Project rules → [[.cursorrules]]
 
 ---
 
@@ -218,7 +221,7 @@ funding ──(target met)──► available ──(accept bid)──► in_pro
 - [x] Keep existing in-app bell in sync with push payloads (same `notifications` row).
 
 ### Exit criteria
-- [ ] Hurghada checklist from [[../00_Dashboard]] fully green.
+- [ ] Hurghada checklist from [[04_Roadmap_Tasks/00_Dashboard]] fully green.
 - [ ] Force-killed app still receives bid-accepted push on a test device.
 
 ---

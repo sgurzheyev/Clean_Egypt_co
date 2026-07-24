@@ -1,6 +1,6 @@
 # P2P Deal Flow
 
-> Standard (non-crowdfund) missions: worker and creator settle directly. No internal fiat escrow. See [[Architecture_Overview]], [[Security_and_RPCs]], [[KYC_Verification]], [[Stripe_USD_Flow]].
+> Standard (non-crowdfund) missions: worker and creator settle directly. No internal fiat escrow. See [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/KYC_Verification]], [[01_Architecture/Stripe_USD_Flow]].
 
 ## Status flow
 
@@ -41,4 +41,4 @@ Garbage Removal campaigns use Stripe contributions while `status = funding`, the
 
 ## Related RPCs
 
-Documented in [[Security_and_RPCs]]. Field notes: [[../00_Dashboard]].
+Documented in [[01_Architecture/Security_and_RPCs]]. Field notes: [[04_Roadmap_Tasks/00_Dashboard]].

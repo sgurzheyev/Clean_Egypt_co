@@ -1,6 +1,6 @@
 # Stripe USD Flow
 
-> All fiat rails are **USD** (cents on Stripe, whole dollars in Postgres). Links: [[Architecture_Overview]], [[Security_and_RPCs]], [[P2P_Deal_Flow]], [[KYC_Verification]].
+> All fiat rails are **USD** (cents on Stripe, whole dollars in Postgres). Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/KYC_Verification]].
 
 ## Crowdfunding contributions
 
@@ -45,4 +45,4 @@ Confirm failures return `{ error }` JSON; client parses via [[../src/lib/supabas
 
 ## Hub
 
-[[Architecture_Overview]] · [[../00_Dashboard]] · [[Security_and_RPCs]]
+[[01_Architecture/Architecture_Overview]] · [[04_Roadmap_Tasks/00_Dashboard]] · [[01_Architecture/Security_and_RPCs]] · [[🗺️ GARBAGIN Master Index]]

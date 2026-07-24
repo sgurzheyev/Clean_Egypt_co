@@ -1,6 +1,6 @@
 # KYC Verification
 
-> Worker identity verification for Home / Private missions. See also [[Architecture_Overview]], [[Security_and_RPCs]], [[P2P_Deal_Flow]], [[Stripe_USD_Flow]].
+> Worker identity verification for Home / Private missions. See also [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]].
 
 ## Purpose
 
@@ -56,4 +56,5 @@ Browser RLS blocks non-owner reads. Admins mint 1h URLs via Edge Function:
 
 - Trust / home mission gate: [[../src/lib/homeMissionAccess.ts]]
 - Admin shell: [[../src/components/AdminDashboard.tsx]]
-- Dashboard hub: [[../00_Dashboard]]
+- Dashboard hub: [[04_Roadmap_Tasks/00_Dashboard]]
+- Master index: [[🗺️ GARBAGIN Master Index]]

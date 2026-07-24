@@ -1,14 +1,16 @@
 # CleanEgypt.co — Architecture Overview
 
-> Vault hub for the CleanEgypt marketplace. Use Obsidian Graph View to navigate linked notes and source files.
+> Vault hub for the CleanEgypt marketplace. Master index: [[🗺️ GARBAGIN Master Index]]. Use Obsidian Graph View to navigate linked notes and source files.
 
 ## Feature notes (keep the graph dense)
 
-- [[KYC_Verification]] — WebRTC liveness, private `kyc_documents`, admin signed URLs
-- [[Security_and_RPCs]] — `submit_mission_proof`, locked contribute RPC, EGP removal
-- [[P2P_Deal_Flow]] — USD direct payment + dispute (no fiat escrow)
-- [[Stripe_USD_Flow]] — Checkout crowdfunding, tokens, `crowdfunding_expires_at` timer
-- Field dashboard: [[../00_Dashboard]]
+- [[01_Architecture/KYC_Verification]] — WebRTC liveness, private `kyc_documents`, admin signed URLs
+- [[01_Architecture/Security_and_RPCs]] — `submit_mission_proof`, locked contribute RPC, EGP removal
+- [[01_Architecture/P2P_Deal_Flow]] — USD direct payment + dispute (no fiat escrow)
+- [[01_Architecture/Stripe_USD_Flow]] — Checkout crowdfunding, tokens, `crowdfunding_expires_at` timer
+- Frontend map: [[02_Frontend/Frontend_Components]]
+- Field dashboard: [[04_Roadmap_Tasks/00_Dashboard]]
+- Migrations MOC: [[03_Backend_SQL/SQL_Migrations_Index]]
 
 ## Stack
 
@@ -25,7 +27,7 @@
 | App shell / routes / AR toggle | [[../App.tsx]] |
 | Bootstrap | [[../index.tsx]] |
 | Project rules | [[../.cursorrules]] |
-| Field dashboard | [[../00_Dashboard]] |
+| Field dashboard | [[04_Roadmap_Tasks/00_Dashboard]] |
 
 ## Core UI
 
@@ -114,6 +116,6 @@ missions
 
 ## Graph convention
 
-- This note is the hub; also open [[../00_Dashboard]]
-- Prefer Obsidian wiki links: `[[KYC_Verification]]`, `[[Security_and_RPCs]]`, `[[P2P_Deal_Flow]]`, `[[Stripe_USD_Flow]]`
-- Source paths relative to `docs/` (e.g. `[[../src/components/AROverlay.tsx]]`)
+- Central hub: [[🗺️ GARBAGIN Master Index]]; also open [[04_Roadmap_Tasks/00_Dashboard]]
+- Prefer folder wiki links: `[[01_Architecture/KYC_Verification]]`, `[[01_Architecture/Security_and_RPCs]]`, `[[01_Architecture/P2P_Deal_Flow]]`, `[[01_Architecture/Stripe_USD_Flow]]`
+- Source paths relative to vault root folders (e.g. `[[../src/components/AROverlay.tsx]]` from `01_Architecture/`)

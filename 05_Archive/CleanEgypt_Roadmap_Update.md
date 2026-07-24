@@ -9,7 +9,8 @@ tags: [cleanegypt, roadmap, status, architecture]
 # 🚀 CleanEgypt.co — Status Report & Roadmap
 
 > Generated from git history (`91d5d4c … 85b0a98`) and a scan of the current codebase.
-> Hubs: [[Architecture_Overview]] · [[Stripe_USD_Flow]] · [[Security_and_RPCs]] · [[KYC_Verification]] · [[P2P_Deal_Flow]] · [[00_Dashboard]]
+> Archived status note — superseded by [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]].  
+> Hubs: [[🗺️ GARBAGIN Master Index]] · [[01_Architecture/Architecture_Overview]] · [[01_Architecture/Stripe_USD_Flow]] · [[01_Architecture/Security_and_RPCs]] · [[01_Architecture/KYC_Verification]] · [[01_Architecture/P2P_Deal_Flow]] · [[04_Roadmap_Tasks/00_Dashboard]]
 
 ---
 
@@ -66,7 +67,7 @@ Net effect: a tighter, mobile-first product that is type-safe (`tsc` clean) and 
 - ✅ **i18n complete** across **6 locales** (en, ar, ru, de, it, es) for all recently added keys.
 - ✅ **Security posture** — RLS + service-role RPCs, GPS-gated proof-of-work, KYC admin moderation with signed media URLs.
 - ⚠️ **Deployment dependency** — the graceful "payment service unavailable" path exists precisely because `stripe-contribution-checkout` / Stripe secrets must be **deployed & configured** in the hosted Supabase project to enable live contributions.
-- ⚠️ **Field validation pending** — AR/WebXR, end-to-end crowdfunding, KYC, and P2P flows are coded but await the Hurghada field test (see [[00_Dashboard]]).
+- ⚠️ **Field validation pending** — AR/WebXR, end-to-end crowdfunding, KYC, and P2P flows are coded but await the Hurghada field test (see [[04_Roadmap_Tasks/00_Dashboard]]).
 
 ---
 
@@ -74,7 +75,7 @@ Net effect: a tighter, mobile-first product that is type-safe (`tsc` clean) and 
 
 ### Signals from the codebase
 - **No in-app messaging layer** — no conversations/`chat_messages` tables or UI exist; P2P coordination currently relies on shared contact info (WhatsApp/Telegram).
-- **City-notification fallback is partial** — `api/process-expired-crowdfunding.ts` + the expiry cron/queue exist, but the **PDF report → municipal delivery** pipeline is still async/unfinished (per [[00_Dashboard]] and `.cursorrules`).
+- **City-notification fallback is partial** — `api/process-expired-crowdfunding.ts` + the expiry cron/queue exist, but the **PDF report → municipal delivery** pipeline is still async/unfinished (per [[04_Roadmap_Tasks/00_Dashboard]] and `.cursorrules`).
 - **AR overlay** — lazy-loaded WebXR (`src/components/AROverlay`) is wired but unvalidated in the field.
 - **Notifications** — in-app bell + Telegram hooks exist; no email/web-push channel.
 
