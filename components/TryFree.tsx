@@ -32,7 +32,7 @@ const TryFree: React.FC = () => {
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h2 className="text-4xl font-black italic tracking-tighter uppercase bg-clip-text text-transparent bg-gradient-to-r from-[#00f2ff] to-[#7000ff] mb-2">
-            Clean<span className="text-white">Egypt</span>
+            Garbagin
           </h2>
           <p className="text-zinc-500 text-[10px] uppercase tracking-[0.2em] font-bold">БЕСПЛАТНАЯ ПРОВЕРКА ЗАДАЧ</p>
         </div>

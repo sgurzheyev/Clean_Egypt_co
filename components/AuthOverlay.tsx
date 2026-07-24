@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { useTelegram } from '../src/hooks/useTelegram';
 import { useTranslation } from 'react-i18next';
+import { APP_TMA_EMAIL_DOMAIN, appUrl } from '../src/lib/brand';
 
 interface AuthOverlayProps {
   isOpen: boolean;
@@ -31,7 +32,7 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
     const run = async () => {
       setTmaAuthenticating(true);
       setError(null);
-      const tgEmail = `tg_${tgUser.id}@tma.cleanegypt.co`;
+      const tgEmail = `tg_${tgUser.id}@${APP_TMA_EMAIL_DOMAIN}`;
       const tgPassword = `TmaAuth!_${tgUser.id}_secret`;
 
       try {
@@ -163,7 +164,7 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
     try {
       const { error: err } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        options: { emailRedirectTo: `${window.location.origin}/` },
+        options: { emailRedirectTo: appUrl('/') },
       });
       if (err) throw err;
       setError(null);
@@ -183,7 +184,7 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
     try {
       const { error: err } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin },
+        options: { redirectTo: appUrl('/') },
       });
       if (err) throw err;
     } catch (err: any) {

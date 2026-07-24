@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
             currency: 'usd',
             unit_amount: amountCents,
             product_data: {
-              name: 'CleanEgypt crowdfunding contribution',
+              name: 'Garbagin crowdfunding contribution',
               description: `Garbage Removal contribution · $${amountUsd}`,
             },
           },

@@ -47,7 +47,7 @@ const Auth: React.FC = () => {
         <form onSubmit={handleQuickAccess} className="space-y-4 relative z-10">
           <input
             type="email"
-            placeholder="sergio@cleanegypt.co"
+            placeholder="you@garbagin.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full p-4 bg-zinc-950 border border-zinc-800 rounded-2xl text-white focus:border-[#38bd3d] outline-none transition-all text-center font-bold"

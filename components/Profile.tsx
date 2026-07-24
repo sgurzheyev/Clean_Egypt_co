@@ -51,6 +51,12 @@ import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionWorkBudgetUsd, missionTokenBid } from '../src/lib/missionBudget';
 import { isPlatformAdmin, isArchivedMissionStatus } from '../src/lib/platformAdmin';
 import { adminDeleteMission } from '../src/lib/adminMission';
+import {
+  APP_EVENT_MISSION_COMPLETED,
+  APP_SUPPORT_EMAIL,
+  APP_TELEGRAM_SUPPORT,
+  getAppOrigin,
+} from '../src/lib/brand';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import MissionFeedCard from './MissionFeedCard';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
@@ -144,7 +150,7 @@ interface ProfileRow {
   avatar_url?: string | null;
 }
 
-const SUPPORT_TELEGRAM = 'https://t.me/CleanEgypt_Admin_Bot';
+const SUPPORT_TELEGRAM = APP_TELEGRAM_SUPPORT;
 
 const shortId = (id: unknown): string => {
   if (id == null) return 'N/A';
@@ -1270,7 +1276,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         try {
           const origin =
             typeof window !== 'undefined' && window.location?.origin
-              ? window.location.origin
+              ? getAppOrigin()
               : '';
           const notifyUrl = origin ? `${origin}/api/notify-mission-submitted` : '/api/notify-mission-submitted';
           const notifyRes = await fetch(notifyUrl, {
@@ -1328,7 +1334,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       await notifyMissionEvent(job.id, 'mission_approved');
 
       window.dispatchEvent(
-        new CustomEvent('cleanegypt:mission-completed', { detail: { missionId: job.id } })
+        new CustomEvent(APP_EVENT_MISSION_COMPLETED, { detail: { missionId: job.id } })
       );
 
       await fetchProfileData();
@@ -2601,7 +2607,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             {t('refundPolicy')}
           </a>
           <a
-            href="mailto:support@cleanegypt.co"
+            href={`mailto:${APP_SUPPORT_EMAIL}`}
             className="hover:text-orange-400 transition-colors"
           >
             {t('contactSupport')}
@@ -2637,7 +2643,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       {showTerms && (
         <LegalModal
           title="Terms of Service"
-          body="CleanEgypt.co operates strictly as a software-as-a-service (SaaS) digital marketplace. We provide a platform connecting end-users who request services with independent local contractors (Cleaners). We are not a charity. Access to marketplace actions is token-based. All Cleaners act as independent entities."
+          body="Garbagin operates strictly as a software-as-a-service (SaaS) digital marketplace. We provide a platform connecting end-users who request services with independent local contractors (Cleaners). We are not a charity. Access to marketplace actions is token-based. All Cleaners act as independent entities."
           onClose={() => setShowTerms(false)}
         />
       )}

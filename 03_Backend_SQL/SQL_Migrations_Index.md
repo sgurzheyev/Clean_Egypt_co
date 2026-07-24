@@ -5,7 +5,7 @@ aliases: [Database Migrations MOC, SQL Migrations Index]
 
 # 🗄️ Database Migrations MOC
 
-> Central index of all Supabase SQL migrations for **CleanEgypt.Co**.  
+> Central index of all Supabase SQL migrations for **Garbagin.Co**.  
 > Product goals: [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] · Vault hub: [[🗺️ GARBAGIN Master Index]]
 
 This Map of Content (MOC) clusters every migration file into one Obsidian graph hub so the vault graph stays readable. Each row links the `.sql` note and summarizes what that change did in plain English.

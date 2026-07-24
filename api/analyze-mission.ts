@@ -67,7 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const mission_description = (mission.description || '') as string;
 
     const systemPrompt =
-      `You are the ultimate 'God-Mode' AI Auditor for CleanEgypt.co, a marketplace for cleaning tasks. ` +
+      `You are the ultimate 'God-Mode' AI Auditor for Garbagin, a marketplace for cleaning tasks. ` +
       `You evaluate tasks based on Before/After photos and the customer's text description.\n\n` +
       `MISSION CONTEXT:\n` +
       `Title: "${mission_title}"\n` +

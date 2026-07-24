@@ -17,7 +17,7 @@ try {
   });
   const messaging = firebase.messaging();
   messaging.onBackgroundMessage((payload) => {
-    const title = payload?.notification?.title || payload?.data?.title || 'CleanEgypt';
+    const title = payload?.notification?.title || payload?.data?.title || 'Garbagin';
     const body =
       payload?.notification?.body ||
       payload?.data?.message ||

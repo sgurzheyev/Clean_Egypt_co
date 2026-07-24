@@ -40,8 +40,8 @@ export function buildCityNotificationSummary(
   const isExpired = event.event_type === 'crowdfunding_expired';
   const lines = [
     isExpired
-      ? 'CleanEgypt.co — Official Escalation Request to Municipality'
-      : 'CleanEgypt.co — Crowdfunding Success / Completion Report',
+      ? 'Garbagin — Official Escalation Request to Municipality'
+      : 'Garbagin — Crowdfunding Success / Completion Report',
     '============================================',
     `Mission ID: ${event.mission_id}`,
     `Event type: ${event.event_type}`,

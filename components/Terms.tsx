@@ -6,7 +6,7 @@ const Terms: React.FC = () => {
     <div className="min-h-screen w-full bg-slate-950 text-white">
       <div className="mx-auto max-w-4xl px-6 py-10">
         <header className="mb-8 flex items-center justify-between gap-4">
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">CleanEgypt.co Terms of Service</h1>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Garbagin Terms of Service</h1>
           <Link
             to="/"
             className="shrink-0 rounded-full border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-cyan-300 hover:bg-cyan-500/20 transition-all"
@@ -19,8 +19,8 @@ const Terms: React.FC = () => {
           <section>
             <h2 className="mb-2 text-lg font-bold text-cyan-300">1. Platform Purpose</h2>
             <p className="text-slate-300 leading-relaxed">
-              CleanEgypt.co is a marketplace that connects clients and workers for cleaning missions across
-              Egypt. By using the platform, you agree to follow these terms and all applicable laws.
+              Garbagin is a marketplace that connects clients and workers for cleaning missions worldwide.
+              By using the platform, you agree to follow these terms and all applicable laws.
             </p>
           </section>
 
@@ -53,7 +53,7 @@ const Terms: React.FC = () => {
           <section>
             <h2 className="mb-2 text-lg font-bold text-cyan-300">5. Liability and Changes</h2>
             <p className="text-slate-300 leading-relaxed">
-              CleanEgypt.co provides the service on an as-available basis. We may update features, fees,
+              Garbagin provides the service on an as-available basis. We may update features, fees,
               or policies over time. Continued use after updates means you accept the revised terms.
             </p>
           </section>

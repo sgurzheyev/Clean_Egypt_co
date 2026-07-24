@@ -4,7 +4,7 @@ type: roadmap
 status: active
 target: Google Play Store launch
 updated: 2026-07-22
-tags: [cleanegypt, roadmap, google-play, crowdfunding, tokens, ar, p2p]
+tags: [garbagin, roadmap, google-play, crowdfunding, tokens, ar, p2p]
 ---
 
 # 🚀 Roadmap to Google Play
@@ -22,14 +22,14 @@ tags: [cleanegypt, roadmap, google-play, crowdfunding, tokens, ar, p2p]
 - P2P deals → [[01_Architecture/P2P_Deal_Flow]]
 - Security & RPCs → [[01_Architecture/Security_and_RPCs]]
 - KYC → [[01_Architecture/KYC_Verification]]
-- Prior status note → [[05_Archive/CleanEgypt_Roadmap_Update]]
+- Prior status note → [[05_Archive/Garbagin_Roadmap_Update]]
 - Project rules → [[.cursorrules]]
 
 ---
 
 ## North Star
 
-**CleanEgypt.co** is a cyberpunk marketplace terminal for garbage cleaning and municipal tasks in Egypt.
+**Garbagin** is a cyberpunk marketplace terminal for garbage cleaning and municipal tasks in Egypt.
 
 | Pillar | Rule |
 | --- | --- |

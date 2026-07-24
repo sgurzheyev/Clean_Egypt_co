@@ -29,12 +29,12 @@
  * B) Web Push (VAPID) — browser Push API without FCM
  *   VAPID_PUBLIC_KEY
  *   VAPID_PRIVATE_KEY
- *   VAPID_SUBJECT                — mailto:you@cleanegypt.co or https://…
+ *   VAPID_SUBJECT                — mailto:you@garbagin.com or https://…
  *
  * Optional:
  *   PUSH_WEBHOOK_SECRET          — must match private.app_config
  *                                  `send_push_notification_webhook_secret`
- *   APP_DEEP_LINK_BASE           — e.g. https://cleanegypt.co (mission deep links)
+ *   APP_DEEP_LINK_BASE           — e.g. https://garbagin.com (mission deep links)
  *
  * Client env (Vite) for registration — see src/services/pushNotifications.ts:
  *   VITE_FIREBASE_API_KEY / VITE_FIREBASE_AUTH_DOMAIN / VITE_FIREBASE_PROJECT_ID
@@ -237,13 +237,13 @@ Deno.serve(async (req) => {
   const title =
     str(payload.title) ||
     str(payload.type) ||
-    'CleanEgypt';
+    'Garbagin';
   const message =
     str(payload.message) ||
     str(payload.title) ||
     'You have a new notification';
 
-  const deepBase = str(Deno.env.get('APP_DEEP_LINK_BASE'), 'https://cleanegypt.co');
+  const deepBase = str(Deno.env.get('APP_DEEP_LINK_BASE'), 'https://garbagin.com');
   const missionId = str(payload.mission_id);
   const clickAction = missionId
     ? `${deepBase.replace(/\/$/, '')}/?mission=${encodeURIComponent(missionId)}`

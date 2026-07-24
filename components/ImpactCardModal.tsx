@@ -82,7 +82,7 @@ const ImpactCardModal: React.FC<Props> = ({
       const dataUrl = await renderPng();
       const a = document.createElement('a');
       a.href = dataUrl;
-      a.download = `CleanEgypt-Impact-${mission.id.slice(0, 8)}.png`;
+      a.download = `Garbagin-Impact-${mission.id.slice(0, 8)}.png`;
       a.click();
     } catch (err: any) {
       console.warn('[ImpactCard] download failed', err);
@@ -101,11 +101,11 @@ const ImpactCardModal: React.FC<Props> = ({
     setError(null);
     try {
       const dataUrl = await renderPng();
-      const file = fileFromDataUrl(dataUrl, `CleanEgypt-Impact-${mission.id.slice(0, 8)}.png`);
+      const file = fileFromDataUrl(dataUrl, `Garbagin-Impact-${mission.id.slice(0, 8)}.png`);
       const shareData: ShareData = {
-        title: 'CleanEgypt Impact',
+        title: 'Garbagin Impact',
         text: t('impactCardShareText', {
-          defaultValue: 'I made this city cleaner on CleanEgypt.co — join me!',
+          defaultValue: 'I made this city cleaner on Garbagin — join me!',
         }),
         files: [file],
       };
@@ -118,7 +118,7 @@ const ImpactCardModal: React.FC<Props> = ({
         try {
           await navigator.share({
             title: shareData.title,
-            text: `${shareData.text}\nhttps://www.cleanegypt.co`,
+            text: `${shareData.text}\nhttps://garbagin.com`,
           });
           return;
         } catch (shareErr: any) {
@@ -128,7 +128,7 @@ const ImpactCardModal: React.FC<Props> = ({
 
       const a = document.createElement('a');
       a.href = dataUrl;
-      a.download = `CleanEgypt-Impact-${mission.id.slice(0, 8)}.png`;
+      a.download = `Garbagin-Impact-${mission.id.slice(0, 8)}.png`;
       a.click();
     } catch (err: any) {
       if (err?.name === 'AbortError') return;
@@ -229,7 +229,7 @@ const ImpactCardModal: React.FC<Props> = ({
             <div className="relative z-10 flex items-start justify-between gap-2 p-4 pt-5">
               <div>
                 <p className="text-sm font-black tracking-[0.08em] text-white drop-shadow-[0_0_12px_rgba(34,211,238,0.45)]">
-                  CleanEgypt<span className="text-cyan-300">.co</span>
+                  Garbagin
                 </p>
                 <span className="mt-2 inline-flex rounded-full border border-cyan-400/50 bg-cyan-500/20 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,0.35)] backdrop-blur-sm">
                   {t('impactCardBadge', { defaultValue: 'Mission Completed' })}
@@ -255,12 +255,12 @@ const ImpactCardModal: React.FC<Props> = ({
               )}
               <p className="text-[15px] font-black leading-tight tracking-tight text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.65)]">
                 {t('impactCardHeadline', {
-                  defaultValue: 'I made this city cleaner! Become a hero too on CleanEgypt.co',
+                  defaultValue: 'I made this city cleaner! Become a hero too on Garbagin',
                 })}
               </p>
               <div className="rounded-2xl border border-cyan-400/35 bg-black/55 px-3 py-2.5 text-center backdrop-blur-md">
                 <p className="text-[11px] font-black uppercase tracking-[0.28em] text-cyan-200">
-                  WWW.CLEANEGYPT.CO
+                  GARBAGIN.COM
                 </p>
               </div>
             </div>

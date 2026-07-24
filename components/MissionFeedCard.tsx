@@ -123,7 +123,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
                 </span>
               ) : (
                 <span className="text-[10px] font-black uppercase tracking-[0.28em] text-white/35">
-                  CleanEgypt
+                  Garbagin
                 </span>
               )}
             </div>

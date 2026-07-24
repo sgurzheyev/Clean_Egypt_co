@@ -136,6 +136,11 @@ import {
   formatPinLocationTag,
   reverseGeocodePinLocation,
 } from '../src/lib/mapboxReverseGeocode';
+import {
+  APP_EVENT_MISSION_COMPLETED,
+  APP_EVENT_MISSION_DELETED,
+  getAppOrigin,
+} from '../src/lib/brand';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const PROOF_IMAGE_COMPRESSION = {
@@ -2354,8 +2359,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
       void fetchMissions();
     };
-    window.addEventListener('cleanegypt:mission-completed', onMissionCompleted);
-    return () => window.removeEventListener('cleanegypt:mission-completed', onMissionCompleted);
+    window.addEventListener(APP_EVENT_MISSION_COMPLETED, onMissionCompleted);
+    return () => window.removeEventListener(APP_EVENT_MISSION_COMPLETED, onMissionCompleted);
   }, [fetchMissions]);
 
   useEffect(() => {
@@ -2371,8 +2376,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
       void fetchMissions();
     };
-    window.addEventListener('cleanegypt:mission-deleted', onMissionDeleted);
-    return () => window.removeEventListener('cleanegypt:mission-deleted', onMissionDeleted);
+    window.addEventListener(APP_EVENT_MISSION_DELETED, onMissionDeleted);
+    return () => window.removeEventListener(APP_EVENT_MISSION_DELETED, onMissionDeleted);
   }, [fetchMissions]);
 
   useEffect(() => {
@@ -3343,7 +3348,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           onRequestAuth?.();
           return;
         }
-        const returnUrl = `${window.location.origin}${window.location.pathname}`;
+        const returnUrl = `${getAppOrigin()}${window.location.pathname || '/'}`;
         const { url } = await startContributionCheckout({
           missionId: selectedMission.id,
           amountUsd,

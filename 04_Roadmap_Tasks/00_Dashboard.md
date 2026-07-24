@@ -1,4 +1,4 @@
-# 🚀 CleanEgypt Dashboard
+# 🚀 Garbagin Dashboard
 
 > Vault hub: [[🗺️ GARBAGIN Master Index]]
 

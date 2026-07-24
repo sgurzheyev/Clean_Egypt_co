@@ -1,11 +1,11 @@
 ---
-tags: [moc, hub, garbagin, cleanegypt]
+tags: [moc, hub, garbagin]
 aliases: [GARBAGIN Master Index, Vault Hub, Map of Content]
 ---
 
 # 🗺️ GARBAGIN Master Index
 
-> **Central gravitational hub** for the CleanEgypt / GARBAGIN vault.  
+> **Central gravitational hub** for the Garbagin / GARBAGIN vault.  
 > Open **Graph View**, filter to this note, and expand neighbors — notes + source files should form one star cluster, not floating islands.
 
 Every major note below links back here. Source paths are wiki-linked so they appear as graph nodes attached to this hub.
@@ -21,7 +21,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 | Backend / SQL | [[03_Backend_SQL/SQL_Migrations_Index]] |
 | Edge & API | [[03_Backend_SQL/Backend_Edge_and_API]] |
 | Roadmap | [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] |
-| Archive | [[05_Archive/CleanEgypt_Roadmap_Update]] |
+| Archive | [[05_Archive/Garbagin_Roadmap_Update]] |
 | Field dashboard | [[04_Roadmap_Tasks/00_Dashboard]] |
 
 ---
@@ -242,7 +242,7 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 
 - [[04_Roadmap_Tasks/00_Dashboard]] — field / active-dev checklist
 - [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] — product roadmap to store release
-- [[05_Archive/CleanEgypt_Roadmap_Update]] — superseded status report
+- [[05_Archive/Garbagin_Roadmap_Update]] — superseded status report
 - [[.cursorrules]] — product + UI rules of engagement
 
 ### Feature → note shortcuts

@@ -1,9 +1,9 @@
-# CleanEgypt.co — Project Rules & Architecture Context
+# Garbagin — Project Rules & Architecture Context
 
 You are an expert Senior Full-Stack Engineer and UI/UX Designer specializing in Cyberpunk/Cyber-neon aesthetics, React, Supabase, Mapbox, and Realtime distributed architectures.
 
 ## 1. Core Business Model, Token Economy & Privacy
-- CleanEgypt.co is a decentralized marketplace/SaaS terminal for municipal cleaning and garbage removal.
+- Garbagin (garbagin.com) is a decentralized marketplace/SaaS terminal for municipal cleaning and garbage removal.
 - NO INTERNAL FIAT ESCROW PAYMENTS: Direct P2P negotiation and settlement for standard tasks.
 - TOKEN ECONOMY: Tokens are the platform currency. Every user starts with a balance (e.g., 50 tokens). Placing a bid on any mission costs exactly 1 Token. 
 - THE "HUNGRY-GAMES" ANTI-SPAM & PRIVACY LOCK: Mission Creator contact details (Phone / WhatsApp) MUST REMAIN STRICTLY LOCKED/HIDDEN on both the mission card and their Public Profile. Contacts are automatically unlocked for a worker ONLY after the Creator explicitly accepts their bid (or when assigned as `cleaner_id`).

@@ -99,7 +99,7 @@ export const MAX_PHOTOS = 10;
 
 export const translations: Record<string, Record<string, string>> = {
   en: {
-    'app_title': 'CleanEgypt.co',
+    'app_title': 'Garbagin',
     'lang_switcher': 'عربي',
     'clean_my_home': 'Clean My Home',
     'clean_my_city': 'Clean My City',
@@ -120,7 +120,7 @@ export const translations: Record<string, Record<string, string>> = {
     'anti_cheat_desc': 'We use GPS verification and AI-powered "Before/After" photo analysis to ensure all jobs are completed perfectly.',
   },
   ar: {
-    'app_title': 'كلين إيجيبت',
+    'app_title': 'جارباجين',
     'lang_switcher': 'English',
     'clean_my_home': 'نظف بيتي',
     'clean_my_city': 'نظف مدينتي',

@@ -92,8 +92,8 @@ async function buildPdfBytes(opts: {
     ? 'Official Escalation Request to Municipality'
     : 'Crowdfunding Success / Completion Report';
   const subtitle = isExpired
-    ? 'CleanEgypt.co — Municipal Intervention Request'
-    : 'CleanEgypt.co — Cleanup Completion Certificate';
+    ? 'Garbagin — Municipal Intervention Request'
+    : 'Garbagin — Cleanup Completion Certificate';
 
   const lat = num(payload.location_lat ?? mission?.location_lat, NaN);
   const lng = num(payload.location_lng ?? mission?.location_lng, NaN);
@@ -133,7 +133,7 @@ async function buildPdfBytes(opts: {
     height: 42,
     color: isExpired ? rgb(0.72, 0.18, 0.18) : rgb(0.05, 0.55, 0.42),
   });
-  page.drawText('CleanEgypt.co', {
+  page.drawText('Garbagin', {
     x: margin,
     y: 814,
     size: 14,
@@ -183,7 +183,7 @@ async function buildPdfBytes(opts: {
     draw('Escalation statement', 12, true, rgb(0.55, 0.1, 0.1));
     for (const line of wrapLines(
       'Crowdfunding did not reach the target within the campaign window. ' +
-        'Contributed funds are retained by CleanEgypt.co as a processing fee per platform policy ' +
+        'Contributed funds are retained by Garbagin as a processing fee per platform policy ' +
         '(no card refunds). This document is an official request for municipal / city public-works ' +
         'review and possible intervention at the stated coordinates.',
       82
@@ -203,7 +203,7 @@ async function buildPdfBytes(opts: {
   }
 
   y = Math.min(y, 90);
-  page.drawText('Generated automatically by CleanEgypt.co city-notification-pipeline', {
+  page.drawText('Generated automatically by Garbagin city-notification-pipeline', {
     x: margin,
     y: 48,
     size: 8,
@@ -275,9 +275,9 @@ async function sendAdminEmailStub(opts: {
   pdfBytes: Uint8Array;
   pdfUrl: string | null;
 }): Promise<'sent' | 'stubbed' | 'skipped'> {
-  const adminEmail = Deno.env.get('ADMIN_EMAIL') || Deno.env.get('CLEANEGYPT_ADMIN_EMAIL');
+  const adminEmail = Deno.env.get('ADMIN_EMAIL') || Deno.env.get('GARBAGIN_ADMIN_EMAIL');
   const resendKey = Deno.env.get('RESEND_API_KEY');
-  const from = Deno.env.get('RESEND_FROM_EMAIL') || 'CleanEgypt <noreply@cleanegypt.co>';
+  const from = Deno.env.get('RESEND_FROM_EMAIL') || 'Garbagin <noreply@garbagin.com>';
 
   if (!adminEmail) {
     console.info('[city-notification-pipeline] ADMIN_EMAIL not set; email skipped', {
@@ -433,7 +433,7 @@ Deno.serve(async (req) => {
     .update({ pdf_status: 'generated', last_error: null })
     .eq('id', row.id);
 
-  const filename = `CleanEgypt_${eventType}_${row.mission_id.slice(0, 8)}.pdf`;
+  const filename = `Garbagin_${eventType}_${row.mission_id.slice(0, 8)}.pdf`;
   const pdfUrl = await uploadPdf(supabase, row.id, row.mission_id, pdfBytes);
 
   if (pdfUrl) {
@@ -452,8 +452,8 @@ Deno.serve(async (req) => {
   const emailStatus = await sendAdminEmailStub({
     subject:
       eventType === 'crowdfunding_expired'
-        ? `[CleanEgypt] Municipal escalation — ${row.mission_id.slice(0, 8)}`
-        : `[CleanEgypt] Completion report — ${row.mission_id.slice(0, 8)}`,
+        ? `[Garbagin] Municipal escalation — ${row.mission_id.slice(0, 8)}`
+        : `[Garbagin] Completion report — ${row.mission_id.slice(0, 8)}`,
     text: `${caption}\n\nEvent: ${row.id}\nType: ${eventType}`,
     pdfFilename: filename,
     pdfBytes,

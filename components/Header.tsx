@@ -27,7 +27,7 @@ const Header: React.FC<HeaderProps> = ({
           </div>
           <div className="text-left min-w-0">
             <h1 className="text-sm sm:text-lg font-black italic tracking-tighter text-white uppercase leading-none truncate">
-              Clean<span className="text-[#39FF14]">Egypt</span>
+              Garbagin
             </h1>
           </div>
         </div>

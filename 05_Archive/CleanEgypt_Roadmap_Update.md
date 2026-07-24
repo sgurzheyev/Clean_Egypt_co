@@ -1,12 +1,12 @@
 ---
-title: CleanEgypt.co — Status Report & Roadmap
+title: Garbagin — Status Report & Roadmap
 type: status-report
 status: active
 updated: 2026-07-21
-tags: [cleanegypt, roadmap, status, architecture]
+tags: [garbagin, roadmap, status, architecture]
 ---
 
-# 🚀 CleanEgypt.co — Status Report & Roadmap
+# 🚀 Garbagin — Status Report & Roadmap
 
 > Generated from git history (`91d5d4c … 85b0a98`) and a scan of the current codebase.
 > Archived status note — superseded by [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]].  
@@ -16,7 +16,7 @@ tags: [cleanegypt, roadmap, status, architecture]
 
 ## 1. Executive Summary
 
-The last development cycle moved CleanEgypt.co from a legacy escrow/payout mindset to a **lean, non-refundable contribution model** with a **premium, decluttered mobile UI**.
+The last development cycle moved Garbagin from a legacy escrow/payout mindset to a **lean, non-refundable contribution model** with a **premium, decluttered mobile UI**.
 
 - **Finance model pivot.** Legacy fiat payout/withdrawal RPCs were removed in favour of a **crowdfunding contribution flow** (Stripe Checkout) plus a **token economy** for posting/boosting. Listing rank is now driven by **token-boost** (`amount_target`), not recency.
 - **USD-only economy.** The currency layer was normalized to **USD**, dropping the legacy `contributions.amount_egp` column that was blocking Stripe inserts.

@@ -28,7 +28,7 @@ function languageName(code: string): string {
 function buildPrompt(lang: string): string {
   const language = languageName(lang);
   return [
-    'You are a strict image safety filter for CleanEgypt.co.',
+    'You are a strict image safety filter for Garbagin.',
     'Approve ANY image that is Safe-For-Work.',
     'Do NOT judge whether the photo matches a cleaning/service context — relevance is not your job.',
     '',

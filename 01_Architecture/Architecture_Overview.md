@@ -1,6 +1,6 @@
-# CleanEgypt.co — Architecture Overview
+# Garbagin — Architecture Overview
 
-> Vault hub for the CleanEgypt marketplace. Master index: [[🗺️ GARBAGIN Master Index]]. Use Obsidian Graph View to navigate linked notes and source files.
+> Vault hub for the Garbagin marketplace. Master index: [[🗺️ GARBAGIN Master Index]]. Use Obsidian Graph View to navigate linked notes and source files.
 
 ## Feature notes (keep the graph dense)
 
