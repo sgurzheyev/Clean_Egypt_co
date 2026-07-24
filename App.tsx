@@ -113,7 +113,7 @@ const App: React.FC = () => {
         </Suspense>
       )}
 
-      {/* Profile as sliding overlay */}
+      {/* Profile floating glass card */}
       <Profile
         isOpen={showProfileOverlay}
         onClose={handleCloseProfile}

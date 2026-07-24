@@ -92,13 +92,24 @@
   }
 }
 
+/* Slow elegant rainbow for the floating Profile card */
+@keyframes gemini-spin-slow {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
 /* Shared shell: clip the spinning gradient to the element’s own radius */
 .animated-border,
 .animated-border-city,
 .animated-border-home,
 .animated-border-inprogress,
 .animated-border-completed,
-.animated-border-rainbow {
+.animated-border-rainbow,
+.animated-border-profile {
   position: relative;
   padding: var(--animated-border-width);
   overflow: hidden;
@@ -126,7 +137,8 @@
 .animated-border-home::before,
 .animated-border-inprogress::before,
 .animated-border-completed::before,
-.animated-border-rainbow::before {
+.animated-border-rainbow::before,
+.animated-border-profile::before {
   content: '';
   position: absolute;
   left: 50%;
@@ -154,6 +166,20 @@
     #d96570,
     #fbbc04,
     #4285f4
+  );
+}
+
+.animated-border-profile::before {
+  animation: gemini-spin-slow 22s linear infinite;
+  opacity: 0.72;
+  background: conic-gradient(
+    from 0deg,
+    #7dd3fc,
+    #a78bfa,
+    #f9a8d4,
+    #fcd34d,
+    #6ee7b7,
+    #7dd3fc
   );
 }
 
@@ -210,7 +236,7 @@
   border-radius: 1.5rem !important;
 }
 
-/* Drawer variant (profile sidebar — rounded left edge only) */
+/* Drawer variant (legacy — keep for any remaining edge panels) */
 .animated-border-drawer {
   border-radius: 1.5rem 0 0 1.5rem !important;
   overflow: hidden !important;
@@ -219,6 +245,27 @@
 .animated-border-drawer .animated-border-inner {
   border-radius: calc(1.5rem - var(--animated-border-width)) 0 0
     calc(1.5rem - var(--animated-border-width));
+}
+
+/* Floating Profile card — rounded rect + frosted silver fill */
+.animated-border-profile {
+  border-radius: 1.5rem !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 28px 64px rgba(0, 0, 0, 0.5);
+}
+
+.animated-border-profile .animated-border-inner {
+  border-radius: calc(1.5rem - var(--animated-border-width));
+  background: linear-gradient(
+    135deg,
+    rgba(50, 50, 55, 0.7) 0%,
+    rgba(40, 40, 45, 0.8) 100%
+  );
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  align-items: stretch;
+  justify-content: flex-start;
 }
 
 /* Pill helpers when host also has rounded-full */

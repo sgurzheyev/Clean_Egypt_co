@@ -31,9 +31,9 @@ export const ADMIN_FORCE_RELEASE_PAYMENT_BTN =
   'disabled:opacity-70 disabled:cursor-not-allowed ' +
   'inline-flex items-center justify-center gap-1.5';
 
-/** Profile / Telegram WebView — glass panels (single source of truth) */
+/** Profile / Telegram WebView — frosted silver glass panels */
 export const PROFILE_GLASS_PANEL =
-  'backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl';
+  'rounded-2xl border border-white/12 backdrop-blur-[16px] [-webkit-backdrop-filter:blur(16px)] bg-[linear-gradient(135deg,rgba(50,50,55,0.55)_0%,rgba(40,40,45,0.65)_100%)]';
 
 /**
  * Floating map filter / bottom-sheet chrome — translucent steel glassmorphism.

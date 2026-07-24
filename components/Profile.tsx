@@ -1,8 +1,9 @@
 /**
  * [[Architecture_Overview.md]]
- * Profile sidebar — wallet/tokens, missions, accordions, Top Up.
+ * Profile floating glass card — wallet/tokens, missions, accordions, Top Up.
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { supabase } from '../services/supabase';
 import { Pencil, Target, Globe, Building2, Clock, Info, Lock, Coins } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
@@ -1405,8 +1406,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     }
   };
 
-  if (!isOpen) return null;
-
   const LegalModal = ({
     title,
     body,
@@ -1453,25 +1452,44 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex justify-end pt-[env(safe-area-inset-top)] isolate max-w-[100vw] overflow-x-hidden"
+    <AnimatePresence>
+      {isOpen && (
+    <motion.div
+      key="profile-overlay"
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 isolate max-w-[100vw] overflow-hidden"
       aria-modal="true"
       role="dialog"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
     >
-      {/* Backdrop — above Mapbox canvas; blur reads the map behind */}
-      <div
-        className="absolute inset-0 z-0 bg-black/60 backdrop-blur-md"
+      {/* Backdrop — dims map behind the floating card */}
+      <motion.div
+        className="absolute inset-0 z-0 bg-black/65 backdrop-blur-[2px]"
         onClick={onClose}
         aria-hidden="true"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.25 }}
       />
-      {/* Sliding drawer — Gemini-style animated border on outer edge */}
-      <div
-        className="relative z-10 w-full min-w-0 max-w-[min(100vw,32rem)] h-[calc(100dvh-env(safe-area-inset-top))] max-h-[calc(100dvh-env(safe-area-inset-top))] flex flex-col animate-slide-in-right animated-border animated-border-drawer overflow-hidden min-h-0"
+      {/* Floating frosted card — blooms from the bottom-center Profile FAB */}
+      <motion.div
+        className="relative z-10 flex h-full w-full min-w-0 max-w-lg min-h-0 flex-col overflow-hidden animated-border animated-border-profile"
+        style={{
+          maxHeight: 'calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+          transformOrigin: 'bottom center',
+        }}
         onClick={(e) => e.stopPropagation()}
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.8 }}
+        transition={{ type: 'spring', damping: 26, stiffness: 320, mass: 0.85 }}
       >
-        <div className="animated-border-inner w-full min-h-0 flex-1 flex flex-col max-w-full overflow-x-hidden bg-gradient-to-b from-slate-950 via-[#020617] to-slate-950">
-          {/* Header — sticky per .cursorrules; stays visible while content scrolls */}
-          <div className="flex-shrink-0 sticky top-0 z-50 flex items-center justify-between px-5 pb-4 pt-[env(safe-area-inset-top)] bg-slate-950/90 backdrop-blur-xl border-b border-gray-800 shadow-lg shadow-black/40">
+        <div className="animated-border-inner flex h-full min-h-0 w-full max-w-full flex-1 flex-col overflow-x-hidden">
+          {/* Header — sticky; frosted so content can scroll under */}
+          <div className="sticky top-0 z-50 flex flex-shrink-0 items-center justify-between border-b border-white/10 bg-[linear-gradient(135deg,rgba(50,50,55,0.82)_0%,rgba(40,40,45,0.9)_100%)] px-5 pb-4 pt-4 backdrop-blur-xl shadow-lg shadow-black/30">
             <button
               type="button"
               onClick={onClose}
@@ -2595,22 +2613,26 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           </div>
         </div>
         </div>
-        </div>
+      </motion.div>
 
       {/* Portal — floating back to map; layered above map and form content */}
-      <button
+      <motion.button
         type="button"
         onClick={onClose}
         className="pointer-events-auto fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-1/2 z-[400] flex h-[3.75rem] w-[3.75rem] -translate-x-1/2 items-center justify-center rounded-full border border-orange-400/45 bg-white/10 shadow-[0_0_28px_rgba(249,115,22,0.75),0_0_56px_rgba(234,88,12,0.35)] backdrop-blur-md transition-all hover:bg-white/15 active:scale-95"
         aria-label={t('closeBackToMap')}
         title={t('closeBackToMap')}
+        initial={{ opacity: 0, scale: 0.85 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.85 }}
+        transition={{ duration: 0.2 }}
       >
         <span
           className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-orange-500/30 via-transparent to-amber-400/25 blur-md"
           aria-hidden
         />
         <Target className="relative h-7 w-7 text-orange-100/95 drop-shadow-[0_0_12px_rgba(251,146,60,0.85)]" aria-hidden />
-      </button>
+      </motion.button>
 
       {showTerms && (
         <LegalModal
@@ -2850,7 +2872,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           }}
         />
       )}
-    </div>
+    </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 
