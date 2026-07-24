@@ -2604,6 +2604,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setSelectedRating(0);
   }, []);
 
+  const handleMissionDetailsUpdated = useCallback(
+    (patch: { id: string; description: string | null; photo_urls: string[] | null }) => {
+      setSelectedMission((prev) =>
+        prev && prev.id === patch.id
+          ? { ...prev, description: patch.description, photo_urls: patch.photo_urls }
+          : prev
+      );
+      setJobs((prev) => {
+        const next = (prev || []).map((job) =>
+          job.id === patch.id
+            ? { ...job, description: patch.description, photo_urls: patch.photo_urls }
+            : job
+        );
+        jobsRef.current = next;
+        return next;
+      });
+      toast.success(t('missionUpdatedSuccess'));
+    },
+    [t, toast]
+  );
+
   const handleAdminDeleteMission = useCallback(async () => {
     if (!isPlatformAdminViewer || !selectedMission) return;
     if (!window.confirm(t('adminDeleteMissionConfirm'))) return;
@@ -4614,6 +4635,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           }
           autoOpenChatWithUserId={pendingNotifChatUserId}
           onAutoOpenChatConsumed={() => setPendingNotifChatUserId(null)}
+          onMissionUpdated={handleMissionDetailsUpdated}
         />
       )}
 

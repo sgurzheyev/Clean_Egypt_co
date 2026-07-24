@@ -2,8 +2,8 @@
  * [[Architecture_Overview.md]]
  * Mission detail panel — bids, crowdfunding progress + Stripe contribute.
  */
-import React, { useEffect, useMemo, useState } from 'react';
-import { MapPin, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Camera, MapPin, Pencil, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import TranslatableMissionDescription from './TranslatableMissionDescription';
 import { useMissionTextTranslation } from '../src/hooks/useMissionTextTranslation';
@@ -11,7 +11,10 @@ import {
   missionFeedPlaceholderGradient,
   type MissionFeedPlaceholderVariant,
 } from '../src/lib/missionFeedVisuals';
-import { extractMissionFeedDescription } from '../src/lib/missionDescription';
+import {
+  extractMissionFeedDescription,
+  MISSION_SHORT_DESCRIPTION_MAX,
+} from '../src/lib/missionDescription';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
@@ -30,6 +33,11 @@ import {
   toWhatsAppHref,
 } from '../src/lib/missionContact';
 import { sanitizeIntegerUsdDigits, parseIntegerUsdFromInput } from '../src/lib/integerUsdInput';
+import {
+  isMissionEditableStatus,
+  MAX_MISSION_PHOTOS,
+  updateMissionDetails,
+} from '../src/lib/updateMissionDetails';
 import MissionChatPanel from '../src/components/chat/MissionChatPanel';
 
 export type AssignedWorkerProfile = {
@@ -110,6 +118,12 @@ export type MissionBriefingProps = {
   /** Open P2P chat with this user when the briefing mounts (e.g. from notification). */
   autoOpenChatWithUserId?: string | null;
   onAutoOpenChatConsumed?: () => void;
+  /** After creator edits description / appends photos. */
+  onMissionUpdated?: (patch: {
+    id: string;
+    description: string | null;
+    photo_urls: string[] | null;
+  }) => void;
 };
 
 function missionLocationLine(
@@ -194,6 +208,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   onCreatorClick,
   autoOpenChatWithUserId = null,
   onAutoOpenChatConsumed,
+  onMissionUpdated,
 }) => {
   const { t } = useTranslation();
   const creatorInitial = (creatorName || '?').trim().charAt(0).toUpperCase() || '?';
@@ -202,10 +217,23 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
     id: string;
     name?: string | null;
   } | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editBody, setEditBody] = useState('');
+  const [editFiles, setEditFiles] = useState<File[]>([]);
+  const [editPreviews, setEditPreviews] = useState<string[]>([]);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
   const photos = mission.photo_urls?.filter(Boolean) ?? [];
   const placeholderVariant = placeholderVariantFor(mission);
   const placeholderIcon = missionPinIcon(mission.service_type, mission.category);
   const feedDescription = extractMissionFeedDescription(mission.description);
+  const canEditMission =
+    isMissionCreator &&
+    !!currentUserId &&
+    currentUserId === mission.creator_id &&
+    isMissionEditableStatus(mission.status);
+  const photoSlotsLeft = Math.max(0, MAX_MISSION_PHOTOS - photos.length - editFiles.length);
   const locationSource = missionLocationLine(mission, t);
   const locationTranslation = useMissionTextTranslation(locationSource);
   const budgetValue = formatWorkBudgetUsd(missionWorkBudgetUsd(mission));
@@ -271,6 +299,64 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
       id: mission.creator_id,
       name: creatorName,
     });
+  };
+
+  const closeEditModal = () => {
+    editPreviews.forEach((url) => URL.revokeObjectURL(url));
+    setEditOpen(false);
+    setEditBody('');
+    setEditFiles([]);
+    setEditPreviews([]);
+    setEditError(null);
+    setEditSubmitting(false);
+  };
+
+  const openEditModal = () => {
+    editPreviews.forEach((url) => URL.revokeObjectURL(url));
+    setEditBody(feedDescription || '');
+    setEditFiles([]);
+    setEditPreviews([]);
+    setEditError(null);
+    setEditOpen(true);
+  };
+
+  const onPickEditPhotos = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const incoming = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
+    const room = Math.max(0, MAX_MISSION_PHOTOS - photos.length - editFiles.length);
+    const nextFiles = [...editFiles, ...incoming.slice(0, room)];
+    editPreviews.forEach((url) => URL.revokeObjectURL(url));
+    setEditFiles(nextFiles);
+    setEditPreviews(nextFiles.map((f) => URL.createObjectURL(f)));
+    setEditError(null);
+  };
+
+  const saveMissionEdits = async () => {
+    if (editSubmitting) return;
+    setEditSubmitting(true);
+    setEditError(null);
+    try {
+      const result = await updateMissionDetails({
+        missionId: mission.id,
+        currentDescription: mission.description,
+        currentPhotoUrls: mission.photo_urls,
+        nextBodyText: editBody,
+        newPhotoFiles: editFiles,
+      });
+      onMissionUpdated?.({
+        id: mission.id,
+        description: result.description,
+        photo_urls: result.photo_urls,
+      });
+      closeEditModal();
+    } catch (err: any) {
+      setEditError(
+        err?.message ||
+          t('missionUpdateFailed', { defaultValue: 'Could not update mission.' })
+      );
+    } finally {
+      setEditSubmitting(false);
+    }
   };
 
   const workerChatButton = canWorkerChat ? (
@@ -605,6 +691,16 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                         {t('activeBidsOnMission')}
                       </span>
                     )}
+                    {canEditMission && (
+                      <button
+                        type="button"
+                        onClick={openEditModal}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/35 bg-black/50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.18)] backdrop-blur-md transition-transform hover:border-cyan-300/55 hover:bg-black/65 active:scale-95"
+                      >
+                        <Pencil className="h-3 w-3" strokeWidth={2.5} aria-hidden />
+                        {t('edit')}
+                      </button>
+                    )}
                   </div>
 
                   {feedDescription && (
@@ -617,6 +713,18 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                         className="text-sm font-medium leading-relaxed text-slate-100 drop-shadow-[0_1px_8px_rgba(0,0,0,0.65)]"
                       />
                     </section>
+                  )}
+
+                  {canEditMission && !feedDescription && (
+                    <button
+                      type="button"
+                      onClick={openEditModal}
+                      className="text-left text-xs font-medium text-cyan-300/90 underline-offset-2 hover:underline"
+                    >
+                      {t('editMissionAddDetails', {
+                        defaultValue: 'Add description or photos',
+                      })}
+                    </button>
                   )}
                 </div>
               </div>
@@ -1073,6 +1181,136 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
         )}
       </div>
     </div>
+
+    {editOpen && (
+      <div
+        className="absolute inset-0 z-[10080] flex items-end justify-center pointer-events-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('editMissionTitle', { defaultValue: 'Edit mission' })}
+      >
+        <button
+          type="button"
+          className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+          aria-label={t('close')}
+          onClick={closeEditModal}
+        />
+        <div
+          className="relative z-[1] w-full max-w-xl max-h-[min(78dvh,36rem)] overflow-y-auto rounded-t-3xl border border-white/10 bg-slate-950/95 px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_-16px_48px_rgba(34,211,238,0.16)]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-white/15" aria-hidden />
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-200">
+              {t('editMissionTitle', { defaultValue: 'Edit mission' })}
+            </h3>
+            <button
+              type="button"
+              onClick={closeEditModal}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/5 text-slate-200 transition-transform active:scale-95"
+              aria-label={t('close')}
+            >
+              <X className="h-4 w-4" strokeWidth={2.25} />
+            </button>
+          </div>
+
+          <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+            {t('editMissionDescriptionLabel', { defaultValue: 'Description' })}
+          </label>
+          <textarea
+            value={editBody}
+            onChange={(e) => setEditBody(e.target.value.slice(0, MISSION_SHORT_DESCRIPTION_MAX))}
+            maxLength={MISSION_SHORT_DESCRIPTION_MAX}
+            rows={4}
+            placeholder={t('editMissionDescriptionPlaceholder', {
+              defaultValue: 'Describe what needs to be done…',
+            })}
+            className="mb-2 w-full resize-none rounded-2xl border border-white/12 bg-black/40 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400/45 focus:ring-1 focus:ring-cyan-500/25"
+          />
+          <p className="mb-4 text-right text-[10px] tabular-nums text-slate-500">
+            {editBody.length}/{MISSION_SHORT_DESCRIPTION_MAX}
+          </p>
+
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+            {t('editMissionPhotos', { defaultValue: 'Photos' })}
+          </p>
+          <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {photos.map((url) => (
+              <div
+                key={url}
+                className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-white/15 bg-slate-900"
+              >
+                <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
+              </div>
+            ))}
+            {editPreviews.map((url) => (
+              <div
+                key={url}
+                className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-cyan-400/40 bg-slate-900"
+              >
+                <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
+                <span className="absolute bottom-1 left-1 rounded bg-cyan-500/90 px-1 text-[8px] font-black uppercase text-black">
+                  NEW
+                </span>
+              </div>
+            ))}
+            {photoSlotsLeft > 0 && (
+              <button
+                type="button"
+                onClick={() => editFileInputRef.current?.click()}
+                className="flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-cyan-400/40 bg-cyan-500/10 text-cyan-200 transition-colors hover:bg-cyan-500/20 active:scale-95"
+              >
+                <Camera className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+                <span className="text-[8px] font-black uppercase tracking-[0.12em]">+</span>
+              </button>
+            )}
+          </div>
+          <input
+            ref={editFileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              onPickEditPhotos(e.target.files);
+              e.target.value = '';
+            }}
+          />
+          <p className="mb-4 text-[11px] leading-relaxed text-slate-500">
+            {t('editMissionPhotosHint', {
+              defaultValue: 'New photos are appended (max {{max}} total).',
+              max: MAX_MISSION_PHOTOS,
+            })}
+          </p>
+
+          {editError && (
+            <p className="mb-3 text-[11px] font-medium text-red-400">{editError}</p>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={closeEditModal}
+              disabled={editSubmitting}
+              className="flex-1 rounded-full border border-white/15 bg-white/5 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-200 transition-transform active:scale-95 disabled:opacity-50"
+            >
+              {t('cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={saveMissionEdits}
+              disabled={editSubmitting}
+              className="flex-1 rounded-full border border-cyan-400/40 bg-cyan-500/90 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-black shadow-[0_0_18px_rgba(34,211,238,0.25)] transition-transform hover:bg-cyan-400 active:scale-95 disabled:cursor-wait disabled:opacity-60"
+            >
+              {editSubmitting
+                ? t('processing')
+                : t('saveMissionChanges', { defaultValue: 'Save changes' })}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     <MissionChatPanel
       open={!!chatPeer}
       missionId={mission.id}
