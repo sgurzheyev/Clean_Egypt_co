@@ -5,6 +5,7 @@
  */
 import { missionTokenBid, missionWorkBudgetUsd } from './missionBudget';
 import { SERVICE_TYPE_HASHTAGS, serviceTypeHashtags } from './missionDescription';
+import { isGarbageZoneReport } from './garbageZoneReport';
 
 export type MissionSortMode =
   | 'boost_desc'
@@ -34,6 +35,23 @@ export const MISSION_SORT_LABEL_KEYS: Record<MissionSortMode, string> = {
 // Ranking pivot: token promotion ("продвижение за токены") is the default order.
 export const DEFAULT_MISSION_SORT: MissionSortMode = 'boost_desc';
 
+/**
+ * Coral priority tags — isolate free civil Attention Zone reports.
+ * Canonical keys are lowercase; UI may show a display label with emoji.
+ */
+export const REPORT_PRIORITY_TAGS = [
+  { id: '#garbagini', label: '#Garbagini 🗑️' },
+  { id: '#garbage', label: '#garbage' },
+] as const;
+
+export const REPORT_FILTER_TAG_IDS = new Set(
+  REPORT_PRIORITY_TAGS.map((t) => t.id.toLowerCase())
+);
+
+export function isReportFilterTag(tag: string | null | undefined): boolean {
+  return REPORT_FILTER_TAG_IDS.has(String(tag || '').toLowerCase());
+}
+
 /** Unique, ordered list of all filterable tags across every service type. */
 export const ALL_MISSION_TAGS: string[] = (() => {
   const seen = new Set<string>();
@@ -60,6 +78,9 @@ type SortableMission = {
 type TaggableMission = {
   service_type?: string | null;
   description?: string | null;
+  is_report?: boolean | null;
+  status?: string | null;
+  category?: string | null;
 };
 
 function createdAtMs(mission: SortableMission): number {
@@ -81,7 +102,8 @@ export function missionTags(mission: TaggableMission): string[] {
 
 /**
  * Keep missions matching ANY selected tag. An empty selection means "no filter"
- * (show everything). This lets a worker check only the categories they want.
+ * (show everything). Coral report tags (`#garbagini` / `#garbage`) match free
+ * Attention Zone reports (`is_report` / status `reported`).
  */
 export function filterMissionsByTags<T extends TaggableMission>(
   missions: T[],
@@ -89,7 +111,16 @@ export function filterMissionsByTags<T extends TaggableMission>(
 ): T[] {
   if (!selectedTags || selectedTags.length === 0) return missions;
   const wanted = new Set(selectedTags.map((t) => t.toLowerCase()));
-  return missions.filter((mission) => missionTags(mission).some((tag) => wanted.has(tag)));
+  const wantsReports = [...wanted].some((t) => REPORT_FILTER_TAG_IDS.has(t));
+  const otherWanted = new Set(
+    [...wanted].filter((t) => !REPORT_FILTER_TAG_IDS.has(t))
+  );
+
+  return missions.filter((mission) => {
+    if (wantsReports && isGarbageZoneReport(mission)) return true;
+    if (otherWanted.size === 0) return false;
+    return missionTags(mission).some((tag) => otherWanted.has(tag));
+  });
 }
 
 /** Stable sort by the chosen mode (does not mutate the input array). */

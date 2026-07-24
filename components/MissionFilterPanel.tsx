@@ -16,6 +16,8 @@ import {
   ALL_MISSION_TAGS,
   MISSION_SORT_MODES,
   MISSION_SORT_LABEL_KEYS,
+  REPORT_PRIORITY_TAGS,
+  isReportFilterTag,
   type MissionSortMode,
 } from '../src/lib/missionFilterSort';
 import {
@@ -137,31 +139,63 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
       );
     });
 
-  const renderTagButtons = () =>
-    ALL_MISSION_TAGS.map((tag) => {
-      const checked = selectedTags.includes(tag);
-      const isEco = ECO_TAGS.has(tag.toLowerCase());
-      const className = isEco
-        ? checked
-          ? 'border-emerald-400 bg-emerald-500/30 text-emerald-50 shadow-[0_0_10px_rgba(16,185,129,0.25)]'
-          : 'border-emerald-500 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
-        : checked
-          ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100'
-          : 'border-white/12 bg-white/5 text-slate-300 hover:border-white/25 hover:text-slate-100';
+  const renderTagButtons = () => {
+    const coralIdle =
+      'border border-rose-500/35 bg-rose-500/10 text-rose-300/90 transition-all font-medium hover:bg-rose-500/20';
+    const coralActive =
+      'bg-rose-500/20 text-rose-400 border border-rose-500/50 shadow-[0_0_12px_rgba(244,63,94,0.3)] transition-all font-medium hover:bg-rose-500/30';
+
+    const reportButtons = REPORT_PRIORITY_TAGS.map((tag) => {
+      const checked = selectedTags.some((t) => t.toLowerCase() === tag.id);
       return (
         <button
-          key={tag}
+          key={tag.id}
           type="button"
           role="checkbox"
           aria-checked={checked}
-          onClick={() => onToggleTag(tag)}
-          className={`inline-flex min-h-[2rem] items-center justify-center rounded-full border px-3 py-1.5 text-[11px] font-bold lowercase tracking-wide transition-colors ${className}`}
+          onClick={() => {
+            onToggleTag(tag.id);
+            // Isolating reports requires free-report pins to be visible.
+            if (!checked && !showFreeReports) onShowFreeReportsChange?.(true);
+          }}
+          className={`inline-flex min-h-[2rem] items-center justify-center rounded-full px-3 py-1.5 text-[11px] tracking-wide ${
+            checked ? coralActive : coralIdle
+          }`}
         >
-          {isEco && <span aria-hidden>🌿 </span>}
-          {tag}
+          {tag.label}
         </button>
       );
     });
+
+    const standardButtons = ALL_MISSION_TAGS.filter((tag) => !isReportFilterTag(tag)).map(
+      (tag) => {
+        const checked = selectedTags.includes(tag);
+        const isEco = ECO_TAGS.has(tag.toLowerCase());
+        const className = isEco
+          ? checked
+            ? 'border-emerald-400 bg-emerald-500/30 text-emerald-50 shadow-[0_0_10px_rgba(16,185,129,0.25)]'
+            : 'border-emerald-500 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+          : checked
+            ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100'
+            : 'border-white/12 bg-white/5 text-slate-300 hover:border-white/25 hover:text-slate-100';
+        return (
+          <button
+            key={tag}
+            type="button"
+            role="checkbox"
+            aria-checked={checked}
+            onClick={() => onToggleTag(tag)}
+            className={`inline-flex min-h-[2rem] items-center justify-center rounded-full border px-3 py-1.5 text-[11px] font-bold lowercase tracking-wide transition-colors ${className}`}
+          >
+            {isEco && <span aria-hidden>🌿 </span>}
+            {tag}
+          </button>
+        );
+      }
+    );
+
+    return [...reportButtons, ...standardButtons];
+  };
 
   const renderFreeReportsToggle = () => {
     if (!showReportsToggle) return null;
