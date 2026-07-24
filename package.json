@@ -19,6 +19,7 @@
     "browser-image-compression": "^2.0.2",
     "firebase": "^10.14.1",
     "framer-motion": "^12.38.0",
+    "html-to-image": "^1.11.13",
     "i18next": "^25.8.18",
     "lucide-react": "^0.577.0",
     "mapbox-gl": "^2.15.0",

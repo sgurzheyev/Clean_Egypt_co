@@ -45,6 +45,7 @@ import {
 import { CITY_MIN_PRICE } from '../constants';
 import MissionChatPanel from '../src/components/chat/MissionChatPanel';
 import EcoHeroesRibbon from './EcoHeroesRibbon';
+import ImpactCardModal from './ImpactCardModal';
 
 export type AssignedWorkerProfile = {
   full_name?: string | null;
@@ -70,6 +71,7 @@ export type MissionBriefingMission = {
   creator_id?: string | null;
   description?: string | null;
   photo_urls?: string[] | null;
+  after_photo_urls?: string[] | null;
   completion_distance_meters?: number | null;
   is_report?: boolean | null;
 };
@@ -247,6 +249,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const [convertCrowdfund, setConvertCrowdfund] = useState(true);
   const [convertSubmitting, setConvertSubmitting] = useState(false);
   const [convertError, setConvertError] = useState<string | null>(null);
+  const [impactOpen, setImpactOpen] = useState(false);
   const editFileInputRef = useRef<HTMLInputElement>(null);
   const photos = mission.photo_urls?.filter(Boolean) ?? [];
   const placeholderVariant = placeholderVariantFor(mission);
@@ -262,7 +265,9 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const locationSource = missionLocationLine(mission, t);
   const locationTranslation = useMissionTextTranslation(locationSource);
   const budgetValue = formatWorkBudgetUsd(missionWorkBudgetUsd(mission));
-  const isInProgress = mission.status === 'in_progress';
+  const isCompletedStatus = ['completed', 'finished'].includes(
+    String(mission.status || '').toLowerCase()
+  );
   const isFundingStatus = String(mission.status || '').toLowerCase() === 'funding';
   const acceptedFundingBid = missionBids.find(
     (b) => String(b.status || '').toLowerCase() === 'accepted'
@@ -1177,7 +1182,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                   )}
               </section>
 
-              {mission.status === 'completed' ? (
+              {isCompletedStatus ? (
                 <div className="space-y-4 border-t border-white/5 pt-4">
                   <p className="text-sm font-semibold text-amber-200">{t('missionAccomplished')}</p>
                   <div className="w-full rounded-full animated-border-completed">
@@ -1189,6 +1194,13 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       {t('viewPhotos')}
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setImpactOpen(true)}
+                    className="w-full rounded-full border border-cyan-400/50 bg-cyan-500/15 py-3.5 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.28)] transition-transform hover:bg-cyan-500/25 active:scale-[0.98]"
+                  >
+                    {t('impactCardCta', { defaultValue: '🏆 Share Impact Card' })}
+                  </button>
                   {!!currentUserId &&
                     (mission.creator_id === currentUserId ||
                       mission.cleaner_id === currentUserId) &&
@@ -1505,6 +1517,14 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
         </div>
       </div>
     )}
+
+    <ImpactCardModal
+      open={impactOpen}
+      mission={mission}
+      locationLabel={locationTranslation.displayText || locationSource}
+      serviceLabel={serviceLabel}
+      onClose={() => setImpactOpen(false)}
+    />
 
     <MissionChatPanel
       open={!!chatPeer}
