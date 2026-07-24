@@ -24,6 +24,7 @@ import {
   EGYPT_MARKETPLACE_CITIES,
   MARKETPLACE_ALL_EGYPT_ID,
 } from '../src/lib/egyptMarketplace';
+import { STEEL_GLASS_PANEL, STEEL_GLASS_PANEL_STYLE } from '../constants';
 
 /**
  * Eco / community / crowdfunding-focused tags get a distinct green accent so they
@@ -265,8 +266,11 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                 role="dialog"
                 aria-modal="true"
                 aria-label={t('filtersLabel')}
-                className="relative w-full max-w-md overflow-hidden rounded-t-2xl border-t border-white/10 bg-[#0A0A12]/95 shadow-[0_-8px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl sm:rounded-3xl sm:border"
-                style={{ maxHeight: 'min(85dvh, 85vh)' }}
+                className={`relative w-full max-w-md overflow-hidden rounded-t-2xl shadow-[0_-8px_50px_rgba(0,0,0,0.45)] sm:rounded-3xl ${STEEL_GLASS_PANEL}`}
+                style={{
+                  ...STEEL_GLASS_PANEL_STYLE,
+                  maxHeight: 'min(85dvh, 85vh)',
+                }}
                 initial={{ y: '100%', opacity: 0.6 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: '100%', opacity: 0.4 }}
@@ -282,7 +286,10 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                   onTouchMove={(e) => e.stopPropagation()}
                 >
                   {/* Sticky chrome — stays pinned while the body scrolls */}
-                  <div className="sticky top-0 z-10 shrink-0 border-b border-white/10 bg-[#0A0A12]/95 backdrop-blur-xl">
+                  <div
+                    className="sticky top-0 z-10 shrink-0 border-b border-white/10 backdrop-blur-[16px] [-webkit-backdrop-filter:blur(16px)]"
+                    style={STEEL_GLASS_PANEL_STYLE}
+                  >
                     <div className="flex justify-center pt-3 sm:hidden" aria-hidden>
                       <span className="h-1.5 w-10 rounded-full bg-white/20" />
                     </div>
@@ -369,7 +376,10 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
 
   // ── Inline layout (default): single-row header with horizontal scroll ─────────
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-900/70 backdrop-blur-md">
+    <div
+      className={`rounded-xl ${STEEL_GLASS_PANEL}`}
+      style={STEEL_GLASS_PANEL_STYLE}
+    >
       <div className="ce-hide-scrollbar flex items-center gap-2 overflow-x-auto whitespace-nowrap p-2">
         <button
           type="button"

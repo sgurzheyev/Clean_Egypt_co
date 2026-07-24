@@ -36,6 +36,19 @@ export const PROFILE_GLASS_PANEL =
   'backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl';
 
 /**
+ * Floating map filter / bottom-sheet chrome — translucent steel glassmorphism.
+ * Background uses an inline gradient (see STEEL_GLASS_PANEL_STYLE); keep button
+ * accents and icons untouched when applying this shell.
+ */
+export const STEEL_GLASS_PANEL =
+  'border border-white/10 backdrop-blur-[16px] [-webkit-backdrop-filter:blur(16px)]';
+
+export const STEEL_GLASS_PANEL_STYLE = {
+  background:
+    'linear-gradient(135deg, rgba(32, 32, 37, 0.75) 0%, rgba(20, 20, 25, 0.85) 100%)',
+} as const;
+
+/**
  * All wallet balances, mission prices, bids, donations, scout rewards, and RPC amounts
  * are stored and displayed in USD (work budgets / crowdfunding) or Tokens (platform bids).
  */
