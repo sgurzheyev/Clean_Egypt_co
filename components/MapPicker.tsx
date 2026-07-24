@@ -1049,7 +1049,7 @@ function ProofUploadModal({
             exit={{ y: 20, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 24 }}
             onClick={(e) => e.stopPropagation()}
-            className={`relative mx-auto flex w-full max-w-2xl max-h-[min(92dvh,calc(100dvh-env(safe-area-inset-top)-0.5rem))] flex-col overflow-hidden rounded-t-3xl sm:mx-3 sm:mb-3 sm:rounded-3xl ${PROFILE_GLASS_PANEL}`}
+            className={`relative mx-auto flex w-full max-w-2xl max-h-[min(85dvh,85svh,calc(100dvh-env(safe-area-inset-top)-0.5rem))] flex-col overflow-hidden rounded-t-3xl sm:mx-3 sm:mb-3 sm:rounded-3xl ${PROFILE_GLASS_PANEL}`}
           >
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
               <h3 className="text-xl font-black uppercase leading-tight tracking-[0.12em] text-orange-300 sm:text-2xl">
@@ -1110,7 +1110,7 @@ function ProofUploadModal({
               )}
             </div>
 
-            <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 border-t border-white/10 bg-slate-950/95 px-5 py-4 backdrop-blur-md pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 border-t border-white/10 bg-slate-950/95 px-5 py-4 backdrop-blur-md pb-[max(1.5rem,calc(env(safe-area-inset-bottom,0px)+1.5rem))]">
               <button
                 type="button"
                 onClick={submitProof}
@@ -4985,15 +4985,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
             aria-hidden
           />
           <div
-            className={`pointer-events-auto relative z-[1] w-full max-w-xl flex flex-col min-h-0 max-h-[calc(100dvh-9rem)] sm:max-h-[75dvh] overflow-hidden animate-slide-up p-4 shadow-2xl ${PROFILE_GLASS_PANEL}`}
+            className={`ce-bottom-sheet pointer-events-auto relative z-[1] w-full max-w-xl min-h-0 overflow-hidden animate-slide-up p-4 shadow-2xl ${PROFILE_GLASS_PANEL}`}
             style={{
+              maxHeight: 'min(85dvh, 85svh, calc(100dvh - 6rem))',
               marginBottom: isMobile
-                ? 'calc(env(safe-area-inset-bottom) + 1rem)'
+                ? 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)'
                 : undefined,
             }}
           >
             <form ref={orderFormRef} onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-              <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain pl-2 pr-3 pb-3 space-y-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
+              <div className="ce-bottom-sheet-body flex-1 min-h-0 pl-2 pr-3 pb-3 space-y-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
               <div className="flex items-center justify-between mb-2">
                 <button
                   type="button"
@@ -5189,7 +5190,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               )}
               </div>
 
-              <div className="relative z-20 shrink-0 bg-transparent px-2 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              <div className="ce-bottom-sheet-footer relative z-20 shrink-0 bg-transparent px-2 pt-3">
                 <button
                   type="submit"
                   disabled={orderSubmitting || uploadingProof || photoModerationBusy}

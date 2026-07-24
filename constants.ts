@@ -49,6 +49,22 @@ export const STEEL_GLASS_PANEL_STYLE = {
 } as const;
 
 /**
+ * Mobile Chrome / iOS bottom-sheet geometry.
+ * Prefer `svh` so the sheet never extends under the browser toolbar.
+ */
+export const BOTTOM_SHEET_MAX_HEIGHT_STYLE = {
+  maxHeight: 'min(85dvh, 85svh, 85vh)',
+} as const;
+
+/** Extra breathing room under scrollable sheet content (toolbar + home indicator). */
+export const BOTTOM_SHEET_SCROLL_PB =
+  'pb-[max(2.5rem,calc(env(safe-area-inset-bottom,0px)+2rem))]';
+
+/** Sticky footer under primary CTAs (Submit / Publish / etc.). */
+export const BOTTOM_SHEET_FOOTER_PB =
+  'pb-[max(1.5rem,calc(env(safe-area-inset-bottom,0px)+1.5rem))]';
+
+/**
  * All wallet balances, mission prices, bids, donations, scout rewards, and RPC amounts
  * are stored and displayed in USD (work budgets / crowdfunding) or Tokens (platform bids).
  */

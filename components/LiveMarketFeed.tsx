@@ -235,15 +235,12 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
             exit={{ y: 32, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 280, damping: 24 }}
             onClick={(e) => e.stopPropagation()}
-            className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-xl overflow-hidden rounded-t-2xl border-t border-white/10 bg-[#0A0A12]/95 shadow-[0_-12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl"
-            style={{ maxHeight: 'min(85dvh, 85vh)' }}
+            className="ce-bottom-sheet absolute inset-x-0 bottom-0 mx-auto w-full max-w-xl overflow-hidden rounded-t-2xl border-t border-white/10 bg-[#0A0A12]/95 shadow-[0_-12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+            style={{ maxHeight: 'min(85dvh, 85svh, 85vh)' }}
           >
             <div
-              className="overflow-y-auto overscroll-contain touch-pan-y"
-              style={{
-                maxHeight: 'min(85dvh, 85vh)',
-                WebkitOverflowScrolling: 'touch',
-              }}
+              className="ce-bottom-sheet-body touch-pan-y"
+              style={{ WebkitOverflowScrolling: 'touch' }}
               onTouchMove={(e) => e.stopPropagation()}
             >
               <div className="sticky top-0 z-10 relative border-b border-white/10 bg-[#0A0A12]/95 p-4 backdrop-blur-xl">
@@ -262,7 +259,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                 <p className="mt-0.5 pr-10 text-xs text-slate-500">{t('liveMarketBrowseHint')}</p>
               </div>
 
-              <div className="space-y-4 px-3 pt-3 pb-12">
+              <div className="space-y-4 px-3 pt-3 pb-[max(2.5rem,calc(env(safe-area-inset-bottom,0px)+2rem))]">
                 <MissionFilterPanel
                   sortMode={sortMode}
                   onSortChange={setSortMode}

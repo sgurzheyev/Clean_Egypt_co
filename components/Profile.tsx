@@ -2775,7 +2775,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </div>
             </div>
 
-            <div className="absolute inset-x-0 bottom-0 border-t border-cyan-500/30 bg-cyan-950/95 px-5 py-4 backdrop-blur-md pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <div className="absolute inset-x-0 bottom-0 border-t border-cyan-500/30 bg-cyan-950/95 px-5 py-4 backdrop-blur-md pb-[max(1.5rem,calc(env(safe-area-inset-bottom,0px)+1.5rem))]">
               {(reviewJob.status === 'completed' || reviewJob.status === 'finished') ? (
                 <p className="w-full rounded-full border border-emerald-500/30 bg-emerald-500/10 py-3 text-center text-sm font-black uppercase tracking-[0.2em] text-emerald-400">
                   MISSION ACCOMPLISHED

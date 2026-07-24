@@ -615,12 +615,15 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
       />
 
       <div
-        className="relative z-[10030] w-full max-w-xl max-h-[82dvh] overflow-y-auto overflow-x-hidden overscroll-y-contain rounded-t-3xl bg-slate-950 shadow-[0_-10px_40px_rgba(0,229,255,0.12)] pb-[calc(5rem+max(2rem,env(safe-area-inset-bottom)))] pointer-events-auto touch-pan-y [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+        className="ce-bottom-sheet relative z-[10030] w-full max-w-xl overflow-hidden rounded-t-3xl bg-slate-950 shadow-[0_-10px_40px_rgba(0,229,255,0.12)] pointer-events-auto"
         onClick={(e) => e.stopPropagation()}
-        style={{ transform: sheetDragY > 0 ? `translateY(${sheetDragY}px)` : undefined }}
+        style={{
+          maxHeight: 'min(85dvh, 85svh, 85vh)',
+          transform: sheetDragY > 0 ? `translateY(${sheetDragY}px)` : undefined,
+        }}
       >
         <div
-          className="sticky top-0 z-20 flex justify-center pt-2 pb-1 bg-gradient-to-b from-slate-950 via-slate-950/90 to-transparent"
+          className="sticky top-0 z-20 shrink-0 flex justify-center pt-2 pb-1 bg-gradient-to-b from-slate-950 via-slate-950/90 to-transparent"
           onTouchStart={onSheetTouchStart}
           onTouchMove={onSheetTouchMove}
           onTouchEnd={onSheetTouchEnd}
@@ -628,6 +631,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           <div className="h-1.5 w-14 rounded-full bg-white/20" aria-hidden />
         </div>
 
+        <div className="ce-bottom-sheet-body touch-pan-y [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
         {booting ? (
           <div className="py-16 flex flex-col items-center justify-center px-5">
             <div className="h-6 w-6 border-2 border-cyan-500/60 border-t-cyan-200 rounded-full animate-spin" />
@@ -1338,7 +1342,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
         )}
 
         {isPlatformAdmin && onAdminDeleteMission && (
-          <div className="border-t border-white/5 pt-4">
+          <div className="border-t border-white/5 px-5 pt-4">
             <button
               type="button"
               onClick={onAdminDeleteMission}
@@ -1349,6 +1353,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
             </button>
           </div>
         )}
+        </div>
       </div>
     </div>
 
@@ -1366,9 +1371,11 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           onClick={closeEditModal}
         />
         <div
-          className="relative z-[1] w-full max-w-xl max-h-[min(78dvh,36rem)] overflow-y-auto rounded-t-3xl border border-white/10 bg-slate-950/95 px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_-16px_48px_rgba(34,211,238,0.16)]"
+          className="ce-bottom-sheet relative z-[1] w-full max-w-xl overflow-hidden rounded-t-3xl border border-white/10 bg-slate-950/95 shadow-[0_-16px_48px_rgba(34,211,238,0.16)]"
+          style={{ maxHeight: 'min(78dvh, 78svh, 36rem)' }}
           onClick={(e) => e.stopPropagation()}
         >
+          <div className="ce-bottom-sheet-body px-5 pt-4">
           <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-white/15" aria-hidden />
           <div className="mb-4 flex items-center justify-between gap-3">
             <h3 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-200">
@@ -1456,8 +1463,9 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           {editError && (
             <p className="mb-3 text-[11px] font-medium text-red-400">{editError}</p>
           )}
+          </div>
 
-          <div className="flex gap-2">
+          <div className="ce-bottom-sheet-footer flex gap-2 border-t border-white/10 px-5 pt-3">
             <button
               type="button"
               onClick={closeEditModal}
@@ -1495,9 +1503,11 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           onClick={() => setConvertOpen(false)}
         />
         <div
-          className="relative z-[1] w-full max-w-xl overflow-y-auto rounded-t-3xl border border-white/10 bg-slate-950/95 px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_-16px_48px_rgba(251,191,36,0.18)]"
+          className="ce-bottom-sheet relative z-[1] w-full max-w-xl overflow-hidden rounded-t-3xl border border-white/10 bg-slate-950/95 shadow-[0_-16px_48px_rgba(251,191,36,0.18)]"
+          style={{ maxHeight: 'min(78dvh, 78svh, 36rem)' }}
           onClick={(e) => e.stopPropagation()}
         >
+          <div className="ce-bottom-sheet-body px-5 pt-4">
           <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-white/15" aria-hidden />
           <h3 className="mb-1 text-sm font-black uppercase tracking-[0.18em] text-amber-200">
             {t('reportZoneConvertTitle', { defaultValue: 'Launch paid cleanup' })}
@@ -1534,8 +1544,9 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           {convertError && (
             <p className="mb-3 text-[11px] font-medium text-red-400">{convertError}</p>
           )}
+          </div>
 
-          <div className="flex gap-2">
+          <div className="ce-bottom-sheet-footer flex gap-2 border-t border-white/10 px-5 pt-3">
             <button
               type="button"
               onClick={() => setConvertOpen(false)}

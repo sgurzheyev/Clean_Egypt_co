@@ -286,3 +286,29 @@
 .animated-border-rainbow.rounded-full .animated-border-inner {
   border-radius: 9999px;
 }
+
+/*
+ * Mobile bottom sheets — keep CTAs above Chrome/Safari toolbars.
+ * `svh` = small viewport (browser chrome visible); never rely on bare `vh`.
+ */
+.ce-bottom-sheet {
+  display: flex;
+  flex-direction: column;
+  max-height: min(85dvh, 85svh, 85vh);
+  overflow: hidden;
+}
+
+.ce-bottom-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
+}
+
+.ce-bottom-sheet-footer {
+  flex-shrink: 0;
+  padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem));
+}

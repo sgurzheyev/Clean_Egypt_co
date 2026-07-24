@@ -9,6 +9,12 @@ import {
   MAX_GARBAGE_ZONE_REPORT_PHOTOS,
   createGarbageZoneReport,
 } from '../src/lib/garbageZoneReport';
+import {
+  BOTTOM_SHEET_FOOTER_PB,
+  BOTTOM_SHEET_MAX_HEIGHT_STYLE,
+  STEEL_GLASS_PANEL,
+  STEEL_GLASS_PANEL_STYLE,
+} from '../constants';
 
 const QUICK_TAGS = ['#BeachTrash', '#DumpingGround', '#StreetLitter', '#HazardZone'] as const;
 
@@ -145,8 +151,8 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
         role="dialog"
         aria-modal="true"
         aria-label={t('reportZoneTitle', { defaultValue: 'Report Garbage Zone' })}
-        className="relative z-[1] w-full max-w-md overflow-hidden rounded-t-2xl border-t border-rose-400/30 bg-[#0A0A12]/95 shadow-[0_-16px_48px_rgba(244,63,94,0.22)] backdrop-blur-xl"
-        style={{ maxHeight: 'min(85dvh, 85vh)' }}
+        className={`ce-bottom-sheet relative z-[1] w-full max-w-md rounded-t-2xl border-t border-rose-400/30 shadow-[0_-16px_48px_rgba(244,63,94,0.22)] ${STEEL_GLASS_PANEL}`}
+        style={{ ...STEEL_GLASS_PANEL_STYLE, ...BOTTOM_SHEET_MAX_HEIGHT_STYLE }}
         onClick={(e) => e.stopPropagation()}
       >
         {toastMsg && (
@@ -158,7 +164,7 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
           </div>
         )}
 
-        <div className="overflow-y-auto overscroll-contain p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <div className="ce-bottom-sheet-body p-4 pb-3">
           <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-white/15" aria-hidden />
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
@@ -286,7 +292,7 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
             })}
             className="mb-2 w-full resize-none rounded-2xl border border-white/12 bg-black/40 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-rose-400/45"
           />
-          <div className="mb-4 flex flex-wrap gap-1.5">
+          <div className="mb-2 flex flex-wrap gap-1.5">
             {QUICK_TAGS.map((tag) => (
               <button
                 key={tag}
@@ -305,13 +311,18 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
             ))}
           </div>
 
-          {error && <p className="mb-3 text-[11px] font-medium text-red-400">{error}</p>}
+          {error && <p className="mb-1 text-[11px] font-medium text-red-400">{error}</p>}
+        </div>
 
+        <div
+          className={`ce-bottom-sheet-footer border-t border-white/10 px-4 pt-3 ${BOTTOM_SHEET_FOOTER_PB}`}
+          style={STEEL_GLASS_PANEL_STYLE}
+        >
           <button
             type="button"
             onClick={submit}
             disabled={submitting || photos.length < 1}
-            className="w-full rounded-full border border-rose-400/50 bg-rose-500/90 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-white shadow-[0_0_20px_rgba(244,63,94,0.35)] transition-transform active:scale-[0.98] disabled:cursor-wait disabled:opacity-50"
+            className="w-full rounded-full border border-rose-400/50 bg-rose-500/90 py-3.5 text-[11px] font-black uppercase tracking-[0.18em] text-white shadow-[0_0_20px_rgba(244,63,94,0.35)] transition-transform active:scale-[0.98] disabled:cursor-wait disabled:opacity-50"
           >
             {submitting
               ? t('processing')

@@ -156,7 +156,8 @@ const ImpactCardModal: React.FC<Props> = ({
         role="dialog"
         aria-modal="true"
         aria-label={t('impactCardTitle', { defaultValue: 'Share Impact Card' })}
-        className="relative z-[1] flex max-h-[min(92dvh,40rem)] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-cyan-500/25 bg-[#020617]/98 shadow-[0_-20px_60px_rgba(34,211,238,0.2)] sm:rounded-3xl"
+        className="ce-bottom-sheet relative z-[1] flex w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-cyan-500/25 bg-[#020617]/98 shadow-[0_-20px_60px_rgba(34,211,238,0.2)] sm:rounded-3xl"
+        style={{ maxHeight: 'min(85dvh, 85svh, 40rem)' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
@@ -173,7 +174,7 @@ const ImpactCardModal: React.FC<Props> = ({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+        <div className="ce-bottom-sheet-body min-h-0 flex-1 px-4 py-4">
           {/* Preview — capture target */}
           <div
             ref={cardRef}
@@ -270,7 +271,7 @@ const ImpactCardModal: React.FC<Props> = ({
           )}
         </div>
 
-        <div className="shrink-0 space-y-2 border-t border-white/10 bg-[#020617] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="ce-bottom-sheet-footer shrink-0 space-y-2 border-t border-white/10 bg-[#020617] px-4 pt-3">
           <button
             type="button"
             onClick={handleShare}

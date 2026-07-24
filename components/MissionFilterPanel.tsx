@@ -24,7 +24,7 @@ import {
   EGYPT_MARKETPLACE_CITIES,
   MARKETPLACE_ALL_EGYPT_ID,
 } from '../src/lib/egyptMarketplace';
-import { STEEL_GLASS_PANEL, STEEL_GLASS_PANEL_STYLE } from '../constants';
+import { STEEL_GLASS_PANEL, STEEL_GLASS_PANEL_STYLE, BOTTOM_SHEET_MAX_HEIGHT_STYLE, BOTTOM_SHEET_SCROLL_PB } from '../constants';
 
 /**
  * Eco / community / crowdfunding-focused tags get a distinct green accent so they
@@ -266,10 +266,10 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                 role="dialog"
                 aria-modal="true"
                 aria-label={t('filtersLabel')}
-                className={`relative w-full max-w-md overflow-hidden rounded-t-2xl shadow-[0_-8px_50px_rgba(0,0,0,0.45)] sm:rounded-3xl ${STEEL_GLASS_PANEL}`}
+                className={`ce-bottom-sheet relative w-full max-w-md overflow-hidden rounded-t-2xl shadow-[0_-8px_50px_rgba(0,0,0,0.45)] sm:rounded-3xl ${STEEL_GLASS_PANEL}`}
                 style={{
                   ...STEEL_GLASS_PANEL_STYLE,
-                  maxHeight: 'min(85dvh, 85vh)',
+                  ...BOTTOM_SHEET_MAX_HEIGHT_STYLE,
                 }}
                 initial={{ y: '100%', opacity: 0.6 }}
                 animate={{ y: 0, opacity: 1 }}
@@ -278,11 +278,8 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div
-                  className="flex max-h-[inherit] flex-col overflow-y-auto overscroll-contain touch-pan-y"
-                  style={{
-                    maxHeight: 'min(85dvh, 85vh)',
-                    WebkitOverflowScrolling: 'touch',
-                  }}
+                  className="ce-bottom-sheet-body touch-pan-y"
+                  style={{ WebkitOverflowScrolling: 'touch' }}
                   onTouchMove={(e) => e.stopPropagation()}
                 >
                   {/* Sticky chrome — stays pinned while the body scrolls */}
@@ -315,7 +312,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                     </div>
                   </div>
 
-                  <div className="space-y-6 p-4 pb-12">
+                  <div className={`space-y-6 p-4 ${BOTTOM_SHEET_SCROLL_PB}`}>
                     {showCityFilter && (
                       <section>
                         <p className={SECTION_LABEL}>{t('selectCity')}</p>

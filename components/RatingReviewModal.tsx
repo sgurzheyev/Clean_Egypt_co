@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { Star, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { submitReview } from '../src/lib/reviews';
+import { BOTTOM_SHEET_FOOTER_PB, BOTTOM_SHEET_MAX_HEIGHT_STYLE } from '../constants';
 
 export interface RatingTarget {
   missionId: string;
@@ -88,71 +89,76 @@ const RatingReviewModal: React.FC<RatingReviewModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-t-3xl border border-amber-400/25 bg-slate-950/95 p-6 shadow-[0_-12px_40px_rgba(0,0,0,0.5)] sm:rounded-3xl"
+        className="ce-bottom-sheet w-full max-w-md overflow-hidden rounded-t-3xl border border-amber-400/25 bg-slate-950/95 shadow-[0_-12px_40px_rgba(0,0,0,0.5)] sm:rounded-3xl"
+        style={BOTTOM_SHEET_MAX_HEIGHT_STYLE}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-black uppercase tracking-[0.12em] text-amber-300">{heading}</h3>
+        <div className="ce-bottom-sheet-body px-6 pt-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-black uppercase tracking-[0.12em] text-amber-300">{heading}</h3>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/5 text-slate-300 hover:text-white"
+              aria-label={t('close')}
+            >
+              <X className="h-4 w-4" strokeWidth={2.5} />
+            </button>
+          </div>
+
+          <p className="mb-3 text-[11px] text-slate-400">{t('ratingHelpsReward')}</p>
+
+          <div className="mb-4 flex items-center justify-center gap-2">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                type="button"
+                disabled={submitting}
+                onMouseEnter={() => setHover(star)}
+                onMouseLeave={() => setHover(0)}
+                onClick={() => setRating(star)}
+                className="transition-transform hover:scale-110 active:scale-95"
+                aria-label={`${star}`}
+              >
+                <Star
+                  className={`h-9 w-9 ${
+                    star <= shown ? 'fill-amber-400 text-amber-400' : 'text-slate-600'
+                  }`}
+                  strokeWidth={1.75}
+                />
+              </button>
+            ))}
+          </div>
+
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            maxLength={1000}
+            rows={3}
+            placeholder={t('reviewCommentPlaceholder', {
+              defaultValue: 'Leave a short comment (optional)',
+            })}
+            className="w-full resize-none rounded-xl border border-white/12 bg-slate-900/80 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-amber-400/50"
+          />
+        </div>
+
+        <div className={`ce-bottom-sheet-footer space-y-2 border-t border-white/10 px-6 pt-3 ${BOTTOM_SHEET_FOOTER_PB}`}>
           <button
             type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/5 text-slate-300 hover:text-white"
-            aria-label={t('close')}
+            disabled={submitting || rating < 1}
+            onClick={() => void handleSubmit()}
+            className="w-full rounded-full bg-amber-500 py-3 text-[12px] font-black uppercase tracking-[0.18em] text-black transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <X className="h-4 w-4" strokeWidth={2.5} />
+            {submitting ? t('submitting') : t('submitRating')}
+          </button>
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={onClose}
+            className="w-full rounded-full border border-white/10 py-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 hover:text-slate-200 disabled:opacity-50"
+          >
+            {t('reviewSkip', { defaultValue: 'Skip' })}
           </button>
         </div>
-
-        <p className="mb-3 text-[11px] text-slate-400">{t('ratingHelpsReward')}</p>
-
-        <div className="mb-4 flex items-center justify-center gap-2">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <button
-              key={star}
-              type="button"
-              disabled={submitting}
-              onMouseEnter={() => setHover(star)}
-              onMouseLeave={() => setHover(0)}
-              onClick={() => setRating(star)}
-              className="transition-transform hover:scale-110 active:scale-95"
-              aria-label={`${star}`}
-            >
-              <Star
-                className={`h-9 w-9 ${
-                  star <= shown ? 'fill-amber-400 text-amber-400' : 'text-slate-600'
-                }`}
-                strokeWidth={1.75}
-              />
-            </button>
-          ))}
-        </div>
-
-        <textarea
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          maxLength={1000}
-          rows={3}
-          placeholder={t('reviewCommentPlaceholder', {
-            defaultValue: 'Leave a short comment (optional)',
-          })}
-          className="w-full resize-none rounded-xl border border-white/12 bg-slate-900/80 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-amber-400/50"
-        />
-
-        <button
-          type="button"
-          disabled={submitting || rating < 1}
-          onClick={() => void handleSubmit()}
-          className="mt-4 w-full rounded-full bg-amber-500 py-3 text-[12px] font-black uppercase tracking-[0.18em] text-black transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {submitting ? t('submitting') : t('submitRating')}
-        </button>
-        <button
-          type="button"
-          disabled={submitting}
-          onClick={onClose}
-          className="mt-2 w-full rounded-full border border-white/10 py-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 hover:text-slate-200 disabled:opacity-50"
-        >
-          {t('reviewSkip', { defaultValue: 'Skip' })}
-        </button>
       </div>
     </div>
   );
