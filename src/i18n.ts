@@ -408,7 +408,8 @@ const resources = {
       reportZoneRenderError: 'Ошибка при отрисовке метки. Перезагрузите карту.',
       reportZoneCitizenLabel: 'Citizen report',
       reportZoneFreeLabel: 'Free civic report',
-      reportModeHint: 'Tap the map to drop a free garbage-zone report.',
+      reportModeHint:
+        'Red pin placed — tap the map to move it, tap the pin to add photos & publish.',
       reportZoneBadge: 'Reported Zone',
       reportZoneBridgeHint:
         'Civic report — free. Launch crowdfunding or set a bounty so cleaners can take it on.',
@@ -1418,7 +1419,8 @@ const resources = {
       reportZoneRenderError: 'Ошибка при отрисовке метки. Перезагрузите карту.',
       reportZoneCitizenLabel: 'Гражданский репорт',
       reportZoneFreeLabel: 'Бесплатный гражданский репорт',
-      reportModeHint: 'Нажмите на карту, чтобы поставить бесплатный отчёт о мусоре.',
+      reportModeHint:
+        'Красная метка поставлена — тап по карте перемещает её, тап по метке открывает форму.',
       reportZoneBadge: 'Зона внимания',
       reportZoneBridgeHint:
         'Гражданский отчёт — бесплатно. Запустите краудфандинг или назначьте награду.',

@@ -1788,7 +1788,36 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const [mapDraftPin, setMapDraftPin] = useState<{ lat: number; lng: number } | null>(null);
   const [reportMode, setReportMode] = useState(false);
-  const [reportDraft, setReportDraft] = useState<{ lat: number; lng: number } | null>(null);
+  /** Single movable red pin while reporting (visible before the form opens). */
+  const [reportPin, setReportPin] = useState<{ lat: number; lng: number } | null>(null);
+  /** True when the lightweight report form sheet is open over the pin. */
+  const [reportSheetOpen, setReportSheetOpen] = useState(false);
+  const reportPinRef = React.useRef<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    reportPinRef.current = reportPin;
+  }, [reportPin]);
+
+  // Crosshair cursor while placing/moving the report pin.
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const canvas = map.getCanvas();
+    if (!canvas) return;
+    const prev = canvas.style.cursor;
+    if (reportMode && !reportSheetOpen) {
+      canvas.style.cursor = 'crosshair';
+    } else {
+      canvas.style.cursor = prev === 'crosshair' ? '' : prev;
+    }
+    return () => {
+      try {
+        canvas.style.cursor = '';
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [reportMode, reportSheetOpen, mapReady]);
+
   const [draftPinMenuExpanded, setDraftPinMenuExpanded] = useState(false);
   const [proofUploadMission, setProofUploadMission] = useState<JobOnMap | null>(null);
   const [taskType, setTaskType] = useState<TaskType>('city');
@@ -2363,7 +2392,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           hallOfFameMission ||
           taskTypeSelected ||
           showWorkerSubscriptionGate ||
-          showSubscriptionModal
+          showSubscriptionModal ||
+          reportSheetOpen
       ),
     [
       selectedMission,
@@ -2371,6 +2401,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       taskTypeSelected,
       showWorkerSubscriptionGate,
       showSubscriptionModal,
+      reportSheetOpen,
     ]
   );
 
@@ -2647,9 +2678,26 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      // Free garbage-zone report mode: tap places report draft + opens lightweight modal.
+      // Free garbage-zone report mode: map tap moves the red pin; tap on pin opens the form.
       if (reportMode && !taskTypeSelected) {
-        setReportDraft({ lat, lng });
+        const existing = reportPinRef.current;
+        const point = event?.point as { x: number; y: number } | undefined;
+        const map = mapRef.current?.getMap();
+        if (existing && point && map) {
+          try {
+            const projected = map.project([existing.lng, existing.lat]);
+            const dx = projected.x - point.x;
+            const dy = projected.y - point.y;
+            if (Math.sqrt(dx * dx + dy * dy) <= 36) {
+              setReportSheetOpen(true);
+              return;
+            }
+          } catch {
+            /* fall through to move pin */
+          }
+        }
+        setReportPin({ lat, lng });
+        setReportSheetOpen(false);
         setMapDraftPin(null);
         setDraftPinMenuExpanded(false);
         setShowLiveMarketFeed(false);
@@ -3918,6 +3966,88 @@ const MapPicker: React.FC<MapPickerProps> = ({
     );
   }, [t, toast]);
 
+  const exitReportMode = useCallback(() => {
+    setReportMode(false);
+    setReportPin(null);
+    setReportSheetOpen(false);
+  }, []);
+
+  /** Enter report mode: fly to GPS (or map center) and drop the editable red pin. */
+  const enterReportMode = useCallback(() => {
+    setMapDraftPin(null);
+    setDraftPinMenuExpanded(false);
+    setShowLiveMarketFeed(false);
+    setReportSheetOpen(false);
+    setReportMode(true);
+
+    const placeAt = (lat: number, lng: number) => {
+      let nextLat = lat;
+      let nextLng = lng;
+      if (!isInsideEgyptBounds(nextLng, nextLat)) {
+        const map = mapRef.current?.getMap();
+        const c = map?.getCenter();
+        if (c && isInsideEgyptBounds(c.lng, c.lat)) {
+          nextLat = c.lat;
+          nextLng = c.lng;
+        } else {
+          toast.error(t('geofenceEgyptShelf'));
+          return;
+        }
+      }
+      setReportPin({ lat: nextLat, lng: nextLng });
+      try {
+        const map = mapRef.current?.getMap();
+        const zoom = map ? Math.max(map.getZoom(), 15) : 15;
+        mapRef.current?.flyTo({
+          center: [nextLng, nextLat],
+          zoom,
+          essential: true,
+          duration: 900,
+        });
+      } catch {
+        /* map may be disposing */
+      }
+    };
+
+    toast.notice(
+      t('reportModeHint', {
+        defaultValue:
+          'Red pin placed — tap the map to move it, tap the pin to add photos & publish.',
+      })
+    );
+
+    if (
+      userLocation &&
+      Number.isFinite(userLocation.lat) &&
+      Number.isFinite(userLocation.lng)
+    ) {
+      placeAt(userLocation.lat, userLocation.lng);
+      return;
+    }
+
+    const fallbackCenter = () => {
+      const c = mapRef.current?.getMap()?.getCenter();
+      if (c && Number.isFinite(c.lat) && Number.isFinite(c.lng)) {
+        placeAt(c.lat, c.lng);
+      }
+    };
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      fallbackCenter();
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        setUserLocation({ lat: latitude, lng: longitude, accuracy });
+        placeAt(latitude, longitude);
+      },
+      () => fallbackCenter(),
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
+    );
+  }, [t, toast, userLocation]);
+
   const showProfileFab =
     !taskTypeSelected && !selectedMission && !proofUploadMission;
 
@@ -4184,6 +4314,34 @@ const MapPicker: React.FC<MapPickerProps> = ({
             </div>
           </Marker>
         )}
+
+        {reportMode &&
+          reportPin &&
+          Number.isFinite(reportPin.lat) &&
+          Number.isFinite(reportPin.lng) && (
+            <Marker
+              longitude={reportPin.lng}
+              latitude={reportPin.lat}
+              anchor="center"
+              style={{ zIndex: 40 }}
+              onClick={(e) => {
+                e.originalEvent?.stopPropagation?.();
+                setReportSheetOpen(true);
+              }}
+            >
+              <button
+                type="button"
+                className="pointer-events-auto relative flex h-14 w-14 -translate-y-1 items-center justify-center rounded-full border-2 border-rose-300 bg-rose-500/95 text-white shadow-[0_0_28px_rgba(244,63,94,0.65)] transition-transform active:scale-95"
+                aria-label={t('reportZoneTitle', { defaultValue: 'Report Garbage Zone' })}
+              >
+                <span
+                  className="absolute inset-0 animate-ping rounded-full bg-rose-400/45"
+                  aria-hidden
+                />
+                <TriangleAlert className="relative h-6 w-6" strokeWidth={2.5} aria-hidden />
+              </button>
+            </Marker>
+          )}
 
         {/* Mobile tap pulse feedback */}
         <Source id="tap-pulse" type="geojson" data={mobileTapPulseGeoJSON}>
@@ -4566,7 +4724,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         />
       )}
 
-      {showProfileFab && (
+      {(showProfileFab || reportMode) && (
         <button
           type="button"
           onClick={() => {
@@ -4574,21 +4732,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
               onRequestAuth?.();
               return;
             }
-            setReportMode((v) => {
-              const next = !v;
-              if (!next) setReportDraft(null);
-              if (next) {
-                setMapDraftPin(null);
-                setDraftPinMenuExpanded(false);
-                setShowLiveMarketFeed(false);
-                toast.notice(
-                  t('reportModeHint', {
-                    defaultValue: 'Tap the map to drop a free garbage-zone report.',
-                  })
-                );
-              }
-              return next;
-            });
+            if (reportMode) {
+              exitReportMode();
+              return;
+            }
+            enterReportMode();
           }}
           className={`fixed left-3 top-[max(4.25rem,calc(env(safe-area-inset-top)+3.5rem))] z-[10015] flex h-12 w-12 items-center justify-center rounded-full border backdrop-blur-lg transition-transform active:scale-95 ${
             reportMode
@@ -4610,20 +4758,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </button>
       )}
 
-      {reportDraft && (
+      {reportMode && reportSheetOpen && reportPin && (
         <ReportGarbageZoneModal
           open
-          lat={reportDraft.lat}
-          lng={reportDraft.lng}
+          lat={reportPin.lat}
+          lng={reportPin.lng}
           onClose={() => {
-            setReportDraft(null);
-            setReportMode(false);
+            // Keep report mode + pin so the user can reposition and reopen.
+            setReportSheetOpen(false);
           }}
           onCreated={async (missionId) => {
             try {
-              const draft = reportDraft;
-              setReportDraft(null);
-              setReportMode(false);
+              const draft = reportPin;
+              exitReportMode();
 
               const optimistic = buildOptimisticReportMission(
                 missionId,
@@ -4673,8 +4820,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               await openMissionById(missionId);
             } catch (err) {
               console.error('[reportZone] post-submit UI failed:', err);
-              setReportDraft(null);
-              setReportMode(false);
+              exitReportMode();
               toast.error(
                 t('reportZoneRenderError', {
                   defaultValue: 'Ошибка при отрисовке метки. Перезагрузите карту.',
