@@ -5,7 +5,7 @@ aliases: [GARBAGIN Master Index, Vault Hub, Map of Content]
 
 # 🗺️ GARBAGIN Master Index
 
-> **Central gravitational hub** for the Garbagin / GARBAGIN vault.  
+> **Central gravitational hub** for the Garbagin vault.  
 > Open **Graph View**, filter to this note, and expand neighbors — notes + source files should form one star cluster, not floating islands.
 
 Every major note below links back here. Source paths are wiki-linked so they appear as graph nodes attached to this hub.
