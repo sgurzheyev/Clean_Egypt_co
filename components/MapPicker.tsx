@@ -3448,7 +3448,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const { data: missionRow } = await supabase
           .from('missions')
           .select(
-            'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, is_report, location_lat, location_lng, status, cleaner_id, creator_id, description, photo_urls, created_at'
+            'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, is_report, location_lat, location_lng, country, city, status, cleaner_id, creator_id, description, photo_urls, created_at'
           )
           .eq('id', result.mission_id)
           .maybeSingle();
@@ -4170,7 +4170,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const { data, error } = await supabase
         .from('missions')
         .select(
-          'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, is_report, location_lat, location_lng, status, building_id, cleaner_id, creator_id, description, photo_urls, after_photo_urls, created_at, started_at, creator:profiles!creator_id (full_name, avatar_url, is_verified)'
+          'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, is_report, location_lat, location_lng, country, city, status, building_id, cleaner_id, creator_id, description, photo_urls, after_photo_urls, created_at, started_at, creator:profiles!creator_id (full_name, avatar_url, is_verified)'
         )
         .eq('id', missionId)
         .maybeSingle();

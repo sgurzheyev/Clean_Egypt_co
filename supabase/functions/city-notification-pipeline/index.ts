@@ -36,6 +36,8 @@ type MissionRow = {
   description?: string | null;
   location_lat?: number | null;
   location_lng?: number | null;
+  country?: string | null;
+  city?: string | null;
   expected_price?: number | null;
   current_funding?: number | null;
   status?: string | null;
@@ -97,6 +99,9 @@ async function buildPdfBytes(opts: {
 
   const lat = num(payload.location_lat ?? mission?.location_lat, NaN);
   const lng = num(payload.location_lng ?? mission?.location_lng, NaN);
+  const placeCity = str(mission?.city, '');
+  const placeCountry = str(mission?.country, '');
+  const placeLabel = [placeCity, placeCountry].filter(Boolean).join(', ');
   const target = num(payload.target_budget ?? mission?.expected_price, 0);
   const raised = num(payload.raised ?? mission?.current_funding, 0);
   const service = str(payload.service_type ?? mission?.service_type, 'n/a');
@@ -154,6 +159,9 @@ async function buildPdfBytes(opts: {
 
   draw('Campaign details', 12, true);
   draw(`Service: ${service}`);
+  if (placeLabel) {
+    draw(`Location: ${placeLabel}`);
+  }
   draw(
     `Coordinates: ${Number.isFinite(lat) ? lat.toFixed(6) : '?'}, ${
       Number.isFinite(lng) ? lng.toFixed(6) : '?'
@@ -403,7 +411,7 @@ Deno.serve(async (req) => {
   const { data: mission } = await supabase
     .from('missions')
     .select(
-      'id, service_type, description, location_lat, location_lng, expected_price, current_funding, status, crowdfunding_mode, crowdfunding_expires_at, photo_urls, created_at'
+      'id, service_type, description, location_lat, location_lng, country, city, expected_price, current_funding, status, crowdfunding_mode, crowdfunding_expires_at, photo_urls, created_at'
     )
     .eq('id', row.mission_id)
     .maybeSingle();

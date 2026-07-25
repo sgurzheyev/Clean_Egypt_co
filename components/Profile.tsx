@@ -63,10 +63,10 @@ import MissionFeedCard from './MissionFeedCard';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
 
 const MISSION_PROFILE_SELECT =
-  'id, creator_id, cleaner_id, category, amount_target, expected_price, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ai_confidence_score, ai_verdict';
+  'id, creator_id, cleaner_id, category, amount_target, expected_price, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ai_confidence_score, ai_verdict';
 
 const MISSION_ACTIVE_SELECT =
-  'id, creator_id, cleaner_id, category, amount_target, expected_price, location_lat, location_lng, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, auto_approved';
+  'id, creator_id, cleaner_id, category, amount_target, expected_price, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, auto_approved';
 
 interface ProfileProps {
   isOpen: boolean;
@@ -810,6 +810,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           expected_price,
           location_lat,
           location_lng,
+          country,
+          city,
           status,
           title,
           description,

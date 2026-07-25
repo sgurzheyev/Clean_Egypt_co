@@ -31,6 +31,8 @@ type ARMission = {
   status: string;
   location_lat: number;
   location_lng: number;
+  country?: string | null;
+  city?: string | null;
   current_funding: number | null;
   expected_price: number | null;
   description: string | null;
@@ -389,7 +391,7 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
       const { data, error: err } = await supabase
         .from('missions')
         .select(
-          'id, status, location_lat, location_lng, current_funding, expected_price, description, crowdfunding_mode'
+          'id, status, location_lat, location_lng, country, city, current_funding, expected_price, description, crowdfunding_mode'
         )
         .in('status', ['available', 'funding'])
         .not('location_lat', 'is', null)

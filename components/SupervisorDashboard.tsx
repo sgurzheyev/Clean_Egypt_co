@@ -22,6 +22,8 @@ interface Mission {
   amount_target: number;
   location_lat?: number | null;
   location_lng?: number | null;
+  country?: string | null;
+  city?: string | null;
   completion_lat?: number | null;
   completion_lng?: number | null;
   completion_distance_meters?: number | null;
@@ -83,7 +85,7 @@ const SupervisorDashboard: React.FC = () => {
       const { data, error: missionsError } = await supabase
         .from('missions')
         .select(
-          'id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, completion_lat, completion_lng, completion_distance_meters, status, description, created_at, started_at, photo_urls, after_photo_urls, is_disputed'
+          'id, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, country, city, completion_lat, completion_lng, completion_distance_meters, status, description, created_at, started_at, photo_urls, after_photo_urls, is_disputed'
         )
         .in('status', ['pending_verification', 'disputed'])
         .order('created_at', { ascending: false });

@@ -56,6 +56,8 @@ interface MissionRow {
   amount_target?: number | null;
   location_lat?: number | null;
   location_lng?: number | null;
+  country?: string | null;
+  city?: string | null;
   description?: string | null;
   created_at?: string | null;
   photo_urls?: string[] | null;
@@ -365,7 +367,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     try {
       const { data, error: err } = await supabase
         .from('missions')
-        .select('id, status, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, description, created_at, photo_urls, after_photo_urls')
+        .select('id, status, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, country, city, description, created_at, photo_urls, after_photo_urls')
         .in('status', ['pending_payment', 'pending', 'available', 'funding', 'in_progress', 'completed', 'disputed', 'pending_verification', 'review', 'dispute'])
         .order('created_at', { ascending: false })
         .limit(50);
@@ -442,7 +444,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     try {
       const { data, error: err } = await supabase
         .from('missions')
-        .select('id, status, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, description, created_at, photo_urls, after_photo_urls, ai_confidence_score, ai_verdict')
+        .select('id, status, creator_id, cleaner_id, category, amount_target, location_lat, location_lng, country, city, description, created_at, photo_urls, after_photo_urls, ai_confidence_score, ai_verdict')
         .in('status', ['disputed', 'pending_verification', 'review', 'dispute'])
         .order('created_at', { ascending: false })
         .limit(30);
