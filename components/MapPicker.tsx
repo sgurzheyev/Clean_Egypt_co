@@ -2095,22 +2095,45 @@ const MapPicker: React.FC<MapPickerProps> = ({
     });
   }, [taskTypeSelected, viewState.latitude, viewState.longitude]);
 
+  /**
+   * Reverse geocoding is what fills mission country/city. When it breaks (bad
+   * token scope, network), pins silently lose their region and drop out of the
+   * country filter, so say it out loud — once per session to stay unobtrusive.
+   */
+  const geocodeWarnedRef = React.useRef(false);
+  const warnGeocodeUnavailable = useCallback(() => {
+    if (geocodeWarnedRef.current) return;
+    geocodeWarnedRef.current = true;
+    toast.notice(
+      t('pinLocationDetectUnavailable', {
+        defaultValue: 'Location detection is unavailable — country and city will be estimated.',
+      })
+    );
+  }, [t, toast]);
+
   const resolvePinLocation = useCallback(async (lat: number, lng: number) => {
     setPinLocationLoading(true);
     try {
       const ctx = await reverseGeocodePinLocation(lat, lng, MAPBOX_TOKEN);
       setPinLocationContext(ctx);
+      if (ctx?.geocodeFailed) warnGeocodeUnavailable();
     } catch {
       const city = closestMarketplaceCity(lat, lng);
       setPinLocationContext(
         city
-          ? { areaName: '', closestCityId: city.id, closestCityNameKey: city.nameKey }
+          ? {
+              areaName: '',
+              closestCityId: city.id,
+              closestCityNameKey: city.nameKey,
+              geocodeFailed: true,
+            }
           : null
       );
+      warnGeocodeUnavailable();
     } finally {
       setPinLocationLoading(false);
     }
-  }, []);
+  }, [warnGeocodeUnavailable]);
 
   useEffect(() => {
     if (!selectedLocation) {

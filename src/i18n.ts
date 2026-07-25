@@ -286,6 +286,8 @@ const resources = {
       pinPlacementBaseRule: '1 ad = 1 token (minimum).',
       pinLocationLabel: 'Location',
       pinLocationResolving: 'Detecting area name…',
+      pinLocationDetectUnavailable:
+        'Location detection is unavailable — country and city will be estimated.',
       missionTokenBidLabel: 'Token bid',
       missionTokenBidHint:
         'Raise your token bid to rank your listing higher for workers. Base pin cost is 1 token.',
@@ -814,6 +816,8 @@ const resources = {
       pinPlacementBaseRule: '1 إعلان = 1 توكن (الحد الأدنى).',
       pinLocationLabel: 'الموقع',
       pinLocationResolving: 'جاري تحديد اسم المنطقة…',
+      pinLocationDetectUnavailable:
+        'تحديد الموقع غير متاح — سيتم تقدير الدولة والمدينة.',
       missionTokenBidLabel: 'عرض التوكن',
       missionTokenBidHint:
         'ارفع عرض التوكن لترتيب إعلانك أعلى للعمال. تكلفة الدبوس الأساسية توكن واحد.',
@@ -1303,6 +1307,8 @@ const resources = {
       pinPlacementBaseRule: '1 объявление = 1 токен (минимум).',
       pinLocationLabel: 'Место',
       pinLocationResolving: 'Определяем название района…',
+      pinLocationDetectUnavailable:
+        'Определение места недоступно — страна и город будут указаны примерно.',
       photoModerationUnavailable:
         'Проверка фото временно недоступна — фото добавлено без проверки.',
       missionTokenBidLabel: 'Ставка токенов',

@@ -13,6 +13,13 @@ export type PinLocationContext = {
   country?: string;
   /** City / place display name from Mapbox (e.g. "Santa Barbara"). */
   city?: string;
+  /**
+   * True when Mapbox could not be reached or rejected the request, so
+   * `country`/`city` are missing or coordinate-guessed rather than authoritative.
+   * Callers should surface this — a silently failing geocoder leaves every new
+   * mission outside Egypt without a country until the DB trigger guesses one.
+   */
+  geocodeFailed?: boolean;
 };
 
 /**
@@ -29,11 +36,18 @@ export async function reverseGeocodePinLocation(
   lng: number,
   accessToken: string | undefined
 ): Promise<PinLocationContext | null> {
-  if (!accessToken || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
 
   /** Soft Egypt hub only when the pin is near the marketplace network. */
   const closest = closestMarketplaceCity(lat, lng);
+
+  if (!accessToken) {
+    console.error(
+      '[reverseGeocode] VITE_MAPBOX_TOKEN is not set — mission country/city cannot be detected.'
+    );
+    return fallbackContext(closest, lat, lng, true);
+  }
 
   try {
     // Path must be "lng,lat" (longitude first).
@@ -47,8 +61,17 @@ export async function reverseGeocodePinLocation(
 
     const res = await fetch(url.toString());
     if (!res.ok) {
-      console.warn('[reverseGeocode] Mapbox HTTP', res.status, await res.text().catch(() => ''));
-      return fallbackContext(closest, lat, lng);
+      const body = await res.text().catch(() => '');
+      console.error(
+        '[reverseGeocode] Mapbox HTTP',
+        res.status,
+        body,
+        res.status === 401 || res.status === 403
+          ? '— VITE_MAPBOX_TOKEN is likely missing the geocoding scope or is URL-restricted. ' +
+              'Mission country/city will fall back to a nearest-city guess.'
+          : ''
+      );
+      return fallbackContext(closest, lat, lng, true);
     }
 
     const data = (await res.json()) as {
@@ -110,15 +133,16 @@ export async function reverseGeocodePinLocation(
       city: city || undefined,
     };
   } catch (e) {
-    console.warn('[reverseGeocode] failed:', e);
-    return fallbackContext(closest, lat, lng);
+    console.error('[reverseGeocode] request failed:', e);
+    return fallbackContext(closest, lat, lng, true);
   }
 }
 
 function fallbackContext(
   closest: NonNullable<ReturnType<typeof closestMarketplaceCity>> | null,
   lat?: number,
-  lng?: number
+  lng?: number,
+  geocodeFailed = false
 ): PinLocationContext {
   if (closest) {
     const city = closest.id
@@ -131,6 +155,7 @@ function fallbackContext(
       closestCityNameKey: closest.nameKey,
       country: 'Egypt',
       city,
+      geocodeFailed: geocodeFailed || undefined,
     };
   }
   const coordLabel =
@@ -142,6 +167,7 @@ function fallbackContext(
     placeLabel: coordLabel || undefined,
     closestCityId: '',
     closestCityNameKey: '',
+    geocodeFailed: geocodeFailed || undefined,
   };
 }
 
