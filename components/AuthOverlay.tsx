@@ -196,11 +196,15 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
 
   return (
     <div
-      className="fixed inset-0 z-[150] flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] bg-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-[150] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-3xl bg-black/90 backdrop-blur-xl border border-white/10 shadow-2xl p-6"
+        className="my-auto w-full max-w-md overflow-y-auto overscroll-contain rounded-3xl border border-white/10 bg-black/90 p-6 shadow-2xl backdrop-blur-xl [-webkit-overflow-scrolling:touch]"
+        style={{
+          maxHeight:
+            'calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 2rem)',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-6">

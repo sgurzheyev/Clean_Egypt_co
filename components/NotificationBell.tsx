@@ -158,8 +158,14 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, onOpenMissi
       </button>
 
       {open && (
-        <div className="mt-2 max-h-[70vh] w-[min(88vw,22rem)] overflow-hidden rounded-2xl border border-white/10 bg-slate-950/95 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl">
-          <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
+        <div
+          className="mt-2 flex w-[min(88vw,22rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/95 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+          style={{
+            maxHeight:
+              'calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 5.5rem)',
+          }}
+        >
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-300">
               {t('notifications')}
               {unread > 0 ? (
@@ -180,7 +186,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, onOpenMissi
             )}
           </div>
 
-          <div className="max-h-[calc(70vh-3rem)] overflow-y-auto overscroll-y-contain">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] pb-[env(safe-area-inset-bottom,0px)]">
             {items.length === 0 ? (
               <p className="px-4 py-8 text-center text-xs text-slate-500">{t('notifEmpty')}</p>
             ) : (

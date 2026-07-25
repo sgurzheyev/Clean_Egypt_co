@@ -320,14 +320,20 @@ export default function TokenPackModal({
 
   return (
     <div
-      className="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+      className="fixed inset-0 z-[10050] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-md pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"
       onClick={requestClose}
     >
       <div
-        className="w-full max-w-md rounded-3xl bg-slate-950/80 backdrop-blur-xl border border-lime-500/20 shadow-2xl p-6"
+        className="my-auto w-full max-w-md rounded-3xl border border-lime-500/20 bg-slate-950/80 p-6 shadow-2xl backdrop-blur-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="max-h-[85vh] overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div
+          className="overflow-y-auto overscroll-contain pb-[calc(1rem+env(safe-area-inset-bottom))] [-webkit-overflow-scrolling:touch]"
+          style={{
+            maxHeight:
+              'min(85dvh, 85svh, calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 4rem))',
+          }}
+        >
           <div className="flex items-start justify-between mb-4">
             <h3 className="text-sm font-black uppercase tracking-[0.22em] text-white">
               {t('saasPaymentModalTitle')}
