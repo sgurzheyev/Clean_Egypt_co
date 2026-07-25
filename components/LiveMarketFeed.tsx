@@ -13,10 +13,9 @@ import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import {
   MARKETPLACE_ALL_CITIES_ID,
-  MARKETPLACE_ALL_WORLD_ID,
-  buildLocationCatalog,
-  filterMissionsByCountryCity,
+  filterMissionsByCountriesCity,
 } from '../src/lib/globalMarketplace';
+import { useLocationCatalog } from '../src/hooks/useLocationCatalog';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
 import {
@@ -156,7 +155,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [marketCountryId, setMarketCountryId] = useState<string>(MARKETPLACE_ALL_WORLD_ID);
+  const [marketCountryIds, setMarketCountryIds] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_CITIES_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
   const { mutedIds } = useMutedCreators();
@@ -173,17 +172,20 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
 
   useEffect(() => subscribeShowFreeReports(setShowFreeReports), []);
 
-  const locationCatalog = useMemo(() => buildLocationCatalog(missions), [missions]);
+  // DB catalog + DB-wide facets keep every populated region selectable, even
+  // when its missions fall outside this panel's page window.
+  const { catalog: locationCatalog } = useLocationCatalog(missions, open);
 
   const visibleMissions = useMemo(
     () =>
       sortMissions(
         filterMissionsByMutedCreators(
           filterMissionsByFreeReports(
-            filterMissionsByCountryCity(
+            filterMissionsByCountriesCity(
               filterMissionsByTags(missions, selectedTags),
-              marketCountryId,
-              marketCityId
+              marketCountryIds,
+              marketCityId,
+              locationCatalog
             ),
             showFreeReports
           ),
@@ -191,7 +193,16 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
         ),
         sortMode
       ),
-    [missions, selectedTags, marketCountryId, marketCityId, showFreeReports, mutedIds, sortMode]
+    [
+      missions,
+      selectedTags,
+      marketCountryIds,
+      marketCityId,
+      locationCatalog,
+      showFreeReports,
+      mutedIds,
+      sortMode,
+    ]
   );
 
   useEffect(() => {
@@ -299,8 +310,8 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                   onToggleTag={toggleTag}
                   onClearTags={clearTags}
                   resultCount={visibleMissions.length}
-                  countryId={marketCountryId}
-                  onCountryChange={setMarketCountryId}
+                  countryIds={marketCountryIds}
+                  onCountryIdsChange={setMarketCountryIds}
                   cityId={marketCityId}
                   onCityChange={setMarketCityId}
                   locationCatalog={locationCatalog}

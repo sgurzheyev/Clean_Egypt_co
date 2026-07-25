@@ -32,10 +32,9 @@ import {
 } from '../src/lib/missionFilterSort';
 import {
   MARKETPLACE_ALL_CITIES_ID,
-  MARKETPLACE_ALL_WORLD_ID,
-  buildLocationCatalog,
-  filterMissionsByCountryCity,
+  filterMissionsByCountriesCity,
 } from '../src/lib/globalMarketplace';
+import { useLocationCatalog } from '../src/hooks/useLocationCatalog';
 import {
   filterMissionsByFreeReports,
   readShowFreeReports,
@@ -243,7 +242,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   // is token-boost first (see DEFAULT_MISSION_SORT).
   const [marketSortMode, setMarketSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
   const [marketSelectedTags, setMarketSelectedTags] = useState<string[]>([]);
-  const [marketCountryId, setMarketCountryId] = useState<string>(MARKETPLACE_ALL_WORLD_ID);
+  const [marketCountryIds, setMarketCountryIds] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_CITIES_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
   const { mutedIds, mutedCount, clearMuted } = useMutedCreators();
@@ -412,20 +411,19 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   }, [ownedOpenMissions.length, activeWorkJobs.length, t]);
 
   // Filtered by country/city + tags + free-report visibility + muted creators, then ranked.
-  const locationCatalog = useMemo(
-    () => buildLocationCatalog(openMarketplaceJobs),
-    [openMarketplaceJobs]
-  );
+  // The catalog also pulls DB-wide facets so populated countries stay selectable.
+  const { catalog: locationCatalog } = useLocationCatalog(openMarketplaceJobs);
 
   const displayedMarketplaceJobs = useMemo(
     () =>
       sortMissions(
         filterMissionsByMutedCreators(
           filterMissionsByFreeReports(
-            filterMissionsByCountryCity(
+            filterMissionsByCountriesCity(
               filterMissionsByTags(openMarketplaceJobs, marketSelectedTags),
-              marketCountryId,
-              marketCityId
+              marketCountryIds,
+              marketCityId,
+              locationCatalog
             ),
             showFreeReports
           ),
@@ -436,8 +434,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     [
       openMarketplaceJobs,
       marketSelectedTags,
-      marketCountryId,
+      marketCountryIds,
       marketCityId,
+      locationCatalog,
       showFreeReports,
       mutedIds,
       marketSortMode,
@@ -2258,8 +2257,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               onToggleTag={toggleMarketTag}
               onClearTags={clearMarketTags}
               resultCount={displayedMarketplaceJobs.length}
-              countryId={marketCountryId}
-              onCountryChange={setMarketCountryId}
+              countryIds={marketCountryIds}
+              onCountryIdsChange={setMarketCountryIds}
               cityId={marketCityId}
               onCityChange={setMarketCityId}
               locationCatalog={locationCatalog}

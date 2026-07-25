@@ -20,10 +20,11 @@ import {
 } from '../src/lib/missionFilterSort';
 import {
   MARKETPLACE_ALL_CITIES_ID,
-  MARKETPLACE_ALL_WORLD_ID,
   QUICK_REGION_COUNTRIES,
+  citiesForCountrySelection,
   isAllCitiesFilter,
-  isAllWorldFilter,
+  isAllWorldSelection,
+  toCountrySelection,
   type LocationCatalog,
 } from '../src/lib/globalMarketplace';
 import {
@@ -60,13 +61,13 @@ export interface MissionFilterPanelProps {
   onToggleTag: (tag: string) => void;
   onClearTags: () => void;
   resultCount?: number;
-  /** Country filter (`all_world` | country display name). */
-  countryId?: string;
-  onCountryChange?: (countryId: string) => void;
-  /** City filter (empty = all cities in selected country). */
+  /** Selected countries by display name. Empty = All World. */
+  countryIds?: string[];
+  onCountryIdsChange?: (countryIds: string[]) => void;
+  /** City filter (empty = all cities across the selected countries). */
   cityId?: string;
   onCityChange?: (cityId: string) => void;
-  /** Dynamic country/city lists built from loaded missions. */
+  /** Country/city lists from the DB catalog, DB-wide facets and loaded missions. */
   locationCatalog?: LocationCatalog;
   /**
    * Free civic Attention Zone reports (`is_report` / status `reported`).
@@ -88,8 +89,8 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
   onToggleTag,
   onClearTags,
   resultCount,
-  countryId,
-  onCountryChange,
+  countryIds,
+  onCountryIdsChange,
   cityId,
   onCityChange,
   locationCatalog,
@@ -102,34 +103,47 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
   const [open, setOpen] = useState(false);
   const activeCount = selectedTags.length;
   const showLocationFilter =
-    typeof onCountryChange === 'function' || typeof onCityChange === 'function';
-  const countryValue = countryId ?? MARKETPLACE_ALL_WORLD_ID;
+    typeof onCountryIdsChange === 'function' || typeof onCityChange === 'function';
+  const selectedCountries = useMemo(() => toCountrySelection(countryIds), [countryIds]);
+  const allWorld = isAllWorldSelection(selectedCountries);
   const cityValue = cityId ?? MARKETPLACE_ALL_CITIES_ID;
-  const locationActive =
-    showLocationFilter &&
-    (!isAllWorldFilter(countryValue) || !isAllCitiesFilter(cityValue));
+  const locationActive = showLocationFilter && (!allWorld || !isAllCitiesFilter(cityValue));
   const showReportsToggle = typeof onShowFreeReportsChange === 'function';
   const reportsMuted = showReportsToggle && !showFreeReports;
-  const badgeCount = activeCount + (locationActive ? 1 : 0) + (reportsMuted ? 1 : 0);
+  const badgeCount =
+    activeCount +
+    (selectedCountries.length || (!isAllCitiesFilter(cityValue) ? 1 : 0)) +
+    (reportsMuted ? 1 : 0);
 
   const countries = locationCatalog?.countries ?? [...QUICK_REGION_COUNTRIES];
-  const citiesForCountry = useMemo(() => {
-    if (!locationCatalog) return [] as string[];
-    if (isAllWorldFilter(countryValue)) {
-      return locationCatalog.citiesByCountry.__all__ ?? [];
-    }
-    return locationCatalog.citiesByCountry[countryValue] ?? [];
-  }, [locationCatalog, countryValue]);
+  const citiesForCountry = useMemo(
+    () => citiesForCountrySelection(locationCatalog, selectedCountries),
+    [locationCatalog, selectedCountries]
+  );
 
   const quickCountries = useMemo(() => {
-    const fromCatalog = countries.filter((c) =>
-      QUICK_REGION_COUNTRIES.some((q) => q.toLowerCase() === c.toLowerCase())
+    const preferred = locationCatalog?.quickCountries?.length
+      ? locationCatalog.quickCountries
+      : [...QUICK_REGION_COUNTRIES];
+    // Always include what the user already picked, even outside the quick set.
+    const extras = selectedCountries.filter(
+      (c) => !preferred.some((q) => q.toLowerCase() === c.toLowerCase())
     );
-    const seeded = QUICK_REGION_COUNTRIES.filter(
-      (q) => !fromCatalog.some((c) => c.toLowerCase() === q.toLowerCase())
-    );
-    return [...fromCatalog, ...seeded];
-  }, [countries]);
+    return [...preferred, ...extras];
+  }, [locationCatalog, selectedCountries]);
+
+  /** DB-wide mission count for a country, when the facets RPC is available. */
+  const countryCount = (country: string): number | null => {
+    const counts = locationCatalog?.countryCounts;
+    if (!counts) return null;
+    const hit = counts[country.toLowerCase()];
+    return typeof hit === 'number' ? hit : null;
+  };
+
+  const countryOptionLabel = (country: string): string => {
+    const count = countryCount(country);
+    return count && count > 0 ? `${country} (${count})` : country;
+  };
 
   useEffect(() => {
     if (variant !== 'floating' || !open) return;
@@ -145,23 +159,40 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
     };
   }, [variant, open]);
 
-  const handleCountryChange = (next: string) => {
-    onCountryChange?.(next);
-    if (!isAllCitiesFilter(cityValue) && onCityChange) {
-      const nextCities = isAllWorldFilter(next)
-        ? locationCatalog?.citiesByCountry.__all__ ?? []
-        : locationCatalog?.citiesByCountry[next] ?? [];
-      if (!nextCities.some((c) => c.toLowerCase() === cityValue.toLowerCase())) {
-        onCityChange(MARKETPLACE_ALL_CITIES_ID);
-      }
+  /** Apply a new country selection and drop a city that no longer belongs to it. */
+  const applyCountrySelection = (next: string[]) => {
+    const selection = toCountrySelection(next);
+    onCountryIdsChange?.(selection);
+    if (isAllCitiesFilter(cityValue) || !onCityChange) return;
+    const nextCities = citiesForCountrySelection(locationCatalog, selection);
+    if (!nextCities.some((c) => c.toLowerCase() === cityValue.toLowerCase())) {
+      onCityChange(MARKETPLACE_ALL_CITIES_ID);
     }
+  };
+
+  const handleToggleCountry = (country: string) => {
+    const exists = selectedCountries.some((c) => c.toLowerCase() === country.toLowerCase());
+    applyCountrySelection(
+      exists
+        ? selectedCountries.filter((c) => c.toLowerCase() !== country.toLowerCase())
+        : [...selectedCountries, country]
+    );
+  };
+
+  const handleClearCountries = () => applyCountrySelection([]);
+
+  /** Compact bar / dropdown: pick one country, replacing the current selection. */
+  const handleReplaceCountry = (country: string) => {
+    applyCountrySelection(country ? [country] : []);
   };
 
   const renderLocationControls = (compact = false) => {
     if (!showLocationFilter) return null;
 
-    const countrySelect = (
-      <div className={`relative ${compact ? 'min-w-[7.5rem]' : ''}`}>
+    // Compact bar: single-choice select (multi-select is unusable in a
+    // horizontal scroll strip). Shows "N countries" when several are active.
+    const compactCountrySelect = (
+      <div className="relative min-w-[7.5rem]">
         <Globe2
           className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-cyan-300"
           strokeWidth={2.25}
@@ -172,29 +203,63 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
         </label>
         <select
           id="mission-country-select"
-          value={countryValue}
-          onChange={(e) => handleCountryChange(e.target.value)}
-          className={
-            compact
-              ? 'max-w-[9.5rem] appearance-none rounded-lg border-0 bg-transparent py-1.5 pl-7 pr-6 text-[11px] font-bold text-cyan-100 outline-none focus:ring-0'
-              : SELECT_CLASS
-          }
+          value={selectedCountries.length === 1 ? selectedCountries[0] : ''}
+          onChange={(e) => handleReplaceCountry(e.target.value)}
+          className="max-w-[9.5rem] appearance-none rounded-lg border-0 bg-transparent py-1.5 pl-7 pr-6 text-[11px] font-bold text-cyan-100 outline-none focus:ring-0"
         >
-          <option value={MARKETPLACE_ALL_WORLD_ID} className="bg-slate-900 text-slate-100">
-            {t('marketplaceWorldAll', { defaultValue: 'All World' })}
+          <option value="" className="bg-slate-900 text-slate-100">
+            {selectedCountries.length > 1
+              ? t('marketplaceCountriesSelected', {
+                  count: selectedCountries.length,
+                  defaultValue: '{{count}} countries',
+                })
+              : t('marketplaceWorldAll', { defaultValue: 'All World' })}
           </option>
           {countries.map((c) => (
             <option key={c} value={c} className="bg-slate-900 text-slate-100">
-              {c}
+              {countryOptionLabel(c)}
             </option>
           ))}
         </select>
-        {!compact && (
-          <ChevronDown
-            className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300/70"
-            aria-hidden
-          />
-        )}
+      </div>
+    );
+
+    // Full panel: dropdown adds a country to the multi-selection.
+    const countryAddSelect = (
+      <div className="relative">
+        <Globe2
+          className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-cyan-300"
+          strokeWidth={2.25}
+          aria-hidden
+        />
+        <label className="sr-only" htmlFor="mission-country-add">
+          {t('selectCountry', { defaultValue: 'Country' })}
+        </label>
+        <select
+          id="mission-country-add"
+          value=""
+          onChange={(e) => {
+            if (e.target.value) handleToggleCountry(e.target.value);
+          }}
+          className={SELECT_CLASS}
+        >
+          <option value="" className="bg-slate-900 text-slate-100">
+            {t('marketplaceAddCountry', { defaultValue: 'Add country…' })}
+          </option>
+          {countries
+            .filter(
+              (c) => !selectedCountries.some((s) => s.toLowerCase() === c.toLowerCase())
+            )
+            .map((c) => (
+              <option key={c} value={c} className="bg-slate-900 text-slate-100">
+                {countryOptionLabel(c)}
+              </option>
+            ))}
+        </select>
+        <ChevronDown
+          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300/70"
+          aria-hidden
+        />
       </div>
     );
 
@@ -240,7 +305,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
       return (
         <>
           <div className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-cyan-400/30 bg-cyan-500/10 pl-0.5">
-            {countrySelect}
+            {compactCountrySelect}
           </div>
           <div className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-emerald-400/30 bg-emerald-500/10 pl-0.5">
             {citySelect}
@@ -252,15 +317,28 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
     return (
       <section className="space-y-3">
         <div>
-          <p className={SECTION_LABEL}>
-            {t('selectCountry', { defaultValue: 'Country' })}
-          </p>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className={`${SECTION_LABEL} mb-0`}>
+              {t('selectCountry', { defaultValue: 'Country' })}
+            </p>
+            {selectedCountries.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearCountries}
+                className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 hover:text-slate-200"
+              >
+                <X className="h-3 w-3" strokeWidth={2.5} />
+                {t('marketplaceWorldAll', { defaultValue: 'All World' })}
+              </button>
+            )}
+          </div>
           <div className="mb-2 flex flex-wrap gap-1.5">
             <button
               type="button"
-              onClick={() => handleCountryChange(MARKETPLACE_ALL_WORLD_ID)}
+              aria-pressed={allWorld}
+              onClick={handleClearCountries}
               className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] transition-colors ${
-                isAllWorldFilter(countryValue)
+                allWorld
                   ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,0.25)]'
                   : 'border-white/12 bg-white/5 text-slate-400 hover:border-white/25 hover:text-slate-200'
               }`}
@@ -268,26 +346,37 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
               {t('marketplaceWorldAll', { defaultValue: 'All World' })}
             </button>
             {quickCountries.map((c) => {
-              const active =
-                !isAllWorldFilter(countryValue) &&
-                countryValue.toLowerCase() === c.toLowerCase();
+              const active = selectedCountries.some(
+                (s) => s.toLowerCase() === c.toLowerCase()
+              );
+              const count = countryCount(c);
               return (
                 <button
                   key={c}
                   type="button"
-                  onClick={() => handleCountryChange(c)}
-                  className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] transition-colors ${
+                  role="checkbox"
+                  aria-checked={active}
+                  onClick={() => handleToggleCountry(c)}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] transition-colors ${
                     active
                       ? 'border-emerald-400/60 bg-emerald-500/25 text-emerald-100 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
                       : 'border-white/12 bg-white/5 text-slate-400 hover:border-white/25 hover:text-slate-200'
                   }`}
                 >
                   {c}
+                  {count != null && count > 0 && (
+                    <span
+                      className={active ? 'text-emerald-200/80' : 'text-slate-500'}
+                    >
+                      {count}
+                    </span>
+                  )}
+                  {active && <X className="h-2.5 w-2.5" strokeWidth={3} aria-hidden />}
                 </button>
               );
             })}
           </div>
-          {countrySelect}
+          {countryAddSelect}
         </div>
         <div>
           <p className={SECTION_LABEL}>{t('selectCity')}</p>

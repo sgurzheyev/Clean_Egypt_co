@@ -131,11 +131,11 @@ import { isEdgeFunctionUnreachable } from '../src/lib/supabaseFunctionError';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import {
   MARKETPLACE_ALL_CITIES_ID,
-  MARKETPLACE_ALL_WORLD_ID,
-  buildLocationCatalog,
-  filterMissionsByCountryCity,
+  filterMissionsByCountriesCity,
   resolveFilterFlyTarget,
+  type LocationCatalog,
 } from '../src/lib/globalMarketplace';
+import { useLocationCatalog } from '../src/hooks/useLocationCatalog';
 import {
   type PinLocationContext,
   formatPinLocationTag,
@@ -1523,7 +1523,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const orderFormRef = React.useRef<HTMLFormElement>(null);
   const jobsRef = React.useRef<JobOnMap[]>([]);
   const selectedMissionTagsRef = React.useRef<string[]>([]);
-  const marketCountryIdRef = React.useRef<string>(MARKETPLACE_ALL_WORLD_ID);
+  const marketCountryIdsRef = React.useRef<string[]>([]);
   const marketCityIdRef = React.useRef<string>(MARKETPLACE_ALL_CITIES_ID);
   const showFreeReportsRef = React.useRef(true);
   const mutedCreatorIdsRef = React.useRef<string[]>([]);
@@ -1931,7 +1931,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   // selection means "show everything". Sort is shared with the market feed.
   const [missionSortMode, setMissionSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
   const [selectedMissionTags, setSelectedMissionTags] = useState<string[]>([]);
-  const [marketCountryId, setMarketCountryId] = useState<string>(MARKETPLACE_ALL_WORLD_ID);
+  const [marketCountryIds, setMarketCountryIds] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_CITIES_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
   const { mutedIds, muteCreator } = useMutedCreators();
@@ -1950,8 +1950,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     selectedMissionTagsRef.current = selectedMissionTags;
   }, [selectedMissionTags]);
   useEffect(() => {
-    marketCountryIdRef.current = marketCountryId;
-  }, [marketCountryId]);
+    marketCountryIdsRef.current = marketCountryIds;
+  }, [marketCountryIds]);
   useEffect(() => {
     marketCityIdRef.current = marketCityId;
   }, [marketCityId]);
@@ -2792,10 +2792,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // Respect the active tag / city / free-report / muted-creator filters.
       const visibleJobs = filterMissionsByMutedCreators(
         filterMissionsByFreeReports(
-          filterMissionsByCountryCity(
+          filterMissionsByCountriesCity(
             filterMissionsByTags(jobsRef.current || [], selectedMissionTagsRef.current),
-            marketCountryIdRef.current,
-            marketCityIdRef.current
+            marketCountryIdsRef.current,
+            marketCityIdRef.current,
+            locationCatalogRef.current
           ),
           showFreeReportsRef.current
         ),
@@ -3948,7 +3949,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return { type: 'FeatureCollection' as const, features };
   }, [jobs, currentUserId]);
 
-  const locationCatalog = useMemo(() => buildLocationCatalog(jobs || []), [jobs]);
+  // Reference catalog + DB-wide facets, so a populated country is always
+  // selectable even when its missions fall outside the loaded page.
+  const { catalog: locationCatalog } = useLocationCatalog(jobs || []);
+  const locationCatalogRef = React.useRef<LocationCatalog | null>(null);
+  useEffect(() => {
+    locationCatalogRef.current = locationCatalog;
+  }, [locationCatalog]);
 
   const filterFlySkipRef = React.useRef(true);
   useEffect(() => {
@@ -3956,7 +3963,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       filterFlySkipRef.current = false;
       return;
     }
-    const target = resolveFilterFlyTarget(locationCatalog, marketCountryId, marketCityId);
+    const target = resolveFilterFlyTarget(locationCatalog, marketCountryIds, marketCityId);
     if (!target) return;
     const map = mapRef.current?.getMap?.();
     if (!map) return;
@@ -3964,16 +3971,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
       ...MAP_CINEMATIC_FLY,
       zoom: target.zoom,
     });
-  }, [marketCountryId, marketCityId, locationCatalog]);
+  }, [marketCountryIds, marketCityId, locationCatalog]);
 
   /** Service-colored mission pins on the map (always visible in 2D mode). */
   const missionPinsGeoJSON = useMemo(() => {
     const features = filterMissionsByMutedCreators(
       filterMissionsByFreeReports(
-        filterMissionsByCountryCity(
+        filterMissionsByCountriesCity(
           filterMissionsByTags(jobs || [], selectedMissionTags),
-          marketCountryId,
-          marketCityId
+          marketCountryIds,
+          marketCityId,
+          locationCatalog
         ),
         showFreeReports
       ),
@@ -4009,8 +4017,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [
     jobs,
     selectedMissionTags,
-    marketCountryId,
+    marketCountryIds,
     marketCityId,
+    locationCatalog,
     showFreeReports,
     mutedIds,
     serviceTypeForMission,
@@ -5106,8 +5115,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           onToggleTag={toggleMissionTag}
           onClearTags={clearMissionTags}
           resultCount={missionPinsGeoJSON.features.length}
-          countryId={marketCountryId}
-          onCountryChange={setMarketCountryId}
+          countryIds={marketCountryIds}
+          onCountryIdsChange={setMarketCountryIds}
           cityId={marketCityId}
           onCityChange={setMarketCityId}
           locationCatalog={locationCatalog}
