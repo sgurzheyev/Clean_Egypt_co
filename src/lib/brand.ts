@@ -12,6 +12,12 @@ export const APP_TMA_EMAIL_DOMAIN = `tma.${APP_DOMAIN}`;
 /** Custom window events (mission lifecycle). */
 export const APP_EVENT_MISSION_COMPLETED = 'garbagin:mission-completed';
 export const APP_EVENT_MISSION_DELETED = 'garbagin:mission-deleted';
+/**
+ * Deep-link into a mission briefing from overlays outside MapPicker
+ * (e.g. the Immersive Visual Feed inside Profile).
+ * detail: { missionId: string; openChatWith?: string | null }
+ */
+export const APP_EVENT_OPEN_MISSION = 'garbagin:open-mission';
 
 /**
  * Absolute site origin for Stripe redirects, auth email links, and deep links.

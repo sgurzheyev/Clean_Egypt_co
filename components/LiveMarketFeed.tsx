@@ -27,6 +27,7 @@ import {
 } from '../src/lib/missionFilterSort';
 import MissionFeedCard from './MissionFeedCard';
 import MissionFilterPanel from './MissionFilterPanel';
+import ImmersiveMissionFeed from './ImmersiveMissionFeed';
 import {
   filterMissionsByFreeReports,
   readShowFreeReports,
@@ -65,6 +66,10 @@ interface LiveMarketFeedProps {
   onClose: () => void;
   onSelectMission: (mission: LiveMarketMission) => void;
   currentUserId?: string | null;
+  /** Open the mission briefing with P2P chat intent (immersive feed "Message"). */
+  onOpenMissionChat?: (mission: LiveMarketMission) => void;
+  /** Open the account/profile overlay (immersive feed bottom nav). */
+  onOpenProfile?: () => void;
 }
 
 const ACTIVE_MARKET_STATUSES = [
@@ -147,6 +152,8 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   onClose,
   onSelectMission,
   currentUserId,
+  onOpenMissionChat,
+  onOpenProfile,
 }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -158,6 +165,8 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   const [marketCountryIds, setMarketCountryIds] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_CITIES_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
+  // Immersive Visual Feed: id of the mission whose photo was tapped (null = closed).
+  const [immersiveStartId, setImmersiveStartId] = useState<string | null>(null);
   const { mutedIds } = useMutedCreators();
 
   const toggleTag = (tag: string) =>
@@ -171,6 +180,11 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   };
 
   useEffect(() => subscribeShowFreeReports(setShowFreeReports), []);
+
+  // Closing the market panel always closes the immersive feed with it.
+  useEffect(() => {
+    if (!open) setImmersiveStartId(null);
+  }, [open]);
 
   // DB catalog + DB-wide facets keep every populated region selectable, even
   // when its missions fall outside this panel's page window.
@@ -263,6 +277,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   }, [open, t]);
 
   return (
+    <>
     <AnimatePresence>
       {open && (
         <motion.div
@@ -399,6 +414,10 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                             ) : undefined
                           }
                           onClick={() => onSelectMission(mission)}
+                          onPhotoClick={() => setImmersiveStartId(mission.id)}
+                          photoAriaLabel={t('immersiveOpenFeed', {
+                            defaultValue: 'Open visual feed',
+                          })}
                           onLocate={() => onSelectMission(mission)}
                           locateAriaLabel={t('locateOnMap')}
                         />
@@ -411,6 +430,47 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
         </motion.div>
       )}
     </AnimatePresence>
+
+    {/* Immersive Visual Feed — mission stack mirrors the active filter state. */}
+    <ImmersiveMissionFeed
+      open={open && !!immersiveStartId}
+      missions={visibleMissions}
+      startMissionId={immersiveStartId}
+      onClose={() => setImmersiveStartId(null)}
+      onOpenCreator={(creatorId) => {
+        setImmersiveStartId(null);
+        onClose();
+        navigate(`/profile/${creatorId}`);
+      }}
+      onShowOnMap={(mission) => {
+        setImmersiveStartId(null);
+        onSelectMission(mission as LiveMarketMission);
+      }}
+      onContact={(mission) => {
+        // Briefing hosts the contact panel — the Hungry-Games privacy lock
+        // (contacts hidden until a bid is accepted) is enforced there.
+        setImmersiveStartId(null);
+        onSelectMission(mission as LiveMarketMission);
+      }}
+      onMessage={(mission) => {
+        setImmersiveStartId(null);
+        if (onOpenMissionChat) {
+          onOpenMissionChat(mission as LiveMarketMission);
+        } else {
+          onSelectMission(mission as LiveMarketMission);
+        }
+      }}
+      onOpenProfile={
+        onOpenProfile
+          ? () => {
+              setImmersiveStartId(null);
+              onClose();
+              onOpenProfile();
+            }
+          : undefined
+      }
+    />
+    </>
   );
 };
 

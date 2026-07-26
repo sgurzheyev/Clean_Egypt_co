@@ -144,6 +144,7 @@ import {
 import {
   APP_EVENT_MISSION_COMPLETED,
   APP_EVENT_MISSION_DELETED,
+  APP_EVENT_OPEN_MISSION,
   getAppOrigin,
 } from '../src/lib/brand';
 
@@ -4194,6 +4195,24 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
   }, [openMyOrderMission, t, toast]);
 
+  // Deep-link from overlays outside MapPicker (Profile's Immersive Visual Feed):
+  // open the briefing, optionally with P2P chat intent.
+  useEffect(() => {
+    const onOpenMissionEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        missionId?: string;
+        openChatWith?: string | null;
+      }>).detail;
+      if (!detail?.missionId) return;
+      setShowLiveMarketFeed(false);
+      void openMissionById(String(detail.missionId), {
+        openChatWith: detail.openChatWith ?? null,
+      });
+    };
+    window.addEventListener(APP_EVENT_OPEN_MISSION, onOpenMissionEvent);
+    return () => window.removeEventListener(APP_EVENT_OPEN_MISSION, onOpenMissionEvent);
+  }, [openMissionById]);
+
   const handleOpenMarketFeed = useCallback(() => {
     setShowMyOrdersPanel(false);
     setDraftPinMenuExpanded(false);
@@ -5736,6 +5755,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
         onClose={() => setShowLiveMarketFeed(false)}
         onSelectMission={openLiveMarketMission}
         currentUserId={currentUserId}
+        onOpenMissionChat={(mission) => {
+          setShowLiveMarketFeed(false);
+          void openMissionById(String(mission.id), {
+            openChatWith: mission.creator_id ?? null,
+          });
+        }}
+        onOpenProfile={() => {
+          setShowLiveMarketFeed(false);
+          onAvatarClick?.();
+        }}
       />
       <MyOrdersPanel
         open={showMyOrdersPanel}

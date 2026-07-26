@@ -44,6 +44,7 @@ aliases: [Frontend Components, UI Map]
 
 ## Hooks & helpers
 
+- [[src/hooks/useLocationCatalog.ts]]
 - [[src/hooks/useMissionChat.ts]]
 - [[src/hooks/useMissionTextTranslation.ts]]
 - [[src/hooks/usePushNotifications.ts]]
@@ -51,11 +52,14 @@ aliases: [Frontend Components, UI Map]
 - [[src/lib/missionFilterSort.ts]]
 - [[src/lib/missionFeedVisuals.ts]]
 - [[src/lib/garbageZoneReport.ts]]
+- [[src/lib/globalMarketplace.ts]]
+- [[src/lib/locationCatalogSource.ts]]
 
 ## Related flows
 
 - Crowdfunding UI → [[01_Architecture/Stripe_USD_Flow]]
 - P2P briefing CTAs → [[01_Architecture/P2P_Deal_Flow]]
+- Country / city filter + map camera sync → [[01_Architecture/Global_Location_Filtering]]
 - KYC gate → [[01_Architecture/KYC_Verification]]
 - Field checklist → [[04_Roadmap_Tasks/00_Dashboard]]
 - Full file list → [[🗺️ GARBAGIN Master Index]]

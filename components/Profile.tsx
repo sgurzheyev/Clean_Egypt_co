@@ -54,12 +54,14 @@ import { isPlatformAdmin, isArchivedMissionStatus } from '../src/lib/platformAdm
 import { adminDeleteMission } from '../src/lib/adminMission';
 import {
   APP_EVENT_MISSION_COMPLETED,
+  APP_EVENT_OPEN_MISSION,
   APP_SUPPORT_EMAIL,
   APP_TELEGRAM_SUPPORT,
   getAppOrigin,
 } from '../src/lib/brand';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import MissionFeedCard from './MissionFeedCard';
+import ImmersiveMissionFeed from './ImmersiveMissionFeed';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
 
 const MISSION_PROFILE_SELECT =
@@ -245,6 +247,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [marketCountryIds, setMarketCountryIds] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_CITIES_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
+  // Immersive Visual Feed over the marketplace list (null = closed).
+  const [immersiveStartId, setImmersiveStartId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isOpen) setImmersiveStartId(null);
+  }, [isOpen]);
   const { mutedIds, mutedCount, clearMuted } = useMutedCreators();
   const toggleMarketTag = useCallback((tag: string) => {
     setMarketSelectedTags((prev) =>
@@ -1473,6 +1480,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   };
 
   return (
+    <>
     <AnimatePresence>
       {isOpen && (
     <motion.div
@@ -2354,6 +2362,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </span>
                       );
                     })()}
+                    onPhotoClick={() => setImmersiveStartId(job.id)}
+                    photoAriaLabel={t('immersiveOpenFeed', {
+                      defaultValue: 'Open visual feed',
+                    })}
                     onLocate={() => {
                       if (
                         onNavigateToJob &&
@@ -2899,6 +2911,52 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     </motion.div>
       )}
     </AnimatePresence>
+
+    {/* Immersive Visual Feed over the marketplace list — stack mirrors active filters. */}
+    <ImmersiveMissionFeed
+      open={isOpen && !!immersiveStartId}
+      missions={displayedMarketplaceJobs}
+      startMissionId={immersiveStartId}
+      onClose={() => setImmersiveStartId(null)}
+      onOpenCreator={(creatorId) => {
+        setImmersiveStartId(null);
+        onClose();
+        navigate(`/profile/${creatorId}`);
+      }}
+      onShowOnMap={(job) => {
+        setImmersiveStartId(null);
+        if (
+          onNavigateToJob &&
+          typeof job.location_lat === 'number' &&
+          typeof job.location_lng === 'number'
+        ) {
+          onNavigateToJob(job.location_lat, job.location_lng);
+        }
+        onClose();
+      }}
+      onContact={(job) => {
+        // MapPicker listens for this event and opens the mission briefing,
+        // where the contact panel enforces the bid-acceptance privacy lock.
+        setImmersiveStartId(null);
+        onClose();
+        window.dispatchEvent(
+          new CustomEvent(APP_EVENT_OPEN_MISSION, {
+            detail: { missionId: job.id },
+          })
+        );
+      }}
+      onMessage={(job) => {
+        setImmersiveStartId(null);
+        onClose();
+        window.dispatchEvent(
+          new CustomEvent(APP_EVENT_OPEN_MISSION, {
+            detail: { missionId: job.id, openChatWith: job.creator_id ?? null },
+          })
+        );
+      }}
+      onOpenProfile={() => setImmersiveStartId(null)}
+    />
+    </>
   );
 };
 

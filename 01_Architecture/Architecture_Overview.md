@@ -8,6 +8,7 @@
 - [[01_Architecture/Security_and_RPCs]] — `submit_mission_proof`, locked contribute RPC, EGP removal
 - [[01_Architecture/P2P_Deal_Flow]] — USD direct payment + dispute (no fiat escrow)
 - [[01_Architecture/Stripe_USD_Flow]] — Checkout crowdfunding, tokens, `crowdfunding_expires_at` timer
+- [[01_Architecture/Global_Location_Filtering]] — `location_catalog`, autofill trigger, multi-country filter + facets
 - Frontend map: [[02_Frontend/Frontend_Components]]
 - Field dashboard: [[04_Roadmap_Tasks/00_Dashboard]]
 - Migrations MOC: [[03_Backend_SQL/SQL_Migrations_Index]]
@@ -65,6 +66,9 @@
 | Work budget (USD) | [[../src/lib/missionBudget.ts]] |
 | Money formatters | [[../src/lib/formatMoney.ts]] |
 | Service → sector / pin icon | [[../src/lib/serviceSectors.ts]] |
+| Global country/city filter | [[../src/lib/globalMarketplace.ts]] |
+| Location catalog + facets fetch | [[../src/lib/locationCatalogSource.ts]] |
+| Location catalog hook | [[../src/hooks/useLocationCatalog.ts]] |
 | City PDF payload (expiry) | [[../src/lib/cityNotification.ts]] |
 | Trust / home KYC gate | [[../src/lib/homeMissionAccess.ts]] |
 
@@ -84,6 +88,9 @@ Active folder: [[../supabase/migrations]]
 | KYC admin | [[../supabase/migrations/20260720_kyc_admin_moderation.sql]] |
 | Drop `amount_egp` | [[../supabase/migrations/20260720_drop_contributions_amount_egp.sql]] |
 | Crowdfunding 7d expiry + cron | [[../supabase/migrations/20260720_crowdfunding_expiry_cron.sql]] |
+| Mission `country` / `city` columns | [[../supabase/migrations/20260725_mission_country_city.sql]] |
+| Location catalog + autofill trigger + facets | [[../supabase/migrations/20260726_global_location_catalog.sql]] |
+| Trigger border fix | [[../supabase/migrations/20260726_fix_location_trigger_border.sql]] |
 | Historical / archived | [[../supabase/migrations/archive]] |
 
 Manual Storage policies (hosted): [[../supabase/manual/kyc_documents_storage_policies.sql]]
@@ -102,6 +109,7 @@ Manual Storage policies (hosted): [[../supabase/manual/kyc_documents_storage_pol
 ```
 missions
   ├── location_lat / location_lng   → Map pins + AR markers
+  ├── country / city                → Global filter + location badges (autofilled by trigger)
   ├── status                        → funding | available | in_progress | review | completed | expired
   ├── expected_price                → USD work budget / crowdfund target
   ├── current_funding               → USD raised (crowdfunding)
@@ -116,6 +124,7 @@ missions
 2. **Crowdfunding ([[Stripe_USD_Flow]]):** `funding` → Stripe contribute → target met → `available` → bid → complete; underfunded past `crowdfunding_expires_at` → `expired` + city queue
 3. **KYC ([[KYC_Verification]]):** docs + liveness → `pending` → admin approve → home missions unlocked
 4. **AR:** GPS origin + mission lat/lng → local ENU → neon markers ([[../src/components/AROverlay.tsx]])
+5. **Location ([[Global_Location_Filtering]]):** pin → Mapbox reverse geocode → `country`/`city` (trigger fills gaps from `location_catalog`) → multi-country filter + facet counts
 
 ## Graph convention
 

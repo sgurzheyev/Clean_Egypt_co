@@ -28,6 +28,9 @@ export interface MissionFeedCardProps {
   footer?: React.ReactNode;
   highlighted?: boolean;
   onClick?: () => void;
+  /** Tap on the photo area itself (e.g. enter the Immersive Visual Feed). */
+  onPhotoClick?: () => void;
+  photoAriaLabel?: string;
   onLocate?: () => void;
   locateAriaLabel?: string;
   /** Creator avatar URL (falls back to letter placeholder). */
@@ -55,6 +58,8 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
   footer,
   highlighted = false,
   onClick,
+  onPhotoClick,
+  photoAriaLabel,
   onLocate,
   locateAriaLabel = 'Locate on map',
   creatorAvatarUrl,
@@ -99,7 +104,18 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
         onKeyDown={handleKeyDown}
         className={`w-full text-left ${onClick ? 'cursor-pointer' : ''}`}
       >
-        <div className="relative aspect-video w-full touch-pan-y overflow-hidden rounded-xl bg-slate-900">
+        <div
+          className="relative aspect-video w-full touch-pan-y overflow-hidden rounded-xl bg-slate-900"
+          onClick={
+            onPhotoClick
+              ? (e) => {
+                  e.stopPropagation();
+                  onPhotoClick();
+                }
+              : undefined
+          }
+          aria-label={onPhotoClick ? photoAriaLabel : undefined}
+        >
           {photo ? (
             <div className="pointer-events-none absolute inset-0 select-none [&_img]:h-full [&_img]:w-full [&_img]:object-cover">
               {photo}

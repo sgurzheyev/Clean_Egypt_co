@@ -34,6 +34,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[01_Architecture/Security_and_RPCs]]
 - [[01_Architecture/P2P_Deal_Flow]]
 - [[01_Architecture/Stripe_USD_Flow]]
+- [[01_Architecture/Global_Location_Filtering]]
 
 ### App shell & config
 - [[App.tsx]]
@@ -75,6 +76,8 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[src/lib/missionTranslation.ts]]
 - [[src/lib/garbageZoneReport.ts]]
 - [[src/lib/egyptMarketplace.ts]]
+- [[src/lib/globalMarketplace.ts]]
+- [[src/lib/locationCatalogSource.ts]]
 - [[src/lib/serviceSectors.ts]]
 - [[src/lib/showFreeReports.ts]]
 - [[src/lib/homeMissionAccess.ts]]
@@ -92,6 +95,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[src/lib/withdrawalTax.ts]]
 
 ### Hooks
+- [[src/hooks/useLocationCatalog.ts]]
 - [[src/hooks/useMissionChat.ts]]
 - [[src/hooks/useMissionTextTranslation.ts]]
 - [[src/hooks/useMutedCreators.ts]]
@@ -233,6 +237,9 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[supabase/migrations/20260724_garbage_zone_reports.sql]]
 - [[supabase/migrations/20260724_list_mission_eco_heroes.sql]]
 - [[supabase/migrations/20260724_restore_crowdfunding_contribution_timer_bump.sql]]
+- [[supabase/migrations/20260725_mission_country_city.sql]]
+- [[supabase/migrations/20260726_global_location_catalog.sql]]
+- [[supabase/migrations/20260726_fix_location_trigger_border.sql]]
 
 Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 
@@ -254,6 +261,7 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 | KYC | [[01_Architecture/KYC_Verification]] | [[components/VerificationModal.tsx]], [[src/lib/kycDocuments.ts]] |
 | Map / glass UI | [[02_Frontend/Frontend_Components]] | [[components/MapPicker.tsx]], [[components/Profile.tsx]] |
 | Phone privacy audit | [[03_Backend_SQL/AUDIT_phone_missions_access]] | [[supabase/migrations/20260723_hide_client_phone_until_bid_accept.sql]] |
+| Multi-country filter / location facets | [[01_Architecture/Global_Location_Filtering]] | [[src/lib/globalMarketplace.ts]], [[components/MissionFilterPanel.tsx]] |
 
 ---
 

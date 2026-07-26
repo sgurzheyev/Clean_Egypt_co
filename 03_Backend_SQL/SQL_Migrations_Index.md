@@ -52,12 +52,16 @@ Chronological — June–July 2026 token / crowdfunding / privacy stack.
 | 2026-07-23 | [[20260723_lifecycle_chat_notifications.sql]] | Bell feed: title/message + Realtime; triggers for chat, bids, funding lifecycle. |
 | 2026-07-23 | [[20260723_fix_reviews_cleaner_id.sql]] | `submit_review` always sets legacy `cleaner_id`; profile reviews include comments. |
 | 2026-07-23 | [[20260723_push_device_tokens.sql]] | Phase 5: `user_push_tokens` + RLS + pg_net bridge to `send-push-notification`. |
+| 2026-07-25 | [[20260725_mission_country_city.sql]] | Adds `missions.country` / `missions.city`; create RPCs accept and normalize them. |
+| 2026-07-26 | [[20260726_global_location_catalog.sql]] | `location_catalog` (54 countries / 318 cities), `haversine_km()`, NULL backfill, autofill trigger, and `list_mission_location_facets()`. |
+| 2026-07-26 | [[20260726_fix_location_trigger_border.sql]] | Stops the autofill trigger assigning a city from a different country; resolves country from a known city name. |
 
 ### Roadmap phase quick links
 
 - **Phase 1 (timers + crowd-bid):** [[20260722_dynamic_crowdfunding_timers.sql]] · [[20260722_place_mission_bid_crowd_funding.sql]]
 - **Phase 2 (city PDF):** [[20260722_city_notification_pipeline.sql]] · [[20260723_city_notification_webhook_app_config.sql]]
 - **Phase 3 (privacy):** [[20260723_hide_client_phone_until_bid_accept.sql]]
+- **Global location filter:** [[20260725_mission_country_city.sql]] · [[20260726_global_location_catalog.sql]] · [[20260726_fix_location_trigger_border.sql]] → [[01_Architecture/Global_Location_Filtering]]
 
 ---
 
