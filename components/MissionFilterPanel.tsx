@@ -32,6 +32,7 @@ import {
   STEEL_GLASS_PANEL_STYLE,
   BOTTOM_SHEET_MAX_HEIGHT_STYLE,
   BOTTOM_SHEET_SCROLL_PB,
+  FILTER_BAR_CLASS,
 } from '../constants';
 
 /**
@@ -192,7 +193,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
     // Compact bar: single-choice select (multi-select is unusable in a
     // horizontal scroll strip). Shows "N countries" when several are active.
     const compactCountrySelect = (
-      <div className="relative min-w-[7.5rem]">
+      <div className="relative w-[9.5rem] shrink-0">
         <Globe2
           className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-cyan-300"
           strokeWidth={2.25}
@@ -205,7 +206,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
           id="mission-country-select"
           value={selectedCountries.length === 1 ? selectedCountries[0] : ''}
           onChange={(e) => handleReplaceCountry(e.target.value)}
-          className="max-w-[9.5rem] appearance-none rounded-lg border-0 bg-transparent py-1.5 pl-7 pr-6 text-[11px] font-bold text-cyan-100 outline-none focus:ring-0"
+          className="w-full appearance-none truncate rounded-lg border-0 bg-transparent py-1.5 pl-7 pr-6 text-[11px] font-bold text-cyan-100 outline-none focus:ring-0"
         >
           <option value="" className="bg-slate-900 text-slate-100">
             {selectedCountries.length > 1
@@ -264,7 +265,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
     );
 
     const citySelect = (
-      <div className={`relative ${compact ? 'min-w-[7rem]' : ''}`}>
+      <div className={`relative ${compact ? 'w-[9rem] shrink-0' : ''}`}>
         <MapPin
           className={`pointer-events-none absolute ${compact ? 'left-2' : 'left-3'} top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-emerald-300`}
           strokeWidth={2.25}
@@ -279,7 +280,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
           onChange={(e) => onCityChange?.(e.target.value)}
           className={
             compact
-              ? 'max-w-[9rem] appearance-none rounded-lg border-0 bg-transparent py-1.5 pl-7 pr-5 text-[11px] font-bold text-emerald-100 outline-none focus:ring-0'
+              ? 'w-full appearance-none truncate rounded-lg border-0 bg-transparent py-1.5 pl-7 pr-5 text-[11px] font-bold text-emerald-100 outline-none focus:ring-0'
               : SELECT_CLASS
           }
         >
@@ -530,7 +531,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                 role="dialog"
                 aria-modal="true"
                 aria-label={t('filtersLabel')}
-                className={`ce-bottom-sheet relative w-full max-w-md overflow-hidden rounded-t-2xl shadow-[0_-8px_50px_rgba(0,0,0,0.45)] sm:rounded-3xl ${STEEL_GLASS_PANEL}`}
+                className={`ce-bottom-sheet relative flex w-full max-w-md flex-col overflow-hidden rounded-t-2xl shadow-[0_-8px_50px_rgba(0,0,0,0.45)] sm:rounded-3xl ${STEEL_GLASS_PANEL}`}
                 style={{
                   ...STEEL_GLASS_PANEL_STYLE,
                   ...BOTTOM_SHEET_MAX_HEIGHT_STYLE,
@@ -542,7 +543,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div
-                  className="ce-bottom-sheet-body touch-pan-y"
+                  className="ce-bottom-sheet-body min-h-0 flex-1 touch-pan-y"
                   style={{ WebkitOverflowScrolling: 'touch' }}
                   onTouchMove={(e) => e.stopPropagation()}
                 >
@@ -613,10 +614,10 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
 
   return (
     <div
-      className={`rounded-xl ${STEEL_GLASS_PANEL}`}
+      className={`w-full max-w-full min-w-0 overflow-hidden rounded-xl ${STEEL_GLASS_PANEL}`}
       style={STEEL_GLASS_PANEL_STYLE}
     >
-      <div className="ce-hide-scrollbar flex items-center gap-2 overflow-x-auto whitespace-nowrap p-2">
+      <div className={`${FILTER_BAR_CLASS} p-2`}>
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
@@ -645,7 +646,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
           id="mission-sort-select"
           value={sortMode}
           onChange={(e) => onSortChange(e.target.value as MissionSortMode)}
-          className="ml-auto shrink-0 rounded-lg border border-white/15 bg-slate-950/80 px-2 py-1.5 text-[11px] font-bold text-slate-100 outline-none focus:border-cyan-400/50"
+          className="w-[7.5rem] shrink-0 truncate rounded-lg border border-white/15 bg-slate-950/80 px-2 py-1.5 text-[11px] font-bold text-slate-100 outline-none focus:border-cyan-400/50"
         >
           {MISSION_SORT_MODES.map((mode) => (
             <option key={mode} value={mode} className="bg-slate-900 text-slate-100">
@@ -662,9 +663,9 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="overflow-hidden border-t border-white/10"
+            className="max-w-full overflow-hidden border-t border-white/10"
           >
-            <div className="space-y-4 p-3">
+            <div className="max-w-full space-y-4 overflow-x-hidden p-3">
               {renderLocationControls(false)}
               <section>
                 <p className={SECTION_LABEL}>{t('sortByLabel')}</p>
@@ -684,7 +685,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                     </button>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2">{renderTagButtons()}</div>
+                <div className="flex max-w-full flex-wrap gap-2">{renderTagButtons()}</div>
               </section>
               {renderFreeReportsToggle()}
             </div>

@@ -2244,14 +2244,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           title={t('serviceMarketplace')}
           icon={<Globe className="w-5 h-5 shrink-0 text-emerald-400/90" aria-hidden />}
         >
-          <div className="text-white pointer-events-auto relative z-10 min-w-0">
+          <div className="text-white pointer-events-auto relative z-10 w-full max-w-full min-w-0 overflow-x-hidden">
           {paymentSyncing && (
             <p className="text-[11px] font-bold text-emerald-400 mb-3 animate-pulse">
               🔄 Verifying your payment...
             </p>
           )}
 
-          <div className="mb-4">
+          <div className="mb-4 w-full max-w-full min-w-0">
             <MissionFilterPanel
               sortMode={marketSortMode}
               onSortChange={setMarketSortMode}

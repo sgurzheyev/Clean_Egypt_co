@@ -291,24 +291,72 @@
  * Mobile bottom sheets — keep CTAs above Chrome/Safari toolbars.
  * `svh` = small viewport (browser chrome visible); never rely on bare `vh`.
  */
+/**
+ * Canonical mobile bottom-sheet shell.
+ * Parent MUST be a column flex box with a bounded max-height so the body can
+ * scroll while the footer stays pinned and reachable above the home indicator.
+ */
 .ce-bottom-sheet {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 100%;
   max-height: min(85dvh, 85svh, 85vh);
   overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .ce-bottom-sheet-body {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
+  /* Breathing room when there is no pinned footer; footers add their own inset. */
+  padding-bottom: max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem));
+}
+
+.ce-bottom-sheet-body:has(+ .ce-bottom-sheet-footer) {
+  /* Footer owns the home-indicator inset — avoid double-padding the scroller. */
+  padding-bottom: 1rem;
 }
 
 .ce-bottom-sheet-footer {
+  flex: 0 0 auto;
   flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  /* Cap tall footers so a long CTA stack never pushes the sheet past the viewport. */
+  max-height: min(42dvh, 42svh, 20rem);
   padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem));
+  background: inherit;
+}
+
+/**
+ * Horizontally stable filter chrome for Market / Profile.
+ * Items stay shrink-0; the row scrolls instead of expanding the page width.
+ */
+.ce-filter-bar {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.ce-filter-bar::-webkit-scrollbar {
+  display: none;
 }

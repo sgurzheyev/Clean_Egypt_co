@@ -50,11 +50,17 @@ export const STEEL_GLASS_PANEL_STYLE = {
 
 /**
  * Mobile Chrome / iOS bottom-sheet geometry.
- * Prefer `svh` so the sheet never extends under the browser toolbar.
+ * Prefer `svh`/`dvh` so the sheet never extends under the browser toolbar.
+ * Pair with `.ce-bottom-sheet` / `.ce-bottom-sheet-body` / `.ce-bottom-sheet-footer`
+ * in `index.css` — body scrolls, footer stays pinned.
  */
 export const BOTTOM_SHEET_MAX_HEIGHT_STYLE = {
   maxHeight: 'min(85dvh, 85svh, 85vh)',
 } as const;
+
+/** Tailwind twin of `.ce-bottom-sheet` for one-off sheets that need the classes inline. */
+export const BOTTOM_SHEET_SHELL_CLASS =
+  'ce-bottom-sheet flex max-h-[min(85dvh,85svh,85vh)] w-full max-w-full flex-col overflow-hidden';
 
 /** Extra breathing room under scrollable sheet content (toolbar + home indicator). */
 export const BOTTOM_SHEET_SCROLL_PB =
@@ -63,6 +69,13 @@ export const BOTTOM_SHEET_SCROLL_PB =
 /** Sticky footer under primary CTAs (Submit / Publish / etc.). */
 export const BOTTOM_SHEET_FOOTER_PB =
   'pb-[max(1.5rem,calc(env(safe-area-inset-bottom,0px)+1.5rem))]';
+
+/**
+ * Market / Profile filter strip — full width, horizontal scroll, no layout thrash.
+ * Prefer this over ad-hoc `overflow-x-auto` + `ml-auto` combos.
+ */
+export const FILTER_BAR_CLASS =
+  'ce-filter-bar ce-hide-scrollbar flex w-full max-w-full min-w-0 items-center gap-2 overflow-x-auto';
 
 /**
  * All wallet balances, mission prices, bids, donations, scout rewards, and RPC amounts

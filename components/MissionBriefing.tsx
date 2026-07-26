@@ -42,7 +42,7 @@ import {
   convertReportToMission,
   isGarbageZoneReport,
 } from '../src/lib/garbageZoneReport';
-import { CITY_MIN_PRICE } from '../constants';
+import { CITY_MIN_PRICE, BOTTOM_SHEET_MAX_HEIGHT_STYLE } from '../constants';
 import MissionChatPanel from '../src/components/chat/MissionChatPanel';
 import EcoHeroesRibbon from './EcoHeroesRibbon';
 import ImpactCardModal from './ImpactCardModal';
@@ -549,7 +549,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
 
   const workerContactPanel =
     showWorkerContactPanel ? (
-      <div className="space-y-3 border-t border-white/5 pt-4">
+      <div className="space-y-3">
         {workerChatButton}
         {revealedPhone ? (
           <>
@@ -623,7 +623,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
         )}
       </div>
     ) : workerChatButton ? (
-      <div className="space-y-3 border-t border-white/5 pt-4">{workerChatButton}</div>
+      <div className="space-y-3">{workerChatButton}</div>
     ) : null;
 
   return (
@@ -639,15 +639,15 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
       />
 
       <div
-        className="ce-bottom-sheet relative z-[10030] w-full max-w-xl overflow-hidden rounded-t-3xl bg-slate-950 shadow-[0_-10px_40px_rgba(0,229,255,0.12)] pointer-events-auto"
+        className="ce-bottom-sheet relative z-[10030] flex w-full max-w-xl flex-col overflow-hidden rounded-t-3xl bg-slate-950 shadow-[0_-10px_40px_rgba(0,229,255,0.12)] pointer-events-auto"
         onClick={(e) => e.stopPropagation()}
         style={{
-          maxHeight: 'min(85dvh, 85svh, 85vh)',
+          ...BOTTOM_SHEET_MAX_HEIGHT_STYLE,
           transform: sheetDragY > 0 ? `translateY(${sheetDragY}px)` : undefined,
         }}
       >
         <div
-          className="sticky top-0 z-20 shrink-0 flex justify-center pt-2 pb-1 bg-gradient-to-b from-slate-950 via-slate-950/90 to-transparent"
+          className="z-20 flex shrink-0 justify-center bg-gradient-to-b from-slate-950 via-slate-950/90 to-transparent pb-1 pt-2"
           onTouchStart={onSheetTouchStart}
           onTouchMove={onSheetTouchMove}
           onTouchEnd={onSheetTouchEnd}
@@ -655,18 +655,18 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           <div className="h-1.5 w-14 rounded-full bg-white/20" aria-hidden />
         </div>
 
-        <div className="ce-bottom-sheet-body touch-pan-y [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+        <div className="ce-bottom-sheet-body min-h-0 flex-1 touch-pan-y [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
         {booting ? (
-          <div className="py-16 flex flex-col items-center justify-center px-5">
-            <div className="h-6 w-6 border-2 border-cyan-500/60 border-t-cyan-200 rounded-full animate-spin" />
+          <div className="flex flex-col items-center justify-center px-5 py-16">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-500/60 border-t-cyan-200" />
             <p className="mt-3 text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
               {t('loading')}
             </p>
           </div>
         ) : (
           <>
-            {/* Immersive magazine hero — photo extends behind status + description, fades into drawer bg */}
-            <div className="relative w-full shrink-0 overflow-hidden bg-slate-900 min-h-[min(58vh,26rem)] sm:min-h-[28rem]">
+            {/* Immersive magazine hero — kept short on mobile so CTAs stay reachable */}
+            <div className="relative w-full shrink-0 overflow-hidden bg-slate-900 min-h-[min(38vh,16rem)] sm:min-h-[22rem]">
               <div className="absolute inset-0">
                 {photos.length > 0 ? (
                   <>
@@ -746,7 +746,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
               </div>
 
               {/* Editorial stack over the fade — price overlays preserved; status + copy sit on top */}
-              <div className="pointer-events-none relative z-10 flex min-h-[min(58vh,26rem)] flex-col justify-end sm:min-h-[28rem]">
+              <div className="pointer-events-none relative z-10 flex min-h-[min(38vh,16rem)] flex-col justify-end sm:min-h-[22rem]">
                 <div className="relative px-4 pb-3 pt-24">
                   <div
                     className={
@@ -1250,15 +1250,21 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     </p>
                   )}
               </section>
+            </div>
+          </>
+        )}
+        </div>
 
+        {!booting && (
+          <div className="ce-bottom-sheet-footer shrink-0 border-t border-white/10 bg-slate-950 px-5 pt-3">
               {isCompletedStatus ? (
-                <div className="space-y-4 border-t border-white/5 pt-4">
+                <div className="space-y-3">
                   <p className="text-sm font-semibold text-amber-200">{t('missionAccomplished')}</p>
                   <div className="w-full rounded-full animated-border-completed">
                     <button
                       type="button"
                       onClick={onViewPhotos}
-                      className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-95"
+                      className="animated-border-inner w-full rounded-full bg-[#020617] py-4 text-sm font-black uppercase tracking-[0.24em] text-white transition-all hover:brightness-110 active:scale-95"
                     >
                       {t('viewPhotos')}
                     </button>
@@ -1277,7 +1283,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       ? mission.cleaner_id
                       : mission.creator_id) &&
                     !reviewedMissions.has(mission.id) && (
-                      <div className="space-y-3 border-t border-white/5 pt-4">
+                      <div className="space-y-3 border-t border-white/5 pt-3">
                         <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300">
                           {mission.creator_id === currentUserId
                             ? t('rateTheCleaner')
@@ -1328,24 +1334,24 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     )}
                 </div>
               ) : mission.status === 'in_progress' && mission.cleaner_id !== currentUserId ? (
-                <p className="border-t border-white/5 pt-4 text-sm font-semibold text-sky-200">
+                <p className="text-sm font-semibold text-sky-200">
                   {t('workInProgress')}
                 </p>
               ) : mission.status === 'in_progress' && mission.cleaner_id === currentUserId ? (
-                <div className="space-y-4 border-t border-white/5 pt-4">
+                <div className="space-y-3">
                   {workerContactPanel}
                   <div className="w-full rounded-full animated-border-city">
                     <button
                       type="button"
                       onClick={onStartWork}
-                      className="animated-border-inner w-full rounded-full py-4 text-sm font-black uppercase tracking-[0.24em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-95"
+                      className="animated-border-inner w-full rounded-full bg-[#020617] py-4 text-sm font-black uppercase tracking-[0.24em] text-white transition-all hover:brightness-110 active:scale-95"
                     >
                       {t('startWorkUploadProof')}
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4 border-t border-white/5 pt-4">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between gap-4 py-1">
                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
                       {t('serviceRequested')}
@@ -1355,29 +1361,27 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
 
                   {workerContactPanel}
                   {isExecutorViewer && isCrowdfundingMissionFlag && (
-                    <p className="border-t border-white/5 pt-4 text-[11px] leading-relaxed text-slate-500">
+                    <p className="border-t border-white/5 pt-3 text-[11px] leading-relaxed text-slate-500">
                       {t('crowdfundingNoPrivatePhone')}
                     </p>
                   )}
                 </div>
               )}
-            </div>
-          </>
-        )}
 
-        {isPlatformAdmin && onAdminDeleteMission && (
-          <div className="border-t border-white/5 px-5 pt-4">
-            <button
-              type="button"
-              onClick={onAdminDeleteMission}
-              disabled={adminDeleteSubmitting}
-              className="w-full rounded-full border border-red-500/50 bg-red-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {adminDeleteSubmitting ? t('processing') : t('adminDeleteMission')}
-            </button>
+              {isPlatformAdmin && onAdminDeleteMission && (
+                <div className="mt-3 border-t border-white/5 pt-3">
+                  <button
+                    type="button"
+                    onClick={onAdminDeleteMission}
+                    disabled={adminDeleteSubmitting}
+                    className="w-full rounded-full border border-red-500/50 bg-red-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {adminDeleteSubmitting ? t('processing') : t('adminDeleteMission')}
+                  </button>
+                </div>
+              )}
           </div>
         )}
-        </div>
       </div>
     </div>
 
