@@ -2677,11 +2677,21 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           transform) so nothing can fight geometric centering. MapPicker's
           own FAB is suppressed while this overlay is open. */}
       {createPortal(
-        <div className="pointer-events-none fixed inset-x-0 bottom-[max(5rem,calc(env(safe-area-inset-bottom,0px)+1.25rem))] z-[10030] grid w-full grid-cols-5 items-center justify-items-center">
+        <div
+          className="pointer-events-none fixed inset-x-0 bottom-[max(5rem,calc(env(safe-area-inset-bottom,0px)+1.25rem))] z-[10030]"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+            width: '100%',
+            alignItems: 'center',
+            justifyItems: 'center',
+          }}
+        >
           <button
             type="button"
             onClick={onClose}
-            className="pointer-events-auto relative col-start-3 flex h-[3.75rem] w-[3.75rem] items-center justify-center rounded-full border border-orange-400/45 bg-white/10 shadow-[0_0_28px_rgba(249,115,22,0.75),0_0_56px_rgba(234,88,12,0.35)] backdrop-blur-md transition-transform hover:bg-white/15 active:scale-95"
+            style={{ gridColumn: '3 / 4' }}
+            className="pointer-events-auto relative flex h-[3.75rem] w-[3.75rem] items-center justify-center rounded-full border border-orange-400/45 bg-white/10 shadow-[0_0_28px_rgba(249,115,22,0.75),0_0_56px_rgba(234,88,12,0.35)] backdrop-blur-md transition-transform hover:bg-white/15 active:scale-95"
             aria-label={t('closeBackToMap')}
             title={t('closeBackToMap')}
           >

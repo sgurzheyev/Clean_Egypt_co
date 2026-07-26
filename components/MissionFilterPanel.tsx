@@ -118,13 +118,32 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
   const selectedCountries = useMemo(() => toCountrySelection(countryIds), [countryIds]);
   const allWorld = isAllWorldSelection(selectedCountries);
   const cityValue = cityId ?? MARKETPLACE_ALL_CITIES_ID;
-  const locationActive = showLocationFilter && (!allWorld || !isAllCitiesFilter(cityValue));
   const showReportsToggle = typeof onShowFreeReportsChange === 'function';
   const reportsMuted = showReportsToggle && !showFreeReports;
   const badgeCount =
     activeCount +
     (selectedCountries.length || (!isAllCitiesFilter(cityValue) ? 1 : 0)) +
     (reportsMuted ? 1 : 0);
+
+  /**
+   * One-line summary of the active location/tag selection for the compact bar.
+   * Truncates in place of the old inline dropdown pills — the source of the
+   * horizontal drift — so the row width is always bounded by its container.
+   */
+  const compactFilterSummary = useMemo(() => {
+    if (!showLocationFilter) return '';
+    const parts: string[] = [];
+    if (selectedCountries.length === 1) parts.push(selectedCountries[0]);
+    else if (selectedCountries.length > 1)
+      parts.push(
+        t('marketplaceCountriesSelected', {
+          count: selectedCountries.length,
+          defaultValue: '{{count}} countries',
+        })
+      );
+    if (!isAllCitiesFilter(cityValue)) parts.push(cityValue);
+    return parts.join(' · ');
+  }, [showLocationFilter, selectedCountries, cityValue, t]);
 
   const countries = locationCatalog?.countries ?? [...QUICK_REGION_COUNTRIES];
   const citiesForCountry = useMemo(
@@ -192,48 +211,8 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
 
   const handleClearCountries = () => applyCountrySelection([]);
 
-  /** Compact bar / dropdown: pick one country, replacing the current selection. */
-  const handleReplaceCountry = (country: string) => {
-    applyCountrySelection(country ? [country] : []);
-  };
-
-  const renderLocationControls = (compact = false) => {
+  const renderLocationControls = () => {
     if (!showLocationFilter) return null;
-
-    // Compact bar: single-choice select (multi-select is unusable in a
-    // horizontal scroll strip). Shows "N countries" when several are active.
-    const compactCountrySelect = (
-      <div className="relative w-[9.5rem] shrink-0">
-        <Globe2
-          className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-cyan-300"
-          strokeWidth={2.25}
-          aria-hidden
-        />
-        <label className="sr-only" htmlFor="mission-country-select">
-          {t('selectCountry', { defaultValue: 'Country' })}
-        </label>
-        <select
-          id="mission-country-select"
-          value={selectedCountries.length === 1 ? selectedCountries[0] : ''}
-          onChange={(e) => handleReplaceCountry(e.target.value)}
-          className="w-full appearance-none truncate rounded-lg border-0 bg-transparent py-1.5 pl-7 pr-6 text-[11px] font-bold text-cyan-100 outline-none focus:ring-0"
-        >
-          <option value="" className="bg-slate-900 text-slate-100">
-            {selectedCountries.length > 1
-              ? t('marketplaceCountriesSelected', {
-                  count: selectedCountries.length,
-                  defaultValue: '{{count}} countries',
-                })
-              : t('marketplaceWorldAll', { defaultValue: 'All World' })}
-          </option>
-          {countries.map((c) => (
-            <option key={c} value={c} className="bg-slate-900 text-slate-100">
-              {countryOptionLabel(c)}
-            </option>
-          ))}
-        </select>
-      </div>
-    );
 
     // Full panel: dropdown adds a country to the multi-selection.
     const countryAddSelect = (
@@ -275,9 +254,9 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
     );
 
     const citySelect = (
-      <div className={`relative ${compact ? 'w-[9rem] shrink-0' : ''}`}>
+      <div className="relative">
         <MapPin
-          className={`pointer-events-none absolute ${compact ? 'left-2' : 'left-3'} top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-emerald-300`}
+          className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-emerald-300"
           strokeWidth={2.25}
           aria-hidden
         />
@@ -288,11 +267,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
           id="mission-city-select"
           value={cityValue}
           onChange={(e) => onCityChange?.(e.target.value)}
-          className={
-            compact
-              ? 'w-full appearance-none truncate rounded-lg border-0 bg-transparent py-1.5 pl-7 pr-5 text-[11px] font-bold text-emerald-100 outline-none focus:ring-0'
-              : SELECT_CLASS
-          }
+          className={SELECT_CLASS}
         >
           <option value={MARKETPLACE_ALL_CITIES_ID} className="bg-slate-900 text-slate-100">
             {t('marketplaceAllCities', { defaultValue: 'All Cities' })}
@@ -303,27 +278,12 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
             </option>
           ))}
         </select>
-        {!compact && (
-          <ChevronDown
-            className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300/70"
-            aria-hidden
-          />
-        )}
+        <ChevronDown
+          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300/70"
+          aria-hidden
+        />
       </div>
     );
-
-    if (compact) {
-      return (
-        <>
-          <div className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-cyan-400/30 bg-cyan-500/10 pl-0.5">
-            {compactCountrySelect}
-          </div>
-          <div className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-emerald-400/30 bg-emerald-500/10 pl-0.5">
-            {citySelect}
-          </div>
-        </>
-      );
-    }
 
     return (
       <section className="space-y-3">
@@ -587,7 +547,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                   </div>
 
                   <div className={`space-y-6 p-4 ${BOTTOM_SHEET_SCROLL_PB}`}>
-                    {renderLocationControls(false)}
+                    {renderLocationControls()}
 
                     <section>
                       <p className={SECTION_LABEL}>{t('sortByLabel')}</p>
@@ -638,23 +598,28 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-cyan-200 transition-colors hover:bg-cyan-500/20"
+            className="inline-flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-cyan-200 transition-colors hover:bg-cyan-500/20"
             aria-expanded={expanded}
           >
-            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={2.25} />
-            {t('filtersLabel')}
+            <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+            <span className="shrink-0">{t('filtersLabel')}</span>
+            {/* Active selection summary — replaces the overflowing inline pills.
+                Truncates instead of widening the row, so nothing can drift. */}
+            {compactFilterSummary && (
+              <span className="min-w-0 flex-1 truncate text-left text-[10px] font-bold normal-case tracking-normal text-cyan-100/70">
+                {compactFilterSummary}
+              </span>
+            )}
             {badgeCount > 0 && (
-              <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-400 px-1 text-[9px] font-black text-slate-950">
+              <span className="ml-auto inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-cyan-400 px-1 text-[9px] font-black text-slate-950">
                 {badgeCount}
               </span>
             )}
             <ChevronDown
-              className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`}
+              className={`h-3.5 w-3.5 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
               strokeWidth={2.25}
             />
           </button>
-
-          {renderLocationControls(true)}
 
           <label className="sr-only" htmlFor="mission-sort-select">
             {t('sortByLabel')}
@@ -663,7 +628,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
             id="mission-sort-select"
             value={sortMode}
             onChange={(e) => onSortChange(e.target.value as MissionSortMode)}
-            className="w-[7.5rem] shrink-0 truncate rounded-lg border border-white/15 bg-slate-950/80 px-2 py-1.5 text-[11px] font-bold text-slate-100 outline-none focus:border-cyan-400/50"
+            className="w-[6.5rem] shrink-0 truncate rounded-lg border border-white/15 bg-slate-950/80 px-2 py-1.5 text-[11px] font-bold text-slate-100 outline-none focus:border-cyan-400/50"
           >
             {MISSION_SORT_MODES.map((mode) => (
               <option key={mode} value={mode} className="bg-slate-900 text-slate-100">
@@ -684,7 +649,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
             className="max-w-full overflow-hidden border-t border-white/10"
           >
             <div className="max-w-full space-y-4 overflow-x-hidden p-3">
-              {renderLocationControls(false)}
+              {renderLocationControls()}
               <section>
                 <p className={SECTION_LABEL}>{t('sortByLabel')}</p>
                 <div className="grid grid-cols-2 gap-2">{renderSortButtons()}</div>
