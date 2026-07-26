@@ -20,6 +20,10 @@ import {
   type GeoJsonPosition,
   type ServiceRadiusPolygon,
 } from '../src/lib/contractorStore';
+import {
+  applyMapboxStandardBasemapConfig,
+  MAPBOX_STANDARD_STYLE_WITH_CONFIG,
+} from '../src/lib/mapboxStandardTheme';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
 
@@ -61,13 +65,13 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
 
   const initialView = useMemo(() => {
     if (hasOffice) {
-      return { latitude: officeLat!, longitude: officeLng!, zoom: 12 };
+      return { latitude: officeLat!, longitude: officeLng!, zoom: 12, pitch: 45, bearing: -20 };
     }
     if (polygon?.coordinates?.[0]?.[0]) {
       const [lng, lat] = polygon.coordinates[0][0];
-      return { latitude: lat, longitude: lng, zoom: 11 };
+      return { latitude: lat, longitude: lng, zoom: 11, pitch: 45, bearing: -20 };
     }
-    return { latitude: 30.0444, longitude: 31.2357, zoom: 10 };
+    return { latitude: 30.0444, longitude: 31.2357, zoom: 10, pitch: 45, bearing: -20 };
   }, [hasOffice, officeLat, officeLng, polygon]);
 
   const [viewState, setViewState] = useState(initialView);
@@ -322,10 +326,11 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
           onMove={(evt) => setViewState(evt.viewState)}
           onClick={handleClick}
           onLoad={() => {
+            applyMapboxStandardBasemapConfig(mapRef.current?.getMap?.());
             if (!interactive) fitToCoverage({ animate: false });
           }}
           mapboxAccessToken={MAPBOX_TOKEN}
-          mapStyle="mapbox://styles/mapbox/dark-v11"
+          mapStyle={MAPBOX_STANDARD_STYLE_WITH_CONFIG}
           style={{ width: '100%', height: '100%' }}
           attributionControl={false}
           reuseMaps={false}

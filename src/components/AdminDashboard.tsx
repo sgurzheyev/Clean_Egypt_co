@@ -6,6 +6,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import {
+  applyMapboxStandardBasemapConfig,
+  MAPBOX_STANDARD_STYLE_WITH_CONFIG,
+} from '../lib/mapboxStandardTheme';
 import { runMissionAiAnalysis } from '../lib/openai';
 import { adminDeleteMission } from '../lib/adminMission';
 import { isPlatformAdmin } from '../lib/platformAdmin';
@@ -1674,9 +1678,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                           latitude: gps.lat,
                           longitude: gps.lng,
                           zoom: 13,
+                          pitch: 45,
+                          bearing: -20,
                         }}
                         style={{ width: '100%', height: 220 }}
-                        mapStyle="mapbox://styles/mapbox/dark-v11"
+                        mapStyle={MAPBOX_STANDARD_STYLE_WITH_CONFIG}
+                        onLoad={(e) => applyMapboxStandardBasemapConfig(e.target)}
                       >
                         <Marker latitude={gps.lat} longitude={gps.lng} anchor="bottom">
                           <div className="w-4 h-4 rounded-full border-2 border-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.6)] bg-slate-950" />

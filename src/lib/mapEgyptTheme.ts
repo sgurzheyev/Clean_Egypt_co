@@ -260,13 +260,13 @@ export const MAP_FALLBACK_CENTER = {
   label: 'La Cumbre Peak, Santa Barbara',
 } as const;
 
-/** First-paint viewport before (or without) geolocation. */
+/** First-paint viewport before (or without) geolocation — clean 3D Standard tilt. */
 export const MAP_INITIAL_VIEW = {
   latitude: MAP_FALLBACK_CENTER.lat,
   longitude: MAP_FALLBACK_CENTER.lng,
   zoom: 12.5,
-  pitch: 60,
-  bearing: -28,
+  pitch: 45,
+  bearing: -20,
 } as const;
 
 /** Shorter fly used when opening a mission / feed pin. */

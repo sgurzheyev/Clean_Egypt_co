@@ -106,28 +106,18 @@ import {
   isGarbageRemovalService,
 } from '../src/lib/crowdfunding';
 import {
-  applyEgyptMapTheme,
   bindMapRenderBudget,
-  egyptRoadLineColorExpr,
-  ensureMetallicWaterEffect,
   flyMapTo,
-  EGYPT_ROAD_GLOW_COLOR,
-  EGYPT_ROAD_MAJOR_COLOR,
   MAP_CINEMATIC_FLY,
   MAP_FALLBACK_CENTER,
   MAP_INITIAL_VIEW,
   MAP_QUICK_FLY,
-  MAP_STEEL_WATER_SHEEN,
-  MAP_STEEL_WATERWAY,
-  MAP_STEEL_WATERWAY_GLOW,
-  MAP_WATER_SHALLOW,
-  mapBathymetryGlassOpacityExpr,
-  mapSatelliteGlassOpacityExpr,
-  mapWaterGlassOpacityExpr,
-  mapWaterShallowsOpacityExpr,
-  mapWaterZoomColorExpr,
   type MetallicWaterController,
 } from '../src/lib/mapEgyptTheme';
+import {
+  applyMapboxStandardBasemapConfig,
+  MAPBOX_STANDARD_STYLE_WITH_CONFIG,
+} from '../src/lib/mapboxStandardTheme';
 import {
   applyWeatherFog,
   isWeatherDebugEnabled,
@@ -1284,331 +1274,7 @@ interface MapPickerProps {
   profileOverlayOpen?: boolean;
 }
 
-const customDarkStyle: any = {
-  version: 8,
-  sources: {
-    composite: {
-      type: 'vector',
-      url: 'mapbox://mapbox.mapbox-streets-v8',
-    },
-    // Desaturated satellite underlay for steel-grey terminal look.
-    'satellite': {
-      type: 'raster',
-      url: 'mapbox://mapbox.satellite',
-      tileSize: 256,
-    },
-    // Ocean depth polygons (z0–7) for true shallows→deep gradient.
-    'mapbox-bathymetry': {
-      type: 'vector',
-      url: 'mapbox://mapbox.mapbox-bathymetry-v2',
-    },
-  },
-  sprite: 'mapbox://sprites/mapbox/dark-v10',
-  glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
-  layers: [
-    {
-      id: 'background',
-      type: 'background',
-      paint: {
-        'background-color': '#202025',
-      },
-    },
-    {
-      id: 'satellite-base',
-      type: 'raster',
-      source: 'satellite',
-      paint: {
-        'raster-saturation': -0.9,
-        'raster-brightness-max': 0.38,
-        'raster-brightness-min': 0.04,
-        'raster-contrast': 0.14,
-        'raster-opacity': mapSatelliteGlassOpacityExpr,
-      },
-    },
-    // Landcover / landuse — matte graphite-slate terminal base.
-    // These layers stay below roads and below our 3D mission cylinders.
-    {
-      id: 'landcover',
-      type: 'fill',
-      source: 'composite',
-      'source-layer': 'landcover',
-      paint: {
-        'fill-color': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          5,
-          [
-            'match',
-            ['get', 'class'],
-            'sand',
-            '#2A2A30',
-            'desert',
-            '#26262C',
-            'bare_rock',
-            '#1E1E22',
-            'rock',
-            '#242428',
-            'scrub',
-            '#2C2C32',
-            'grass',
-            '#2C2C32',
-            '#202025',
-          ],
-          12,
-          [
-            'match',
-            ['get', 'class'],
-            'sand',
-            '#303036',
-            'desert',
-            '#2C2C32',
-            'bare_rock',
-            '#222226',
-            'rock',
-            '#28282E',
-            'scrub',
-            '#323238',
-            'grass',
-            '#323238',
-            '#26262C',
-          ],
-        ],
-        'fill-opacity': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          5,
-          0.82,
-          12,
-          0.9,
-        ],
-      },
-    },
-    {
-      id: 'landuse',
-      type: 'fill',
-      source: 'composite',
-      'source-layer': 'landuse',
-      paint: {
-        'fill-color': [
-          'match',
-          ['get', 'class'],
-          'park',
-          '#25282C',
-          'national_park',
-          '#25282C',
-          'agriculture',
-          '#282A2E',
-          'grass',
-          '#25282C',
-          '#202025',
-        ],
-        'fill-opacity': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          5,
-          0.35,
-          12,
-          0.45,
-        ],
-      },
-    },
-    {
-      id: 'water-bathymetry',
-      type: 'fill',
-      source: 'mapbox-bathymetry',
-      'source-layer': 'depth',
-      maxzoom: 8,
-      paint: {
-        'fill-color': [
-          'interpolate',
-          ['cubic-bezier', 0, 0.45, 0.55, 1],
-          ['to-number', ['coalesce', ['get', 'min_depth'], 7000]],
-          0,
-          '#40E0D0',
-          25,
-          '#00CED1',
-          80,
-          '#2AA8B8',
-          200,
-          '#1E7A92',
-          500,
-          '#1E5A72',
-          1200,
-          '#1A4560',
-          3000,
-          '#1A3048',
-          7000,
-          '#1A1A2E',
-        ],
-        'fill-opacity': mapBathymetryGlassOpacityExpr,
-      },
-    },
-    {
-      id: 'water',
-      type: 'fill',
-      source: 'composite',
-      'source-layer': 'water',
-      paint: {
-        'fill-color': mapWaterZoomColorExpr,
-        'fill-opacity': mapWaterGlassOpacityExpr,
-      },
-    },
-    {
-      id: 'water-shallows',
-      type: 'fill',
-      source: 'composite',
-      'source-layer': 'water',
-      paint: {
-        'fill-color': MAP_WATER_SHALLOW,
-        'fill-opacity': mapWaterShallowsOpacityExpr,
-      },
-    },
-    {
-      id: 'water-shore-glow',
-      type: 'line',
-      source: 'composite',
-      'source-layer': 'water',
-      paint: {
-        'line-color': '#00CED1',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.5, 12, 6, 16, 14],
-        'line-opacity': ['interpolate', ['linear'], ['zoom'], 8, 0.15, 12, 0.35, 16, 0.55],
-        'line-blur': ['interpolate', ['linear'], ['zoom'], 8, 1, 12, 4, 16, 8],
-      },
-    },
-    // Metallic sheen — opacity is animated at runtime for a living gunmetal flicker.
-    {
-      id: 'water-metallic-flicker',
-      type: 'fill',
-      source: 'composite',
-      'source-layer': 'water',
-      paint: {
-        'fill-color': MAP_STEEL_WATER_SHEEN,
-        'fill-opacity': 0.08,
-      },
-    },
-    // Steel shoreline / waterways.
-    {
-      id: 'waterway-glow',
-      type: 'line',
-      source: 'composite',
-      'source-layer': 'waterway',
-      paint: {
-        'line-color': MAP_STEEL_WATERWAY_GLOW,
-        'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.3, 12, 1.2, 16, 2.4],
-        'line-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.22, 12, 0.4, 16, 0.5],
-        'line-blur': 2,
-      },
-    },
-    {
-      id: 'waterway-core',
-      type: 'line',
-      source: 'composite',
-      'source-layer': 'waterway',
-      paint: {
-        'line-color': MAP_STEEL_WATERWAY,
-        'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.1, 12, 0.6, 16, 1.2],
-        'line-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.35, 12, 0.6, 16, 0.75],
-      },
-    },
-    {
-      id: 'road',
-      type: 'line',
-      source: 'composite',
-      'source-layer': 'road',
-      paint: {
-        'line-color': egyptRoadLineColorExpr,
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          10,
-          0.4,
-          16,
-          2.5,
-        ],
-        'line-opacity': 0.85,
-      },
-    },
-    {
-      id: 'place_label',
-      type: 'symbol',
-      source: 'composite',
-      'source-layer': 'place_label',
-      minzoom: 3,
-      layout: {
-        'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
-        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 4, 10, 10, 14, 14, 18],
-        'text-anchor': 'center',
-        'text-max-width': 10,
-      },
-      paint: {
-        'text-color': '#C8CAD0',
-        'text-halo-color': 'rgba(12, 12, 16, 0.85)',
-        'text-halo-width': 1.5,
-      },
-    },
-    {
-      id: 'road_label',
-      type: 'symbol',
-      source: 'composite',
-      'source-layer': 'road_label',
-      minzoom: 12,
-      layout: {
-        'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
-        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-        'text-size': 11,
-        'symbol-placement': 'line',
-        'text-rotation-alignment': 'map',
-        'text-pitch-alignment': 'map',
-      },
-      paint: {
-        'text-color': '#c0c0c0',
-        'text-halo-color': 'rgba(0, 0, 0, 0.8)',
-        'text-halo-width': 1.5,
-      },
-    },
-    {
-      id: 'water_name_line',
-      type: 'symbol',
-      source: 'composite',
-      'source-layer': 'waterway_label',
-      minzoom: 10,
-      layout: {
-        'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
-        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-        'text-size': 11,
-        'symbol-placement': 'line',
-      },
-      paint: {
-        'text-color': '#a0a0a0',
-        'text-halo-color': 'rgba(0, 0, 0, 0.8)',
-        'text-halo-width': 1.5,
-      },
-    },
-    {
-      id: 'water_name_point',
-      type: 'symbol',
-      source: 'composite',
-      'source-layer': 'water_name',
-      minzoom: 4,
-      layout: {
-        'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
-        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 4, 10, 10, 14],
-      },
-      paint: {
-        'text-color': '#a0a0a0',
-        'text-halo-color': 'rgba(0, 0, 0, 0.8)',
-        'text-halo-width': 1.5,
-      },
-    },
-  ],
-};
-
+/** Legacy custom vector style retired — basemap is Mapbox Standard monochrome night. */
 const MapPicker: React.FC<MapPickerProps> = ({
   onLocationSelect,
   selectedCoords = null,
@@ -1922,7 +1588,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
 
     try {
-      map.setConfigProperty?.('basemap', 'lightPreset', isNight ? 'night' : golden ? 'dawn' : 'day');
+      // Lock Standard basemap to monochrome night steel — don't flash day/dawn from sun calc.
+      applyMapboxStandardBasemapConfig(map);
     } catch {
       /* Custom vector style may not expose Standard basemap config */
     }
@@ -4843,10 +4510,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Mobile-first Mapbox control styling (44x44 hit targets + neon glass). */}
       <style>{`
         .ce-map .mapboxgl-ctrl-group {
-          border: 1px solid rgba(34, 211, 238, 0.35);
-          background: rgba(2, 6, 23, 0.55);
-          backdrop-filter: blur(10px);
-          box-shadow: 0 0 18px rgba(0, 229, 255, 0.18);
+          background: rgba(10, 12, 16, 0.85) !important;
+          border: 1px solid rgba(0, 191, 255, 0.4) !important;
+          box-shadow: 0 0 12px rgba(0, 191, 255, 0.25) !important;
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
           border-radius: 14px;
           overflow: hidden;
         }
@@ -4856,9 +4524,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
         .ce-map .mapboxgl-ctrl-group button {
           width: 44px;
           height: 44px;
+          background: transparent !important;
+          color: #00bfff !important;
+        }
+        .ce-map .mapboxgl-ctrl-group button:hover {
+          background: rgba(0, 191, 255, 0.15) !important;
+          box-shadow: 0 0 10px rgba(0, 191, 255, 0.5);
+        }
+        .ce-map .mapboxgl-ctrl-group button + button {
+          border-top: 1px solid rgba(0, 191, 255, 0.25) !important;
         }
         .ce-map .mapboxgl-ctrl button.mapboxgl-ctrl-icon {
-          filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.25));
+          filter: invert(1) sepia(1) saturate(5) hue-rotate(160deg) brightness(1.15);
         }
         .ce-map .mapboxgl-marker .draft-pin-action-hub {
           box-sizing: border-box;
@@ -4910,7 +4587,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         <MapGL
           ref={mapRef}
           {...viewState}
-          projection="globe"
+          projection={{ name: 'globe' } as any}
           renderWorldCopies={false}
           // MSAA is expensive on mobile GPUs; keep it for desktop only.
           antialias={!isMobile && !isTouchDevice}
@@ -4930,12 +4607,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
           mapInstanceRef.current = map;
           setMapReady(true);
 
+          // Mapbox Standard monochrome night (steel / silver noir).
+          applyMapboxStandardBasemapConfig(map);
+          try {
+            map.once?.('style.load', () => applyMapboxStandardBasemapConfig(map));
+          } catch {
+            /* ignore */
+          }
+
           // Emoji pin icons must exist as style images before the symbol layer draws.
           registerEmojiPinImages(map);
           const onStyleImageMissing = () => registerEmojiPinImages(map);
           map.on('styleimagemissing', onStyleImageMissing);
 
-          // 3D Terrain + Mountains + realistic horizon.
+          // Optional DEM hillshade — Standard already ships 3D buildings/trees.
           // DEM source must exist before `setTerrain`.
           try {
             if (!map.getSource('mapbox-dem')) {
@@ -4964,44 +4649,28 @@ const MapPicker: React.FC<MapPickerProps> = ({
             });
             // Add hillshade for extra mountain texture as you zoom in.
             if (!map.getLayer('terrain-hillshade')) {
-              map.addLayer(
-                {
-                  id: 'terrain-hillshade',
-                  type: 'hillshade',
-                  source: 'mapbox-dem',
-                  paint: {
-                    'hillshade-shadow-color': '#0c0c10',
-                    'hillshade-highlight-color': '#6E737C',
-                    'hillshade-accent-color': '#2A2A30',
-                    'hillshade-exaggeration': [
-                      'interpolate',
-                      ['linear'],
-                      ['zoom'],
-                      8,
-                      0.25,
-                      14,
-                      0.65,
-                    ],
-                  },
-                },
-                'road'
-              );
-            }
-            if (!map.getLayer('sky')) {
               map.addLayer({
-                id: 'sky',
-                type: 'sky',
+                id: 'terrain-hillshade',
+                type: 'hillshade',
+                source: 'mapbox-dem',
                 paint: {
-                  'sky-type': 'atmosphere',
-                  'sky-atmosphere-sun': [0, 90],
-                  'sky-atmosphere-sun-intensity': 0,
-                  'sky-atmosphere-color': '#020617',
-                  'sky-opacity': 1,
+                  'hillshade-shadow-color': '#0c0c10',
+                  'hillshade-highlight-color': '#6E737C',
+                  'hillshade-accent-color': '#2A2A30',
+                  'hillshade-exaggeration': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8,
+                    0.25,
+                    14,
+                    0.65,
+                  ],
                 },
               });
             }
           } catch {
-            // Fail gracefully if the style/runtime doesn't support terrain/sky.
+            // Fail gracefully if the style/runtime doesn't support terrain.
           }
 
           // Initial celestial sync as soon as map is ready.
@@ -5026,59 +4695,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           map.on?.('zoom', scheduleAtmosphereCamera);
           map.on?.('rotate', scheduleAtmosphereCamera);
 
-          const style = map.getStyle?.();
-          const waterLikeLayers = (style?.layers || []).filter(
-            (layer: any) => typeof layer?.id === 'string' && layer.id.includes('water')
-          );
-          for (const layer of waterLikeLayers) {
-            const id = String(layer.id);
-            // Depth gradient / metallic overlays keep their own paint — don't flatten them.
-            if (
-              id.includes('metallic') ||
-              id.includes('metal') ||
-              id.includes('bathymetry') ||
-              id.includes('shallows') ||
-              id.includes('shore')
-            ) {
-              continue;
-            }
-            if (layer.type === 'fill' && id === 'water') {
-              map.setPaintProperty(layer.id, 'fill-color', mapWaterZoomColorExpr);
-              map.setPaintProperty(layer.id, 'fill-opacity', mapWaterGlassOpacityExpr);
-            }
-            if (layer.type === 'line' && (id === 'waterway-glow' || id === 'waterway-core')) {
-              const isGlow = id.includes('glow');
-              map.setPaintProperty(
-                layer.id,
-                'line-color',
-                isGlow ? MAP_STEEL_WATERWAY_GLOW : MAP_STEEL_WATERWAY
-              );
-              map.setPaintProperty(layer.id, 'line-opacity', isGlow ? 0.45 : 0.6);
-            }
-          }
-
           // SaaS lead-gen: legacy crowdfunding heatmap removed (2D bubble pins only).
-
-          // Steel-grey thematic restyle: graphite extrusions + chrome roads.
-          applyEgyptMapTheme(map, { beforeLayerId: 'place_label' });
-          // Gunmetal water sheen + noise texture + slow metallic flicker.
-          try {
-            waterFxRef.current?.cancel();
-            waterFxRef.current = ensureMetallicWaterEffect(map);
-          } catch {
-            /* ignore */
-          }
-          // Neon road layers mount after first paint — re-apply once map is idle.
-          const onFirstIdle = () => {
-            try {
-              applyEgyptMapTheme(map, { beforeLayerId: 'place_label' });
-              waterFxRef.current?.cancel();
-              waterFxRef.current = ensureMetallicWaterEffect(map);
-            } catch {
-              /* ignore */
-            }
-          };
-          map.once?.('idle', onFirstIdle);
+          // Custom Egypt vector restyle / metallic water skipped — Standard basemap owns roads & water.
 
           mapOnLoadCleanupRef.current = () => {
             clearTimeout(atmosphereCamTimer);
@@ -5094,35 +4712,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
             waterFxRef.current = null;
           };
         }}
-        mapStyle={customDarkStyle}
+        mapStyle={MAPBOX_STANDARD_STYLE_WITH_CONFIG}
         mapboxAccessToken={MAPBOX_TOKEN}
         style={{ width: '100%', height: '100%' }}
       >
-        <Source id="mapbox-streets" type="vector" url="mapbox://mapbox.mapbox-streets-v8">
-          <Layer
-            id="neon-roads-glow"
-            type="line"
-            source-layer="road"
-            filter={['in', ['get', 'class'], ['literal', ['motorway', 'primary', 'secondary', 'trunk']]]}
-            paint={{
-              'line-color': EGYPT_ROAD_GLOW_COLOR,
-              'line-width': 3.5,
-              'line-opacity': 0.22,
-              'line-blur': 1.5,
-            }}
-          />
-          <Layer
-            id="neon-roads"
-            type="line"
-            source-layer="road"
-            filter={['in', ['get', 'class'], ['literal', ['motorway', 'primary', 'secondary', 'trunk']]]}
-            paint={{
-              'line-color': EGYPT_ROAD_MAJOR_COLOR,
-              'line-width': 1.5,
-              'line-opacity': 0.75,
-            }}
-          />
-        </Source>
         {/* Default Mapbox zoom/geolocate controls are replaced by the custom joystick FAB.
             User location puck is restored below when Geolocate succeeds. */}
         {userLocation && (
