@@ -54,8 +54,13 @@ Chronological — June–July 2026 token / crowdfunding / privacy stack.
 | 2026-07-23 | [[20260723_push_device_tokens.sql]] | Phase 5: `user_push_tokens` + RLS + pg_net bridge to `send-push-notification`. |
 | 2026-07-25 | [[20260725_mission_country_city.sql]] | Adds `missions.country` / `missions.city`; create RPCs accept and normalize them. |
 | 2026-07-26 | [[20260726_global_location_catalog.sql]] | `location_catalog` (54 countries / 318 cities), `haversine_km()`, NULL backfill, autofill trigger, and `list_mission_location_facets()`. |
-| 2026-07-26 | [[20260726_missions_schema_hardening.sql]] | Enable RLS on missions, spatial CHECKs, reassert location trigger. |
+| 2026-07-26 | [[20260726_fix_location_trigger_border.sql]] | Cross-border-safe city autofill when country is already known. |
+| 2026-07-26 | [[20260726_missions_schema_hardening.sql]] | Enable RLS on missions, spatial CHECKs, revoke public TRUNCATE/DELETE, reassert location trigger. |
 | 2026-07-26 | [[20260726_contractor_stores.sql]] | Contractor storefronts: office pin, coverage polygon, services, materials, photos + RLS + `get_contractor_store()`. |
+| 2026-07-26 | [[20260726_store_supplies_bundles_recurrence.sql]] | `store_supplies`, JSONB `service_bundles`, recurrence on stores/missions, RPC updates. |
+| 2026-07-26 | [[20260726_tiered_bid_packages.sql]] | eBay-style `offer_packages` on bids; `place_mission_bid` / `accept_mission_bid` package selection. |
+
+> Full marketplace architecture write-up: [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]]
 
 ### Roadmap phase quick links
 

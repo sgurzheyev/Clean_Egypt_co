@@ -30,6 +30,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 
 ### Architecture notes
 - [[01_Architecture/Architecture_Overview]]
+- [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]]
 - [[01_Architecture/KYC_Verification]]
 - [[01_Architecture/Security_and_RPCs]]
 - [[01_Architecture/P2P_Deal_Flow]]

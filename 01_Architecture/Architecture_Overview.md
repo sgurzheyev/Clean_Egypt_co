@@ -4,6 +4,7 @@
 
 ## Feature notes (keep the graph dense)
 
+- [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]] — Contractor stores, lilac map coverage, tiered bids, trust badges, missions RLS 2026-07-26
 - [[01_Architecture/KYC_Verification]] — WebRTC liveness, private `kyc_documents`, admin signed URLs
 - [[01_Architecture/Security_and_RPCs]] — `submit_mission_proof`, locked contribute RPC, EGP removal
 - [[01_Architecture/P2P_Deal_Flow]] — USD direct payment + dispute (no fiat escrow)
@@ -37,7 +38,13 @@
 
 | Surface | Link |
 | --- | --- |
-| Map (missions create / bid / crowdfund) | [[../components/MapPicker.tsx]] |
+| Map (missions create / bid / crowdfund / stores) | [[../components/MapPicker.tsx]] |
+| Store coverage editor / lilac zone | [[../components/StoreCoverageMap.tsx]] |
+| Store pin preview card | [[../components/MapStorePreviewCard.tsx]] |
+| Portaled storefront overlay | [[../components/StoreProfileOverlay.tsx]] |
+| My Store panel | [[../components/ContractorStorePanel.tsx]] |
+| Public store card | [[../components/PublicStoreCard.tsx]] |
+| Shareable B2B storefront page | [[../components/StorefrontPage.tsx]] |
 | Mission detail / contribute / bid | [[../components/MissionBriefing.tsx]] |
 | Profile sidebar | [[../components/Profile.tsx]] |
 | Auth overlay | [[../components/AuthOverlay.tsx]] |
@@ -69,6 +76,10 @@
 | Global country/city filter | [[../src/lib/globalMarketplace.ts]] |
 | Location catalog + facets fetch | [[../src/lib/locationCatalogSource.ts]] |
 | Location catalog hook | [[../src/hooks/useLocationCatalog.ts]] |
+| Contractor stores CRUD + polygon utils | [[../src/lib/contractorStore.ts]] |
+| Tiered bid packages | [[../src/lib/bidPackages.ts]] |
+| Mission bids + accept package | [[../src/lib/missionBids.ts]] |
+| Zero-KYC trust badges + share URL | [[../src/lib/trustBadges.ts]] |
 | City PDF payload (expiry) | [[../src/lib/cityNotification.ts]] |
 | Trust / home KYC gate | [[../src/lib/homeMissionAccess.ts]] |
 
@@ -91,6 +102,11 @@ Active folder: [[../supabase/migrations]]
 | Mission `country` / `city` columns | [[../supabase/migrations/20260725_mission_country_city.sql]] |
 | Location catalog + autofill trigger + facets | [[../supabase/migrations/20260726_global_location_catalog.sql]] |
 | Trigger border fix | [[../supabase/migrations/20260726_fix_location_trigger_border.sql]] |
+| Missions RLS + spatial CHECKs | [[../supabase/migrations/20260726_missions_schema_hardening.sql]] |
+| Contractor stores | [[../supabase/migrations/20260726_contractor_stores.sql]] |
+| Supplies / bundles / recurrence | [[../supabase/migrations/20260726_store_supplies_bundles_recurrence.sql]] |
+| Tiered bid packages | [[../supabase/migrations/20260726_tiered_bid_packages.sql]] |
+| Marketplace architecture note | [[ARCHITECTURE_MARKETPLACE_2026]] |
 | Historical / archived | [[../supabase/migrations/archive]] |
 
 Manual Storage policies (hosted): [[../supabase/manual/kyc_documents_storage_policies.sql]]

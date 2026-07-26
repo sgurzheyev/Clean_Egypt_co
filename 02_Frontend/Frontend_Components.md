@@ -11,7 +11,15 @@ aliases: [Frontend Components, UI Map]
 
 | Surface | Link |
 | --- | --- |
-| Map (create / bid / crowdfund) | [[components/MapPicker.tsx]] |
+| Map (create / bid / crowdfund / stores) | [[components/MapPicker.tsx]] |
+| Store coverage map (lilac zone) | [[components/StoreCoverageMap.tsx]] |
+| Store pin preview | [[components/MapStorePreviewCard.tsx]] |
+| Portaled store profile | [[components/StoreProfileOverlay.tsx]] |
+| My Store panel | [[components/ContractorStorePanel.tsx]] |
+| Public store card | [[components/PublicStoreCard.tsx]] |
+| B2B storefront page | [[components/StorefrontPage.tsx]] |
+| Trust badge pills | [[components/TrustBadgeRow.tsx]] |
+| Store showcase sections | [[components/StoreShowcaseSections.tsx]] |
 | Mission briefing / contribute / bid | [[components/MissionBriefing.tsx]] |
 | Briefing error boundary | [[components/MissionBriefingErrorBoundary.tsx]] |
 | Filters bottom sheet | [[components/MissionFilterPanel.tsx]] |
@@ -54,9 +62,14 @@ aliases: [Frontend Components, UI Map]
 - [[src/lib/garbageZoneReport.ts]]
 - [[src/lib/globalMarketplace.ts]]
 - [[src/lib/locationCatalogSource.ts]]
+- [[src/lib/contractorStore.ts]]
+- [[src/lib/bidPackages.ts]]
+- [[src/lib/missionBids.ts]]
+- [[src/lib/trustBadges.ts]]
 
 ## Related flows
 
+- Marketplace stores / bids / map UX → [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]]
 - Crowdfunding UI → [[01_Architecture/Stripe_USD_Flow]]
 - P2P briefing CTAs → [[01_Architecture/P2P_Deal_Flow]]
 - Country / city filter + map camera sync → [[01_Architecture/Global_Location_Filtering]]
