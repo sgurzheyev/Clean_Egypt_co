@@ -29,7 +29,10 @@ import {
 import {
   fetchPublishedContractorStores,
   type ContractorStore,
+  type RecurrenceType,
+  RECURRENCE_TYPES,
 } from '../src/lib/contractorStore';
+import { recurrenceLabelKey } from './StoreShowcaseSections';
 import CreateMission from './CreateMission';
 import {
   validateMissionDescription,
@@ -380,6 +383,7 @@ interface JobOnMap {
     avatar_url?: string | null;
     is_verified?: boolean | null;
   } | null;
+  recurrence_type?: RecurrenceType | string | null;
 }
 
 /** Same filter as mission markers — heatmap aligns with visible pins. */
@@ -545,7 +549,8 @@ function buildOptimisticLeadMission(
   expectedPrice: number,
   crowdfundingMode = false,
   country?: string | null,
-  city?: string | null
+  city?: string | null,
+  recurrenceType: RecurrenceType = 'one_time'
 ): JobOnMap {
   const isCrowdfund =
     crowdfundingMode && isGarbageRemovalService(serviceType);
@@ -573,6 +578,7 @@ function buildOptimisticLeadMission(
     completion_lat: null,
     completion_lng: null,
     completion_distance_meters: null,
+    recurrence_type: recurrenceType,
     creator: viewerProfile
       ? {
           avatar_url: viewerProfile?.avatar_url ?? null,
@@ -2117,6 +2123,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [taskType, setTaskType] = useState<TaskType>('city');
   const [serviceType, setServiceType] = useState<ServiceType>('home_office');
   const [crowdfundingMode, setCrowdfundingMode] = useState(false);
+  const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>('one_time');
   const [tokenBid, setTokenBid] = useState(1);
   const [workBudget, setWorkBudget] = useState<number | ''>('');
   const [orderDescription, setOrderDescription] = useState('');
@@ -2188,6 +2195,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setWorkBudget('');
     setActiveFormTrigger(null);
     setCrowdfundingMode(false);
+    setRecurrenceType('one_time');
     setPinLocationContext(null);
     setPinLocationLoading(false);
     setOrderDescription('');
@@ -2469,6 +2477,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         completion_lat,
         completion_lng,
         completion_distance_meters,
+        recurrence_type,
         creator:profiles!creator_id (
           full_name,
           avatar_url,
@@ -4023,6 +4032,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             expected_price: budgetRaw,
             country: String(pinLocationContext?.country ?? '').trim() || null,
             city: String(pinLocationContext?.city ?? '').trim() || null,
+            recurrence_type: recurrenceType,
           })
         );
         setOrderSubmitting(false);
@@ -4095,7 +4105,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         budgetRaw,
         crowdfundingMode,
         pinCountry,
-        pinCity
+        pinCity,
+        recurrenceType
       );
 
       setJobs((prev) => {
@@ -4118,6 +4129,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           crowdfundingMode && isGarbageRemovalService(serviceType),
         p_country: pinCountry,
         p_city: pinCity,
+        p_recurrence_type: recurrenceType,
       });
       if (leadErr) {
         setJobs((prev) => {
@@ -5848,6 +5860,38 @@ const MapPicker: React.FC<MapPickerProps> = ({
                       </span>
                     </label>
                   )}
+                  <div className="mt-3">
+                    <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                      {t('missionRecurrenceLabel', {
+                        defaultValue: 'Schedule',
+                      })}
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {RECURRENCE_TYPES.map((r) => {
+                        const active = recurrenceType === r;
+                        return (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => setRecurrenceType(r)}
+                            className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] transition-colors ${
+                              active
+                                ? 'border-fuchsia-400/55 bg-fuchsia-500/25 text-fuchsia-50'
+                                : 'border-white/12 bg-white/5 text-slate-400 hover:border-white/25'
+                            }`}
+                          >
+                            {t(recurrenceLabelKey(r), { defaultValue: r })}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                      {t('missionRecurrenceHint', {
+                        defaultValue:
+                          'Flag as a one-time job or a recurring Subscribe & Save request.',
+                      })}
+                    </p>
+                  </div>
                 </div>
 
                 <div>

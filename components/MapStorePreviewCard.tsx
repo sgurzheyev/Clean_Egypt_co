@@ -92,6 +92,27 @@ const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({ store, onClos
           </div>
         )}
 
+        {(store.service_bundles.length > 0 ||
+          store.supported_recurrence_types.some((r) => r !== 'one_time')) && (
+          <div className="flex flex-wrap gap-1">
+            {store.service_bundles.length > 0 && (
+              <span className="rounded-full border border-violet-400/40 bg-violet-500/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-violet-100">
+                {t('storeBundlesBadge', {
+                  defaultValue: '{{count}} bundles',
+                  count: store.service_bundles.length,
+                })}
+              </span>
+            )}
+            {store.supported_recurrence_types.some((r) => r !== 'one_time') && (
+              <span className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-fuchsia-100">
+                {t('storeSubscribeSaveBadge', {
+                  defaultValue: 'Subscribe & Save',
+                })}
+              </span>
+            )}
+          </div>
+        )}
+
         {store.service_radius_polygon && (
           <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-300/90">
             {t('storeZoneVisibleHint', {

@@ -7,8 +7,15 @@ import { useTranslation } from 'react-i18next';
 import { findServiceOption } from '../src/lib/serviceSectors';
 import {
   fetchContractorStore,
+  fetchStoreSupplies,
   type ContractorStore,
+  type StoreSupply,
 } from '../src/lib/contractorStore';
+import {
+  StoreBundlesShowcase,
+  StoreRecurrenceBadge,
+  StoreSuppliesShowcase,
+} from './StoreShowcaseSections';
 import StoreCoverageMap from './StoreCoverageMap';
 
 export type PublicStoreCardProps = {
@@ -23,27 +30,38 @@ const PublicStoreCard: React.FC<PublicStoreCardProps> = ({
 }) => {
   const { t } = useTranslation();
   const [store, setStore] = useState<ContractorStore | null>(null);
+  const [supplies, setSupplies] = useState<StoreSupply[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    void fetchContractorStore(ownerId)
-      .then((row) => {
+    void (async () => {
+      try {
+        const row = await fetchContractorStore(ownerId);
         if (cancelled) return;
         if (row && (!requirePublished || row.is_published)) {
           setStore(row);
+          try {
+            setSupplies(await fetchStoreSupplies(row.id));
+          } catch (err) {
+            console.warn('PublicStoreCard supplies load failed', err);
+            if (!cancelled) setSupplies([]);
+          }
         } else {
           setStore(null);
+          setSupplies([]);
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         console.warn('PublicStoreCard load failed', err);
-        if (!cancelled) setStore(null);
-      })
-      .finally(() => {
+        if (!cancelled) {
+          setStore(null);
+          setSupplies([]);
+        }
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -79,6 +97,11 @@ const PublicStoreCard: React.FC<PublicStoreCardProps> = ({
         )}
       </div>
 
+      <StoreRecurrenceBadge
+        supported={store.supported_recurrence_types}
+        primary={store.recurrence_type}
+      />
+
       {(store.office_lat != null || store.service_radius_polygon) && (
         <StoreCoverageMap
           officeLat={store.office_lat}
@@ -111,6 +134,9 @@ const PublicStoreCard: React.FC<PublicStoreCardProps> = ({
           </div>
         </div>
       )}
+
+      <StoreBundlesShowcase bundles={store.service_bundles} />
+      <StoreSuppliesShowcase supplies={supplies} />
 
       {store.materials_and_chemicals.length > 0 && (
         <div>

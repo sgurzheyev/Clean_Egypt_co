@@ -46,6 +46,20 @@ import { CITY_MIN_PRICE, BOTTOM_SHEET_MAX_HEIGHT_STYLE } from '../constants';
 import MissionChatPanel from '../src/components/chat/MissionChatPanel';
 import EcoHeroesRibbon from './EcoHeroesRibbon';
 import ImpactCardModal from './ImpactCardModal';
+import {
+  StoreBundlesShowcase,
+  StoreRecurrenceBadge,
+  StoreSuppliesShowcase,
+  recurrenceLabelKey,
+} from './StoreShowcaseSections';
+import {
+  fetchContractorStore,
+  fetchStoreSupplies,
+  normalizeRecurrenceType,
+  type ContractorStore,
+  type RecurrenceType,
+  type StoreSupply,
+} from '../src/lib/contractorStore';
 
 export type AssignedWorkerProfile = {
   full_name?: string | null;
@@ -76,6 +90,7 @@ export type MissionBriefingMission = {
   after_photo_urls?: string[] | null;
   completion_distance_meters?: number | null;
   is_report?: boolean | null;
+  recurrence_type?: RecurrenceType | string | null;
 };
 
 export type MissionBriefingProps = {
@@ -277,6 +292,46 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const [convertSubmitting, setConvertSubmitting] = useState(false);
   const [convertError, setConvertError] = useState<string | null>(null);
   const [impactOpen, setImpactOpen] = useState(false);
+  const [cleanerStore, setCleanerStore] = useState<ContractorStore | null>(null);
+  const [cleanerSupplies, setCleanerSupplies] = useState<StoreSupply[]>([]);
+
+  useEffect(() => {
+    const cleanerId = mission.cleaner_id ? String(mission.cleaner_id) : '';
+    if (!cleanerId) {
+      setCleanerStore(null);
+      setCleanerSupplies([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const store = await fetchContractorStore(cleanerId);
+        if (cancelled) return;
+        if (store?.is_published) {
+          setCleanerStore(store);
+          try {
+            setCleanerSupplies(await fetchStoreSupplies(store.id));
+          } catch {
+            if (!cancelled) setCleanerSupplies([]);
+          }
+        } else {
+          setCleanerStore(null);
+          setCleanerSupplies([]);
+        }
+      } catch (err) {
+        console.warn('MissionBriefing cleaner store load failed', err);
+        if (!cancelled) {
+          setCleanerStore(null);
+          setCleanerSupplies([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mission.cleaner_id]);
+
+  const missionRecurrence = normalizeRecurrenceType(mission.recurrence_type);
   const editFileInputRef = useRef<HTMLInputElement>(null);
   const photos = (mission?.photo_urls ?? []).filter(
     (u): u is string => typeof u === 'string' && u.length > 0
@@ -741,6 +796,13 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 {isOwnActive && (
                   <span className="rounded-full border border-sky-400/50 bg-sky-500/25 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-sky-100 backdrop-blur-sm">
                     {t('yourActiveMission')}
+                  </span>
+                )}
+                {missionRecurrence !== 'one_time' && (
+                  <span className="rounded-full border border-fuchsia-400/50 bg-fuchsia-500/25 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-fuchsia-100 backdrop-blur-sm">
+                    {t(recurrenceLabelKey(missionRecurrence), {
+                      defaultValue: missionRecurrence,
+                    })}
                   </span>
                 )}
               </div>
@@ -1358,6 +1420,38 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     </span>
                     <span className="text-right text-sm font-semibold text-white">{serviceLabel}</span>
                   </div>
+
+                  {missionRecurrence !== 'one_time' && (
+                    <p className="rounded-xl border border-fuchsia-400/25 bg-fuchsia-500/10 px-3 py-2 text-[11px] font-semibold text-fuchsia-100">
+                      {t('missionRecurrenceRequest', {
+                        defaultValue: 'Recurring request: {{cadence}}',
+                        cadence: t(recurrenceLabelKey(missionRecurrence), {
+                          defaultValue: missionRecurrence,
+                        }),
+                      })}
+                    </p>
+                  )}
+
+                  {cleanerStore &&
+                    (cleanerStore.service_bundles.length > 0 ||
+                      cleanerSupplies.length > 0 ||
+                      cleanerStore.supported_recurrence_types.some(
+                        (r) => r !== 'one_time'
+                      )) && (
+                      <section className="space-y-3 rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200/90">
+                          {t('missionCleanerStoreShowcase', {
+                            defaultValue: 'Assigned contractor store',
+                          })}
+                        </p>
+                        <StoreRecurrenceBadge
+                          supported={cleanerStore.supported_recurrence_types}
+                          primary={cleanerStore.recurrence_type}
+                        />
+                        <StoreBundlesShowcase bundles={cleanerStore.service_bundles} />
+                        <StoreSuppliesShowcase supplies={cleanerSupplies} compact />
+                      </section>
+                    )}
 
                   {workerContactPanel}
                   {isExecutorViewer && isCrowdfundingMissionFlag && (
