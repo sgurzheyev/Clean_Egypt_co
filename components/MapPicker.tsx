@@ -13,11 +13,12 @@ import { supabase } from '../services/supabase';
 import { getWorkerGeolocation, submitMissionProof } from '../src/lib/submitMissionProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import { resolveMissionCleanerId, submitReview } from '../src/lib/reviews';
-import { Navigation, Camera, X, User, Plus, Minus, Crosshair, Loader2, TriangleAlert } from 'lucide-react';
+import { Navigation, Camera, X, User, Plus, Minus, Crosshair, Loader2, TriangleAlert, Store } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import NotificationBell from './NotificationBell';
 import MissionFeedCard from './MissionFeedCard';
 import ImmersiveMissionFeed from './ImmersiveMissionFeed';
+import MapStorePreviewCard from './MapStorePreviewCard';
 import MissionBriefing, { type AssignedWorkerProfile } from './MissionBriefing';
 import { useNavigate } from 'react-router-dom';
 import { checkHomeMissionWorkerVerification } from '../src/lib/homeMissionAccess';
@@ -25,6 +26,10 @@ import {
   getMissionClientPhone,
   getOwnPhoneNumber,
 } from '../src/lib/missionContact';
+import {
+  fetchPublishedContractorStores,
+  type ContractorStore,
+} from '../src/lib/contractorStore';
 import CreateMission from './CreateMission';
 import {
   validateMissionDescription,
@@ -2035,6 +2040,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [activeFormTrigger, setActiveFormTrigger] = useState<FormTrigger | null>(null);
   const [showLiveMarketFeed, setShowLiveMarketFeed] = useState(false);
   const [showMyOrdersPanel, setShowMyOrdersPanel] = useState(false);
+  /** Idealista-style storefront layer — office pins + coverage polygons. */
+  const [storeMode, setStoreMode] = useState(false);
+  const [publishedStores, setPublishedStores] = useState<ContractorStore[]>([]);
+  const [storesLoading, setStoresLoading] = useState(false);
+  const [selectedStore, setSelectedStore] = useState<ContractorStore | null>(null);
   // Map filter/sort: multi-select category checkboxes + sort dropdown. Empty
   // selection means "show everything". Sort is shared with the market feed.
   const [missionSortMode, setMissionSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
@@ -2141,6 +2151,37 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }),
     []
   );
+
+  // Load published contractor stores when Store mode is armed.
+  useEffect(() => {
+    if (!storeMode) {
+      setSelectedStore(null);
+      return;
+    }
+    let cancelled = false;
+    setStoresLoading(true);
+    void fetchPublishedContractorStores()
+      .then((rows) => {
+        if (!cancelled) setPublishedStores(rows);
+      })
+      .catch((err) => {
+        console.warn('[stores] fetchPublishedContractorStores failed', err);
+        if (!cancelled) {
+          setPublishedStores([]);
+          toast.error(
+            t('storeMapLoadFailed', {
+              defaultValue: 'Could not load contractor stores.',
+            })
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setStoresLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [storeMode, t, toast]);
 
   const resetMissionDraft = useCallback((options?: { keepLocation?: boolean; keepMapDraftPin?: boolean }) => {
     setTokenBid(1);
@@ -2692,7 +2733,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const mapMarkerLayerSuppressed = useMemo(
     () =>
       Boolean(
-        selectedMission ||
+        storeMode ||
+          selectedMission ||
           hallOfFameMission ||
           taskTypeSelected ||
           showWorkerSubscriptionGate ||
@@ -2700,6 +2742,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           reportSheetOpen
       ),
     [
+      storeMode,
       selectedMission,
       hallOfFameMission,
       taskTypeSelected,
@@ -2958,6 +3001,66 @@ const MapPicker: React.FC<MapPickerProps> = ({
     []
   );
 
+  const findStorePinAtPoint = useCallback(
+    (point: { x: number; y: number } | undefined, pad = 18): ContractorStore | null => {
+      if (!storeMode || !point || publishedStores.length === 0) return null;
+      const map = mapRef.current?.getMap();
+      if (!map) return null;
+      try {
+        const bbox: [mapboxgl.PointLike, mapboxgl.PointLike] = [
+          [point.x - pad, point.y - pad],
+          [point.x + pad, point.y + pad],
+        ];
+        const hits = map.queryRenderedFeatures(bbox, {
+          layers: ['store-pins-core', 'store-pins-glow'],
+        });
+        const storeId = hits.find((h) => h.properties?.store_id)?.properties?.store_id;
+        if (storeId) {
+          return publishedStores.find((s) => String(s.id) === String(storeId)) ?? null;
+        }
+      } catch {
+        /* layer may be absent */
+      }
+      let best: ContractorStore | null = null;
+      let bestDist = Infinity;
+      for (const s of publishedStores) {
+        if (s.office_lat == null || s.office_lng == null) continue;
+        let projected: { x: number; y: number };
+        try {
+          projected = map.project([s.office_lng, s.office_lat]);
+        } catch {
+          continue;
+        }
+        const dx = projected.x - point.x;
+        const dy = projected.y - point.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist <= pad && dist < bestDist) {
+          best = s;
+          bestDist = dist;
+        }
+      }
+      return best;
+    },
+    [storeMode, publishedStores]
+  );
+
+  const openStoreOnMap = useCallback((store: ContractorStore) => {
+    setSelectedStore(store);
+    setSelectedMission(null);
+    setShowLiveMarketFeed(false);
+    setShowMyOrdersPanel(false);
+    setMapDraftPin(null);
+    if (
+      typeof store.office_lng === 'number' &&
+      typeof store.office_lat === 'number'
+    ) {
+      flyMapTo(mapRef.current?.getMap?.(), [store.office_lng, store.office_lat], {
+        ...MAP_QUICK_FLY,
+        zoom: 13,
+      });
+    }
+  }, []);
+
   const handleMapClick = useCallback(
     (event: any) => {
       if (Date.now() < pinPlacementCooldownRef.current) return;
@@ -2970,6 +3073,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
       if (!taskTypeSelected && !reportMode) {
         const map = mapRef.current?.getMap();
         const point = event?.point as { x: number; y: number } | undefined;
+
+        // Store mode: office pins win; empty tap clears the coverage highlight.
+        if (storeMode) {
+          const storeHit = findStorePinAtPoint(point, 20);
+          if (storeHit) {
+            openStoreOnMap(storeHit);
+            return;
+          }
+          setSelectedStore(null);
+          return;
+        }
+
         if (map && point) {
           try {
             const pad = 18;
@@ -3068,10 +3183,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
     },
     [
       findMissionPinAtPoint,
+      findStorePinAtPoint,
       handleMarkerClick,
       onLocationSelect,
+      openStoreOnMap,
       orderSubmitting,
       reportMode,
+      storeMode,
       t,
       taskTypeSelected,
       toast,
@@ -4163,6 +4281,45 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [mapCameraBusy, missionPinsGeoJSON]);
   const missionPinsForMap = mapCameraBusy ? idleMissionPinsRef.current : missionPinsGeoJSON;
 
+  const storePinsGeoJSON = useMemo(() => {
+    if (!storeMode) {
+      return { type: 'FeatureCollection' as const, features: [] };
+    }
+    const features = publishedStores.map((s) => ({
+      type: 'Feature' as const,
+      id: String(s.id),
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [Number(s.office_lng), Number(s.office_lat)] as [number, number],
+      },
+      properties: {
+        store_id: String(s.id),
+        owner_id: String(s.owner_id),
+        store_name: s.store_name || '',
+        selected: selectedStore?.id === s.id ? 1 : 0,
+      },
+    }));
+    return { type: 'FeatureCollection' as const, features };
+  }, [storeMode, publishedStores, selectedStore?.id]);
+
+  /** Lilac coverage fill for the selected store (Idealista-style zone highlight). */
+  const storeCoverageGeoJSON = useMemo(() => {
+    const poly = selectedStore?.service_radius_polygon;
+    if (!storeMode || !poly || !selectedStore) {
+      return { type: 'FeatureCollection' as const, features: [] };
+    }
+    return {
+      type: 'FeatureCollection' as const,
+      features: [
+        {
+          type: 'Feature' as const,
+          properties: { store_id: selectedStore.id },
+          geometry: poly,
+        },
+      ],
+    };
+  }, [storeMode, selectedStore]);
+
   const activeWorkerMission = useMemo(
     () =>
       (jobs || []).find(
@@ -4446,6 +4603,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setMapDraftPin(null);
     setDraftPinMenuExpanded(false);
     setShowLiveMarketFeed(false);
+    setStoreMode(false);
+    setSelectedStore(null);
     setReportSheetOpen(false);
     setReportMode(true);
 
@@ -4652,7 +4811,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
           // 2D mode: pins are interactive, buildings are background only.
           // Click + hover are wired via native map.on(...) listeners (see the mapReady effect),
           // so no synthetic onClick/onMouseMove here.
-          interactiveLayerIds={['mission-pins-core', 'mission-pins-clusters']}
+          interactiveLayerIds={
+            storeMode
+              ? ['store-pins-core', 'store-pins-glow']
+              : ['mission-pins-core', 'mission-pins-clusters']
+          }
           onLoad={(e: any) => {
           const map = e?.target;
           if (!map) return;
@@ -5018,6 +5181,69 @@ const MapPicker: React.FC<MapPickerProps> = ({
           />
         </Source>
 
+        {/* Contractor store office pins + Idealista-style coverage polygon (Store mode). */}
+        {storeMode && (
+          <>
+            <Source id="store-coverage" type="geojson" data={storeCoverageGeoJSON}>
+              <Layer
+                id="store-coverage-fill"
+                type="fill"
+                paint={{
+                  'fill-color': '#a855f7',
+                  'fill-opacity': 0.25,
+                }}
+              />
+              <Layer
+                id="store-coverage-line"
+                type="line"
+                paint={{
+                  'line-color': '#c084fc',
+                  'line-width': 2.5,
+                  'line-opacity': 0.95,
+                }}
+              />
+            </Source>
+            <Source
+              id="store-pins"
+              type="geojson"
+              data={storePinsGeoJSON}
+              promoteId="store_id"
+            >
+              <Layer
+                id="store-pins-glow"
+                type="circle"
+                paint={{
+                  'circle-radius': [
+                    'case',
+                    ['==', ['get', 'selected'], 1],
+                    22,
+                    16,
+                  ],
+                  'circle-color': '#a855f7',
+                  'circle-blur': 0.7,
+                  'circle-opacity': 0.4,
+                }}
+              />
+              <Layer
+                id="store-pins-core"
+                type="circle"
+                paint={{
+                  'circle-radius': [
+                    'case',
+                    ['==', ['get', 'selected'], 1],
+                    11,
+                    8,
+                  ],
+                  'circle-color': '#a855f7',
+                  'circle-stroke-width': 2.5,
+                  'circle-stroke-color': '#f5d0fe',
+                  'circle-opacity': 0.95,
+                }}
+              />
+            </Source>
+          </>
+        )}
+
         {/* Draft tap location — native circle only while form is open (avatar hub is the pin otherwise). */}
         {!showDraftPinAvatarHub && draftPinGeoJSON.features.length > 0 && (
         <Source id="draft-pin" type="geojson" data={draftPinGeoJSON}>
@@ -5369,6 +5595,55 @@ const MapPicker: React.FC<MapPickerProps> = ({
             <TriangleAlert className="relative h-5 w-5" strokeWidth={2.25} />
           </span>
         </button>
+      )}
+
+      {/* Store mode — lilac office pins + Idealista coverage zones */}
+      {showProfileFab && (
+        <button
+          type="button"
+          onClick={() => {
+            setStoreMode((prev) => {
+              const next = !prev;
+              if (!next) setSelectedStore(null);
+              else {
+                setShowLiveMarketFeed(false);
+                setShowMyOrdersPanel(false);
+                setSelectedMission(null);
+                setMapDraftPin(null);
+              }
+              return next;
+            });
+          }}
+          className={`fixed left-3 top-[max(7.75rem,calc(env(safe-area-inset-top)+7rem))] z-[10015] flex h-12 w-12 items-center justify-center rounded-full border backdrop-blur-lg transition-transform active:scale-95 ${
+            storeMode
+              ? 'border-violet-400 bg-violet-500/90 text-white shadow-[0_0_22px_rgba(168,85,247,0.55)]'
+              : 'border-violet-400/50 bg-black/70 text-violet-200 shadow-[0_0_18px_rgba(168,85,247,0.28)]'
+          }`}
+          aria-label={t('storeMapToggle', { defaultValue: 'Store map' })}
+          aria-pressed={storeMode}
+          title={t('storeMapToggle', { defaultValue: 'Store map' })}
+        >
+          <span className="relative flex h-6 w-6 items-center justify-center">
+            {storesLoading && storeMode && (
+              <Loader2
+                className="absolute h-5 w-5 animate-spin text-violet-100"
+                strokeWidth={2.25}
+                aria-hidden
+              />
+            )}
+            <Store
+              className={`relative h-5 w-5 ${storesLoading && storeMode ? 'opacity-0' : ''}`}
+              strokeWidth={2.25}
+            />
+          </span>
+        </button>
+      )}
+
+      {storeMode && selectedStore && (
+        <MapStorePreviewCard
+          store={selectedStore}
+          onClose={() => setSelectedStore(null)}
+        />
       )}
 
       {reportMode && reportSheetOpen && reportPin && (

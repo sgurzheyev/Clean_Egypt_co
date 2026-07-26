@@ -179,6 +179,29 @@ export async function fetchContractorStore(
   return row ? rowToContractorStore(row as Record<string, unknown>) : null;
 }
 
+/** All published storefronts with a valid office pin (map Store mode). */
+export async function fetchPublishedContractorStores(): Promise<ContractorStore[]> {
+  const { data, error } = await supabase
+    .from('contractor_stores')
+    .select('*')
+    .eq('is_published', true)
+    .not('office_lat', 'is', null)
+    .not('office_lng', 'is', null)
+    .order('updated_at', { ascending: false })
+    .limit(500);
+
+  if (error) throw error;
+  return (data || [])
+    .map((row) => rowToContractorStore(row as Record<string, unknown>))
+    .filter(
+      (s) =>
+        typeof s.office_lat === 'number' &&
+        typeof s.office_lng === 'number' &&
+        Number.isFinite(s.office_lat) &&
+        Number.isFinite(s.office_lng)
+    );
+}
+
 export async function upsertContractorStore(
   ownerId: string,
   draft: ContractorStoreDraft

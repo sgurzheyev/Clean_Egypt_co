@@ -394,6 +394,10 @@ const resources = {
       viewCreatorProfile: 'View creator profile',
       myStore: 'My Store',
       storeTab: 'Store',
+      storeMapToggle: 'Store map',
+      storeMapLoadFailed: 'Could not load contractor stores.',
+      storeZoneVisibleHint: 'Service zone highlighted on the map',
+      storeOpenProfile: 'Open store profile',
       storePanelHint:
         'Build your business storefront: office location, coverage zone, services, materials, and photos.',
       storeNameLabel: 'Store name',
@@ -1480,6 +1484,10 @@ const resources = {
       viewCreatorProfile: 'Профиль автора',
       myStore: 'Мой магазин',
       storeTab: 'Магазин',
+      storeMapToggle: 'Карта магазинов',
+      storeMapLoadFailed: 'Не удалось загрузить магазины подрядчиков.',
+      storeZoneVisibleHint: 'Зона обслуживания подсвечена на карте',
+      storeOpenProfile: 'Открыть профиль магазина',
       storePanelHint:
         'Соберите витрину бизнеса: офис, зона покрытия, услуги, материалы и фото.',
       storeNameLabel: 'Название магазина',

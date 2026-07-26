@@ -2,7 +2,7 @@
  * Lightweight Mapbox coverage editor — office pin + click-to-draw polygon.
  * No @mapbox/mapbox-gl-draw dependency: vertices are added by map click.
  */
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import MapGL, { Layer, Marker, Source, type MapLayerMouseEvent } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { MapPin, Pentagon, Trash2 } from 'lucide-react';
@@ -38,26 +38,41 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
   interactive = true,
 }) => {
   const { t } = useTranslation();
-  const [mode, setMode] = useState<Mode>('idle');
+  const hasOffice =
+    typeof officeLat === 'number' &&
+    typeof officeLng === 'number' &&
+    Number.isFinite(officeLat) &&
+    Number.isFinite(officeLng);
+
+  // Start in pin mode when the office is still empty so the first tap places it.
+  const [mode, setMode] = useState<Mode>(() =>
+    interactive && !hasOffice ? 'office' : 'idle'
+  );
   const [draftRing, setDraftRing] = useState<GeoJsonPosition[]>([]);
 
   const initialView = useMemo(() => {
-    if (
-      typeof officeLat === 'number' &&
-      typeof officeLng === 'number' &&
-      Number.isFinite(officeLat) &&
-      Number.isFinite(officeLng)
-    ) {
-      return { latitude: officeLat, longitude: officeLng, zoom: 12 };
+    if (hasOffice) {
+      return { latitude: officeLat!, longitude: officeLng!, zoom: 12 };
     }
     if (polygon?.coordinates?.[0]?.[0]) {
       const [lng, lat] = polygon.coordinates[0][0];
       return { latitude: lat, longitude: lng, zoom: 11 };
     }
     return { latitude: 30.0444, longitude: 31.2357, zoom: 10 };
-  }, [officeLat, officeLng, polygon]);
+  }, [hasOffice, officeLat, officeLng, polygon]);
 
   const [viewState, setViewState] = useState(initialView);
+
+  // Keep the camera on the office when it is placed/moved from outside.
+  useEffect(() => {
+    if (!hasOffice) return;
+    setViewState((prev) => ({
+      ...prev,
+      latitude: officeLat!,
+      longitude: officeLng!,
+      zoom: Math.max(prev.zoom ?? 12, 12),
+    }));
+  }, [hasOffice, officeLat, officeLng]);
 
   const previewGeoJson = useMemo(() => {
     const ring = draftRing.length >= 2 ? draftRing : null;
@@ -226,25 +241,31 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
               type="fill"
               filter={['==', '$type', 'Polygon']}
               paint={{
-                'fill-color': '#10b981',
-                'fill-opacity': 0.22,
-              }}
+              'fill-color': '#a855f7',
+              'fill-opacity': 0.25,
+            }}
             />
             <Layer
               id="store-coverage-line"
               type="line"
               paint={{
-                'line-color': '#34d399',
-                'line-width': 2,
+                'line-color': '#c084fc',
+                'line-width': 2.25,
               }}
             />
           </Source>
 
-          {typeof officeLat === 'number' &&
-            typeof officeLng === 'number' &&
-            Number.isFinite(officeLat) &&
-            Number.isFinite(officeLng) && (
-              <Marker longitude={officeLng} latitude={officeLat} anchor="bottom">
+          {hasOffice && (
+              <Marker
+                longitude={officeLng!}
+                latitude={officeLat!}
+                anchor="bottom"
+                draggable={interactive}
+                onDragEnd={(e) => {
+                  if (!interactive) return;
+                  onOfficeChange(e.lngLat.lat, e.lngLat.lng);
+                }}
+              >
                 <div className="flex flex-col items-center">
                   <span className="rounded-full border border-cyan-400/70 bg-cyan-500/30 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-cyan-100 backdrop-blur-sm">
                     {t('storeOfficeBadge', { defaultValue: 'Office' })}
