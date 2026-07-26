@@ -15,6 +15,7 @@ import {
   toTelHref,
   toWhatsAppHref,
 } from '../src/lib/missionContact';
+import PublicStoreCard from './PublicStoreCard';
 
 interface PublicProfileData {
   id: string;
@@ -269,6 +270,9 @@ const PublicProfile: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Contractor storefront — only renders when a published store exists */}
+            {profile.id && <PublicStoreCard ownerId={profile.id} requirePublished />}
 
             <div className="mt-6">
               <h2 className="mb-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">

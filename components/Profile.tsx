@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { supabase } from '../services/supabase';
-import { Pencil, Target, Globe, Building2, Clock, Info, Lock, Coins } from 'lucide-react';
+import { Pencil, Target, Globe, Building2, Clock, Info, Lock, Coins, Store } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -65,8 +65,10 @@ import {
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import MissionFeedCard from './MissionFeedCard';
 import ImmersiveMissionFeed from './ImmersiveMissionFeed';
+import ContractorStorePanel from './ContractorStorePanel';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
 import { missionPinIcon } from '../src/lib/serviceSectors';
+import { fetchContractorStore } from '../src/lib/contractorStore';
 
 const MISSION_CREATOR_EMBED = 'creator:profiles!creator_id (full_name, avatar_url)';
 
@@ -290,6 +292,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   // (My Orders vs Services Market) so vertical swipe stays in-context.
   const [immersiveStartId, setImmersiveStartId] = useState<string | null>(null);
   const [immersiveMissions, setImmersiveMissions] = useState<Job[]>([]);
+  const [hasContractorStore, setHasContractorStore] = useState(false);
   const openImmersiveFeed = useCallback((missionId: string, stack: Job[]) => {
     setImmersiveMissions(stack);
     setImmersiveStartId(missionId);
@@ -482,6 +485,33 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       ),
     [myActiveJobs]
   );
+
+  /** Contractor cabinet when the user works missions or already has a storefront. */
+  const isContractorCabinet = useMemo(() => {
+    if (hasContractorStore) return true;
+    if (activeWorkJobs.length > 0) return true;
+    const uid = userProfile?.id;
+    if (!uid) return false;
+    return (missionHistory || []).some((j) => j.cleaner_id === uid);
+  }, [hasContractorStore, activeWorkJobs.length, userProfile?.id, missionHistory]);
+
+  useEffect(() => {
+    if (!isOpen || !userProfile?.id) {
+      setHasContractorStore(false);
+      return;
+    }
+    let cancelled = false;
+    void fetchContractorStore(userProfile.id)
+      .then((store) => {
+        if (!cancelled) setHasContractorStore(!!store);
+      })
+      .catch(() => {
+        if (!cancelled) setHasContractorStore(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, userProfile?.id]);
 
   const profileOrdersClosedSummary = useMemo(() => {
     const openOwned = ownedOpenMissions.length;
@@ -1608,6 +1638,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <h1 className="min-w-0 flex-1 truncate text-left text-lg font-bold tracking-tight text-white">
               {profileDisplayName || '…'}
             </h1>
+            {isContractorCabinet && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-200">
+                <Store className="h-3 w-3" aria-hidden />
+                {t('profileRoleContractor', { defaultValue: 'Contractor' })}
+              </span>
+            )}
+            {!isContractorCabinet && userProfile && (
+              <span className="inline-flex shrink-0 items-center rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-200">
+                {t('profileRoleCustomer', { defaultValue: 'Customer' })}
+              </span>
+            )}
           </div>
           {/* Scrollable content — job cards and forms */}
           <div className="flex max-w-full min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto overscroll-y-contain p-4 pb-[max(9rem,calc(env(safe-area-inset-bottom,0px)+5rem))]">
@@ -2041,6 +2082,25 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <p className="text-[11px] leading-relaxed text-slate-400">{t('profileEconomyHint')}</p>
           </div>
         </ProfileAccordion>
+
+        {/* MY STORE — contractor storefront (office, coverage, services, materials) */}
+        {(isContractorCabinet || !!userProfile) && userProfile?.id && (
+          <ProfileAccordion
+            title={t('myStore', { defaultValue: 'My Store' })}
+            icon={<Store className="w-5 h-5 shrink-0 text-emerald-400/90" aria-hidden />}
+            closedSummary={
+              hasContractorStore
+                ? t('storePublishedBadge', { defaultValue: 'Storefront is live' })
+                : t('storeOpenCta', { defaultValue: 'Open your business storefront' })
+            }
+            defaultOpen={false}
+          >
+            <ContractorStorePanel
+              userId={userProfile.id}
+              embedded
+            />
+          </ProfileAccordion>
+        )}
 
         {/* MY ORDERS — owned pins (home + public) + active worker jobs */}
         <ProfileAccordion
