@@ -307,16 +307,15 @@
 
 /**
  * Safe bottom padding for fixed / sticky action bars.
- * Uses the larger of: Tailwind `pb-20` (5rem) OR home-indicator + chrome buffer.
- * Android Chrome often reports safe-area-inset-bottom: 0, so the 5rem floor
- * is what keeps "Delete mission" and similar CTAs reachable.
+ * One clean inset: ~1rem breathing room + the device home-indicator.
+ * Do NOT floor at 5rem — that left a massive empty gap under CTAs.
  */
 .pb-safe {
-  padding-bottom: max(5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem));
+  padding-bottom: max(1rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem));
 }
 
 .pb-safe-sm {
-  padding-bottom: max(2.5rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
+  padding-bottom: max(0.75rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem));
 }
 
 /**
@@ -344,7 +343,7 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   /* Breathing room when there is no pinned footer; footers add their own inset. */
-  padding-bottom: max(2.5rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
+  padding-bottom: max(1rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem));
 }
 
 .ce-bottom-sheet-body:has(+ .ce-bottom-sheet-footer) {
@@ -363,8 +362,8 @@
   -webkit-overflow-scrolling: touch;
   /* Cap tall footers so a long CTA stack never pushes the sheet past the viewport. */
   max-height: min(45svh, 45dvh, 22rem);
-  /* pb-20 floor keeps last CTA (e.g. Delete mission) above Chrome / home bar. */
-  padding-bottom: max(5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem));
+  /* Single safe-area pass — sits just above the gesture bar, not mid-screen. */
+  padding-bottom: max(1rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem));
   background: inherit;
 }
 

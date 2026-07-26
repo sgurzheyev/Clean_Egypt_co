@@ -5487,7 +5487,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Adaptive form — slides up from bottom only after City or Home selected */}
       {taskTypeSelected && (
         <div
-          className="absolute inset-0 z-[10050] flex items-end justify-center p-4 pt-[env(safe-area-inset-top)] pointer-events-none isolate"
+          className="absolute inset-0 z-[10050] flex items-end justify-center px-4 pt-[env(safe-area-inset-top)] pointer-events-none isolate"
           aria-hidden="false"
         >
           <div
@@ -5495,12 +5495,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
             aria-hidden
           />
           <div
-            className={`ce-bottom-sheet pointer-events-auto relative z-[1] w-full max-w-xl min-h-0 overflow-hidden animate-slide-up p-4 shadow-2xl ${PROFILE_GLASS_PANEL}`}
+            className={`ce-bottom-sheet pointer-events-auto relative z-[1] w-full max-w-xl min-h-0 overflow-hidden animate-slide-up px-4 pt-4 shadow-2xl ${PROFILE_GLASS_PANEL}`}
             style={{
               maxHeight: 'min(85svh, 85dvh, calc(100dvh - 6rem))',
-              marginBottom: isMobile
-                ? 'max(0.75rem, env(safe-area-inset-bottom, 0px))'
-                : undefined,
             }}
           >
             <form ref={orderFormRef} onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">

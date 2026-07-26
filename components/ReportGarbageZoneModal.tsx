@@ -11,7 +11,6 @@ import {
 } from '../src/lib/garbageZoneReport';
 import { reverseGeocodePinLocation } from '../src/lib/mapboxReverseGeocode';
 import {
-  BOTTOM_SHEET_FOOTER_PB,
   BOTTOM_SHEET_MAX_HEIGHT_STYLE,
   STEEL_GLASS_PANEL,
   STEEL_GLASS_PANEL_STYLE,
@@ -321,7 +320,7 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
         </div>
 
         <div
-          className={`ce-bottom-sheet-footer border-t border-white/10 px-4 pt-3 ${BOTTOM_SHEET_FOOTER_PB}`}
+          className="ce-bottom-sheet-footer border-t border-white/10 px-4 pt-3"
           style={STEEL_GLASS_PANEL_STYLE}
         >
           <button

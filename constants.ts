@@ -64,14 +64,14 @@ export const BOTTOM_SHEET_SHELL_CLASS =
 
 /** Extra breathing room under scrollable sheet content (toolbar + home indicator). */
 export const BOTTOM_SHEET_SCROLL_PB =
-  'pb-safe-sm pb-[max(2.5rem,calc(env(safe-area-inset-bottom,0px)+2rem))]';
+  'pb-safe-sm';
 
 /**
  * Sticky footer under primary CTAs (Submit / Publish / Delete mission).
- * `pb-safe` floors at 5rem so Android Chrome (safe-area often 0) cannot cover CTAs.
+ * Prefer `.ce-bottom-sheet-footer` alone — this twin exists for one-off bars
+ * that are not inside a sheet. Single modest safe-area inset (no 5rem floor).
  */
-export const BOTTOM_SHEET_FOOTER_PB =
-  'pb-safe pb-[max(5rem,calc(env(safe-area-inset-bottom,0px)+1.5rem))]';
+export const BOTTOM_SHEET_FOOTER_PB = 'pb-safe';
 
 /**
  * Market / Profile filter strip — full width, horizontal scroll, no layout thrash.

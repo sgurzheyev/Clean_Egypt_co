@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { Star, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { submitReview } from '../src/lib/reviews';
-import { BOTTOM_SHEET_FOOTER_PB, BOTTOM_SHEET_MAX_HEIGHT_STYLE } from '../constants';
+import { BOTTOM_SHEET_MAX_HEIGHT_STYLE } from '../constants';
 
 export interface RatingTarget {
   missionId: string;
@@ -141,7 +141,7 @@ const RatingReviewModal: React.FC<RatingReviewModalProps> = ({
           />
         </div>
 
-        <div className={`ce-bottom-sheet-footer space-y-2 border-t border-white/10 px-6 pt-3 ${BOTTOM_SHEET_FOOTER_PB}`}>
+        <div className="ce-bottom-sheet-footer space-y-2 border-t border-white/10 px-6 pt-3">
           <button
             type="button"
             disabled={submitting || rating < 1}
