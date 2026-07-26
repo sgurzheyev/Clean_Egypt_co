@@ -3,7 +3,7 @@
  *
  * Immersive Visual Feed — full-screen, vertical, media-first mission browser
  * (TikTok-style snap scroll). Entered by tapping a mission photo in the
- * Services Market or the Profile marketplace list.
+ * Services Market, Profile marketplace list, or My Orders.
  *
  * The mission stack is the caller's already-filtered + sorted list, so active
  * Country / City / Tag filters carry over 1:1 — swiping up always moves to the

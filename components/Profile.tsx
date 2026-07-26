@@ -29,6 +29,7 @@ import {
   sortMissions,
   filterMissionsByTags,
   DEFAULT_MISSION_SORT,
+  formatSubmittedRelative,
   type MissionSortMode,
 } from '../src/lib/missionFilterSort';
 import {
@@ -64,12 +65,48 @@ import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import MissionFeedCard from './MissionFeedCard';
 import ImmersiveMissionFeed from './ImmersiveMissionFeed';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
+import { missionPinIcon } from '../src/lib/serviceSectors';
+
+const MISSION_CREATOR_EMBED = 'creator:profiles!creator_id (full_name, avatar_url)';
 
 const MISSION_PROFILE_SELECT =
-  'id, creator_id, cleaner_id, category, amount_target, expected_price, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ai_confidence_score, ai_verdict';
+  `id, creator_id, cleaner_id, category, amount_target, expected_price, current_funding, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ai_confidence_score, ai_verdict, ${MISSION_CREATOR_EMBED}`;
 
 const MISSION_ACTIVE_SELECT =
-  'id, creator_id, cleaner_id, category, amount_target, expected_price, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, auto_approved';
+  `id, creator_id, cleaner_id, category, amount_target, expected_price, current_funding, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ${MISSION_CREATOR_EMBED}`;
+
+/** 📍 description line → city/country → coordinates — matches Market card place line. */
+function orderMissionLocationLine(job: {
+  description?: string | null;
+  city?: string | null;
+  country?: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+}): string | undefined {
+  const first = String(job.description ?? '').split('\n')[0]?.trim();
+  if (first?.startsWith('📍')) return first;
+  const place = [job.city, job.country]
+    .map((part) => String(part ?? '').trim())
+    .filter(Boolean)
+    .join(', ');
+  if (place) return `📍 ${place}`;
+  if (typeof job.location_lat === 'number' && typeof job.location_lng === 'number') {
+    return `📍 ${job.location_lat.toFixed(4)}, ${job.location_lng.toFixed(4)}`;
+  }
+  return undefined;
+}
+
+const orderStatusBadgeClass = (status: string) => {
+  const key = String(status || '').toLowerCase();
+  if (key === 'in_progress') return 'border-cyan-400/55 bg-cyan-500/25 text-cyan-100';
+  if (key === 'review' || key === 'pending_approval')
+    return 'border-amber-400/55 bg-amber-500/25 text-amber-100';
+  if (key === 'funding') return 'border-violet-400/55 bg-violet-500/25 text-violet-100';
+  if (key === 'pending_payment') return 'border-red-400/55 bg-red-500/25 text-red-100';
+  if (key === 'completed' || key === 'finished')
+    return 'border-emerald-400/55 bg-emerald-500/25 text-emerald-100';
+  return 'border-white/20 bg-black/40 text-slate-200';
+};
 
 interface ProfileProps {
   isOpen: boolean;
@@ -248,10 +285,19 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [marketCountryIds, setMarketCountryIds] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_CITIES_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
-  // Immersive Visual Feed over the marketplace list (null = closed).
+  // Immersive Visual Feed — stack is set by the section that opened it
+  // (My Orders vs Services Market) so vertical swipe stays in-context.
   const [immersiveStartId, setImmersiveStartId] = useState<string | null>(null);
+  const [immersiveMissions, setImmersiveMissions] = useState<Job[]>([]);
+  const openImmersiveFeed = useCallback((missionId: string, stack: Job[]) => {
+    setImmersiveMissions(stack);
+    setImmersiveStartId(missionId);
+  }, []);
   useEffect(() => {
-    if (!isOpen) setImmersiveStartId(null);
+    if (!isOpen) {
+      setImmersiveStartId(null);
+      setImmersiveMissions([]);
+    }
   }, [isOpen]);
   const { mutedIds, mutedCount, clearMuted } = useMutedCreators();
   const toggleMarketTag = useCallback((tag: string) => {
@@ -866,10 +912,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
       const pendingJobIds = [
         ...(((homeJobsData || []) as unknown as Job[])
-          .filter((j) => ['pending', 'available'].includes(String(j.status || '').toLowerCase()))
+          .filter((j) =>
+            ['pending', 'available', 'funding'].includes(String(j.status || '').toLowerCase())
+          )
           .map((j) => j.id)),
         ...(((cityJobsData || []) as unknown as Job[])
-          .filter((j) => ['pending', 'available'].includes(String(j.status || '').toLowerCase()))
+          .filter((j) =>
+            ['pending', 'available', 'funding'].includes(String(j.status || '').toLowerCase())
+          )
           .map((j) => j.id)),
       ];
       if (pendingJobIds.length > 0) {
@@ -2008,132 +2058,106 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 <p className="text-slate-500 text-sm italic">{t('customerNoOrdersEmpty')}</p>
               ) : (
                 ownedOpenMissions.map((job) => {
-                  const displayTitle =
-                    job.title && job.title.trim().length > 0 ? job.title : t('serviceRequestFallback');
                   const isPhantomPayment = job.status === 'pending_payment';
-                  if (isPhantomPayment) {
-                    const busy = phantomPaymentActionId === job.id;
-                    return (
-                      <div
-                        key={job.id}
-                        className={`${PROFILE_GLASS_PANEL} p-4 opacity-70 border border-dashed border-red-500/40`}
-                      >
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
-                          <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
-                        </div>
-                        <div className="mb-3">
-                          <div className="inline-block bg-red-500/20 text-red-400 border border-red-500/50 rounded px-2 py-1 text-xs">
-                            {t('paymentPendingBadge')}
-                          </div>
-                        </div>
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-400 font-bold mb-1">
-                          {displayTitle}
-                        </p>
-                        <p className="text-sm font-bold text-emerald-400 mb-2">
-                          {formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
-                        </p>
-                        {job.description && (
-                          <p className="text-xs text-slate-400 mb-2">{job.description}</p>
-                        )}
-                        <p className="text-[10px] text-slate-400 mb-3 leading-snug">{t('tokenOnlyNote')}</p>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() =>
-                            cancelPendingPaymentMission(
-                              job,
-                              String(job.category || '').toLowerCase() === 'home' ? 'home' : 'city'
-                            )
-                          }
-                          className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {t('cancelMission')}
-                        </button>
-                      </div>
-                    );
-                  }
-                  const hasCoords =
-                    typeof job.location_lat === 'number' && typeof job.location_lng === 'number';
+                  const isHome = String(job.category || '').toLowerCase() === 'home';
+                  const icon = missionPinIcon(undefined, job.category);
+                  const hasPhoto = Array.isArray(job.photo_urls) && !!job.photo_urls[0];
                   const statusKey = String(job.status || '').toLowerCase();
                   const openForBids =
-                    (statusKey === 'pending' || statusKey === 'available' || statusKey === 'funding') &&
+                    (statusKey === 'pending' ||
+                      statusKey === 'available' ||
+                      statusKey === 'funding') &&
                     !job.cleaner_id;
                   const waitingSelectedCleaner =
                     statusKey === 'funding' && !!job.cleaner_id;
-                  return (
-                    <div key={job.id} className={`${PROFILE_GLASS_PANEL} p-4`}>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-[10px] text-slate-500/80 font-mono">#{shortId(job.id)}</span>
-                        <span className="text-[10px] text-slate-500">{new Date(job.created_at).toLocaleDateString()}</span>
-                      </div>
+                  const creatorAvatar =
+                    job.creator?.avatar_url ?? userProfile?.avatar_url ?? null;
+                  const creatorName =
+                    job.creator?.full_name ??
+                    userProfile?.full_name ??
+                    null;
+                  const creatorId = job.creator_id ?? userProfile?.id ?? null;
 
-                      <div className="flex items-center justify-between gap-3 mb-1">
-                        <div className="flex-1 min-w-0">
-                          <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-300">
-                              {statusKey || '—'}
-                            </span>
-                            {job.category && (
-                              <span className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-cyan-200">
-                                {job.category}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-400 font-bold mb-1">
-                            {displayTitle}
-                          </p>
-                          <p className="text-sm font-bold text-emerald-400 mb-1">
-                            {t('workBudgetUsdLabel')}: {formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
-                          </p>
-                          <p className="text-[10px] font-medium text-lime-300/90 mb-1">
-                            {t('missionTokenBidLabel')}: {formatTokens(missionTokenBid(job))}
-                          </p>
-                        </div>
-                        {hasCoords && onNavigateToJob && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onNavigateToJob(job.location_lat!, job.location_lng!);
-                              onClose();
-                            }}
-                            className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-400 hover:text-emerald-300"
-                          >
-                            <span>{t('viewOnMap')}</span>
-                            <span>↗</span>
-                          </button>
-                        )}
-                      </div>
+                  const locate = () => {
+                    if (
+                      onNavigateToJob &&
+                      typeof job.location_lat === 'number' &&
+                      typeof job.location_lng === 'number'
+                    ) {
+                      onNavigateToJob(job.location_lat, job.location_lng);
+                    }
+                    onClose();
+                  };
 
+                  const fundingCallout = (() => {
+                    if (!waitingSelectedCleaner) return undefined;
+                    const target = Math.max(
+                      0,
+                      Math.floor(Number(job.expected_price ?? job.amount_target ?? 0))
+                    );
+                    const raised = Math.max(0, Math.floor(Number(job.current_funding ?? 0)));
+                    const remaining = Math.max(0, target - raised);
+                    return (
+                      <span className="inline-flex max-w-full rounded-lg border border-violet-400/45 bg-violet-600/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-[0_4px_14px_rgba(139,92,246,0.35)] backdrop-blur-sm">
+                        {t('feedCleanerLockedNeedsMore', {
+                          amount: remaining,
+                          defaultValue:
+                            'Cleaner locked in! Needs ${{amount}} more to start',
+                        })}
+                      </span>
+                    );
+                  })();
+
+                  const orderFooter = (
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-medium text-lime-300/90">
+                        {t('missionTokenBidLabel')}: {formatTokens(missionTokenBid(job))}
+                      </p>
                       <p className="text-xs text-slate-400">{t('profileOwnedMissionHint')}</p>
 
-                      {waitingSelectedCleaner && (
-                        <p className="mt-3 rounded-xl border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-[11px] font-semibold leading-relaxed text-violet-100/95">
-                          {t('selectedCleanerWaitingFunds', {
-                            defaultValue:
-                              'Selected Cleaner — waiting for remaining funds',
-                          })}
-                        </p>
+                      {isPhantomPayment && (
+                        <>
+                          <p className="text-[10px] text-slate-400 leading-snug">
+                            {t('tokenOnlyNote')}
+                          </p>
+                          <button
+                            type="button"
+                            disabled={phantomPaymentActionId === job.id}
+                            onClick={() =>
+                              cancelPendingPaymentMission(
+                                job,
+                                isHome ? 'home' : 'city'
+                              )
+                            }
+                            className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {t('cancelMission')}
+                          </button>
+                        </>
                       )}
 
-                      {isAdmin && (
+                      {isAdmin && !isPhantomPayment && (
                         <button
                           type="button"
                           onClick={() => handleAdminDeleteMission(job.id)}
                           disabled={adminDeleteMissionId === job.id}
-                          className="mt-3 w-full rounded-full border border-red-500/50 bg-red-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                          className="w-full rounded-full border border-red-500/50 bg-red-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-red-300 hover:bg-red-500/20 disabled:opacity-50"
                         >
-                          {adminDeleteMissionId === job.id ? t('processing') : t('adminDeleteMission')}
+                          {adminDeleteMissionId === job.id
+                            ? t('processing')
+                            : t('adminDeleteMission')}
                         </button>
                       )}
 
                       {openForBids && (
-                        <div className="mt-3">
+                        <div>
                           {(() => {
-                            const bids = (jobBidsById[job.id] || []).filter((b) => b.status === 'pending');
+                            const bids = (jobBidsById[job.id] || []).filter(
+                              (b) => b.status === 'pending'
+                            );
                             return (
                               <>
-                                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
+                                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
                                   {t('activeOffers')}:{' '}
                                   <span className="text-emerald-400">{bids.length}</span>
                                 </p>
@@ -2142,16 +2166,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                     {bids.map((bid) => (
                                       <div
                                         key={bid.id}
-                                        className={`flex items-center justify-between gap-3 py-2 px-3 ${PROFILE_GLASS_PANEL} !rounded-xl`}
+                                        className={`flex items-center justify-between gap-3 px-3 py-2 ${PROFILE_GLASS_PANEL} !rounded-xl`}
                                       >
                                         <span className="text-sm font-black text-emerald-400">
-                                          {t('workBidUsdLabel')}: {formatWorkBudgetUsd(Number(bid.bid_amount))}
+                                          {t('workBidUsdLabel')}:{' '}
+                                          {formatWorkBudgetUsd(Number(bid.bid_amount))}
                                         </span>
                                         <div className="rounded-full animated-border-city">
                                           <button
                                             type="button"
                                             onClick={() => handleAcceptBid(job, bid)}
-                                            className="animated-border-inner w-full rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white bg-[#020617] hover:brightness-110 transition-all active:scale-[0.98]"
+                                            className="animated-border-inner w-full rounded-full bg-[#020617] px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white transition-all hover:brightness-110 active:scale-[0.98]"
                                           >
                                             {t('acceptOffer')}
                                           </button>
@@ -2160,7 +2185,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                     ))}
                                   </div>
                                 ) : (
-                                  <p className="text-slate-500 text-xs italic">{t('noOffersYet')}</p>
+                                  <p className="text-xs italic text-slate-500">
+                                    {t('noOffersYet')}
+                                  </p>
                                 )}
                               </>
                             );
@@ -2169,11 +2196,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       )}
 
                       {job.status === 'review' && job.cleaner_id && (
-                        <div className="mt-4">
-                          <p className="w-full py-3 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-black text-xs uppercase tracking-[0.2em] text-center">
+                        <div>
+                          <p className="w-full rounded-full border border-amber-500/30 bg-amber-500/10 py-3 text-center text-xs font-black uppercase tracking-[0.2em] text-amber-300">
                             {t('pendingReview')}
                           </p>
-                          <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
+                          <p className="mt-2 text-center text-[10px] uppercase tracking-wider text-slate-500">
                             {t('reviewMissionAwaitingPayment')}
                           </p>
                           <button
@@ -2187,7 +2214,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </div>
                       )}
                       {job.status === 'pending_approval' && job.cleaner_id && (
-                        <div className="mt-4">
+                        <div>
                           <button
                             type="button"
                             onClick={() => setReviewJob(job)}
@@ -2196,19 +2223,85 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                           >
                             {t('reviewMissionOpenButton')}
                           </button>
-                          <p className="mt-2 text-[10px] text-slate-500 uppercase tracking-wider text-center">
+                          <p className="mt-2 text-center text-[10px] uppercase tracking-wider text-slate-500">
                             {t('workerMarkedCompletedHint')}
                           </p>
                         </div>
                       )}
-                      {(job.status === 'completed' || job.status === 'finished') && job.cleaner_id && (
-                        <div className="mt-4">
-                          <p className="w-full py-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-black text-xs uppercase tracking-[0.2em] text-center">
+                      {(job.status === 'completed' || job.status === 'finished') &&
+                        job.cleaner_id && (
+                          <p className="w-full rounded-full border border-emerald-500/30 bg-emerald-500/10 py-3 text-center text-xs font-black uppercase tracking-[0.2em] text-emerald-400">
                             {t('missionAccomplishedPaid')}
                           </p>
-                        </div>
-                      )}
+                        )}
                     </div>
+                  );
+
+                  return (
+                    <MissionFeedCard
+                      key={job.id}
+                      photo={
+                        hasPhoto ? (
+                          <ModeratedMissionPhoto
+                            url={job.photo_urls![0]}
+                            alt=""
+                            showSafeBadge={false}
+                            className="h-full w-full"
+                            imgClassName="h-full w-full object-cover"
+                          />
+                        ) : undefined
+                      }
+                      placeholderVariant={isHome ? 'home' : 'city'}
+                      placeholderIcon={icon}
+                      budgetValue={formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
+                      metaLine={`#${shortId(job.id)} · ${new Date(job.created_at).toLocaleDateString()}`}
+                      locationLine={orderMissionLocationLine(job)}
+                      description={extractMissionFeedDescription(job.description)}
+                      submittedLabel={`${t('submittedLabel')}: ${formatSubmittedRelative(
+                        job.created_at,
+                        i18n.language
+                      )}`}
+                      topLeftBadge={
+                        <span className="rounded-full border border-emerald-400/50 bg-emerald-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100 backdrop-blur-sm">
+                          {t('yourTaskBadge')}
+                        </span>
+                      }
+                      statusBadge={
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${orderStatusBadgeClass(
+                            statusKey
+                          )}`}
+                        >
+                          {isPhantomPayment
+                            ? t('paymentPendingBadge')
+                            : `${t('status')}: ${statusKey || '—'}`}
+                        </span>
+                      }
+                      callout={fundingCallout}
+                      onPhotoClick={() => openImmersiveFeed(job.id, ownedOpenMissions)}
+                      photoAriaLabel={t('immersiveOpenFeed', {
+                        defaultValue: 'Open visual feed',
+                      })}
+                      onLocate={
+                        typeof job.location_lat === 'number' &&
+                        typeof job.location_lng === 'number'
+                          ? locate
+                          : undefined
+                      }
+                      locateAriaLabel={t('locateOnMap')}
+                      creatorAvatarUrl={creatorAvatar}
+                      creatorName={creatorName}
+                      creatorAriaLabel={t('viewCreatorProfile')}
+                      onCreatorClick={
+                        creatorId
+                          ? () => {
+                              onClose();
+                              navigate(`/profile/${creatorId}`);
+                            }
+                          : undefined
+                      }
+                      footer={orderFooter}
+                    />
                   );
                 })
               )}
@@ -2224,44 +2317,84 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 <p className="text-slate-500 text-sm italic">{t('profileActiveWorkEmpty')}</p>
               ) : (
                 activeWorkJobs.map((job) => {
-                  const hasCoords =
-                    typeof job.location_lat === 'number' && typeof job.location_lng === 'number';
+                  const isHome = String(job.category || '').toLowerCase() === 'home';
+                  const icon = missionPinIcon(undefined, job.category);
+                  const hasPhoto = Array.isArray(job.photo_urls) && !!job.photo_urls[0];
+                  const statusKey = String(job.status || '').toLowerCase();
+
                   return (
-                    <div key={job.id} className={`${PROFILE_GLASS_PANEL} p-4`}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-200">
-                            {String(job.status || '').toLowerCase()}
-                          </span>
-                          <p className="mt-2 text-sm font-bold text-emerald-300">
-                            {t('workBudgetUsdLabel')}: {formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
-                          </p>
-                          {job.description && (
-                            <p className="mt-1 line-clamp-2 text-xs text-slate-400">{job.description}</p>
-                          )}
-                          {job.rejection_reason && (
-                            <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-100">
-                              <span className="font-black uppercase tracking-wider text-amber-300">
-                                {t('creatorRejectProofReasonLabel', { defaultValue: 'Fix requested' })}:{' '}
-                              </span>
-                              {job.rejection_reason}
-                            </p>
-                          )}
-                        </div>
-                        {hasCoords && onNavigateToJob && (
-                          <button
-                            type="button"
-                            onClick={() => {
+                    <MissionFeedCard
+                      key={job.id}
+                      photo={
+                        hasPhoto ? (
+                          <ModeratedMissionPhoto
+                            url={job.photo_urls![0]}
+                            alt=""
+                            showSafeBadge={false}
+                            className="h-full w-full"
+                            imgClassName="h-full w-full object-cover"
+                          />
+                        ) : undefined
+                      }
+                      placeholderVariant={isHome ? 'home' : 'city'}
+                      placeholderIcon={icon}
+                      budgetValue={formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
+                      metaLine={`#${shortId(job.id)} · ${new Date(job.created_at).toLocaleDateString()}`}
+                      locationLine={orderMissionLocationLine(job)}
+                      description={extractMissionFeedDescription(job.description)}
+                      submittedLabel={`${t('submittedLabel')}: ${formatSubmittedRelative(
+                        job.created_at,
+                        i18n.language
+                      )}`}
+                      statusBadge={
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${orderStatusBadgeClass(
+                            statusKey
+                          )}`}
+                        >
+                          {t('status')}: {statusKey || '—'}
+                        </span>
+                      }
+                      onPhotoClick={() => openImmersiveFeed(job.id, activeWorkJobs)}
+                      photoAriaLabel={t('immersiveOpenFeed', {
+                        defaultValue: 'Open visual feed',
+                      })}
+                      onLocate={
+                        onNavigateToJob &&
+                        typeof job.location_lat === 'number' &&
+                        typeof job.location_lng === 'number'
+                          ? () => {
                               onNavigateToJob(job.location_lat!, job.location_lng!);
                               onClose();
-                            }}
-                            className="inline-flex shrink-0 items-center gap-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-400 hover:text-emerald-300"
-                          >
-                            {t('viewOnMap')} ↗
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                            }
+                          : undefined
+                      }
+                      locateAriaLabel={t('locateOnMap')}
+                      creatorAvatarUrl={job.creator?.avatar_url ?? null}
+                      creatorName={job.creator?.full_name ?? null}
+                      creatorAriaLabel={t('viewCreatorProfile')}
+                      onCreatorClick={
+                        job.creator_id
+                          ? () => {
+                              onClose();
+                              navigate(`/profile/${job.creator_id}`);
+                            }
+                          : undefined
+                      }
+                      footer={
+                        job.rejection_reason ? (
+                          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-100">
+                            <span className="font-black uppercase tracking-wider text-amber-300">
+                              {t('creatorRejectProofReasonLabel', {
+                                defaultValue: 'Fix requested',
+                              })}
+                              :{' '}
+                            </span>
+                            {job.rejection_reason}
+                          </p>
+                        ) : undefined
+                      }
+                    />
                   );
                 })
               )}
@@ -2348,10 +2481,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     placeholderIcon={icon}
                     budgetValue={formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
                     metaLine={`#${shortId(job.id)} · ${new Date(job.created_at).toLocaleDateString()}`}
-                    locationLine={(() => {
-                      const first = String(job.description ?? '').split('\n')[0]?.trim();
-                      return first?.startsWith('📍') ? first : undefined;
-                    })()}
+                    locationLine={orderMissionLocationLine(job)}
                     description={extractMissionFeedDescription(job.description)}
                     statusBadge={
                       <span
@@ -2383,7 +2513,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </span>
                       );
                     })()}
-                    onPhotoClick={() => setImmersiveStartId(job.id)}
+                    onPhotoClick={() => openImmersiveFeed(job.id, displayedMarketplaceJobs)}
                     photoAriaLabel={t('immersiveOpenFeed', {
                       defaultValue: 'Open visual feed',
                     })}
@@ -2950,19 +3080,24 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       )}
     </AnimatePresence>
 
-    {/* Immersive Visual Feed over the marketplace list — stack mirrors active filters. */}
+    {/* Immersive Visual Feed — stack mirrors the section that opened it. */}
     <ImmersiveMissionFeed
       open={isOpen && !!immersiveStartId}
-      missions={displayedMarketplaceJobs}
+      missions={immersiveMissions}
       startMissionId={immersiveStartId}
-      onClose={() => setImmersiveStartId(null)}
+      onClose={() => {
+        setImmersiveStartId(null);
+        setImmersiveMissions([]);
+      }}
       onOpenCreator={(creatorId) => {
         setImmersiveStartId(null);
+        setImmersiveMissions([]);
         onClose();
         navigate(`/profile/${creatorId}`);
       }}
       onShowOnMap={(job) => {
         setImmersiveStartId(null);
+        setImmersiveMissions([]);
         if (
           onNavigateToJob &&
           typeof job.location_lat === 'number' &&
@@ -2976,6 +3111,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         // MapPicker listens for this event and opens the mission briefing,
         // where the contact panel enforces the bid-acceptance privacy lock.
         setImmersiveStartId(null);
+        setImmersiveMissions([]);
         onClose();
         window.dispatchEvent(
           new CustomEvent(APP_EVENT_OPEN_MISSION, {
@@ -2985,6 +3121,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       }}
       onMessage={(job) => {
         setImmersiveStartId(null);
+        setImmersiveMissions([]);
         onClose();
         window.dispatchEvent(
           new CustomEvent(APP_EVENT_OPEN_MISSION, {
@@ -2992,7 +3129,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           })
         );
       }}
-      onOpenProfile={() => setImmersiveStartId(null)}
+      onOpenProfile={() => {
+        setImmersiveStartId(null);
+        setImmersiveMissions([]);
+      }}
     />
     </>
   );

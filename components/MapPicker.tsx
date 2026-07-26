@@ -17,6 +17,7 @@ import { Navigation, Camera, X, User, Plus, Minus, Crosshair, Loader2, TriangleA
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import NotificationBell from './NotificationBell';
 import MissionFeedCard from './MissionFeedCard';
+import ImmersiveMissionFeed from './ImmersiveMissionFeed';
 import MissionBriefing, { type AssignedWorkerProfile } from './MissionBriefing';
 import { useNavigate } from 'react-router-dom';
 import { checkHomeMissionWorkerVerification } from '../src/lib/homeMissionAccess';
@@ -843,6 +844,7 @@ function MyOrdersPanel({
   onSelectMission,
   isLoggedIn,
   onRequestAuth,
+  onOpenProfile,
 }: {
   open: boolean;
   onClose: () => void;
@@ -850,10 +852,35 @@ function MyOrdersPanel({
   onSelectMission: (mission: JobOnMap) => void;
   isLoggedIn: boolean;
   onRequestAuth?: () => void;
+  onOpenProfile?: () => void;
 }) {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
+  const [immersiveStartId, setImmersiveStartId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) setImmersiveStartId(null);
+  }, [open]);
+
+  const orderLocationLine = (mission: JobOnMap): string | undefined => {
+    const first = String(mission.description ?? '').split('\n')[0]?.trim();
+    if (first?.startsWith('📍')) return first;
+    const place = [mission.city, mission.country]
+      .map((part) => String(part ?? '').trim())
+      .filter(Boolean)
+      .join(', ');
+    if (place) return `📍 ${place}`;
+    if (
+      Number.isFinite(mission.location_lat) &&
+      Number.isFinite(mission.location_lng)
+    ) {
+      return `📍 ${mission.location_lat.toFixed(4)}, ${mission.location_lng.toFixed(4)}`;
+    }
+    return undefined;
+  };
 
   return (
+    <>
     <AnimatePresence>
       {open && (
         <motion.div
@@ -925,16 +952,36 @@ function MyOrdersPanel({
                             )}`
                           : undefined
                       }
-                      locationLine={mission.description?.split('\n')[0]?.trim() || undefined}
+                      locationLine={orderLocationLine(mission)}
                       description={extractMissionFeedDescription(mission.description)}
+                      topLeftBadge={
+                        <span className="rounded-full border border-emerald-400/50 bg-emerald-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100 backdrop-blur-sm">
+                          {t('yourTaskBadge')}
+                        </span>
+                      }
                       statusBadge={
                         <span className="rounded-full border border-white/20 bg-black/40 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-200 backdrop-blur-sm capitalize">
-                          {mission.status}
+                          {t('status')}: {mission.status}
                         </span>
                       }
                       onClick={() => onSelectMission(mission)}
+                      onPhotoClick={() => setImmersiveStartId(mission.id)}
+                      photoAriaLabel={t('immersiveOpenFeed', {
+                        defaultValue: 'Open visual feed',
+                      })}
                       onLocate={() => onSelectMission(mission)}
                       locateAriaLabel={t('locateOnMap')}
+                      creatorAvatarUrl={mission.creator?.avatar_url ?? null}
+                      creatorName={mission.creator?.full_name ?? null}
+                      creatorAriaLabel={t('viewCreatorProfile')}
+                      onCreatorClick={
+                        mission.creator_id
+                          ? () => {
+                              onClose();
+                              navigate(`/profile/${mission.creator_id}`);
+                            }
+                          : undefined
+                      }
                     />
                   );
                 })}
@@ -943,6 +990,46 @@ function MyOrdersPanel({
         </motion.div>
       )}
     </AnimatePresence>
+
+    <ImmersiveMissionFeed
+      open={open && !!immersiveStartId}
+      missions={missions}
+      startMissionId={immersiveStartId}
+      onClose={() => setImmersiveStartId(null)}
+      onOpenCreator={(creatorId) => {
+        setImmersiveStartId(null);
+        onClose();
+        navigate(`/profile/${creatorId}`);
+      }}
+      onShowOnMap={(mission) => {
+        setImmersiveStartId(null);
+        const match = missions.find((m) => m.id === mission.id);
+        if (match) onSelectMission(match);
+        else onClose();
+      }}
+      onContact={(mission) => {
+        setImmersiveStartId(null);
+        const match = missions.find((m) => m.id === mission.id);
+        if (match) onSelectMission(match);
+        else onClose();
+      }}
+      onMessage={(mission) => {
+        setImmersiveStartId(null);
+        const match = missions.find((m) => m.id === mission.id);
+        if (match) onSelectMission(match);
+        else onClose();
+      }}
+      onOpenProfile={
+        onOpenProfile
+          ? () => {
+              setImmersiveStartId(null);
+              onClose();
+              onOpenProfile();
+            }
+          : undefined
+      }
+    />
+    </>
   );
 }
 
@@ -5796,6 +5883,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         onSelectMission={openMyOrderMission}
         isLoggedIn={!!currentUserId}
         onRequestAuth={onRequestAuth}
+        onOpenProfile={onAvatarClick}
       />
       <ProofUploadModal
         open={!!proofUploadMission}
