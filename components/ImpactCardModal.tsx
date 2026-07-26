@@ -157,7 +157,7 @@ const ImpactCardModal: React.FC<Props> = ({
         aria-modal="true"
         aria-label={t('impactCardTitle', { defaultValue: 'Share Impact Card' })}
         className="ce-bottom-sheet relative z-[1] flex w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-cyan-500/25 bg-[#020617]/98 shadow-[0_-20px_60px_rgba(34,211,238,0.2)] sm:rounded-3xl"
-        style={{ maxHeight: 'min(85dvh, 85svh, 40rem)' }}
+        style={{ maxHeight: 'min(85svh, 85dvh, 40rem)' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">

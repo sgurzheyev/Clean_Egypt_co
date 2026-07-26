@@ -1507,7 +1507,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       <motion.div
         className="relative z-10 flex h-full w-full min-w-0 max-w-lg min-h-0 flex-col overflow-hidden animated-border animated-border-profile"
         style={{
-          maxHeight: 'calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+          maxHeight:
+            'calc(100svh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
           transformOrigin: 'bottom center',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -1530,7 +1531,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <h1 className="text-lg font-bold text-white">{t('yourAccount')}</h1>
           </div>
           {/* Scrollable content — job cards and forms */}
-          <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain overflow-x-hidden p-4 flex flex-col gap-4 pb-[max(9rem,env(safe-area-inset-bottom))] max-w-full">
+          <div className="flex max-w-full min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto overscroll-y-contain p-4 pb-[max(9rem,calc(env(safe-area-inset-bottom,0px)+5rem))]">
           <div className="w-full max-w-md mx-auto flex flex-col gap-3 min-w-0">
         {showAdmin ? (
           <AdminDashboard onBack={() => setShowAdmin(false)} />
@@ -2655,7 +2656,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       <motion.button
         type="button"
         onClick={onClose}
-        className="pointer-events-auto fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-1/2 z-[400] flex h-[3.75rem] w-[3.75rem] -translate-x-1/2 items-center justify-center rounded-full border border-orange-400/45 bg-white/10 shadow-[0_0_28px_rgba(249,115,22,0.75),0_0_56px_rgba(234,88,12,0.35)] backdrop-blur-md transition-all hover:bg-white/15 active:scale-95"
+        className="pointer-events-auto fixed bottom-[max(5rem,calc(env(safe-area-inset-bottom,0px)+1.25rem))] left-1/2 z-[400] flex h-[3.75rem] w-[3.75rem] -translate-x-1/2 items-center justify-center rounded-full border border-orange-400/45 bg-white/10 shadow-[0_0_28px_rgba(249,115,22,0.75),0_0_56px_rgba(234,88,12,0.35)] backdrop-blur-md transition-all hover:bg-white/15 active:scale-95"
         aria-label={t('closeBackToMap')}
         title={t('closeBackToMap')}
         initial={{ opacity: 0, scale: 0.85 }}
@@ -2724,11 +2725,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       {/* Client review modal: proof photos + work-done confirmation */}
       {reviewJob && (
         <div
-          className="fixed inset-0 z-[9999] flex items-end justify-center sm:items-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/80 p-0 backdrop-blur-sm sm:items-center sm:p-4"
           onClick={closeReviewModal}
         >
           <div
-            className="relative flex w-full max-w-2xl max-h-[min(92dvh,900px)] flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl bg-cyan-950/30 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)]"
+            className="ce-bottom-sheet relative flex w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-cyan-500/20 bg-cyan-950/30 shadow-[0_4px_30px_rgba(6,182,212,0.1)] backdrop-blur-md sm:rounded-3xl"
+            style={{
+              maxHeight: 'min(85svh, 85dvh, 900px)',
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex shrink-0 items-start justify-between gap-3 border-b border-cyan-500/20 p-5 pb-4">
@@ -2752,7 +2756,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 pb-32 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="ce-bottom-sheet-body min-h-0 flex-1 px-5 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3">
                 <p className="text-sm font-semibold leading-relaxed text-amber-100">
                   {t('reviewMissionWorkerDone', {
@@ -2811,7 +2815,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </div>
             </div>
 
-            <div className="absolute inset-x-0 bottom-0 border-t border-cyan-500/30 bg-cyan-950/95 px-5 py-4 backdrop-blur-md pb-[max(1.5rem,calc(env(safe-area-inset-bottom,0px)+1.5rem))]">
+            <div className="ce-bottom-sheet-footer border-t border-cyan-500/30 bg-cyan-950/95 px-5 pt-4 backdrop-blur-md">
               {(reviewJob.status === 'completed' || reviewJob.status === 'finished') ? (
                 <p className="w-full rounded-full border border-emerald-500/30 bg-emerald-500/10 py-3 text-center text-sm font-black uppercase tracking-[0.2em] text-emerald-400">
                   MISSION ACCOMPLISHED

@@ -535,11 +535,12 @@ export default function VerificationModal(props: VerificationModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[10080] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm px-0 sm:px-4 pt-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-4"
+      className="fixed inset-0 z-[10080] flex items-end justify-center bg-black/80 px-0 pt-0 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
-        className="relative flex w-full max-w-2xl max-h-[90dvh] flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl bg-cyan-950/95 backdrop-blur-md border border-cyan-500/20 shadow-[0_4px_30px_rgba(6,182,212,0.1)]"
+        className="ce-bottom-sheet relative flex w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-cyan-500/20 bg-cyan-950/95 shadow-[0_4px_30px_rgba(6,182,212,0.1)] backdrop-blur-md sm:rounded-3xl"
+        style={{ maxHeight: 'min(85svh, 85dvh, 90vh)' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-cyan-500/20 p-5 sm:p-6 pb-4">
@@ -561,7 +562,7 @@ export default function VerificationModal(props: VerificationModalProps) {
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-6 py-4 pb-6 [scrollbar-width:thin]">
+        <div className="ce-bottom-sheet-body min-h-0 flex-1 px-5 py-4 sm:px-6 [scrollbar-width:thin]">
           {statusLoading ? (
             <div className="py-10 text-center text-slate-300">{t('loading', { defaultValue: 'Loading…' })}</div>
           ) : (
@@ -750,7 +751,7 @@ export default function VerificationModal(props: VerificationModalProps) {
         </div>
 
         {(showFlowFooter || submitted || isBlockedByStatus) && (
-          <div className="shrink-0 sticky bottom-0 border-t border-cyan-500/20 bg-cyan-950/98 backdrop-blur-md px-4 sm:px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="ce-bottom-sheet-footer border-t border-cyan-500/20 bg-cyan-950/98 px-4 pt-3 backdrop-blur-md sm:px-6">
             {submitError && showFlowFooter && !submitted && !isBlockedByStatus && (
               <p className="mb-2 text-center text-xs text-red-300" role="alert">
                 {submitError}

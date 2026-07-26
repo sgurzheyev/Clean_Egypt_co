@@ -186,7 +186,7 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.98 }}
           transition={{ duration: 0.22, ease: 'easeOut' }}
-          className="fixed inset-0 z-[10040] bg-black"
+          className="fixed inset-0 z-[10040] h-dvh bg-black"
           role="dialog"
           aria-modal="true"
           aria-label={t('immersiveFeedTitle', { defaultValue: 'Visual feed' })}
@@ -248,7 +248,7 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
                   />
 
                   {/* Metadata overlay — clears the sidebar (right) and bottom nav. */}
-                  <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-[calc(4.25rem+max(0.75rem,env(safe-area-inset-bottom)))] pr-[4.75rem]">
+                  <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-[calc(5.5rem+max(0.75rem,env(safe-area-inset-bottom)))] pr-[4.75rem]">
                     <p className="text-3xl font-black leading-none tracking-tight text-orange-300 drop-shadow-[0_2px_14px_rgba(0,0,0,0.6)]">
                       {budget}
                     </p>
@@ -289,7 +289,7 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
                   </div>
 
                   {/* Right action sidebar. */}
-                  <div className="absolute right-3 bottom-[calc(5.5rem+max(0.75rem,env(safe-area-inset-bottom)))] z-20 flex flex-col items-center gap-4">
+                  <div className="absolute right-3 bottom-[calc(6.75rem+max(0.75rem,env(safe-area-inset-bottom)))] z-20 flex flex-col items-center gap-4">
                     <button
                       type="button"
                       onClick={
@@ -380,7 +380,7 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
           </div>
 
           {/* Bottom navigation — Map replaces Home inside the feed. */}
-          <nav className="absolute inset-x-0 bottom-0 z-30 flex items-stretch border-t border-white/10 bg-black/65 pb-[max(0.25rem,env(safe-area-inset-bottom))] backdrop-blur-lg">
+          <nav className="absolute inset-x-0 bottom-0 z-30 flex items-stretch border-t border-white/10 bg-black/65 pb-safe-sm backdrop-blur-lg">
             {navBtn(
               <MapIcon className="h-5 w-5" strokeWidth={2.25} />,
               t('immersiveNavMap', { defaultValue: 'Map' }),

@@ -1077,7 +1077,11 @@ function ProofUploadModal({
             exit={{ y: 20, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 24 }}
             onClick={(e) => e.stopPropagation()}
-            className={`relative mx-auto flex w-full max-w-2xl max-h-[min(85dvh,85svh,calc(100dvh-env(safe-area-inset-top)-0.5rem))] flex-col overflow-hidden rounded-t-3xl sm:mx-3 sm:mb-3 sm:rounded-3xl ${PROFILE_GLASS_PANEL}`}
+            className={`ce-bottom-sheet relative mx-auto flex w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl sm:mx-3 sm:mb-3 sm:rounded-3xl ${PROFILE_GLASS_PANEL}`}
+            style={{
+              maxHeight:
+                'min(85svh, 85dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 0.5rem))',
+            }}
           >
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
               <h3 className="text-xl font-black uppercase leading-tight tracking-[0.12em] text-orange-300 sm:text-2xl">
@@ -1093,7 +1097,7 @@ function ProofUploadModal({
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 py-4 pb-36 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="ce-bottom-sheet-body min-h-0 flex-1 px-5 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <label className="block w-full cursor-pointer rounded-2xl border-2 border-dashed border-cyan-400/65 bg-cyan-500/5 p-8 text-center hover:bg-cyan-500/10 transition-all">
                 <div className="mx-auto mb-3 inline-flex h-14 w-14 items-center justify-center rounded-full border border-cyan-400/60 bg-black/50 text-cyan-300">
                   <Camera className="h-6 w-6" />
@@ -1138,7 +1142,7 @@ function ProofUploadModal({
               )}
             </div>
 
-            <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 border-t border-white/10 bg-slate-950/95 px-5 py-4 backdrop-blur-md pb-[max(1.5rem,calc(env(safe-area-inset-bottom,0px)+1.5rem))]">
+            <div className="ce-bottom-sheet-footer pointer-events-auto z-10 border-t border-white/10 bg-slate-950/95 px-5 pt-4 backdrop-blur-md">
               <button
                 type="button"
                 onClick={submitProof}
@@ -4400,7 +4404,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   return (
     <div
-      className={`w-full h-screen relative bg-black overflow-hidden${
+      className={`relative h-dvh w-full overflow-hidden bg-black${
         showProfileFab ? ' ce-map-root--profile-fab' : ''
       }`}
     >
@@ -5314,9 +5318,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
           <div
             className={`ce-bottom-sheet pointer-events-auto relative z-[1] w-full max-w-xl min-h-0 overflow-hidden animate-slide-up p-4 shadow-2xl ${PROFILE_GLASS_PANEL}`}
             style={{
-              maxHeight: 'min(85dvh, 85svh, calc(100dvh - 6rem))',
+              maxHeight: 'min(85svh, 85dvh, calc(100dvh - 6rem))',
               marginBottom: isMobile
-                ? 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)'
+                ? 'max(0.75rem, env(safe-area-inset-bottom, 0px))'
                 : undefined,
             }}
           >

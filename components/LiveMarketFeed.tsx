@@ -294,7 +294,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
             transition={{ type: 'spring', stiffness: 280, damping: 24 }}
             onClick={(e) => e.stopPropagation()}
             className="ce-bottom-sheet absolute inset-x-0 bottom-0 mx-auto flex w-full max-w-xl flex-col overflow-hidden rounded-t-2xl border-t border-white/10 bg-[#0A0A12]/95 shadow-[0_-12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl"
-            style={{ maxHeight: 'min(85dvh, 85svh, 85vh)' }}
+            style={{ maxHeight: 'min(85svh, 85dvh, 85vh)' }}
           >
             <div
               className="ce-bottom-sheet-body min-h-0 flex-1 touch-pan-y"

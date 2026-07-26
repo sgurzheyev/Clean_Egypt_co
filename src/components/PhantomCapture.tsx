@@ -121,7 +121,7 @@ export default function PhantomCapture(props: {
   };
 
   return (
-    <div className="fixed inset-0 z-[10001] bg-black">
+    <div className="fixed inset-0 z-[10001] h-dvh bg-black">
       <style>
         {`@keyframes phantomFlicker { 0%{opacity:0} 50%{opacity:.8} 100%{opacity:0} }`}
       </style>
@@ -164,13 +164,13 @@ export default function PhantomCapture(props: {
         {`Scene ${currentIndex + 1} of ${totalScenes}`}
       </div>
 
-      <div className="absolute inset-x-0 bottom-4 px-4">
-        {error && <p className="mb-2 text-xs text-red-300 text-center">{error}</p>}
+      <div className="absolute inset-x-0 bottom-0 px-4 pb-safe">
+        {error && <p className="mb-2 text-center text-xs text-red-300">{error}</p>}
         <button
           type="button"
           onClick={handleCapture}
           disabled={!canCapture}
-          className="w-full rounded-full py-3 text-sm font-black uppercase tracking-[0.2em] bg-orange-500/20 border border-orange-400/60 text-orange-100 shadow-[0_0_20px_rgba(251,146,60,0.45)] disabled:opacity-60 disabled:cursor-not-allowed"
+          className="w-full rounded-full border border-orange-400/60 bg-orange-500/20 py-3 text-sm font-black uppercase tracking-[0.2em] text-orange-100 shadow-[0_0_20px_rgba(251,146,60,0.45)] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {capturing ? 'Capturing…' : 'Capture Photo'}
         </button>

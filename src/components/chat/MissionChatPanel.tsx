@@ -167,7 +167,7 @@ const MissionChatPanel: React.FC<MissionChatPanelProps> = ({
 
         <form
           onSubmit={(e) => void onSubmit(e)}
-          className="flex items-end gap-2 border-t border-white/10 bg-slate-950/95 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+          className="flex items-end gap-2 border-t border-white/10 bg-slate-950/95 px-3 py-3 pb-safe-sm"
         >
           <input
             ref={inputRef}

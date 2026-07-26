@@ -92,9 +92,9 @@ const App: React.FC = () => {
       <Route
         path="/*"
         element={
-    <div className="relative w-full h-screen bg-slate-950 overflow-hidden">
+    <div className="relative h-dvh w-full overflow-hidden bg-slate-950">
       {/* Single map interface — never unmounts */}
-      <div className="fixed inset-0 z-0 w-full h-full isolate">
+      <div className="fixed inset-0 z-0 h-full w-full isolate">
         <MapPicker
           onLocationSelect={() => {}}
           selectedCoords={null}
@@ -138,7 +138,7 @@ const App: React.FC = () => {
       {/* Payment success modal */}
       {showPaymentModal && (
         <div
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 pb-safe-sm backdrop-blur-sm"
           onClick={() => setShowPaymentModal(false)}
         >
           <div

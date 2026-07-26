@@ -50,25 +50,28 @@ export const STEEL_GLASS_PANEL_STYLE = {
 
 /**
  * Mobile Chrome / iOS bottom-sheet geometry.
- * Prefer `svh`/`dvh` so the sheet never extends under the browser toolbar.
+ * Prefer `svh` first so the sheet never extends under the browser toolbar.
  * Pair with `.ce-bottom-sheet` / `.ce-bottom-sheet-body` / `.ce-bottom-sheet-footer`
- * in `index.css` — body scrolls, footer stays pinned.
+ * in `index.css` — body scrolls, footer stays pinned above chrome.
  */
 export const BOTTOM_SHEET_MAX_HEIGHT_STYLE = {
-  maxHeight: 'min(85dvh, 85svh, 85vh)',
+  maxHeight: 'min(85svh, 85dvh, 85vh)',
 } as const;
 
 /** Tailwind twin of `.ce-bottom-sheet` for one-off sheets that need the classes inline. */
 export const BOTTOM_SHEET_SHELL_CLASS =
-  'ce-bottom-sheet flex max-h-[min(85dvh,85svh,85vh)] w-full max-w-full flex-col overflow-hidden';
+  'ce-bottom-sheet flex max-h-[min(85svh,85dvh,85vh)] w-full max-w-full flex-col overflow-hidden';
 
 /** Extra breathing room under scrollable sheet content (toolbar + home indicator). */
 export const BOTTOM_SHEET_SCROLL_PB =
-  'pb-[max(2.5rem,calc(env(safe-area-inset-bottom,0px)+2rem))]';
+  'pb-safe-sm pb-[max(2.5rem,calc(env(safe-area-inset-bottom,0px)+2rem))]';
 
-/** Sticky footer under primary CTAs (Submit / Publish / etc.). */
+/**
+ * Sticky footer under primary CTAs (Submit / Publish / Delete mission).
+ * `pb-safe` floors at 5rem so Android Chrome (safe-area often 0) cannot cover CTAs.
+ */
 export const BOTTOM_SHEET_FOOTER_PB =
-  'pb-[max(1.5rem,calc(env(safe-area-inset-bottom,0px)+1.5rem))]';
+  'pb-safe pb-[max(5rem,calc(env(safe-area-inset-bottom,0px)+1.5rem))]';
 
 /**
  * Market / Profile filter strip — full width, horizontal scroll, no layout thrash.

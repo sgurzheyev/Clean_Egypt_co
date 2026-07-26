@@ -320,7 +320,7 @@ export default function TokenPackModal({
 
   return (
     <div
-      className="fixed inset-0 z-[10050] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-md pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"
+      className="fixed inset-0 z-[10050] flex items-center justify-center overflow-y-auto bg-black/80 p-4 pb-safe-sm backdrop-blur-md pt-[max(1rem,env(safe-area-inset-top))]"
       onClick={requestClose}
     >
       <div

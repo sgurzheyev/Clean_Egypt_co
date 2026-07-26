@@ -479,7 +479,7 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
   const fundingCount = missions.filter((m) => m.status === 'funding').length;
 
   return (
-    <div className="fixed inset-0 z-[150] bg-slate-950/90 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[150] h-dvh bg-slate-950/90 backdrop-blur-sm">
       {/* XR canvas — transparent; camera feed shows through in AR */}
       {origin && (
         <Canvas

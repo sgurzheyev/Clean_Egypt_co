@@ -196,7 +196,7 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
 
   return (
     <div
-      className="fixed inset-0 z-[150] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"
+      className="fixed inset-0 z-[150] flex items-center justify-center overflow-y-auto bg-black/80 p-4 pb-safe-sm backdrop-blur-sm pt-[max(1rem,env(safe-area-inset-top))]"
       onClick={onClose}
     >
       <div

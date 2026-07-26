@@ -288,20 +288,49 @@
 }
 
 /*
- * Mobile bottom sheets — keep CTAs above Chrome/Safari toolbars.
- * `svh` = small viewport (browser chrome visible); never rely on bare `vh`.
+ * Mobile viewport / safe-area utilities.
+ * Prefer `dvh` over `vh` — Chrome/Safari bottom toolbars shrink the visual
+ * viewport; bare `100vh` extends under them and hides CTAs.
+ * Bottom sheets still prefer `svh` in `.ce-bottom-sheet` so CTAs stay above chrome.
  */
+.h-dvh {
+  height: 100vh; /* legacy fallback */
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+}
+
+.min-h-dvh {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/**
+ * Safe bottom padding for fixed / sticky action bars.
+ * Uses the larger of: Tailwind `pb-20` (5rem) OR home-indicator + chrome buffer.
+ * Android Chrome often reports safe-area-inset-bottom: 0, so the 5rem floor
+ * is what keeps "Delete mission" and similar CTAs reachable.
+ */
+.pb-safe {
+  padding-bottom: max(5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem));
+}
+
+.pb-safe-sm {
+  padding-bottom: max(2.5rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
+}
+
 /**
  * Canonical mobile bottom-sheet shell.
  * Parent MUST be a column flex box with a bounded max-height so the body can
  * scroll while the footer stays pinned and reachable above the home indicator.
+ * Cap with `svh` first so the sheet never extends under the browser toolbar.
  */
 .ce-bottom-sheet {
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 100%;
-  max-height: min(85dvh, 85svh, 85vh);
+  max-height: min(85svh, 85dvh, 85vh);
   overflow: hidden;
   overscroll-behavior: contain;
 }
@@ -315,11 +344,11 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   /* Breathing room when there is no pinned footer; footers add their own inset. */
-  padding-bottom: max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem));
+  padding-bottom: max(2.5rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
 }
 
 .ce-bottom-sheet-body:has(+ .ce-bottom-sheet-footer) {
-  /* Footer owns the home-indicator inset — avoid double-padding the scroller. */
+  /* Footer owns the chrome / home-indicator inset — avoid double-padding. */
   padding-bottom: 1rem;
 }
 
@@ -333,8 +362,9 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   /* Cap tall footers so a long CTA stack never pushes the sheet past the viewport. */
-  max-height: min(42dvh, 42svh, 20rem);
-  padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem));
+  max-height: min(45svh, 45dvh, 22rem);
+  /* pb-20 floor keeps last CTA (e.g. Delete mission) above Chrome / home bar. */
+  padding-bottom: max(5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem));
   background: inherit;
 }
 

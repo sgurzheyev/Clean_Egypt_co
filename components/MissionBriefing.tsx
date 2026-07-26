@@ -666,7 +666,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
         ) : (
           <>
             {/* Immersive magazine hero — kept short on mobile so CTAs stay reachable */}
-            <div className="relative w-full shrink-0 overflow-hidden bg-slate-900 min-h-[min(38vh,16rem)] sm:min-h-[22rem]">
+            <div className="relative w-full shrink-0 overflow-hidden bg-slate-900 min-h-[min(38svh,16rem)] sm:min-h-[22rem]">
               <div className="absolute inset-0">
                 {photos.length > 0 ? (
                   <>
@@ -1399,8 +1399,8 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           onClick={closeEditModal}
         />
         <div
-          className="ce-bottom-sheet relative z-[1] w-full max-w-xl overflow-hidden rounded-t-3xl border border-white/10 bg-slate-950/95 shadow-[0_-16px_48px_rgba(34,211,238,0.16)]"
-          style={{ maxHeight: 'min(78dvh, 78svh, 36rem)' }}
+          className="ce-bottom-sheet relative z-[1] flex w-full max-w-xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-slate-950/95 shadow-[0_-16px_48px_rgba(34,211,238,0.16)]"
+          style={{ maxHeight: 'min(78svh, 78dvh, 36rem)' }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="ce-bottom-sheet-body px-5 pt-4">
@@ -1531,8 +1531,8 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           onClick={() => setConvertOpen(false)}
         />
         <div
-          className="ce-bottom-sheet relative z-[1] w-full max-w-xl overflow-hidden rounded-t-3xl border border-white/10 bg-slate-950/95 shadow-[0_-16px_48px_rgba(251,191,36,0.18)]"
-          style={{ maxHeight: 'min(78dvh, 78svh, 36rem)' }}
+          className="ce-bottom-sheet relative z-[1] flex w-full max-w-xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-slate-950/95 shadow-[0_-16px_48px_rgba(251,191,36,0.18)]"
+          style={{ maxHeight: 'min(78svh, 78dvh, 36rem)' }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="ce-bottom-sheet-body px-5 pt-4">
