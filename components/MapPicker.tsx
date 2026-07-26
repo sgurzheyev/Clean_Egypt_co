@@ -43,7 +43,8 @@ import {
   extractMissionFeedDescription,
   MISSION_SHORT_DESCRIPTION_MAX,
 } from '../src/lib/missionDescription';
-import { type MissionBidRow, placeMissionBid } from '../src/lib/missionBids';
+import { type MissionBidRow, placeMissionBid, acceptMissionBid, rowToMissionBid } from '../src/lib/missionBids';
+import type { BidOfferPackage } from '../src/lib/bidPackages';
 import {
   PROFILE_GLASS_PANEL,
   HOME_MIN_PRICE,
@@ -2782,6 +2783,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
         bid_amount,
         status,
         created_at,
+        offer_packages,
+        selected_package_id,
+        selected_package,
         cleaner:profiles!cleaner_id (
           full_name,
           avatar_url,
@@ -2794,7 +2798,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
       .order('created_at', { ascending: false })
       .limit(100);
     if (error) throw error;
-    return (data || []) as MissionBidRow[];
+    return (data || []).map((row) =>
+      rowToMissionBid(row as Record<string, unknown>)
+    );
   }, []);
 
   useEffect(() => {
@@ -3489,7 +3495,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
   );
 
   const placePendingBid = useCallback(
-    async (missionId: string, bidAmount: number) => {
+    async (
+      missionId: string,
+      bidAmount: number,
+      offerPackages?: BidOfferPackage[] | null
+    ) => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -3499,7 +3509,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         return;
       }
 
-      await placeMissionBid(missionId, floorUsd(bidAmount));
+      await placeMissionBid(missionId, floorUsd(bidAmount), offerPackages);
     },
     [onRequestAuth]
   );
@@ -3517,9 +3527,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [loadMissionBids, selectedMission?.id]);
 
   const handleBriefingAcceptBid = useCallback(
-    async (bid: MissionBidRow) => {
+    async (bid: MissionBidRow, packageId?: string | null) => {
       if (!selectedMission || briefingBidSubmitting) return;
-      const missionValue = Number(bid.bid_amount ?? 0);
+      const packages = bid.offer_packages ?? [];
+      const selectedPkg = packageId
+        ? packages.find((p) => p.id === packageId)
+        : packages.length === 1
+          ? packages[0]
+          : null;
+      const missionValue = Number(
+        selectedPkg?.price ?? bid.bid_amount ?? 0
+      );
       if (!Number.isFinite(missionValue) || missionValue <= 0) return;
 
       setBriefingBidSubmitting(true);
@@ -3544,10 +3562,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
 
       try {
-        const { error: rpcErr } = await supabase.rpc('accept_mission_bid', {
-          p_bid_id: bid.id,
-        });
-        if (rpcErr) throw rpcErr;
+        await acceptMissionBid(bid.id, packageId ?? selectedPkg?.id ?? null);
 
         const budgetUsd = Math.max(1, Math.floor(missionValue));
         const raisedUsd = Math.max(
@@ -3582,9 +3597,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
           );
         } else {
           setMissionBids([]);
-          toast.success(t('mapToastMissionAcceptedProfile'));
+          toast.success(
+            t('mapToastMissionAcceptedProfile', {
+              defaultValue: 'Offer accepted — worker assigned.',
+            })
+          );
+          void fetchMissions();
         }
-        void fetchMissions();
       } catch (e: any) {
         console.error('handleBriefingAcceptBid', e);
         toast.error(e?.message || t('unexpectedErrorTryAgain'));
@@ -3592,7 +3611,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
         setBriefingBidSubmitting(false);
       }
     },
-    [briefingBidSubmitting, fetchMissions, refreshMissionBids, selectedMission, t, toast]
+    [
+      briefingBidSubmitting,
+      fetchMissions,
+      refreshMissionBids,
+      selectedMission,
+      t,
+      toast,
+    ]
   );
 
   const handleBriefingDeclineBid = useCallback(
@@ -3747,7 +3773,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [fetchMissions, t, toast]);
 
   const handleBriefingPlaceBid = useCallback(
-    async (amountUsd: number) => {
+    async (amountUsd: number, offerPackages?: BidOfferPackage[] | null) => {
       if (!selectedMission) return;
       setBriefingBidSubmitting(true);
       try {
@@ -3783,7 +3809,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           return;
         }
 
-        await placePendingBid(selectedMission.id, amountUsd);
+        await placePendingBid(selectedMission.id, amountUsd, offerPackages);
         toast.success(t('placeBid'));
         await refreshMissionBids();
         void fetchMissions();

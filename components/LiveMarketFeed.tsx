@@ -36,6 +36,11 @@ import {
 } from '../src/lib/showFreeReports';
 import { filterMissionsByMutedCreators } from '../src/lib/mutedCreators';
 import { useMutedCreators } from '../src/hooks/useMutedCreators';
+import {
+  fetchTrustBadgesForOwners,
+  type TrustBadgeId,
+} from '../src/lib/trustBadges';
+import TrustBadgeRow from './TrustBadgeRow';
 
 export interface LiveMarketMission {
   id: string;
@@ -170,6 +175,9 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
   // Immersive Visual Feed: id of the mission whose photo was tapped (null = closed).
   const [immersiveStartId, setImmersiveStartId] = useState<string | null>(null);
+  const [creatorBadges, setCreatorBadges] = useState<
+    Record<string, TrustBadgeId[]>
+  >({});
   const { mutedIds } = useMutedCreators();
 
   const toggleTag = (tag: string) =>
@@ -221,6 +229,25 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
       sortMode,
     ]
   );
+
+  useEffect(() => {
+    if (!open || missions.length === 0) return;
+    let cancelled = false;
+    const ids = [
+      ...new Set(
+        missions
+          .map((m) => m.creator_id)
+          .filter((id): id is string => !!id)
+      ),
+    ].slice(0, 24);
+    if (ids.length === 0) return;
+    void fetchTrustBadgesForOwners(ids).then((map) => {
+      if (!cancelled) setCreatorBadges(map);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, missions]);
 
   useEffect(() => {
     if (!open) return;
@@ -380,6 +407,16 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                           creatorAvatarUrl={mission.creator?.avatar_url ?? null}
                           creatorName={mission.creator?.full_name ?? null}
                           creatorAriaLabel={t('viewCreatorProfile')}
+                          trustBadges={
+                            mission.creator_id &&
+                            (creatorBadges[mission.creator_id]?.length ?? 0) > 0 ? (
+                              <TrustBadgeRow
+                                badges={creatorBadges[mission.creator_id]}
+                                compact
+                                vertical
+                              />
+                            ) : undefined
+                          }
                           onCreatorClick={
                             mission.creator_id
                               ? () => {
@@ -439,6 +476,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
       open={open && !!immersiveStartId}
       missions={visibleMissions}
       startMissionId={immersiveStartId}
+      creatorTrustBadges={creatorBadges}
       onClose={() => setImmersiveStartId(null)}
       onOpenCreator={(creatorId) => {
         setImmersiveStartId(null);

@@ -36,6 +36,11 @@ import {
   MARKETPLACE_ALL_CITIES_ID,
   filterMissionsByCountriesCity,
 } from '../src/lib/globalMarketplace';
+import { acceptMissionBid } from '../src/lib/missionBids';
+import {
+  normalizeBidOfferPackages,
+  type BidOfferPackage,
+} from '../src/lib/bidPackages';
 import { useLocationCatalog } from '../src/hooks/useLocationCatalog';
 import {
   filterMissionsByFreeReports,
@@ -177,6 +182,8 @@ interface Bid {
   bid_amount: number;
   status: string;
   created_at?: string;
+  offer_packages?: BidOfferPackage[];
+  selected_package_id?: string | null;
 }
 
 interface ProfileRow {
@@ -956,10 +963,18 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       if (pendingJobIds.length > 0) {
         const { data: bidsData } = await supabase
           .from('mission_bids')
-          .select('id, mission_id, cleaner_id, bid_amount, status, created_at')
+          .select(
+            'id, mission_id, cleaner_id, bid_amount, status, created_at, offer_packages, selected_package_id'
+          )
           .in('mission_id', pendingJobIds);
         const byJob: Record<string, Bid[]> = {};
-        for (const bid of (bidsData || []) as Bid[]) {
+        for (const raw of bidsData || []) {
+          const bid: Bid = {
+            ...(raw as Bid),
+            offer_packages: normalizeBidOfferPackages(
+              (raw as { offer_packages?: unknown }).offer_packages
+            ),
+          };
           if (!byJob[bid.mission_id]) byJob[bid.mission_id] = [];
           byJob[bid.mission_id].push(bid);
         }
@@ -1050,9 +1065,19 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     }
   };
 
-  const handleAcceptBid = async (job: Job, bid: Bid) => {
+  const handleAcceptBid = async (
+    job: Job,
+    bid: Bid,
+    packageId?: string | null
+  ) => {
     if (!enforceMissionStatusCooldown()) return;
-    const missionValue = Number(bid.bid_amount ?? 0);
+    const packages = bid.offer_packages ?? [];
+    const selectedPkg = packageId
+      ? packages.find((p) => p.id === packageId)
+      : packages.length === 1
+        ? packages[0]
+        : null;
+    const missionValue = Number(selectedPkg?.price ?? bid.bid_amount ?? 0);
     if (!Number.isFinite(missionValue) || missionValue <= 0) return;
 
     // SaaS model: no security deposit — only home/office missions require an ID-verified worker.
@@ -1072,13 +1097,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       return;
     }
 
-    if (!window.confirm(t('acceptBidConfirm', { amount: String(Math.floor(Number(bid.bid_amount) || 0)) }))) return;
+    if (
+      !window.confirm(
+        t('acceptBidConfirm', { amount: String(Math.floor(missionValue)) })
+      )
+    ) {
+      return;
+    }
     try {
-      const { error: rpcErr } = await supabase.rpc('accept_mission_bid', {
-        p_bid_id: bid.id,
-      });
-      if (rpcErr) throw rpcErr;
-
+      await acceptMissionBid(bid.id, packageId ?? selectedPkg?.id ?? null);
       await fetchProfileData();
     } catch (err: any) {
       console.error(err);
@@ -2224,7 +2251,56 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                 </p>
                                 {bids.length > 0 ? (
                                   <div className="space-y-2">
-                                    {bids.map((bid) => (
+                                    {bids.map((bid) => {
+                                      const packages = bid.offer_packages ?? [];
+                                      if (packages.length > 0) {
+                                        return (
+                                          <div
+                                            key={bid.id}
+                                            className={`space-y-2 px-3 py-2 ${PROFILE_GLASS_PANEL} !rounded-xl`}
+                                          >
+                                            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                                              {t('bidPackagesLabel', {
+                                                defaultValue: 'Tiered offers',
+                                              })}
+                                            </p>
+                                            {packages.map((pkg) => (
+                                              <div
+                                                key={pkg.id}
+                                                className="rounded-lg border border-violet-400/25 bg-violet-500/10 px-2.5 py-2"
+                                              >
+                                                <div className="flex items-start justify-between gap-2">
+                                                  <div className="min-w-0">
+                                                    <p className="text-xs font-bold text-white">
+                                                      {pkg.title}
+                                                    </p>
+                                                    {pkg.description && (
+                                                      <p className="mt-0.5 text-[10px] text-slate-400">
+                                                        {pkg.description}
+                                                      </p>
+                                                    )}
+                                                  </div>
+                                                  <span className="shrink-0 text-sm font-black text-emerald-400">
+                                                    {formatWorkBudgetUsd(pkg.price)}
+                                                  </span>
+                                                </div>
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    handleAcceptBid(job, bid, pkg.id)
+                                                  }
+                                                  className="mt-2 w-full rounded-full border border-emerald-400/40 bg-emerald-500/20 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-50"
+                                                >
+                                                  {t('acceptPackageOffer', {
+                                                    defaultValue: 'Accept this package',
+                                                  })}
+                                                </button>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      }
+                                      return (
                                       <div
                                         key={bid.id}
                                         className={`flex items-center justify-between gap-3 px-3 py-2 ${PROFILE_GLASS_PANEL} !rounded-xl`}
@@ -2243,7 +2319,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                                           </button>
                                         </div>
                                       </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 ) : (
                                   <p className="text-xs italic text-slate-500">

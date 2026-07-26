@@ -1064,9 +1064,36 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
       )}
 
       {draft.is_published && (
-        <p className="text-center text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300/90">
-          {t('storePublishedBadge', { defaultValue: 'Storefront is live' })}
-        </p>
+        <div className="space-y-2">
+          <p className="text-center text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300/90">
+            {t('storePublishedBadge', { defaultValue: 'Storefront is live' })}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              void (async () => {
+                const { shareStoreLink } = await import('../src/lib/trustBadges');
+                const result = await shareStoreLink({
+                  ownerId: userId,
+                  storeName: draft.store_name,
+                  t,
+                });
+                if (result === 'copied' || result === 'shared') {
+                  setSuccess(
+                    result === 'copied'
+                      ? t('storeShareCopied', {
+                          defaultValue: 'Store link copied.',
+                        })
+                      : t('storeShareDone', { defaultValue: 'Shared!' })
+                  );
+                }
+              })();
+            }}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-violet-400/45 bg-violet-500/20 py-2.5 text-[11px] font-black uppercase tracking-[0.14em] text-violet-50"
+          >
+            {t('storeShareCta', { defaultValue: 'Share Store' })}
+          </button>
+        </div>
       )}
 
       {draft.offered_services.length > 0 && (

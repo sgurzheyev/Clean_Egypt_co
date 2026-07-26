@@ -2,7 +2,7 @@
  * Read-only contractor storefront card for PublicProfile / profile overlays.
  */
 import React, { useEffect, useState } from 'react';
-import { MapPin, Store } from 'lucide-react';
+import { MapPin, Share2, Store } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { findServiceOption } from '../src/lib/serviceSectors';
 import {
@@ -12,26 +12,38 @@ import {
   type StoreSupply,
 } from '../src/lib/contractorStore';
 import {
+  computeTrustBadges,
+  fetchTrustBadgeContext,
+  shareStoreLink,
+  type TrustBadgeId,
+} from '../src/lib/trustBadges';
+import {
   StoreBundlesShowcase,
   StoreRecurrenceBadge,
   StoreSuppliesShowcase,
 } from './StoreShowcaseSections';
 import StoreCoverageMap from './StoreCoverageMap';
+import TrustBadgeRow from './TrustBadgeRow';
 
 export type PublicStoreCardProps = {
   ownerId: string;
   /** When true, hide the card if the store is unpublished / missing. */
   requirePublished?: boolean;
+  /** Show Share Store CTA (default true). */
+  showShare?: boolean;
 };
 
 const PublicStoreCard: React.FC<PublicStoreCardProps> = ({
   ownerId,
   requirePublished = true,
+  showShare = true,
 }) => {
   const { t } = useTranslation();
   const [store, setStore] = useState<ContractorStore | null>(null);
   const [supplies, setSupplies] = useState<StoreSupply[]>([]);
+  const [badges, setBadges] = useState<TrustBadgeId[]>([]);
   const [loading, setLoading] = useState(true);
+  const [shareMsg, setShareMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,20 +55,37 @@ const PublicStoreCard: React.FC<PublicStoreCardProps> = ({
         if (row && (!requirePublished || row.is_published)) {
           setStore(row);
           try {
-            setSupplies(await fetchStoreSupplies(row.id));
+            const [supplyRows, ctx] = await Promise.all([
+              fetchStoreSupplies(row.id),
+              fetchTrustBadgeContext(ownerId),
+            ]);
+            if (cancelled) return;
+            setSupplies(supplyRows);
+            setBadges(
+              computeTrustBadges({
+                ...ctx,
+                store: row,
+                supplies: supplyRows,
+              })
+            );
           } catch (err) {
-            console.warn('PublicStoreCard supplies load failed', err);
-            if (!cancelled) setSupplies([]);
+            console.warn('PublicStoreCard supplies/badges load failed', err);
+            if (!cancelled) {
+              setSupplies([]);
+              setBadges([]);
+            }
           }
         } else {
           setStore(null);
           setSupplies([]);
+          setBadges([]);
         }
       } catch (err) {
         console.warn('PublicStoreCard load failed', err);
         if (!cancelled) {
           setStore(null);
           setSupplies([]);
+          setBadges([]);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -67,6 +96,23 @@ const PublicStoreCard: React.FC<PublicStoreCardProps> = ({
     };
   }, [ownerId, requirePublished]);
 
+  const handleShare = async () => {
+    if (!store) return;
+    const result = await shareStoreLink({
+      ownerId: store.owner_id,
+      storeName: store.store_name,
+      t,
+    });
+    if (result === 'shared') {
+      setShareMsg(t('storeShareDone', { defaultValue: 'Shared!' }));
+    } else if (result === 'copied') {
+      setShareMsg(t('storeShareCopied', { defaultValue: 'Store link copied.' }));
+    } else {
+      setShareMsg(t('storeShareFailed', { defaultValue: 'Could not share link.' }));
+    }
+    window.setTimeout(() => setShareMsg(null), 2500);
+  };
+
   if (loading || !store) return null;
 
   const title =
@@ -75,12 +121,27 @@ const PublicStoreCard: React.FC<PublicStoreCardProps> = ({
 
   return (
     <section className="mt-6 space-y-4 rounded-2xl border border-emerald-400/25 bg-emerald-500/5 p-4">
-      <div className="flex items-center gap-2">
-        <Store className="h-5 w-5 text-emerald-300" aria-hidden />
-        <h2 className="text-sm font-black uppercase tracking-[0.18em] text-emerald-100">
-          {t('storeTab', { defaultValue: 'Store' })}
-        </h2>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Store className="h-5 w-5 text-emerald-300" aria-hidden />
+          <h2 className="text-sm font-black uppercase tracking-[0.18em] text-emerald-100">
+            {t('storeTab', { defaultValue: 'Store' })}
+          </h2>
+        </div>
+        {showShare && (
+          <button
+            type="button"
+            onClick={() => void handleShare()}
+            className="inline-flex items-center gap-1.5 rounded-full border border-violet-400/45 bg-violet-500/20 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-violet-100"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            {t('storeShareCta', { defaultValue: 'Share Store' })}
+          </button>
+        )}
       </div>
+      {shareMsg && (
+        <p className="text-[11px] font-bold text-emerald-300">{shareMsg}</p>
+      )}
 
       <div>
         <p className="text-lg font-bold text-white">{title}</p>
@@ -96,6 +157,8 @@ const PublicStoreCard: React.FC<PublicStoreCardProps> = ({
           </p>
         )}
       </div>
+
+      <TrustBadgeRow badges={badges} />
 
       <StoreRecurrenceBadge
         supported={store.supported_recurrence_types}
@@ -120,14 +183,14 @@ const PublicStoreCard: React.FC<PublicStoreCardProps> = ({
             {t('storeServicesSection', { defaultValue: 'Services offered' })}
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {store.offered_services.map((id) => {
-              const opt = findServiceOption(id);
+            {store.offered_services.map((sid) => {
+              const opt = findServiceOption(sid);
               return (
                 <span
-                  key={id}
+                  key={sid}
                   className="rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-emerald-100"
                 >
-                  {opt ? t(opt.labelKey) : id}
+                  {opt ? t(opt.labelKey) : sid}
                 </span>
               );
             })}

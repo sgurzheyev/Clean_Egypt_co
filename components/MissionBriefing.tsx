@@ -28,6 +28,10 @@ import {
 } from '../src/lib/crowdfunding';
 import { type MissionBidRow, bidWorkerDisplayName } from '../src/lib/missionBids';
 import {
+  createDefaultBidPackages,
+  type BidOfferPackage,
+} from '../src/lib/bidPackages';
+import {
   LOCKED_PHONE_MASK,
   toTelHref,
   toWhatsAppHref,
@@ -106,9 +110,12 @@ export type MissionBriefingProps = {
   isMissionCreator: boolean;
   canPlaceBid: boolean;
   bidSubmitting: boolean;
-  onAcceptBid: (bid: MissionBidRow) => void;
+  onAcceptBid: (bid: MissionBidRow, packageId?: string | null) => void;
   onDeclineBid: (bidId: string) => void;
-  onPlaceBid: (amountUsd: number) => void;
+  onPlaceBid: (
+    amountUsd: number,
+    offerPackages?: BidOfferPackage[] | null
+  ) => void;
   /** Crowdfunding contribution (Garbage Removal only). */
   canContribute?: boolean;
   contributeSubmitting?: boolean;
@@ -276,6 +283,10 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const { t } = useTranslation();
   const creatorInitial = String(creatorName || '?').trim().charAt(0).toUpperCase() || '?';
   const [bidInput, setBidInput] = React.useState('');
+  const [useTieredOffers, setUseTieredOffers] = React.useState(false);
+  const [offerPackages, setOfferPackages] = React.useState<BidOfferPackage[]>(
+    () => createDefaultBidPackages(50, 75)
+  );
   const [chatPeer, setChatPeer] = useState<{
     id: string;
     name?: string | null;
@@ -1082,13 +1093,14 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                   )}
                 </div>
                 {bidsError && <p className="mb-2 text-xs text-red-400">{bidsError}</p>}
-                <ul className="max-h-52 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <ul className="max-h-72 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {missionBids.map((bid) => {
                     const displayName = bidWorkerDisplayName(bid);
                     const avatarUrl = bid.cleaner?.avatar_url;
                     const rating = bid.cleaner?.rating;
                     const bidStatus = String(bid.status || '').toLowerCase();
                     const isAcceptedBid = bidStatus === 'accepted';
+                    const packages = bid.offer_packages ?? [];
                     const showWaitingFundsBadge =
                       isAcceptedBid && hasPreselectedCleanerDuringFunding;
                     const canChatWithBidder =
@@ -1130,9 +1142,11 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                               </p>
                             )}
                           </div>
-                          <p className="shrink-0 text-sm font-black tabular-nums text-orange-300">
-                            {formatWorkBudgetUsd(Number(bid.bid_amount))}
-                          </p>
+                          {packages.length === 0 && (
+                            <p className="shrink-0 text-sm font-black tabular-nums text-orange-300">
+                              {formatWorkBudgetUsd(Number(bid.bid_amount))}
+                            </p>
+                          )}
                           {canChatWithBidder && (
                             <button
                               type="button"
@@ -1145,7 +1159,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                               💬 {t('missionChatOpen', { defaultValue: 'Chat' })}
                             </button>
                           )}
-                          {canAcceptOrDecline && (
+                          {canAcceptOrDecline && packages.length === 0 && (
                             <div className="flex shrink-0 items-center gap-1.5">
                               <button
                                 type="button"
@@ -1165,7 +1179,92 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                               </button>
                             </div>
                           )}
+                          {canAcceptOrDecline && packages.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => onDeclineBid(bid.id)}
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-500/15 text-base"
+                              aria-label={t('declineBidAria')}
+                            >
+                              ❌
+                            </button>
+                          )}
                         </div>
+
+                        {packages.length > 0 && (
+                          <div className="mt-2 space-y-2 pl-12">
+                            <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                              {t('bidPackagesLabel', {
+                                defaultValue: 'Tiered offers',
+                              })}
+                            </p>
+                            {packages.map((pkg) => {
+                              const isSelected =
+                                isAcceptedBid &&
+                                bid.selected_package_id === pkg.id;
+                              return (
+                                <div
+                                  key={pkg.id}
+                                  className={`rounded-xl border px-3 py-2 ${
+                                    isSelected
+                                      ? 'border-emerald-400/50 bg-emerald-500/15'
+                                      : 'border-white/10 bg-white/5'
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-bold text-white">
+                                        {pkg.title}
+                                      </p>
+                                      {pkg.description && (
+                                        <p className="mt-0.5 text-[11px] leading-snug text-slate-400">
+                                          {pkg.description}
+                                        </p>
+                                      )}
+                                      <p
+                                        className={`mt-1 text-[9px] font-black uppercase tracking-[0.12em] ${
+                                          pkg.includes_supplies
+                                            ? 'text-cyan-300'
+                                            : 'text-slate-400'
+                                        }`}
+                                      >
+                                        {pkg.includes_supplies
+                                          ? t('bidPackageAllInclusive', {
+                                              defaultValue: 'All-inclusive supplies',
+                                            })
+                                          : t('bidPackageCustomerSupplies', {
+                                              defaultValue: 'Customer supplies',
+                                            })}
+                                      </p>
+                                    </div>
+                                    <p className="shrink-0 text-sm font-black tabular-nums text-orange-300">
+                                      {formatWorkBudgetUsd(pkg.price)}
+                                    </p>
+                                  </div>
+                                  {canAcceptOrDecline && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onAcceptBid(bid, pkg.id)}
+                                      className="mt-2 w-full rounded-full border border-emerald-400/45 bg-emerald-500/20 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-50"
+                                    >
+                                      {t('acceptPackageOffer', {
+                                        defaultValue: 'Accept this package',
+                                      })}
+                                    </button>
+                                  )}
+                                  {isSelected && (
+                                    <p className="mt-1.5 text-[9px] font-bold uppercase tracking-[0.12em] text-emerald-300">
+                                      {t('packageAcceptedBadge', {
+                                        defaultValue: 'Accepted package',
+                                      })}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
                         {showWaitingFundsBadge && (
                           <p className="mt-2 rounded-lg border border-violet-400/25 bg-violet-500/10 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-violet-200">
                             {t('selectedCleanerWaitingFunds', {
@@ -1186,45 +1285,184 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
 
                 {canPlaceBid && !isMissionCreator && (
                   <form
-                    className="mt-4 space-y-2"
+                    className="mt-4 space-y-3"
                     onSubmit={(e) => {
                       e.preventDefault();
+                      if (useTieredOffers) {
+                        const pkgs = offerPackages.filter(
+                          (p) => p.title.trim() && p.price >= 1
+                        );
+                        if (pkgs.length === 0) return;
+                        const minPrice = Math.min(...pkgs.map((p) => p.price));
+                        onPlaceBid(minPrice, pkgs);
+                        return;
+                      }
                       const amount = parseIntegerUsdFromInput(bidInput);
                       if (amount <= 0) return;
-                      onPlaceBid(amount);
+                      onPlaceBid(amount, null);
                     }}
                   >
-                    <label className="block text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
-                      {t('proposeYourPriceUsd', { defaultValue: 'Your proposed price (USD)' })}
-                    </label>
-                    <div className="flex gap-2">
+                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-violet-400/25 bg-violet-500/10 px-3 py-2.5">
                       <input
-                        type="text"
-                        inputMode="numeric"
-                        autoComplete="off"
-                        pattern="\d*"
-                        value={bidInput}
-                        onChange={(e) => setBidInput(sanitizeIntegerUsdDigits(e.target.value))}
-                        placeholder={t('bidAmountLabelUsd')}
-                        className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400/40 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
+                        type="checkbox"
+                        checked={useTieredOffers}
+                        onChange={(e) => {
+                          setUseTieredOffers(e.target.checked);
+                          if (e.target.checked) {
+                            const base = parseIntegerUsdFromInput(bidInput) || 50;
+                            setOfferPackages(
+                              createDefaultBidPackages(base, Math.ceil(base * 1.35))
+                            );
+                          }
+                        }}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-violet-400/50 bg-black/40 text-violet-400"
                       />
-                      <button
-                        type="submit"
-                        disabled={bidSubmitting || parseIntegerUsdFromInput(bidInput) <= 0}
-                        className="shrink-0 rounded-xl border border-cyan-400/35 bg-cyan-600/90 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-all hover:bg-cyan-500/95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {bidSubmitting ? t('processing') : t('placeBid')}
-                      </button>
-                    </div>
+                      <span className="min-w-0">
+                        <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-violet-200">
+                          {t('bidTieredOffersToggle', {
+                            defaultValue: 'Attach tiered packages',
+                          })}
+                        </span>
+                        <span className="mt-1 block text-[11px] leading-snug text-slate-400">
+                          {t('bidTieredOffersHint', {
+                            defaultValue:
+                              'Option A = basic labor · Option B = all-inclusive with your store supplies.',
+                          })}
+                        </span>
+                      </span>
+                    </label>
+
+                    {!useTieredOffers ? (
+                      <>
+                        <label className="block text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                          {t('proposeYourPriceUsd', {
+                            defaultValue: 'Your proposed price (USD)',
+                          })}
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            pattern="\d*"
+                            value={bidInput}
+                            onChange={(e) =>
+                              setBidInput(sanitizeIntegerUsdDigits(e.target.value))
+                            }
+                            placeholder={t('bidAmountLabelUsd')}
+                            className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400/40 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
+                          />
+                          <button
+                            type="submit"
+                            disabled={
+                              bidSubmitting ||
+                              parseIntegerUsdFromInput(bidInput) <= 0
+                            }
+                            className="shrink-0 rounded-xl border border-cyan-400/35 bg-cyan-600/90 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-all hover:bg-cyan-500/95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {bidSubmitting ? t('processing') : t('placeBid')}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-2">
+                        {offerPackages.map((pkg, idx) => (
+                          <div
+                            key={pkg.id}
+                            className="space-y-1.5 rounded-xl border border-violet-400/25 bg-violet-500/5 p-3"
+                          >
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-200">
+                              {pkg.tier === 'all_inclusive'
+                                ? t('bidPackageOptionB', {
+                                    defaultValue: 'Option B — All-inclusive',
+                                  })
+                                : t('bidPackageOptionA', {
+                                    defaultValue: 'Option A — Basic labor',
+                                  })}
+                            </p>
+                            <input
+                              type="text"
+                              value={pkg.title}
+                              onChange={(e) =>
+                                setOfferPackages((prev) =>
+                                  prev.map((p, i) =>
+                                    i === idx
+                                      ? { ...p, title: e.target.value }
+                                      : p
+                                  )
+                                )
+                              }
+                              className="w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-400/40"
+                            />
+                            <textarea
+                              value={pkg.description}
+                              rows={2}
+                              onChange={(e) =>
+                                setOfferPackages((prev) =>
+                                  prev.map((p, i) =>
+                                    i === idx
+                                      ? { ...p, description: e.target.value }
+                                      : p
+                                  )
+                                )
+                              }
+                              className="w-full resize-none rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-400/40"
+                            />
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={pkg.price || ''}
+                              onChange={(e) =>
+                                setOfferPackages((prev) =>
+                                  prev.map((p, i) =>
+                                    i === idx
+                                      ? {
+                                          ...p,
+                                          price: Math.max(
+                                            1,
+                                            Math.floor(Number(e.target.value) || 0)
+                                          ),
+                                        }
+                                      : p
+                                  )
+                                )
+                              }
+                              placeholder={t('bidAmountLabelUsd')}
+                              className="w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-sm text-white outline-none focus:border-violet-400/40"
+                            />
+                          </div>
+                        ))}
+                        <button
+                          type="submit"
+                          disabled={
+                            bidSubmitting ||
+                            offerPackages.every(
+                              (p) => !p.title.trim() || p.price < 1
+                            )
+                          }
+                          className="w-full rounded-xl border border-cyan-400/35 bg-cyan-600/90 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-white disabled:opacity-50"
+                        >
+                          {bidSubmitting
+                            ? t('processing')
+                            : t('placeTieredBid', {
+                                defaultValue: 'Submit packaged offers',
+                              })}
+                        </button>
+                      </div>
+                    )}
                     {isCrowdfundingMissionFlag && (
                       <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-300/90">
-                        {t('bidCostsOneToken', { defaultValue: 'Costs 1 Token to place this bid' })}
+                        {t('bidCostsOneToken', {
+                          defaultValue: 'Costs 1 Token to place this bid',
+                        })}
                       </p>
                     )}
                     {crowdfundingOpen && targetUsd > 0 && (
                       <p className="text-[10px] text-slate-500">
                         {t('crowdBidVsTargetHint', {
-                          defaultValue: 'Campaign target: {{target}}. You may bid higher or lower.',
+                          defaultValue:
+                            'Campaign target: {{target}}. You may bid higher or lower.',
                           target: formatWorkBudgetUsd(targetUsd),
                         })}
                       </p>

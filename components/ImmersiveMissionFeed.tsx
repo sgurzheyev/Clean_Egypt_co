@@ -44,6 +44,11 @@ import { missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
 import { missionFeedPlaceholderGradient } from '../src/lib/missionFeedVisuals';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
+import {
+  fetchTrustBadgesForOwner,
+  type TrustBadgeId,
+} from '../src/lib/trustBadges';
+import TrustBadgeRow from './TrustBadgeRow';
 
 /** Structural mission shape — both LiveMarketMission and Profile's Job satisfy it. */
 export type ImmersiveFeedMission = {
@@ -88,6 +93,8 @@ export interface ImmersiveMissionFeedProps {
    * flow armed at the user's current location (same UX as tapping the map).
    */
   onCreateMission?: () => void;
+  /** Optional precomputed trust badges keyed by creator id. */
+  creatorTrustBadges?: Record<string, TrustBadgeId[]>;
 }
 
 /** Slides whose photos stay mounted around the active index (cheap windowing). */
@@ -331,6 +338,7 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
   onMessage,
   onOpenProfile,
   onCreateMission,
+  creatorTrustBadges,
 }) => {
   const { t } = useTranslation();
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -340,6 +348,7 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
   const [photoIndexByMission, setPhotoIndexByMission] = useState<Record<string, number>>(
     {}
   );
+  const [liveBadges, setLiveBadges] = useState<TrustBadgeId[]>([]);
 
   const startIndex = useMemo(() => {
     if (!startMissionId) return 0;
@@ -407,6 +416,27 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
 
   const creatorName = current?.creator?.full_name ?? null;
   const creatorInitial = (creatorName || '?').trim().charAt(0).toUpperCase() || '?';
+  const currentCreatorId = current?.creator_id ?? null;
+  const sidebarBadges =
+    (currentCreatorId && creatorTrustBadges?.[currentCreatorId]) || liveBadges;
+
+  useEffect(() => {
+    if (!open || !currentCreatorId) {
+      setLiveBadges([]);
+      return;
+    }
+    if (creatorTrustBadges?.[currentCreatorId]) {
+      setLiveBadges(creatorTrustBadges[currentCreatorId]);
+      return;
+    }
+    let cancelled = false;
+    void fetchTrustBadgesForOwner(currentCreatorId).then((badges) => {
+      if (!cancelled) setLiveBadges(badges);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, currentCreatorId, creatorTrustBadges]);
 
   /** Bottom-nav item — vibrant per-icon accent + glow, matching the map chrome. */
   const navBtn = (
@@ -537,6 +567,10 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
                   <span className="text-base font-black uppercase">{creatorInitial}</span>
                 )}
               </button>
+
+              {sidebarBadges.length > 0 && (
+                <TrustBadgeRow badges={sidebarBadges} compact vertical />
+              )}
 
               <button
                 type="button"

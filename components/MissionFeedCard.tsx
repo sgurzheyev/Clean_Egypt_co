@@ -40,6 +40,8 @@ export interface MissionFeedCardProps {
   /** Click handler for the creator avatar (e.g. navigate to public profile). */
   onCreatorClick?: () => void;
   creatorAriaLabel?: string;
+  /** Zero-KYC trust badges for the creator (when they have a contractor store). */
+  trustBadges?: React.ReactNode;
 }
 
 const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
@@ -66,6 +68,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
   creatorName,
   onCreatorClick,
   creatorAriaLabel = 'View creator profile',
+  trustBadges,
 }) => {
   const locationTranslation = useMissionTextTranslation(locationLine);
   const showLocate = !!(onLocate || onClick);
@@ -178,19 +181,20 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
                     : 'cursor-default'
                 }`}
                 aria-label={creatorAriaLabel}
-                title={creatorName || creatorAriaLabel}
               >
                 {creatorAvatarUrl ? (
                   <img
                     src={creatorAvatarUrl}
                     alt=""
-                    draggable={false}
                     className="h-full w-full object-cover"
                   />
                 ) : (
                   <span className="text-xs font-black uppercase">{creatorInitial}</span>
                 )}
               </button>
+            )}
+            {trustBadges && (
+              <div className="pointer-events-none max-w-[4.75rem]">{trustBadges}</div>
             )}
           </div>
 
