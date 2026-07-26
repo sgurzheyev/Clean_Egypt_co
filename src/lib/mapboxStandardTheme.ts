@@ -1,6 +1,10 @@
 /**
  * Mapbox Standard (v3) — monochrome night basemap for cyberpunk / dark-steel UI.
  * Shared by MapPicker, StoreCoverageMap, and other embedded maps.
+ *
+ * CRITICAL: Standard loads asynchronously. Never call setConfigProperty / addSource /
+ * addLayer until the style is fully loaded — use whenMapStyleReady() or guard with
+ * map.isStyleLoaded().
  */
 
 export const MAPBOX_STANDARD_STYLE = 'mapbox://styles/mapbox/standard' as const;
@@ -28,25 +32,111 @@ export const MAPBOX_STANDARD_BASEMAP_CONFIG = {
   showPedestrianRoads: true,
 } as const;
 
-export type MapboxConfigCapable = {
+export type MapboxStyleReadyMap = {
+  isStyleLoaded?: () => boolean;
+  once?: (type: string, listener: (...args: unknown[]) => void) => unknown;
+  on?: (type: string, listener: (...args: unknown[]) => void) => unknown;
+  off?: (type: string, listener: (...args: unknown[]) => void) => unknown;
   setConfigProperty?: (importId: string, property: string, value: unknown) => void;
 };
 
-/** Apply steel-noir Standard basemap config (idempotent; safe to call on every load). */
-export function applyMapboxStandardBasemapConfig(map: MapboxConfigCapable | null | undefined): void {
-  if (!map?.setConfigProperty) return;
-  for (const [key, value] of Object.entries(MAPBOX_STANDARD_BASEMAP_CONFIG)) {
-    try {
-      map.setConfigProperty('basemap', key, value);
-    } catch {
-      /* Older GL builds may not expose every config key yet. */
-    }
+/** True when the map style (incl. Standard imports) is ready for mutations. */
+export function isMapStyleReady(map: MapboxStyleReadyMap | null | undefined): boolean {
+  if (!map) return false;
+  try {
+    // When isStyleLoaded is missing, be conservative and treat as not ready.
+    if (typeof map.isStyleLoaded !== 'function') return false;
+    return map.isStyleLoaded() === true;
+  } catch {
+    return false;
   }
 }
 
 /**
- * Style object that imports Standard with config baked in — avoids a light-theme flash
- * before setConfigProperty runs. Custom overlay sources/layers can still be added on load.
+ * Run `callback` only after the style has fully loaded.
+ * Returns an unsubscribe/cancel function.
+ */
+export function whenMapStyleReady(
+  map: MapboxStyleReadyMap | null | undefined,
+  callback: (map: MapboxStyleReadyMap) => void
+): () => void {
+  if (!map) return () => undefined;
+
+  let cancelled = false;
+  let ran = false;
+
+  const run = () => {
+    if (cancelled || ran) return;
+    if (!isMapStyleReady(map)) return;
+    ran = true;
+    try {
+      callback(map);
+    } catch (err) {
+      console.warn('[mapbox] style-ready callback failed:', err);
+    }
+  };
+
+  const onStyleLoad = () => {
+    // Standard imports often need a frame after style.load before isStyleLoaded() is true.
+    requestAnimationFrame(() => {
+      if (cancelled) return;
+      if (isMapStyleReady(map)) {
+        run();
+        return;
+      }
+      try {
+        map.once?.('idle', run);
+      } catch {
+        /* ignore */
+      }
+    });
+  };
+
+  if (isMapStyleReady(map)) {
+    queueMicrotask(run);
+  } else {
+    try {
+      map.once?.('style.load', onStyleLoad);
+    } catch {
+      /* ignore */
+    }
+    try {
+      // Fallback if style.load already fired before we subscribed.
+      map.once?.('idle', run);
+      map.once?.('load', onStyleLoad);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return () => {
+    cancelled = true;
+  };
+}
+
+/**
+ * Apply steel-noir Standard basemap config.
+ * Returns false if the style is not ready yet (caller should retry via whenMapStyleReady).
+ */
+export function applyMapboxStandardBasemapConfig(
+  map: MapboxStyleReadyMap | null | undefined
+): boolean {
+  if (!map?.setConfigProperty) return false;
+  if (!isMapStyleReady(map)) return false;
+
+  for (const [key, value] of Object.entries(MAPBOX_STANDARD_BASEMAP_CONFIG)) {
+    try {
+      map.setConfigProperty('basemap', key, value);
+    } catch {
+      /* Key unsupported on this GL build, or style briefly busy — skip. */
+    }
+  }
+  return true;
+}
+
+/**
+ * Prefer the plain Standard URL + whenMapStyleReady config application.
+ * Kept for callers that still reference the import wrapper; prefer MAPBOX_STANDARD_STYLE.
  */
 export const MAPBOX_STANDARD_STYLE_WITH_CONFIG = {
   version: 8 as const,

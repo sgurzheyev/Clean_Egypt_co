@@ -22,7 +22,9 @@ import {
 } from '../src/lib/contractorStore';
 import {
   applyMapboxStandardBasemapConfig,
-  MAPBOX_STANDARD_STYLE_WITH_CONFIG,
+  isMapStyleReady,
+  MAPBOX_STANDARD_STYLE,
+  whenMapStyleReady,
 } from '../src/lib/mapboxStandardTheme';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
@@ -75,13 +77,17 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
   }, [hasOffice, officeLat, officeLng, polygon]);
 
   const [viewState, setViewState] = useState(initialView);
+  /** Gate GeoJSON Source/Layer until Standard style.load finishes. */
+  const [styleReady, setStyleReady] = useState(false);
+  const styleReadyCancelRef = useRef<(() => void) | null>(null);
 
   const fitToCoverage = useCallback(
     (opts?: { animate?: boolean; cinematic?: boolean }) => {
       const map = mapRef.current?.getMap?.();
-      if (!map) return false;
+      if (!map || !isMapStyleReady(map)) return false;
       const bounds = polygonLngLatBounds(polygon);
 
+      try {
       if (opts?.cinematic) {
         // Cinematic 3D flight: tilt into the lilac zone instead of a flat snap.
         if (bounds) {
@@ -133,9 +139,19 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
         return true;
       }
       return false;
+      } catch {
+        return false;
+      }
     },
     [polygon, hasOffice, officeLat, officeLng]
   );
+
+  useEffect(() => {
+    return () => {
+      styleReadyCancelRef.current?.();
+      styleReadyCancelRef.current = null;
+    };
+  }, []);
 
   // Keep the camera on the office when it is placed/moved from outside (editor).
   useEffect(() => {
@@ -150,12 +166,12 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
 
   // Read-only / whenever polygon data arrives: frame the lilac zone.
   useEffect(() => {
-    if (interactive) return;
+    if (interactive || !styleReady) return;
     const id = window.setTimeout(() => {
       fitToCoverage({ animate: false });
     }, 80);
     return () => window.clearTimeout(id);
-  }, [interactive, polygon, hasOffice, officeLat, officeLng, fitToCoverage]);
+  }, [interactive, styleReady, polygon, hasOffice, officeLat, officeLng, fitToCoverage]);
 
   const previewGeoJson = useMemo(() => {
     const ring = draftRing.length >= 2 ? draftRing : null;
@@ -326,11 +342,21 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
           onMove={(evt) => setViewState(evt.viewState)}
           onClick={handleClick}
           onLoad={() => {
-            applyMapboxStandardBasemapConfig(mapRef.current?.getMap?.());
-            if (!interactive) fitToCoverage({ animate: false });
+            const map = mapRef.current?.getMap?.();
+            if (!map) return;
+            setStyleReady(false);
+            styleReadyCancelRef.current?.();
+            styleReadyCancelRef.current = whenMapStyleReady(map, (readyMap) => {
+              applyMapboxStandardBasemapConfig(readyMap);
+              setStyleReady(true);
+              if (!interactive) {
+                // Defer fit one frame so Source layers can mount after styleReady.
+                requestAnimationFrame(() => fitToCoverage({ animate: false }));
+              }
+            });
           }}
           mapboxAccessToken={MAPBOX_TOKEN}
-          mapStyle={MAPBOX_STANDARD_STYLE_WITH_CONFIG}
+          mapStyle={MAPBOX_STANDARD_STYLE}
           style={{ width: '100%', height: '100%' }}
           attributionControl={false}
           reuseMaps={false}
@@ -343,6 +369,7 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
           touchPitch
           maxPitch={70}
         >
+          {styleReady && (
           <Source
             id="store-coverage-preview"
             type="geojson"
@@ -368,6 +395,7 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
               }}
             />
           </Source>
+          )}
 
           {hasOffice && (
             <Marker

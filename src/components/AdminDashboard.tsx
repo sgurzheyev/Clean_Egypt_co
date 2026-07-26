@@ -8,7 +8,8 @@ import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import {
   applyMapboxStandardBasemapConfig,
-  MAPBOX_STANDARD_STYLE_WITH_CONFIG,
+  MAPBOX_STANDARD_STYLE,
+  whenMapStyleReady,
 } from '../lib/mapboxStandardTheme';
 import { runMissionAiAnalysis } from '../lib/openai';
 import { adminDeleteMission } from '../lib/adminMission';
@@ -1682,8 +1683,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                           bearing: -20,
                         }}
                         style={{ width: '100%', height: 220 }}
-                        mapStyle={MAPBOX_STANDARD_STYLE_WITH_CONFIG}
-                        onLoad={(e) => applyMapboxStandardBasemapConfig(e.target)}
+                        mapStyle={MAPBOX_STANDARD_STYLE}
+                        onLoad={(e) => {
+                          const map = e.target as {
+                            isStyleLoaded?: () => boolean;
+                            once?: (t: string, fn: () => void) => void;
+                            setConfigProperty?: (a: string, b: string, c: unknown) => void;
+                          };
+                          whenMapStyleReady(map, (ready) => {
+                            applyMapboxStandardBasemapConfig(ready);
+                          });
+                        }}
                       >
                         <Marker latitude={gps.lat} longitude={gps.lng} anchor="bottom">
                           <div className="w-4 h-4 rounded-full border-2 border-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.6)] bg-slate-950" />

@@ -116,7 +116,9 @@ import {
 } from '../src/lib/mapEgyptTheme';
 import {
   applyMapboxStandardBasemapConfig,
-  MAPBOX_STANDARD_STYLE_WITH_CONFIG,
+  isMapStyleReady,
+  MAPBOX_STANDARD_STYLE,
+  whenMapStyleReady,
 } from '../src/lib/mapboxStandardTheme';
 import {
   applyWeatherFog,
@@ -1365,6 +1367,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const updateAtmosphere = useCallback(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
+    // Standard style mutations throw "Style is not done loading" if called too early.
+    if (!isMapStyleReady(map)) return;
 
     const center = map.getCenter?.();
     const lat = Number(center?.lat);
@@ -4605,106 +4609,116 @@ const MapPicker: React.FC<MapPickerProps> = ({
           if (!map) return;
           mapOnLoadCleanupRef.current?.();
           mapInstanceRef.current = map;
-          setMapReady(true);
+          setMapReady(false);
 
-          // Mapbox Standard monochrome night (steel / silver noir).
-          applyMapboxStandardBasemapConfig(map);
-          try {
-            map.once?.('style.load', () => applyMapboxStandardBasemapConfig(map));
-          } catch {
-            /* ignore */
-          }
+          // NEVER mutate Standard style (config / DEM / layers) until style.load completes.
+          // react-map-gl Sources are also gated on mapReady below for the same reason.
+          let atmosphereCamTimer: ReturnType<typeof setTimeout> | undefined;
+          let onStyleImageMissing: (() => void) | undefined;
+          let scheduleAtmosphereCamera: (() => void) | undefined;
+          let readyMapRef: any = null;
 
-          // Emoji pin icons must exist as style images before the symbol layer draws.
-          registerEmojiPinImages(map);
-          const onStyleImageMissing = () => registerEmojiPinImages(map);
-          map.on('styleimagemissing', onStyleImageMissing);
+          const cancelStyleReady = whenMapStyleReady(map, (readyMap) => {
+            readyMapRef = readyMap;
+            applyMapboxStandardBasemapConfig(readyMap);
 
-          // Optional DEM hillshade — Standard already ships 3D buildings/trees.
-          // DEM source must exist before `setTerrain`.
-          try {
-            if (!map.getSource('mapbox-dem')) {
-              map.addSource('mapbox-dem', {
-                type: 'raster-dem',
-                url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-                tileSize: 512,
-                maxzoom: 14,
-              });
+            // Emoji pin icons must exist as style images before the symbol layer draws.
+            registerEmojiPinImages(readyMap as any);
+            onStyleImageMissing = () => registerEmojiPinImages(readyMap as any);
+            try {
+              (readyMap as any).on?.('styleimagemissing', onStyleImageMissing);
+            } catch {
+              /* ignore */
             }
-            // Taper exaggeration when zoomed in: at 2.0 the inflated terrain depth-culls
-            // mission pins at high zoom (queryRenderedFeatures returns nothing on hover).
-            map.setTerrain({
-              source: 'mapbox-dem',
-              exaggeration: [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                10,
-                2.0,
-                14,
-                1.3,
-                16,
-                1.0,
-              ],
-            });
-            // Add hillshade for extra mountain texture as you zoom in.
-            if (!map.getLayer('terrain-hillshade')) {
-              map.addLayer({
-                id: 'terrain-hillshade',
-                type: 'hillshade',
-                source: 'mapbox-dem',
-                paint: {
-                  'hillshade-shadow-color': '#0c0c10',
-                  'hillshade-highlight-color': '#6E737C',
-                  'hillshade-accent-color': '#2A2A30',
-                  'hillshade-exaggeration': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    8,
-                    0.25,
-                    14,
-                    0.65,
-                  ],
-                },
-              });
-            }
-          } catch {
-            // Fail gracefully if the style/runtime doesn't support terrain.
-          }
 
-          // Initial celestial sync as soon as map is ready.
-          // (Will also update on interval via updateAtmosphere().)
-          try {
-            updateAtmosphere();
-          } catch {
-            // ignore
-          }
-          map.on?.('moveend', updateAtmosphere);
-          let atmosphereCamTimer: ReturnType<typeof setTimeout>;
-          const scheduleAtmosphereCamera = () => {
-            clearTimeout(atmosphereCamTimer);
-            atmosphereCamTimer = setTimeout(() => {
-              try {
-                updateAtmosphere();
-              } catch {
-                /* ignore */
+            // Optional DEM hillshade — Standard already ships 3D buildings/trees.
+            try {
+              const m = readyMap as any;
+              if (!m.getSource?.('mapbox-dem')) {
+                m.addSource('mapbox-dem', {
+                  type: 'raster-dem',
+                  url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+                  tileSize: 512,
+                  maxzoom: 14,
+                });
               }
-            }, 95);
-          };
-          map.on?.('zoom', scheduleAtmosphereCamera);
-          map.on?.('rotate', scheduleAtmosphereCamera);
+              m.setTerrain?.({
+                source: 'mapbox-dem',
+                exaggeration: [
+                  'interpolate',
+                  ['linear'],
+                  ['zoom'],
+                  10,
+                  2.0,
+                  14,
+                  1.3,
+                  16,
+                  1.0,
+                ],
+              });
+              if (!m.getLayer?.('terrain-hillshade')) {
+                m.addLayer({
+                  id: 'terrain-hillshade',
+                  type: 'hillshade',
+                  source: 'mapbox-dem',
+                  paint: {
+                    'hillshade-shadow-color': '#0c0c10',
+                    'hillshade-highlight-color': '#6E737C',
+                    'hillshade-accent-color': '#2A2A30',
+                    'hillshade-exaggeration': [
+                      'interpolate',
+                      ['linear'],
+                      ['zoom'],
+                      8,
+                      0.25,
+                      14,
+                      0.65,
+                    ],
+                  },
+                });
+              }
+            } catch {
+              // Fail gracefully if the style/runtime doesn't support terrain.
+            }
 
-          // SaaS lead-gen: legacy crowdfunding heatmap removed (2D bubble pins only).
-          // Custom Egypt vector restyle / metallic water skipped — Standard basemap owns roads & water.
+            try {
+              updateAtmosphere();
+            } catch {
+              /* ignore */
+            }
+
+            const m = readyMap as any;
+            m.on?.('moveend', updateAtmosphere);
+            scheduleAtmosphereCamera = () => {
+              if (atmosphereCamTimer) clearTimeout(atmosphereCamTimer);
+              atmosphereCamTimer = setTimeout(() => {
+                try {
+                  updateAtmosphere();
+                } catch {
+                  /* ignore */
+                }
+              }, 95);
+            };
+            m.on?.('zoom', scheduleAtmosphereCamera);
+            m.on?.('rotate', scheduleAtmosphereCamera);
+
+            // Unlock GeoJSON Sources / pin layers only after Standard is ready.
+            setMapReady(true);
+          });
 
           mapOnLoadCleanupRef.current = () => {
-            clearTimeout(atmosphereCamTimer);
+            cancelStyleReady();
+            if (atmosphereCamTimer) clearTimeout(atmosphereCamTimer);
             try {
-              map.off?.('styleimagemissing', onStyleImageMissing);
-              map.off?.('moveend', updateAtmosphere);
-              map.off?.('zoom', scheduleAtmosphereCamera);
-              map.off?.('rotate', scheduleAtmosphereCamera);
+              const m = readyMapRef;
+              if (m) {
+                if (onStyleImageMissing) m.off?.('styleimagemissing', onStyleImageMissing);
+                m.off?.('moveend', updateAtmosphere);
+                if (scheduleAtmosphereCamera) {
+                  m.off?.('zoom', scheduleAtmosphereCamera);
+                  m.off?.('rotate', scheduleAtmosphereCamera);
+                }
+              }
             } catch {
               /* map may already be gone */
             }
@@ -4712,7 +4726,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             waterFxRef.current = null;
           };
         }}
-        mapStyle={MAPBOX_STANDARD_STYLE_WITH_CONFIG}
+        mapStyle={MAPBOX_STANDARD_STYLE}
         mapboxAccessToken={MAPBOX_TOKEN}
         style={{ width: '100%', height: '100%' }}
       >
@@ -4766,6 +4780,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
             </Marker>
           )}
 
+        {/* GeoJSON overlays must wait for Standard style.load — else addSource throws. */}
+        {mapReady && (
+          <>
         {/* Mobile tap pulse feedback */}
         <Source id="tap-pulse" type="geojson" data={mobileTapPulseGeoJSON}>
           <Layer
@@ -4997,6 +5014,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </Source>
 
         {/* SaaS lead-gen: removed crowdfunding/funding 3D pillars. */}
+          </>
+        )}
 
         {showDraftPinAvatarHub && mapDraftPin && (
           <DraftPinActionHub
