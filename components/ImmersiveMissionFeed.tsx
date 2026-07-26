@@ -563,7 +563,8 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
           )}
 
           {/* Bottom navigation — Map replaces Home inside the feed. */}
-          <nav className="absolute inset-x-0 bottom-0 z-30 grid grid-cols-3 items-center justify-around border-t border-white/10 bg-black/65 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] backdrop-blur-lg">
+          {/* Strict equal-thirds grid; each cell's button centers its own content. */}
+          <nav className="absolute inset-x-0 bottom-0 z-30 grid grid-cols-3 items-center border-t border-white/10 bg-black/65 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] backdrop-blur-lg">
             {navBtn(
               <MapIcon className="h-5 w-5" strokeWidth={2.25} />,
               t('immersiveNavMap', { defaultValue: 'Map' }),

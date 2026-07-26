@@ -370,23 +370,38 @@
 
 /**
  * Horizontally stable filter chrome for Market / Profile.
- * Items stay shrink-0; the row scrolls instead of expanding the page width.
+ *
+ * Scroll range is locked to content width only:
+ *  - padding lives OUTSIDE this element (see MissionFilterPanel)
+ *  - no -webkit-overflow-scrolling (iOS elastic "infinite drift")
+ *  - overscroll-behavior: none kills edge rubber-band
+ *  - flex-nowrap + shrink-0 children keep the track predictable
  */
 .ce-filter-bar {
   display: flex;
+  box-sizing: border-box;
+  flex-wrap: nowrap;
   width: 100%;
   max-width: 100%;
+  max-inline-size: 100%;
   min-width: 0;
   align-items: center;
   gap: 0.5rem;
+  padding: 0;
+  margin: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  overscroll-behavior-x: contain;
-  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+  overscroll-behavior-x: none;
+  touch-action: pan-x pan-y;
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
 .ce-filter-bar::-webkit-scrollbar {
   display: none;
+}
+
+.ce-filter-bar > * {
+  flex-shrink: 0;
 }

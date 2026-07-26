@@ -1166,6 +1166,8 @@ interface MapPickerProps {
   onRequestAuth?: () => void;
   flyToTarget?: { lat: number; lng: number } | null;
   onFlyToComplete?: () => void;
+  /** When true, hide the map's center profile FAB so overlay center buttons aren't doubled/offset. */
+  profileOverlayOpen?: boolean;
 }
 
 const customDarkStyle: any = {
@@ -1500,6 +1502,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   onRequestAuth,
   flyToTarget,
   onFlyToComplete,
+  profileOverlayOpen = false,
 }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -4400,7 +4403,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [t, toast, userLocation]);
 
   const showProfileFab =
-    !taskTypeSelected && !selectedMission && !proofUploadMission;
+    !profileOverlayOpen &&
+    !taskTypeSelected &&
+    !selectedMission &&
+    !proofUploadMission;
 
   return (
     <div
@@ -5273,11 +5279,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
       )}
 
       {showProfileFab && (
-        <div className="fixed inset-x-0 bottom-0 z-[10020] flex justify-center pointer-events-none pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))]">
+        /* Strict 5-column grid — column 3 is geometric 50%. No translate / flex spacers. */
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[10020] grid w-full grid-cols-5 items-center justify-items-center pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))]">
           <button
             type="button"
             onClick={() => onAvatarClick?.()}
-            className="pointer-events-auto flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/60 bg-black/80 backdrop-blur-lg shadow-[0_0_24px_rgba(34,211,238,0.35)] transition-transform active:scale-95"
+            className="pointer-events-auto col-start-3 flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/60 bg-black/80 backdrop-blur-lg shadow-[0_0_24px_rgba(34,211,238,0.35)] transition-transform active:scale-95"
             aria-label="Profile"
           >
             {viewerProfile?.avatar_url ? (

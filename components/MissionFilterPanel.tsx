@@ -6,7 +6,7 @@
  *  - `inline`   (default): compact expandable bar — used inside Profile / LiveMarketFeed lists.
  *  - `floating`         : round FAB that opens an elegant bottom-sheet — used over the map.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SlidersHorizontal, ChevronDown, X, MapPin, Globe2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -102,6 +102,16 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [open, setOpen] = useState(false);
+  const filterBarRef = useRef<HTMLDivElement | null>(null);
+
+  /** Hard-clamp scrollLeft so iOS momentum can't invent empty trailing space. */
+  const clampFilterScroll = useCallback(() => {
+    const el = filterBarRef.current;
+    if (!el) return;
+    const max = Math.max(0, el.scrollWidth - el.clientWidth);
+    if (el.scrollLeft < 0) el.scrollLeft = 0;
+    else if (el.scrollLeft > max) el.scrollLeft = max;
+  }, []);
   const activeCount = selectedTags.length;
   const showLocationFilter =
     typeof onCountryIdsChange === 'function' || typeof onCityChange === 'function';
@@ -614,46 +624,54 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
 
   return (
     <div
-      className={`w-full max-w-full min-w-0 overflow-hidden rounded-xl ${STEEL_GLASS_PANEL}`}
+      className={`w-full max-w-full min-w-0 overflow-x-clip rounded-xl [contain:inline-size] ${STEEL_GLASS_PANEL}`}
       style={STEEL_GLASS_PANEL_STYLE}
     >
-      <div className={`${FILTER_BAR_CLASS} p-2`}>
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-cyan-200 transition-colors hover:bg-cyan-500/20"
-          aria-expanded={expanded}
+      {/* Padding OUTSIDE the scrollport — padded overflow invents trailing space. */}
+      <div className="w-full max-w-full min-w-0 overflow-hidden p-2">
+        <div
+          ref={filterBarRef}
+          className={FILTER_BAR_CLASS}
+          onScroll={clampFilterScroll}
+          onTouchEnd={clampFilterScroll}
         >
-          <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={2.25} />
-          {t('filtersLabel')}
-          {badgeCount > 0 && (
-            <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-400 px-1 text-[9px] font-black text-slate-950">
-              {badgeCount}
-            </span>
-          )}
-          <ChevronDown
-            className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`}
-            strokeWidth={2.25}
-          />
-        </button>
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-cyan-200 transition-colors hover:bg-cyan-500/20"
+            aria-expanded={expanded}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={2.25} />
+            {t('filtersLabel')}
+            {badgeCount > 0 && (
+              <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-400 px-1 text-[9px] font-black text-slate-950">
+                {badgeCount}
+              </span>
+            )}
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`}
+              strokeWidth={2.25}
+            />
+          </button>
 
-        {renderLocationControls(true)}
+          {renderLocationControls(true)}
 
-        <label className="sr-only" htmlFor="mission-sort-select">
-          {t('sortByLabel')}
-        </label>
-        <select
-          id="mission-sort-select"
-          value={sortMode}
-          onChange={(e) => onSortChange(e.target.value as MissionSortMode)}
-          className="w-[7.5rem] shrink-0 truncate rounded-lg border border-white/15 bg-slate-950/80 px-2 py-1.5 text-[11px] font-bold text-slate-100 outline-none focus:border-cyan-400/50"
-        >
-          {MISSION_SORT_MODES.map((mode) => (
-            <option key={mode} value={mode} className="bg-slate-900 text-slate-100">
-              {t(MISSION_SORT_LABEL_KEYS[mode])}
-            </option>
-          ))}
-        </select>
+          <label className="sr-only" htmlFor="mission-sort-select">
+            {t('sortByLabel')}
+          </label>
+          <select
+            id="mission-sort-select"
+            value={sortMode}
+            onChange={(e) => onSortChange(e.target.value as MissionSortMode)}
+            className="w-[7.5rem] shrink-0 truncate rounded-lg border border-white/15 bg-slate-950/80 px-2 py-1.5 text-[11px] font-bold text-slate-100 outline-none focus:border-cyan-400/50"
+          >
+            {MISSION_SORT_MODES.map((mode) => (
+              <option key={mode} value={mode} className="bg-slate-900 text-slate-100">
+                {t(MISSION_SORT_LABEL_KEYS[mode])}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <AnimatePresence>

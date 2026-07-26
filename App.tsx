@@ -102,6 +102,7 @@ const App: React.FC = () => {
           onRequestAuth={() => setShowAuthOverlay(true)}
           flyToTarget={flyToTarget}
           onFlyToComplete={() => setFlyToTarget(null)}
+          profileOverlayOpen={showProfileOverlay}
         />
       </div>
 

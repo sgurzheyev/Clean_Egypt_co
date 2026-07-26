@@ -78,7 +78,7 @@ export const BOTTOM_SHEET_FOOTER_PB =
  * Prefer this over ad-hoc `overflow-x-auto` + `ml-auto` combos.
  */
 export const FILTER_BAR_CLASS =
-  'ce-filter-bar ce-hide-scrollbar flex w-full max-w-full min-w-0 items-center gap-2 overflow-x-auto';
+  'ce-filter-bar ce-hide-scrollbar flex w-full max-w-full min-w-0 flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-none';
 
 /**
  * All wallet balances, mission prices, bids, donations, scout rewards, and RPC amounts

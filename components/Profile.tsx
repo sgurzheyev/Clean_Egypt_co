@@ -3,6 +3,7 @@
  * Profile floating glass card — wallet/tokens, missions, accordions, Top Up.
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { supabase } from '../services/supabase';
 import { Pencil, Target, Globe, Building2, Clock, Info, Lock, Coins } from 'lucide-react';
@@ -365,6 +366,30 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   );
 
   const tokenBalance = Math.max(0, Number(userProfile?.token_balance ?? 0));
+
+  /** Sticky header title — first name / telegram / email local-part. Never a generic "Your account". */
+  const profileDisplayName = useMemo(() => {
+    const full = String(userProfile?.full_name ?? '').trim();
+    if (full) {
+      const first = full.split(/\s+/)[0];
+      return first || full;
+    }
+    const tg = String(userProfile?.telegram_username ?? telegramUsername ?? '')
+      .trim()
+      .replace(/^@+/, '');
+    if (tg) return tg;
+    const email = String(userEmail ?? _session?.user?.email ?? '').trim();
+    if (email.includes('@')) return email.split('@')[0] || email;
+    if (email) return email;
+    return '';
+  }, [
+    userProfile?.full_name,
+    userProfile?.telegram_username,
+    telegramUsername,
+    userEmail,
+    _session?.user?.email,
+  ]);
+
   const subscriptionIsActive = useMemo(() => {
     const exp = userProfile?.subscription_expires_at
       ? Date.parse(userProfile.subscription_expires_at)
@@ -1528,7 +1553,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             >
               ✕
             </button>
-            <h1 className="text-lg font-bold text-white">{t('yourAccount')}</h1>
+            {/* Personalized title only — no "Your account" / welcome filler. */}
+            <h1 className="min-w-0 flex-1 truncate text-left text-lg font-bold tracking-tight text-white">
+              {profileDisplayName || '…'}
+            </h1>
           </div>
           {/* Scrollable content — job cards and forms */}
           <div className="flex max-w-full min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto overscroll-y-contain p-4 pb-[max(9rem,calc(env(safe-area-inset-bottom,0px)+5rem))]">
@@ -1537,7 +1565,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           <AdminDashboard onBack={() => setShowAdmin(false)} />
         ) : (
           <>
-        {/* HEADER: Avatar + Welcome + Wallet */}
+        {/* HEADER: Avatar + rating + actions (name is ONLY in the sticky title). */}
         <header className="mb-2 text-white">
           <div className="flex items-center gap-4 min-w-0">
             <label className="relative inline-flex shrink-0 items-center justify-center h-14 w-14 rounded-full bg-gradient-to-br from-emerald-500/40 to-cyan-500/20 border border-white/20 shadow-[0_0_20px_rgba(16,185,129,0.4)] cursor-pointer overflow-hidden group">
@@ -1546,12 +1574,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               ) : userProfile?.avatar_url ? (
                 <img
                   src={userProfile.avatar_url}
-                  alt={userProfile.full_name || userEmail || 'Avatar'}
+                  alt={profileDisplayName || 'Avatar'}
                   className="h-full w-full object-cover"
                 />
               ) : (
                 <span className="text-xl font-black uppercase text-emerald-300">
-                  {(userProfile?.full_name || userEmail || 'C')[0]}
+                  {(profileDisplayName || 'C').charAt(0)}
                 </span>
               )}
               <input
@@ -1565,15 +1593,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               </div>
             </label>
             <div className="min-w-0 flex-1">
-              <p className="text-sm text-slate-400 uppercase tracking-[0.2em] truncate">
-                {t('welcome')} {userProfile?.full_name || userEmail || t('coworker')}!
-              </p>
-              {userEmail && (
-                <p className="mt-1 text-[10px] text-slate-500 uppercase tracking-[0.18em]">
-                  {userEmail}
-                </p>
-              )}
-              {/* Rating badge */}
+              {/* Rating badge only — no welcome / "your account" subtitle. */}
               {userProfile?.rating != null ? (
                 <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-400/40 px-2.5 py-0.5">
                   <span className="text-[11px] font-bold text-amber-300">
@@ -2652,24 +2672,28 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         </div>
       </motion.div>
 
-      {/* Portal — floating back to map; layered above map and form content */}
-      <motion.button
-        type="button"
-        onClick={onClose}
-        className="pointer-events-auto fixed bottom-[max(5rem,calc(env(safe-area-inset-bottom,0px)+1.25rem))] left-1/2 z-[400] flex h-[3.75rem] w-[3.75rem] -translate-x-1/2 items-center justify-center rounded-full border border-orange-400/45 bg-white/10 shadow-[0_0_28px_rgba(249,115,22,0.75),0_0_56px_rgba(234,88,12,0.35)] backdrop-blur-md transition-all hover:bg-white/15 active:scale-95"
-        aria-label={t('closeBackToMap')}
-        title={t('closeBackToMap')}
-        initial={{ opacity: 0, scale: 0.85 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.85 }}
-        transition={{ duration: 0.2 }}
-      >
-        <span
-          className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-orange-500/30 via-transparent to-amber-400/25 blur-md"
-          aria-hidden
-        />
-        <Target className="relative h-7 w-7 text-orange-100/95 drop-shadow-[0_0_12px_rgba(251,146,60,0.85)]" aria-hidden />
-      </motion.button>
+      {/* Floating back-to-map — portal to <body>, above map chrome.
+          Exact center via 5-col grid column 3. Plain <button> (no framer
+          transform) so nothing can fight geometric centering. MapPicker's
+          own FAB is suppressed while this overlay is open. */}
+      {createPortal(
+        <div className="pointer-events-none fixed inset-x-0 bottom-[max(5rem,calc(env(safe-area-inset-bottom,0px)+1.25rem))] z-[10030] grid w-full grid-cols-5 items-center justify-items-center">
+          <button
+            type="button"
+            onClick={onClose}
+            className="pointer-events-auto relative col-start-3 flex h-[3.75rem] w-[3.75rem] items-center justify-center rounded-full border border-orange-400/45 bg-white/10 shadow-[0_0_28px_rgba(249,115,22,0.75),0_0_56px_rgba(234,88,12,0.35)] backdrop-blur-md transition-transform hover:bg-white/15 active:scale-95"
+            aria-label={t('closeBackToMap')}
+            title={t('closeBackToMap')}
+          >
+            <span
+              className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-orange-500/30 via-transparent to-amber-400/25 blur-md"
+              aria-hidden
+            />
+            <Target className="relative h-7 w-7 text-orange-100/95 drop-shadow-[0_0_12px_rgba(251,146,60,0.85)]" aria-hidden />
+          </button>
+        </div>,
+        document.body
+      )}
 
       {showTerms && (
         <LegalModal

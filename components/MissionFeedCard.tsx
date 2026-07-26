@@ -105,7 +105,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
         className={`w-full text-left ${onClick ? 'cursor-pointer' : ''}`}
       >
         <div
-          className="relative aspect-video w-full touch-pan-y overflow-hidden rounded-xl bg-slate-900"
+          className="relative aspect-[4/3] w-full touch-pan-y overflow-hidden rounded-xl bg-slate-900 sm:aspect-video"
           onClick={
             onPhotoClick
               ? (e) => {
@@ -194,29 +194,32 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
             )}
           </div>
 
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] p-3 pt-6">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] p-3 pt-8">
             {metaLine && (
-              <p className="mb-1 truncate text-[10px] font-medium uppercase tracking-[0.14em] text-slate-300/80">
+              <p className="mb-1.5 truncate text-[10px] font-medium leading-snug uppercase tracking-[0.14em] text-slate-300/80">
                 {metaLine}
               </p>
             )}
-            <p className="text-2xl font-black leading-none tracking-tight text-orange-300 drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)]">
-              {budgetValue}
-            </p>
-            {locationLine && (
-              <p className="mt-1.5 truncate text-xs font-medium text-slate-100/90">
-                {locationTranslation.displayText}
+            {/* Keep the mission identity stack in normal flow with explicit
+                rhythm. `leading-none` clipped large currency glyphs and left
+                the following location line visually attached to the price. */}
+            <div className="space-y-1.5">
+              <p className="break-words text-[clamp(1.5rem,7vw,2rem)] font-black leading-[1.15] tracking-tight text-orange-300 [font-variant-numeric:tabular-nums] drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)]">
+                {budgetValue}
               </p>
-            )}
-            {description && (
-              <div className="mt-1.5">
+              {locationLine && (
+                <p className="truncate text-xs font-medium leading-snug text-slate-100/90">
+                  {locationTranslation.displayText}
+                </p>
+              )}
+              {description && (
                 <TranslatableMissionDescription
                   text={description}
                   autoTranslate
                   clampClassName="line-clamp-2"
                 />
-              </div>
-            )}
+              )}
+            </div>
             {statusBadge && <div className="mt-2 flex flex-wrap gap-1.5">{statusBadge}</div>}
             {callout && <div className="mt-2">{callout}</div>}
             {submittedLabel && (
