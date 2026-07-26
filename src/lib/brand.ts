@@ -18,6 +18,8 @@ export const APP_EVENT_MISSION_DELETED = 'garbagin:mission-deleted';
  * detail: { missionId: string; openChatWith?: string | null }
  */
 export const APP_EVENT_OPEN_MISSION = 'garbagin:open-mission';
+/** Return to the map and start the new-mission pin-drop flow at the user's location. */
+export const APP_EVENT_CREATE_MISSION = 'garbagin:create-mission';
 
 /**
  * Absolute site origin for Stripe redirects, auth email links, and deep links.

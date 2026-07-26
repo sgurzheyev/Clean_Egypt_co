@@ -32,6 +32,7 @@ import {
   MapPin,
   MessageCircle,
   Phone,
+  Plus,
   UserRound,
   X,
   ChevronsUp,
@@ -82,6 +83,11 @@ export interface ImmersiveMissionFeedProps {
   onMessage: (mission: ImmersiveFeedMission) => void;
   /** Bottom-nav "Profile" → account management overlay. */
   onOpenProfile?: () => void;
+  /**
+   * Center "+" — back to the interactive map with the new-mission pin-drop
+   * flow armed at the user's current location (same UX as tapping the map).
+   */
+  onCreateMission?: () => void;
 }
 
 /** Slides whose photos stay mounted around the active index (cheap windowing). */
@@ -118,8 +124,9 @@ function missionPlaceLine(mission: ImmersiveFeedMission): string | undefined {
   return undefined;
 }
 
+/** Sidebar action base — accent border/glow per button, matching the map's neon chrome. */
 const sidebarBtnClass =
-  'flex h-12 w-12 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white shadow-lg backdrop-blur-md transition-transform hover:bg-black/75 active:scale-90';
+  'flex h-12 w-12 items-center justify-center rounded-full border bg-black/70 backdrop-blur-lg transition-transform active:scale-90';
 
 type MissionSlideProps = {
   mission: ImmersiveFeedMission;
@@ -323,6 +330,7 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
   onContact,
   onMessage,
   onOpenProfile,
+  onCreateMission,
 }) => {
   const { t } = useTranslation();
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -400,20 +408,27 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
   const creatorName = current?.creator?.full_name ?? null;
   const creatorInitial = (creatorName || '?').trim().charAt(0).toUpperCase() || '?';
 
+  /** Bottom-nav item — vibrant per-icon accent + glow, matching the map chrome. */
   const navBtn = (
     icon: React.ReactNode,
     label: string,
-    onClick: (() => void) | undefined
+    onClick: (() => void) | undefined,
+    accentClass: string
   ) => (
     <button
       type="button"
       onClick={onClick}
       disabled={!onClick}
       className={`flex min-w-0 flex-col items-center justify-center gap-1 py-2 text-[10px] font-black uppercase leading-none tracking-[0.1em] transition-colors ${
-        onClick ? 'text-slate-200 hover:text-emerald-300' : 'text-slate-500'
+        onClick ? 'text-slate-200 hover:text-white' : 'text-slate-500'
       }`}
     >
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden>
+      <span
+        className={`flex h-5 w-5 shrink-0 items-center justify-center ${
+          onClick ? accentClass : 'text-slate-500'
+        }`}
+        aria-hidden
+      >
         {icon}
       </span>
       <span className="block max-w-full truncate whitespace-nowrap text-center">{label}</span>
@@ -494,7 +509,7 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
             </>
           )}
 
-          {/* Right action sidebar — pinned; reads from the snapped mission. */}
+          {/* Right action sidebar — pinned; icons only, neon map palette. */}
           {current && (
             <div className="absolute right-3 bottom-[calc(6.75rem+max(0.75rem,env(safe-area-inset-bottom)))] z-30 flex flex-col items-center gap-4">
               <button
@@ -503,7 +518,7 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
                   current.creator_id ? () => onOpenCreator(current.creator_id!) : undefined
                 }
                 disabled={!current.creator_id}
-                className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 border-emerald-300/60 bg-black/55 text-emerald-100 shadow-lg backdrop-blur-md transition-transform ${
+                className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 border-emerald-400/60 bg-black/70 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.35)] backdrop-blur-lg transition-transform ${
                   current.creator_id ? 'active:scale-90' : 'cursor-default opacity-70'
                 }`}
                 aria-label={t('viewCreatorProfile', {
@@ -526,59 +541,88 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
               <button
                 type="button"
                 onClick={() => onShowOnMap(current)}
-                className={`${sidebarBtnClass} text-cyan-200`}
+                className={`${sidebarBtnClass} border-cyan-400/60 text-cyan-200 shadow-[0_0_18px_rgba(34,211,238,0.35)] hover:bg-cyan-500/15`}
                 aria-label={t('immersiveShowOnMap', { defaultValue: 'Show on map' })}
               >
                 <MapPin className="h-5 w-5" strokeWidth={2.25} />
               </button>
 
-              <div className="flex flex-col items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => onContact(current)}
-                  className={`${sidebarBtnClass} text-emerald-300`}
-                  aria-label={t('immersiveContact', { defaultValue: 'Contact' })}
-                >
-                  <Phone className="h-5 w-5" strokeWidth={2.25} />
-                </button>
-                <span className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-200/90">
-                  {t('immersiveContact', { defaultValue: 'Contact' })}
-                </span>
-              </div>
+              <button
+                type="button"
+                onClick={() => onContact(current)}
+                className={`${sidebarBtnClass} border-emerald-400/60 text-emerald-200 shadow-[0_0_18px_rgba(16,185,129,0.35)] hover:bg-emerald-500/15`}
+                aria-label={t('immersiveContact', { defaultValue: 'Contact' })}
+              >
+                <Phone className="h-5 w-5" strokeWidth={2.25} />
+              </button>
 
-              <div className="flex flex-col items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => onMessage(current)}
-                  className={`${sidebarBtnClass} text-violet-300`}
-                  aria-label={t('immersiveMessage', { defaultValue: 'Message' })}
-                >
-                  <MessageCircle className="h-5 w-5" strokeWidth={2.25} />
-                </button>
-                <span className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-200/90">
-                  {t('immersiveMessage', { defaultValue: 'Message' })}
-                </span>
-              </div>
+              <button
+                type="button"
+                onClick={() => onMessage(current)}
+                className={`${sidebarBtnClass} border-violet-400/60 text-violet-200 shadow-[0_0_18px_rgba(139,92,246,0.4)] hover:bg-violet-500/15`}
+                aria-label={t('immersiveMessage', { defaultValue: 'Message' })}
+              >
+                <MessageCircle className="h-5 w-5" strokeWidth={2.25} />
+              </button>
             </div>
           )}
 
-          {/* Bottom navigation — Map replaces Home inside the feed. */}
-          {/* Strict equal-thirds grid; each cell's button centers its own content. */}
-          <nav className="absolute inset-x-0 bottom-0 z-30 grid grid-cols-3 items-center border-t border-white/10 bg-black/65 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] backdrop-blur-lg">
+          {/* Bottom navigation — Map replaces Home inside the feed.
+              Strict 5-column grid: the raised "+" (new mission at my location)
+              sits in column 3, geometric 50%. No translate / flex spacers. */}
+          <nav
+            className="absolute inset-x-0 bottom-0 z-30 items-center border-t border-white/10 bg-black/65 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] backdrop-blur-lg"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+              width: '100%',
+              justifyItems: 'center',
+            }}
+          >
             {navBtn(
               <MapIcon className="h-5 w-5" strokeWidth={2.25} />,
               t('immersiveNavMap', { defaultValue: 'Map' }),
-              current ? () => onShowOnMap(current) : undefined
+              current ? () => onShowOnMap(current) : undefined,
+              'text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.55)]'
             )}
             {navBtn(
               <MessageCircle className="h-5 w-5" strokeWidth={2.25} />,
               t('immersiveNavMessages', { defaultValue: 'Messages' }),
-              current ? () => onMessage(current) : undefined
+              current ? () => onMessage(current) : undefined,
+              'text-violet-300 drop-shadow-[0_0_8px_rgba(139,92,246,0.55)]'
+            )}
+            {onCreateMission ? (
+              <button
+                type="button"
+                onClick={onCreateMission}
+                className="relative -mt-7 flex h-14 w-14 items-center justify-center rounded-full border-2 border-emerald-400/70 bg-black/80 text-emerald-300 shadow-[0_0_24px_rgba(16,185,129,0.55),0_0_48px_rgba(34,211,238,0.25)] backdrop-blur-lg transition-transform hover:bg-emerald-500/15 active:scale-95"
+                aria-label={t('immersiveCreateMission', {
+                  defaultValue: 'Create a mission at my location',
+                })}
+                title={t('immersiveCreateMission', {
+                  defaultValue: 'Create a mission at my location',
+                })}
+              >
+                <span
+                  className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-emerald-500/30 via-transparent to-cyan-400/25 blur-md"
+                  aria-hidden
+                />
+                <Plus className="relative h-7 w-7" strokeWidth={2.5} />
+              </button>
+            ) : (
+              <span aria-hidden />
             )}
             {navBtn(
               <UserRound className="h-5 w-5" strokeWidth={2.25} />,
               t('immersiveNavProfile', { defaultValue: 'Profile' }),
-              onOpenProfile
+              onOpenProfile,
+              'text-emerald-300 drop-shadow-[0_0_8px_rgba(16,185,129,0.55)]'
+            )}
+            {navBtn(
+              <X className="h-5 w-5" strokeWidth={2.25} />,
+              t('close', { defaultValue: 'Close' }),
+              onClose,
+              'text-orange-300 drop-shadow-[0_0_8px_rgba(251,146,60,0.55)]'
             )}
           </nav>
         </motion.div>

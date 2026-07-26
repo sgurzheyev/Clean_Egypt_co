@@ -55,6 +55,7 @@ import { missionWorkBudgetUsd, missionTokenBid } from '../src/lib/missionBudget'
 import { isPlatformAdmin, isArchivedMissionStatus } from '../src/lib/platformAdmin';
 import { adminDeleteMission } from '../src/lib/adminMission';
 import {
+  APP_EVENT_CREATE_MISSION,
   APP_EVENT_MISSION_COMPLETED,
   APP_EVENT_OPEN_MISSION,
   APP_SUPPORT_EMAIL,
@@ -3132,6 +3133,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       onOpenProfile={() => {
         setImmersiveStartId(null);
         setImmersiveMissions([]);
+      }}
+      onCreateMission={() => {
+        // MapPicker listens for this event and drops the draft mission pin
+        // at the user's current location (same UX as tapping the map).
+        setImmersiveStartId(null);
+        setImmersiveMissions([]);
+        onClose();
+        window.dispatchEvent(new CustomEvent(APP_EVENT_CREATE_MISSION));
       }}
     />
     </>

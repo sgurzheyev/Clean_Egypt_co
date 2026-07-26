@@ -143,6 +143,7 @@ import {
   reverseGeocodePinLocation,
 } from '../src/lib/mapboxReverseGeocode';
 import {
+  APP_EVENT_CREATE_MISSION,
   APP_EVENT_MISSION_COMPLETED,
   APP_EVENT_MISSION_DELETED,
   APP_EVENT_OPEN_MISSION,
@@ -845,6 +846,7 @@ function MyOrdersPanel({
   isLoggedIn,
   onRequestAuth,
   onOpenProfile,
+  onCreateMission,
 }: {
   open: boolean;
   onClose: () => void;
@@ -853,6 +855,8 @@ function MyOrdersPanel({
   isLoggedIn: boolean;
   onRequestAuth?: () => void;
   onOpenProfile?: () => void;
+  /** Immersive feed "+": back to the map with the pin-drop flow armed. */
+  onCreateMission?: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -1025,6 +1029,15 @@ function MyOrdersPanel({
               setImmersiveStartId(null);
               onClose();
               onOpenProfile();
+            }
+          : undefined
+      }
+      onCreateMission={
+        onCreateMission
+          ? () => {
+              setImmersiveStartId(null);
+              onClose();
+              onCreateMission();
             }
           : undefined
       }
@@ -4489,6 +4502,66 @@ const MapPicker: React.FC<MapPickerProps> = ({
     );
   }, [t, toast, userLocation]);
 
+  /**
+   * Immersive feed "+" — back on the map, drop the draft mission pin at the
+   * user's location (cached puck → fresh GPS → map center), exactly like a
+   * map tap: the avatar hub with the task-type menu takes over from there.
+   */
+  const startCreateMissionAtCurrentLocation = useCallback(() => {
+    setShowLiveMarketFeed(false);
+    setShowMyOrdersPanel(false);
+    setSelectedMission(null);
+    setReportMode(false);
+    setReportPin(null);
+    setReportSheetOpen(false);
+    setDraftPinMenuExpanded(false);
+
+    const placeAt = (lat: number, lng: number) => {
+      if (!isValidWorldCoordinate(lng, lat)) return;
+      setMapDraftPin({ lat, lng });
+      onLocationSelect?.(lat, lng);
+      flyMapTo(mapRef.current?.getMap?.(), [lng, lat], { ...MAP_CINEMATIC_FLY });
+    };
+
+    const fallbackCenter = () => {
+      const c = mapRef.current?.getMap()?.getCenter();
+      if (c && Number.isFinite(c.lat) && Number.isFinite(c.lng)) {
+        placeAt(c.lat, c.lng);
+      }
+    };
+
+    if (
+      userLocation &&
+      Number.isFinite(userLocation.lat) &&
+      Number.isFinite(userLocation.lng)
+    ) {
+      placeAt(userLocation.lat, userLocation.lng);
+      return;
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      fallbackCenter();
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        setUserLocation({ lat: latitude, lng: longitude, accuracy });
+        placeAt(latitude, longitude);
+      },
+      () => fallbackCenter(),
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
+    );
+  }, [onLocationSelect, userLocation]);
+
+  // Overlays outside MapPicker (Profile's immersive feed) request the same flow.
+  useEffect(() => {
+    const onCreateEvent = () => startCreateMissionAtCurrentLocation();
+    window.addEventListener(APP_EVENT_CREATE_MISSION, onCreateEvent);
+    return () => window.removeEventListener(APP_EVENT_CREATE_MISSION, onCreateEvent);
+  }, [startCreateMissionAtCurrentLocation]);
+
   const showProfileFab =
     !profileOverlayOpen &&
     !taskTypeSelected &&
@@ -5875,6 +5948,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           setShowLiveMarketFeed(false);
           onAvatarClick?.();
         }}
+        onCreateMission={startCreateMissionAtCurrentLocation}
       />
       <MyOrdersPanel
         open={showMyOrdersPanel}
@@ -5884,6 +5958,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         isLoggedIn={!!currentUserId}
         onRequestAuth={onRequestAuth}
         onOpenProfile={onAvatarClick}
+        onCreateMission={startCreateMissionAtCurrentLocation}
       />
       <ProofUploadModal
         open={!!proofUploadMission}

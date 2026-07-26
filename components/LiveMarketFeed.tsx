@@ -70,6 +70,8 @@ interface LiveMarketFeedProps {
   onOpenMissionChat?: (mission: LiveMarketMission) => void;
   /** Open the account/profile overlay (immersive feed bottom nav). */
   onOpenProfile?: () => void;
+  /** Immersive feed "+": back to the map with the new-mission pin-drop flow armed. */
+  onCreateMission?: () => void;
 }
 
 const ACTIVE_MARKET_STATUSES = [
@@ -154,6 +156,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   currentUserId,
   onOpenMissionChat,
   onOpenProfile,
+  onCreateMission,
 }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -466,6 +469,15 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
               setImmersiveStartId(null);
               onClose();
               onOpenProfile();
+            }
+          : undefined
+      }
+      onCreateMission={
+        onCreateMission
+          ? () => {
+              setImmersiveStartId(null);
+              onClose();
+              onCreateMission();
             }
           : undefined
       }
