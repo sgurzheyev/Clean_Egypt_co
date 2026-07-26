@@ -168,12 +168,14 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
       type="button"
       onClick={onClick}
       disabled={!onClick}
-      className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-black uppercase tracking-[0.14em] transition-colors ${
+      className={`flex min-w-0 flex-col items-center justify-center gap-1 py-2 text-[10px] font-black uppercase leading-none tracking-[0.1em] transition-colors ${
         onClick ? 'text-slate-200 hover:text-emerald-300' : 'text-slate-500'
       }`}
     >
-      {icon}
-      <span className="truncate">{label}</span>
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden>
+        {icon}
+      </span>
+      <span className="block max-w-full truncate whitespace-nowrap text-center">{label}</span>
     </button>
   );
 
@@ -380,7 +382,7 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
           </div>
 
           {/* Bottom navigation — Map replaces Home inside the feed. */}
-          <nav className="absolute inset-x-0 bottom-0 z-30 flex items-stretch border-t border-white/10 bg-black/65 pb-safe-sm backdrop-blur-lg">
+          <nav className="absolute inset-x-0 bottom-0 z-30 grid grid-cols-3 items-center justify-around border-t border-white/10 bg-black/65 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] backdrop-blur-lg">
             {navBtn(
               <MapIcon className="h-5 w-5" strokeWidth={2.25} />,
               t('immersiveNavMap', { defaultValue: 'Map' }),
