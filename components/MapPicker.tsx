@@ -186,39 +186,24 @@ const MISSION_PIN_CORE_RADIUS: mapboxgl.Expression = [
   22,
   10,
 ];
+/**
+ * Glow radius — Mapbox GL JS v3 requires `["zoom"]` as the *direct* input of a
+ * top-level interpolate/step. Data-driven branches go in the stop *outputs*.
+ */
 const MISSION_PIN_GLOW_RADIUS: mapboxgl.Expression = [
-  'case',
-  ['==', ['get', 'is_report'], 1],
-  [
-    'interpolate',
-    ['linear'],
-    ['zoom'],
-    8,
-    14,
-    12,
-    22,
-    15,
-    28,
-    18,
-    34,
-    22,
-    34,
-  ],
-  [
-    'interpolate',
-    ['linear'],
-    ['zoom'],
-    8,
-    8,
-    12,
-    14,
-    15,
-    16,
-    18,
-    20,
-    22,
-    20,
-  ],
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  8,
+  ['case', ['==', ['get', 'is_report'], 1], 14, 8],
+  12,
+  ['case', ['==', ['get', 'is_report'], 1], 22, 14],
+  15,
+  ['case', ['==', ['get', 'is_report'], 1], 28, 16],
+  18,
+  ['case', ['==', ['get', 'is_report'], 1], 34, 20],
+  22,
+  ['case', ['==', ['get', 'is_report'], 1], 34, 20],
 ];
 const DRAFT_PIN_RADIUS: mapboxgl.Expression = [
   'interpolate',
@@ -1622,33 +1607,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // ignore
     }
 
-    try {
-      if (isNight) {
-        const moonLightIntensity = Math.min(
-          0.82,
-          0.22 + moonFrac * 0.52 + moonGlowMix * 0.18
-        );
-        map.setLight?.({
-          anchor: 'map',
-          color: '#ecfeff',
-          intensity: moonLightIntensity,
-          position: [
-            1.2 + moonFrac * 0.15,
-            ((moonAziDeg % 360) + 360) % 360,
-            Math.max(12, Math.min(88, moonSkyPolarDeg)),
-          ],
-        });
-      } else {
-        map.setLight?.({
-          anchor: 'map',
-          color: '#ff9e64',
-          intensity: 0.5,
-          position: [1.5, 120, 60],
-        });
-      }
-    } catch {
-      // ignore
-    }
+    // Legacy map.setLight() is deprecated under Mapbox Standard — lighting comes from
+    // basemap lightPreset / theme (see applyMapboxStandardBasemapConfig).
   }, []);
 
   useEffect(() => {
