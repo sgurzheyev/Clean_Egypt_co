@@ -24,6 +24,11 @@ import {
   applyMapboxStandardBasemapConfig,
   isMapStyleReady,
   MAPBOX_STANDARD_STYLE,
+  STORE_COVERAGE_FILL,
+  STORE_COVERAGE_FILL_OPACITY,
+  STORE_COVERAGE_STROKE,
+  STORE_COVERAGE_STROKE_WIDTH,
+  STORE_PIN_CORE,
   whenMapStyleReady,
 } from '../src/lib/mapboxStandardTheme';
 
@@ -381,17 +386,17 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
               type="fill"
               filter={['==', '$type', 'Polygon']}
               paint={{
-                'fill-color': '#a855f7',
-                'fill-opacity': 0.25,
+                'fill-color': STORE_COVERAGE_FILL,
+                'fill-opacity': STORE_COVERAGE_FILL_OPACITY,
               }}
             />
             <Layer
               id="store-coverage-line"
               type="line"
               paint={{
-                'line-color': '#c084fc',
-                'line-width': 2.25,
-                'line-opacity': 0.95,
+                'line-color': STORE_COVERAGE_STROKE,
+                'line-width': STORE_COVERAGE_STROKE_WIDTH,
+                'line-opacity': 1,
               }}
             />
           </Source>
@@ -409,10 +414,34 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
               }}
             >
               <div className="flex flex-col items-center">
-                <span className="rounded-full border border-violet-300/70 bg-violet-500/35 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-50 backdrop-blur-sm">
+                <span
+                  className="rounded-full border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white backdrop-blur-sm"
+                  style={{
+                    borderColor: 'rgba(255,255,255,0.85)',
+                    backgroundColor: 'rgba(188,125,250,0.45)',
+                    boxShadow: '0 0 12px rgba(188,125,250,0.75)',
+                  }}
+                >
                   {t('storeOfficeBadge', { defaultValue: 'Office' })}
                 </span>
-                <MapPin className="h-7 w-7 text-violet-300 drop-shadow-[0_0_8px_rgba(168,85,247,0.75)]" />
+                <span className="relative mt-0.5 flex h-8 w-8 items-center justify-center">
+                  <span
+                    className="absolute inset-0 rounded-full"
+                    style={{
+                      backgroundColor: '#ffffff',
+                      boxShadow: `0 0 16px ${STORE_PIN_CORE}, 0 0 28px rgba(255,0,255,0.55)`,
+                      opacity: 0.95,
+                    }}
+                    aria-hidden
+                  />
+                  <MapPin
+                    className="relative h-7 w-7"
+                    style={{
+                      color: STORE_PIN_CORE,
+                      filter: 'drop-shadow(0 0 8px rgba(188,125,250,0.95))',
+                    }}
+                  />
+                </span>
               </div>
             </Marker>
           )}

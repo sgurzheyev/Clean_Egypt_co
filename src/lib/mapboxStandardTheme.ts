@@ -1,5 +1,5 @@
 /**
- * Mapbox Standard (v3) — monochrome night basemap for cyberpunk / dark-steel UI.
+ * Mapbox Standard (v3) — monochrome dusk basemap for cyberpunk / dark-steel UI.
  * Shared by MapPicker, StoreCoverageMap, and other embedded maps.
  *
  * CRITICAL: Standard loads asynchronously. Never call setConfigProperty / addSource /
@@ -9,11 +9,36 @@
 
 export const MAPBOX_STANDARD_STYLE = 'mapbox://styles/mapbox/standard' as const;
 
+/** Neon store coverage / pin accents — high contrast on dusk monochrome land. */
+export const STORE_COVERAGE_FILL = '#ff00ff';
+export const STORE_COVERAGE_FILL_OPACITY = 0.35;
+export const STORE_COVERAGE_STROKE = '#bc7dfa';
+export const STORE_COVERAGE_STROKE_WIDTH = 3;
+export const STORE_PIN_CORE = '#bc7dfa';
+export const STORE_PIN_GLOW = '#bc7dfa';
+export const STORE_PIN_STROKE = '#ffffff';
+
+export type MapboxLightPreset = 'dusk' | 'dawn' | 'day' | 'night';
+
+/**
+ * Dynamic Standard light — never lock to pitch-black `night` (store overlays vanish).
+ * Night → dusk (readable amber noir); golden hour → dawn; midday → day.
+ */
+export function resolveMapboxLightPreset(opts: {
+  isNight: boolean;
+  golden: boolean;
+}): MapboxLightPreset {
+  if (opts.isNight) return 'dusk';
+  if (opts.golden) return 'dawn';
+  return 'day';
+}
+
 /** Dark steel & silver noir overrides + 3D / cleanliness toggles. */
 export const MAPBOX_STANDARD_BASEMAP_CONFIG = {
   theme: 'monochrome',
-  lightPreset: 'night',
-  colorLand: '#0a0a0a',
+  /** Default until sun-driven atmosphere overrides — dusk keeps land readable. */
+  lightPreset: 'dusk' as MapboxLightPreset,
+  colorLand: '#141416',
   colorWater: '#1a1f24',
   colorGreenspace: '#111416',
   colorBuildings: '#2a2e33',
@@ -116,15 +141,22 @@ export function whenMapStyleReady(
 
 /**
  * Apply steel-noir Standard basemap config.
+ * Pass `lightPreset` to restore sun-driven dawn/day/dusk without flashing pitch-black night.
  * Returns false if the style is not ready yet (caller should retry via whenMapStyleReady).
  */
 export function applyMapboxStandardBasemapConfig(
-  map: MapboxStyleReadyMap | null | undefined
+  map: MapboxStyleReadyMap | null | undefined,
+  overrides?: { lightPreset?: MapboxLightPreset }
 ): boolean {
   if (!map?.setConfigProperty) return false;
   if (!isMapStyleReady(map)) return false;
 
-  for (const [key, value] of Object.entries(MAPBOX_STANDARD_BASEMAP_CONFIG)) {
+  const config = {
+    ...MAPBOX_STANDARD_BASEMAP_CONFIG,
+    ...(overrides?.lightPreset ? { lightPreset: overrides.lightPreset } : null),
+  };
+
+  for (const [key, value] of Object.entries(config)) {
     try {
       map.setConfigProperty('basemap', key, value);
     } catch {

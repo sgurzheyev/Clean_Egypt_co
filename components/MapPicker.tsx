@@ -118,6 +118,14 @@ import {
   applyMapboxStandardBasemapConfig,
   isMapStyleReady,
   MAPBOX_STANDARD_STYLE,
+  resolveMapboxLightPreset,
+  STORE_COVERAGE_FILL,
+  STORE_COVERAGE_FILL_OPACITY,
+  STORE_COVERAGE_STROKE,
+  STORE_COVERAGE_STROKE_WIDTH,
+  STORE_PIN_CORE,
+  STORE_PIN_GLOW,
+  STORE_PIN_STROKE,
   whenMapStyleReady,
 } from '../src/lib/mapboxStandardTheme';
 import {
@@ -1261,7 +1269,7 @@ interface MapPickerProps {
   profileOverlayOpen?: boolean;
 }
 
-/** Legacy custom vector style retired — basemap is Mapbox Standard monochrome night. */
+/** Legacy custom vector style retired — basemap is Mapbox Standard monochrome dusk. */
 const MapPicker: React.FC<MapPickerProps> = ({
   onLocationSelect,
   selectedCoords = null,
@@ -1577,8 +1585,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
 
     try {
-      // Lock Standard basemap to monochrome night steel — don't flash day/dawn from sun calc.
-      applyMapboxStandardBasemapConfig(map);
+      // Dynamic Standard light (dawn / day / dusk) — never lock to pitch-black night.
+      applyMapboxStandardBasemapConfig(map, {
+        lightPreset: resolveMapboxLightPreset({ isNight, golden }),
+      });
     } catch {
       /* Custom vector style may not expose Standard basemap config */
     }
@@ -4872,17 +4882,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 type="fill"
                 filter={['==', '$type', 'Polygon']}
                 paint={{
-                  'fill-color': '#a855f7',
-                  'fill-opacity': 0.25,
+                  'fill-color': STORE_COVERAGE_FILL,
+                  'fill-opacity': STORE_COVERAGE_FILL_OPACITY,
                 }}
               />
               <Layer
                 id="store-coverage-line"
                 type="line"
                 paint={{
-                  'line-color': '#c084fc',
-                  'line-width': 2.5,
-                  'line-opacity': 0.95,
+                  'line-color': STORE_COVERAGE_STROKE,
+                  'line-width': STORE_COVERAGE_STROKE_WIDTH,
+                  'line-opacity': 1,
                 }}
               />
             </Source>
@@ -4902,9 +4912,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     22,
                     16,
                   ],
-                  'circle-color': '#a855f7',
+                  'circle-color': STORE_PIN_GLOW,
                   'circle-blur': 0.7,
-                  'circle-opacity': 0.4,
+                  'circle-opacity': 0.55,
                 }}
               />
               <Layer
@@ -4917,9 +4927,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     11,
                     8,
                   ],
-                  'circle-color': '#a855f7',
+                  'circle-color': STORE_PIN_CORE,
                   'circle-stroke-width': 2.5,
-                  'circle-stroke-color': '#f5d0fe',
+                  'circle-stroke-color': STORE_PIN_STROKE,
                   'circle-opacity': 0.95,
                 }}
               />
@@ -5282,7 +5292,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </button>
       )}
 
-      {/* Store mode — lilac office pins + Idealista coverage zones */}
+      {/* Store mode — neon magenta coverage + electric purple office pins */}
       {showProfileFab && (
         <button
           type="button"
