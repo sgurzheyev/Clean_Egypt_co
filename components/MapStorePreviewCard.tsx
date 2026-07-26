@@ -13,9 +13,15 @@ import { PROFILE_GLASS_PANEL } from '../constants';
 export type MapStorePreviewCardProps = {
   store: ContractorStore;
   onClose: () => void;
+  /** Opens the full portaled store profile (double-tap / CTA). */
+  onOpenFullProfile?: () => void;
 };
 
-const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({ store, onClose }) => {
+const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({
+  store,
+  onClose,
+  onOpenFullProfile,
+}) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const title =
@@ -23,6 +29,15 @@ const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({ store, onClos
     t('storeDefaultName', { defaultValue: 'Contractor store' });
   const hero = store.store_photos[0] ?? null;
   const services = store.offered_services.slice(0, 6);
+
+  const openFull = () => {
+    onClose();
+    if (onOpenFullProfile) {
+      onOpenFullProfile();
+      return;
+    }
+    navigate(`/store/${store.owner_id}`);
+  };
 
   return (
     <div
@@ -123,10 +138,7 @@ const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({ store, onClos
 
         <button
           type="button"
-          onClick={() => {
-            onClose();
-            navigate(`/store/${store.owner_id}`);
-          }}
+          onClick={openFull}
           className="w-full rounded-full border border-violet-400/50 bg-violet-500/25 py-2.5 text-[11px] font-black uppercase tracking-[0.16em] text-violet-50 shadow-[0_0_16px_rgba(168,85,247,0.3)]"
         >
           {t('storeOpenProfile', { defaultValue: 'Open store profile' })}

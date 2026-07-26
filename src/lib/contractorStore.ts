@@ -173,9 +173,44 @@ function normalizeStringList(value: unknown, cap: number): string[] {
   return out;
 }
 
+function coercePolygonCandidate(value: unknown): unknown {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return null;
+    }
+  }
+  return value;
+}
+
 function normalizePolygon(value: unknown): ServiceRadiusPolygon | null {
-  if (!value || typeof value !== 'object') return null;
-  const v = value as { type?: string; coordinates?: unknown };
+  let raw = coercePolygonCandidate(value);
+  if (!raw || typeof raw !== 'object') return null;
+
+  // Accept Feature / FeatureCollection wrappers from some clients.
+  const asRec = raw as {
+    type?: string;
+    geometry?: unknown;
+    features?: unknown[];
+    coordinates?: unknown;
+  };
+  if (asRec.type === 'Feature' && asRec.geometry) {
+    raw = asRec.geometry;
+  } else if (
+    asRec.type === 'FeatureCollection' &&
+    Array.isArray(asRec.features) &&
+    asRec.features[0] &&
+    typeof asRec.features[0] === 'object'
+  ) {
+    const feat = asRec.features[0] as { geometry?: unknown };
+    raw = feat.geometry ?? null;
+  }
+
+  if (!raw || typeof raw !== 'object') return null;
+  const v = raw as { type?: string; coordinates?: unknown };
   if (v.type !== 'Polygon' || !Array.isArray(v.coordinates)) return null;
   const rings = v.coordinates as unknown[];
   if (rings.length === 0) return null;
@@ -201,6 +236,48 @@ function normalizePolygon(value: unknown): ServiceRadiusPolygon | null {
   }
   if (normalized.length === 0) return null;
   return { type: 'Polygon', coordinates: normalized };
+}
+
+/** [[west, south], [east, north]] for Mapbox fitBounds, or null if empty. */
+export function polygonLngLatBounds(
+  polygon: ServiceRadiusPolygon | null | undefined
+): [[number, number], [number, number]] | null {
+  const ring = polygon?.coordinates?.[0];
+  if (!ring || ring.length < 3) return null;
+  let west = Infinity;
+  let south = Infinity;
+  let east = -Infinity;
+  let north = -Infinity;
+  for (const pt of ring) {
+    const lng = Number(pt[0]);
+    const lat = Number(pt[1]);
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+    west = Math.min(west, lng);
+    south = Math.min(south, lat);
+    east = Math.max(east, lng);
+    north = Math.max(north, lat);
+  }
+  if (
+    !Number.isFinite(west) ||
+    !Number.isFinite(south) ||
+    !Number.isFinite(east) ||
+    !Number.isFinite(north)
+  ) {
+    return null;
+  }
+  // Degenerate single-point rings — expand slightly so fitBounds still works.
+  if (west === east) {
+    west -= 0.002;
+    east += 0.002;
+  }
+  if (south === north) {
+    south -= 0.002;
+    north += 0.002;
+  }
+  return [
+    [west, south],
+    [east, north],
+  ];
 }
 
 function newBundleId(): string {

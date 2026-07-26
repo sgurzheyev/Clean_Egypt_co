@@ -120,7 +120,7 @@ const PublicStoreCard: React.FC<PublicStoreCardProps> = ({
     t('storeDefaultName', { defaultValue: 'Contractor store' });
 
   return (
-    <section className="mt-6 space-y-4 rounded-2xl border border-emerald-400/25 bg-emerald-500/5 p-4">
+    <section className="mt-4 space-y-4 rounded-2xl border border-emerald-400/25 bg-emerald-500/5 p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Store className="h-5 w-5 text-emerald-300" aria-hidden />

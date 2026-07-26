@@ -1,14 +1,22 @@
 /**
  * Lightweight Mapbox coverage editor — office pin + click-to-draw polygon.
+ * Read-only mode renders lilac zone and tap-to-fitBounds the whole coverage.
  * No @mapbox/mapbox-gl-draw dependency: vertices are added by map click.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import MapGL, { Layer, Marker, Source, type MapLayerMouseEvent } from 'react-map-gl';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import MapGL, {
+  Layer,
+  Marker,
+  Source,
+  type MapLayerMouseEvent,
+  type MapRef,
+} from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { MapPin, Pentagon, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   polygonFromRing,
+  polygonLngLatBounds,
   type GeoJsonPosition,
   type ServiceRadiusPolygon,
 } from '../src/lib/contractorStore';
@@ -38,6 +46,7 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
   interactive = true,
 }) => {
   const { t } = useTranslation();
+  const mapRef = useRef<MapRef | null>(null);
   const hasOffice =
     typeof officeLat === 'number' &&
     typeof officeLng === 'number' &&
@@ -63,16 +72,51 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
 
   const [viewState, setViewState] = useState(initialView);
 
-  // Keep the camera on the office when it is placed/moved from outside.
+  const fitToCoverage = useCallback(
+    (opts?: { animate?: boolean }) => {
+      const map = mapRef.current?.getMap?.();
+      if (!map) return false;
+      const bounds = polygonLngLatBounds(polygon);
+      if (bounds) {
+        map.fitBounds(bounds, {
+          padding: 36,
+          maxZoom: 14,
+          duration: opts?.animate === false ? 0 : 650,
+        });
+        return true;
+      }
+      if (hasOffice) {
+        map.easeTo({
+          center: [officeLng!, officeLat!],
+          zoom: Math.max(map.getZoom(), 12),
+          duration: opts?.animate === false ? 0 : 450,
+        });
+        return true;
+      }
+      return false;
+    },
+    [polygon, hasOffice, officeLat, officeLng]
+  );
+
+  // Keep the camera on the office when it is placed/moved from outside (editor).
   useEffect(() => {
-    if (!hasOffice) return;
+    if (!interactive || !hasOffice) return;
     setViewState((prev) => ({
       ...prev,
       latitude: officeLat!,
       longitude: officeLng!,
       zoom: Math.max(prev.zoom ?? 12, 12),
     }));
-  }, [hasOffice, officeLat, officeLng]);
+  }, [interactive, hasOffice, officeLat, officeLng]);
+
+  // Read-only / whenever polygon data arrives: frame the lilac zone.
+  useEffect(() => {
+    if (interactive) return;
+    const id = window.setTimeout(() => {
+      fitToCoverage({ animate: false });
+    }, 80);
+    return () => window.clearTimeout(id);
+  }, [interactive, polygon, hasOffice, officeLat, officeLng, fitToCoverage]);
 
   const previewGeoJson = useMemo(() => {
     const ring = draftRing.length >= 2 ? draftRing : null;
@@ -114,7 +158,12 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
 
   const handleClick = useCallback(
     (e: MapLayerMouseEvent) => {
-      if (!interactive) return;
+      if (!interactive) {
+        // Single tap on the small profile map → fit the whole service zone.
+        e.originalEvent?.preventDefault?.();
+        fitToCoverage({ animate: true });
+        return;
+      }
       const { lng, lat } = e.lngLat;
       if (mode === 'office') {
         onOfficeChange(lat, lng);
@@ -125,7 +174,7 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
         setDraftRing((prev) => [...prev, [lng, lat]]);
       }
     },
-    [interactive, mode, onOfficeChange]
+    [interactive, mode, onOfficeChange, fitToCoverage]
   );
 
   const closePolygon = () => {
@@ -221,29 +270,50 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
         </p>
       )}
 
+      {!interactive && polygon && (
+        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-violet-300/80">
+          {t('storeTapMapToFitZone', {
+            defaultValue: 'Tap map to frame the full service zone',
+          })}
+        </p>
+      )}
+
       <div
-        className={`relative overflow-hidden rounded-xl border border-cyan-500/25 ${heightClassName}`}
+        className={`relative overflow-hidden rounded-xl border border-violet-400/30 ${heightClassName}`}
       >
         <MapGL
+          ref={mapRef}
           {...viewState}
           onMove={(evt) => setViewState(evt.viewState)}
           onClick={handleClick}
+          onLoad={() => {
+            if (!interactive) fitToCoverage({ animate: false });
+          }}
           mapboxAccessToken={MAPBOX_TOKEN}
           mapStyle="mapbox://styles/mapbox/dark-v11"
           style={{ width: '100%', height: '100%' }}
           attributionControl={false}
-          reuseMaps
-          cursor={mode === 'idle' || !interactive ? 'grab' : 'crosshair'}
+          reuseMaps={false}
+          cursor={!interactive ? 'pointer' : mode === 'idle' ? 'grab' : 'crosshair'}
+          dragPan={interactive}
+          scrollZoom={interactive}
+          doubleClickZoom={interactive}
+          touchZoomRotate={interactive}
         >
-          <Source id="store-coverage" type="geojson" data={previewGeoJson}>
+          <Source
+            id="store-coverage-preview"
+            type="geojson"
+            data={previewGeoJson}
+            key={polygon ? JSON.stringify(polygon.coordinates?.[0]?.[0]) : 'empty'}
+          >
             <Layer
               id="store-coverage-fill"
               type="fill"
               filter={['==', '$type', 'Polygon']}
               paint={{
-              'fill-color': '#a855f7',
-              'fill-opacity': 0.25,
-            }}
+                'fill-color': '#a855f7',
+                'fill-opacity': 0.25,
+              }}
             />
             <Layer
               id="store-coverage-line"
@@ -251,29 +321,30 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
               paint={{
                 'line-color': '#c084fc',
                 'line-width': 2.25,
+                'line-opacity': 0.95,
               }}
             />
           </Source>
 
           {hasOffice && (
-              <Marker
-                longitude={officeLng!}
-                latitude={officeLat!}
-                anchor="bottom"
-                draggable={interactive}
-                onDragEnd={(e) => {
-                  if (!interactive) return;
-                  onOfficeChange(e.lngLat.lat, e.lngLat.lng);
-                }}
-              >
-                <div className="flex flex-col items-center">
-                  <span className="rounded-full border border-cyan-400/70 bg-cyan-500/30 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-cyan-100 backdrop-blur-sm">
-                    {t('storeOfficeBadge', { defaultValue: 'Office' })}
-                  </span>
-                  <MapPin className="h-7 w-7 text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.7)]" />
-                </div>
-              </Marker>
-            )}
+            <Marker
+              longitude={officeLng!}
+              latitude={officeLat!}
+              anchor="bottom"
+              draggable={interactive}
+              onDragEnd={(e) => {
+                if (!interactive) return;
+                onOfficeChange(e.lngLat.lat, e.lngLat.lng);
+              }}
+            >
+              <div className="flex flex-col items-center">
+                <span className="rounded-full border border-violet-300/70 bg-violet-500/35 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-50 backdrop-blur-sm">
+                  {t('storeOfficeBadge', { defaultValue: 'Office' })}
+                </span>
+                <MapPin className="h-7 w-7 text-violet-300 drop-shadow-[0_0_8px_rgba(168,85,247,0.75)]" />
+              </div>
+            </Marker>
+          )}
 
           {draftRing.map(([lng, lat], i) => (
             <Marker key={`v-${i}`} longitude={lng} latitude={lat} anchor="center">

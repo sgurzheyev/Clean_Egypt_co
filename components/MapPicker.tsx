@@ -2,7 +2,7 @@
  * [[Architecture_Overview.md]]
  * Primary Mapbox UI — mission pins, create flow, bids, crowdfunding.
  */
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import MapGL, { MapRef, Source, Layer, Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
@@ -19,6 +19,7 @@ import NotificationBell from './NotificationBell';
 import MissionFeedCard from './MissionFeedCard';
 import ImmersiveMissionFeed from './ImmersiveMissionFeed';
 import MapStorePreviewCard from './MapStorePreviewCard';
+import StoreProfileOverlay from './StoreProfileOverlay';
 import MissionBriefing, { type AssignedWorkerProfile } from './MissionBriefing';
 import { useNavigate } from 'react-router-dom';
 import { checkHomeMissionWorkerVerification } from '../src/lib/homeMissionAccess';
@@ -28,6 +29,7 @@ import {
 } from '../src/lib/missionContact';
 import {
   fetchPublishedContractorStores,
+  polygonLngLatBounds,
   type ContractorStore,
   type RecurrenceType,
   RECURRENCE_TYPES,
@@ -2052,6 +2054,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [publishedStores, setPublishedStores] = useState<ContractorStore[]>([]);
   const [storesLoading, setStoresLoading] = useState(false);
   const [selectedStore, setSelectedStore] = useState<ContractorStore | null>(null);
+  /** Double-tap opens the full portaled storefront profile overlay. */
+  const [storeProfileOwnerId, setStoreProfileOwnerId] = useState<string | null>(
+    null
+  );
+  const storePinTapRef = useRef<{ storeId: string; at: number } | null>(null);
   // Map filter/sort: multi-select category checkboxes + sort dropdown. Empty
   // selection means "show everything". Sort is shared with the market feed.
   const [missionSortMode, setMissionSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
@@ -2164,6 +2171,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   useEffect(() => {
     if (!storeMode) {
       setSelectedStore(null);
+      setStoreProfileOwnerId(null);
+      storePinTapRef.current = null;
       return;
     }
     let cancelled = false;
@@ -3065,15 +3074,41 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setShowLiveMarketFeed(false);
     setShowMyOrdersPanel(false);
     setMapDraftPin(null);
+
+    const map = mapRef.current?.getMap?.();
+    if (!map) return;
+
+    const bounds = polygonLngLatBounds(store.service_radius_polygon);
+    if (bounds) {
+      try {
+        map.fitBounds(bounds, {
+          padding: { top: 72, bottom: 220, left: 48, right: 48 },
+          maxZoom: 14,
+          duration: 700,
+        });
+        return;
+      } catch (err) {
+        console.warn('[stores] fitBounds coverage failed', err);
+      }
+    }
+
     if (
       typeof store.office_lng === 'number' &&
       typeof store.office_lat === 'number'
     ) {
-      flyMapTo(mapRef.current?.getMap?.(), [store.office_lng, store.office_lat], {
+      flyMapTo(map, [store.office_lng, store.office_lat], {
         ...MAP_QUICK_FLY,
         zoom: 13,
       });
     }
+  }, []);
+
+  const openStoreProfileOverlay = useCallback((store: ContractorStore) => {
+    setSelectedStore(null);
+    setStoreProfileOwnerId(store.owner_id);
+    setSelectedMission(null);
+    setShowLiveMarketFeed(false);
+    setShowMyOrdersPanel(false);
   }, []);
 
   const handleMapClick = useCallback(
@@ -3090,13 +3125,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const point = event?.point as { x: number; y: number } | undefined;
 
         // Store mode: office pins win; empty tap clears the coverage highlight.
+        // Single tap → preview + lilac polygon. Double tap → full store profile overlay.
         if (storeMode) {
           const storeHit = findStorePinAtPoint(point, 20);
           if (storeHit) {
+            const now = Date.now();
+            const prev = storePinTapRef.current;
+            const isDouble =
+              !!prev &&
+              prev.storeId === String(storeHit.id) &&
+              now - prev.at < 380;
+            storePinTapRef.current = { storeId: String(storeHit.id), at: now };
+            if (isDouble) {
+              storePinTapRef.current = null;
+              openStoreProfileOverlay(storeHit);
+              return;
+            }
             openStoreOnMap(storeHit);
             return;
           }
           setSelectedStore(null);
+          storePinTapRef.current = null;
           return;
         }
 
@@ -3202,6 +3251,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       handleMarkerClick,
       onLocationSelect,
       openStoreOnMap,
+      openStoreProfileOverlay,
       orderSubmitting,
       reportMode,
       storeMode,
@@ -4346,17 +4396,36 @@ const MapPicker: React.FC<MapPickerProps> = ({
     if (!storeMode || !poly || !selectedStore) {
       return { type: 'FeatureCollection' as const, features: [] };
     }
+    // Deep-clone geometry so Mapbox Source always sees a fresh object.
     return {
       type: 'FeatureCollection' as const,
       features: [
         {
           type: 'Feature' as const,
-          properties: { store_id: selectedStore.id },
-          geometry: poly,
+          properties: { store_id: String(selectedStore.id) },
+          geometry: {
+            type: 'Polygon' as const,
+            coordinates: poly.coordinates.map((ring) =>
+              ring.map((pt) => [Number(pt[0]), Number(pt[1])] as [number, number])
+            ),
+          },
         },
       ],
     };
   }, [storeMode, selectedStore]);
+
+  // Ensure Mapbox Source data + camera stay in sync when a store is selected.
+  useEffect(() => {
+    if (!storeMode || !selectedStore) return;
+    const map = mapRef.current?.getMap?.();
+    if (!map || !map.isStyleLoaded?.()) return;
+    const source = map.getSource('store-coverage') as
+      | { setData?: (data: unknown) => void }
+      | undefined;
+    if (source?.setData) {
+      source.setData(storeCoverageGeoJSON);
+    }
+  }, [storeMode, selectedStore, storeCoverageGeoJSON]);
 
   const activeWorkerMission = useMemo(
     () =>
@@ -5222,10 +5291,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
         {/* Contractor store office pins + Idealista-style coverage polygon (Store mode). */}
         {storeMode && (
           <>
-            <Source id="store-coverage" type="geojson" data={storeCoverageGeoJSON}>
+            <Source
+              id="store-coverage"
+              key={`store-coverage-${selectedStore?.id ?? 'none'}`}
+              type="geojson"
+              data={storeCoverageGeoJSON}
+            >
               <Layer
                 id="store-coverage-fill"
                 type="fill"
+                filter={['==', '$type', 'Polygon']}
                 paint={{
                   'fill-color': '#a855f7',
                   'fill-opacity': 0.25,
@@ -5677,10 +5752,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </button>
       )}
 
-      {storeMode && selectedStore && (
+      {storeMode && selectedStore && !storeProfileOwnerId && (
         <MapStorePreviewCard
           store={selectedStore}
           onClose={() => setSelectedStore(null)}
+          onOpenFullProfile={() => openStoreProfileOverlay(selectedStore)}
+        />
+      )}
+
+      {storeProfileOwnerId && (
+        <StoreProfileOverlay
+          ownerId={storeProfileOwnerId}
+          onClose={() => setStoreProfileOwnerId(null)}
         />
       )}
 
