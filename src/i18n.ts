@@ -397,7 +397,7 @@ const resources = {
       storeMapToggle: 'Store map',
       storeMapLoadFailed: 'Could not load contractor stores.',
       storeZoneVisibleHint: 'Service zone highlighted on the map',
-      storeTapMapToFitZone: 'Tap map to frame the full service zone',
+      storeTapMapToFitZone: 'Tap map for a 3D flyover of the service zone',
       storeOpenProfile: 'Open store profile',
       storePanelHint:
         'Build your business storefront: office, coverage, supplies, bundles, and Subscribe & Save.',
@@ -1562,7 +1562,7 @@ const resources = {
       storeMapToggle: 'Карта магазинов',
       storeMapLoadFailed: 'Не удалось загрузить магазины подрядчиков.',
       storeZoneVisibleHint: 'Зона обслуживания подсвечена на карте',
-      storeTapMapToFitZone: 'Нажмите на карту, чтобы показать всю зону',
+      storeTapMapToFitZone: 'Нажмите на карту — 3D-облёт всей зоны обслуживания',
       storeOpenProfile: 'Открыть профиль магазина',
       storePanelHint:
         'Соберите витрину бизнеса: офис, зона, расходники, пакеты услуг и Subscribe & Save.',

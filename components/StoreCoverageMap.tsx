@@ -73,10 +73,45 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
   const [viewState, setViewState] = useState(initialView);
 
   const fitToCoverage = useCallback(
-    (opts?: { animate?: boolean }) => {
+    (opts?: { animate?: boolean; cinematic?: boolean }) => {
       const map = mapRef.current?.getMap?.();
       if (!map) return false;
       const bounds = polygonLngLatBounds(polygon);
+
+      if (opts?.cinematic) {
+        // Cinematic 3D flight: tilt into the lilac zone instead of a flat snap.
+        if (bounds) {
+          const camera = map.cameraForBounds(bounds, {
+            padding: 50,
+            bearing: -12,
+            maxZoom: 15.5,
+          });
+          if (camera) {
+            map.flyTo({
+              center: camera.center,
+              zoom: camera.zoom,
+              bearing: -12,
+              pitch: 48,
+              duration: 1400,
+              essential: true,
+            });
+            return true;
+          }
+        }
+        if (hasOffice) {
+          map.flyTo({
+            center: [officeLng!, officeLat!],
+            zoom: 14,
+            bearing: -12,
+            pitch: 48,
+            duration: 1400,
+            essential: true,
+          });
+          return true;
+        }
+        return false;
+      }
+
       if (bounds) {
         map.fitBounds(bounds, {
           padding: 36,
@@ -159,9 +194,9 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
   const handleClick = useCallback(
     (e: MapLayerMouseEvent) => {
       if (!interactive) {
-        // Single tap on the small profile map → fit the whole service zone.
+        // Single tap on the profile map → cinematic 3D flight over the zone.
         e.originalEvent?.preventDefault?.();
-        fitToCoverage({ animate: true });
+        fitToCoverage({ cinematic: true });
         return;
       }
       const { lng, lat } = e.lngLat;
@@ -273,7 +308,7 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
       {!interactive && polygon && (
         <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-violet-300/80">
           {t('storeTapMapToFitZone', {
-            defaultValue: 'Tap map to frame the full service zone',
+            defaultValue: 'Tap map for a 3D flyover of the service zone',
           })}
         </p>
       )}
@@ -295,10 +330,13 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
           attributionControl={false}
           reuseMaps={false}
           cursor={!interactive ? 'pointer' : mode === 'idle' ? 'grab' : 'crosshair'}
-          dragPan={interactive}
-          scrollZoom={interactive}
-          doubleClickZoom={interactive}
-          touchZoomRotate={interactive}
+          dragPan
+          scrollZoom
+          doubleClickZoom
+          touchZoomRotate
+          dragRotate
+          touchPitch
+          maxPitch={70}
         >
           <Source
             id="store-coverage-preview"
