@@ -6,12 +6,13 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { supabase } from '../services/supabase';
-import { Pencil, Target, Globe, Building2, Clock, Info, Lock, Coins, Store } from 'lucide-react';
+import { Pencil, Target, Globe, Building2, Clock, Info, Lock, Coins, Store, BadgeCheck, Sparkles } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import AdminDashboard from '../src/components/AdminDashboard';
 import TokenPackModal from '../src/components/TokenPackModal';
+import SubscriptionModal from '../src/components/SubscriptionModal';
 import LivenessCheck from '../src/components/LivenessCheck';
 import PhantomCapture from '../src/components/PhantomCapture';
 import VerificationModal from './VerificationModal';
@@ -24,6 +25,7 @@ import {
   CITY_MIN_PRICE,
   CITY_MAX_PRICE,
 } from '../constants';
+import { YEARLY_SUBSCRIPTION } from '../src/lib/tokenPricing';
 import MissionFilterPanel from './MissionFilterPanel';
 import {
   sortMissions,
@@ -188,8 +190,6 @@ interface Bid {
 
 interface ProfileRow {
   id: string;
-  wallet_balance: number | null;
-  frozen_balance: number | null;
   token_balance?: number | null;
   subscription_expires_at?: string | null;
   role?: 'cleaner' | 'customer' | string | null;
@@ -358,6 +358,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [contactEditMode, setContactEditMode] = useState(true);
   const [passwordEditMode, setPasswordEditMode] = useState(true);
   const [showTokenPackModal, setShowTokenPackModal] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const lastMissionStatusActionAtRef = useRef<number>(0);
   const toastTimerRef = useRef<number | null>(null);
@@ -453,6 +454,33 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       : 0;
     return Number.isFinite(exp) && exp > Date.now();
   }, [userProfile?.subscription_expires_at]);
+
+  /** Current billing window derived from expires_at (yearly SaaS period). */
+  const subscriptionPeriod = useMemo(() => {
+    const endMs = userProfile?.subscription_expires_at
+      ? Date.parse(userProfile.subscription_expires_at)
+      : NaN;
+    if (!Number.isFinite(endMs)) return null;
+    const end = new Date(endMs);
+    const start = new Date(end);
+    start.setMonth(start.getMonth() - YEARLY_SUBSCRIPTION.months);
+    const daysLeft = Math.max(0, Math.ceil((endMs - Date.now()) / 86_400_000));
+    const locale = i18n.language || undefined;
+    const fmt = (d: Date) =>
+      d.toLocaleDateString(locale, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    return {
+      start,
+      end,
+      daysLeft,
+      active: endMs > Date.now(),
+      startLabel: fmt(start),
+      endLabel: fmt(end),
+    };
+  }, [userProfile?.subscription_expires_at, i18n.language]);
 
   const verificationStatusKey = useMemo(() => {
     const raw =
@@ -1829,22 +1857,135 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           closedSummary={profileInfoClosedSummary}
         >
           <div className="space-y-4">
-            {/* Status pills + KYC */}
+            {/* SaaS token wallet */}
+            <div className="rounded-2xl border border-lime-400/35 bg-gradient-to-br from-lime-500/15 via-slate-950/80 to-cyan-950/40 p-4 shadow-[0_0_24px_rgba(132,204,22,0.12)] backdrop-blur-md">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-lime-300/90">
+                    {t('tokenWalletTitle', { defaultValue: 'Token wallet' })}
+                  </p>
+                  <p className="mt-1.5 text-xl font-black tabular-nums tracking-tight text-lime-100 sm:text-2xl">
+                    {t('tokenWalletAvailable', {
+                      count: tokenBalance,
+                      defaultValue: 'Available Tokens: {{count}} 🪙',
+                    })}
+                  </p>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
+                    {t('tokenWalletHint', {
+                      defaultValue:
+                        'Tokens boost pins and crowdfunding. Work pay is P2P between client and worker.',
+                    })}
+                  </p>
+                </div>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-lime-400/40 bg-lime-500/15 text-lime-300 shadow-[0_0_14px_rgba(132,204,22,0.25)]">
+                  <Coins className="h-5 w-5" aria-hidden />
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTokenPackModal(true)}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-lime-400/50 bg-lime-500/20 px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.14em] text-lime-100 shadow-[0_0_16px_rgba(132,204,22,0.22)] transition-all hover:bg-lime-500/30 hover:border-lime-300/60 active:scale-[0.98]"
+              >
+                <Coins className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                {t('topUpTokens', { defaultValue: 'Top up tokens' })}
+              </button>
+            </div>
+
+            {/* Subscription validity + double-pay protection */}
+            <div
+              className={`rounded-2xl border p-4 backdrop-blur-md ${
+                subscriptionIsActive
+                  ? 'border-emerald-400/40 bg-gradient-to-br from-emerald-500/15 via-slate-950/80 to-cyan-950/30 shadow-[0_0_22px_rgba(16,185,129,0.14)]'
+                  : 'border-amber-400/35 bg-gradient-to-br from-amber-500/12 via-slate-950/80 to-rose-950/20 shadow-[0_0_18px_rgba(245,158,11,0.1)]'
+              }`}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Sparkles
+                  className={`h-4 w-4 shrink-0 ${
+                    subscriptionIsActive ? 'text-emerald-300' : 'text-amber-300'
+                  }`}
+                  aria-hidden
+                />
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-200">
+                  {t('subscriptionBannerTitle', { defaultValue: 'Subscription' })}
+                </p>
+                {subscriptionIsActive ? (
+                  <>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/45 bg-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100">
+                      <BadgeCheck className="h-3 w-3" aria-hidden />
+                      {t('subscriptionActive', { defaultValue: 'Active' })}
+                    </span>
+                    <span className="inline-flex items-center rounded-full border border-cyan-400/40 bg-cyan-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                      {t('subscriptionPaidBadge', { defaultValue: 'Paid' })}
+                    </span>
+                  </>
+                ) : (
+                  <span className="inline-flex items-center rounded-full border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
+                    {t('subscriptionExpired', { defaultValue: 'Expired' })}
+                  </span>
+                )}
+              </div>
+
+              {subscriptionPeriod ? (
+                <p className="mt-2.5 text-sm font-semibold leading-snug text-white">
+                  {t('subscriptionValidRange', {
+                    start: subscriptionPeriod.startLabel,
+                    end: subscriptionPeriod.endLabel,
+                    defaultValue:
+                      'Active Subscription: Valid from {{start}} until {{end}}',
+                  })}
+                </p>
+              ) : (
+                <p className="mt-2.5 text-sm font-semibold text-slate-300">
+                  {t('subscriptionNoneHint', {
+                    defaultValue: 'No active subscription yet.',
+                  })}
+                </p>
+              )}
+
+              {subscriptionIsActive && subscriptionPeriod ? (
+                <p className="mt-1 text-[11px] text-emerald-200/85">
+                  {t('subscriptionDaysRemaining', {
+                    count: subscriptionPeriod.daysLeft,
+                    defaultValue: '{{count}} days remaining',
+                  })}
+                </p>
+              ) : (
+                <p className="mt-1 text-[11px] text-amber-100/80">
+                  {t('subscriptionExpiredHint', {
+                    defaultValue:
+                      'Subscribe to unlock client contacts on the map.',
+                  })}
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowSubscriptionModal(true)}
+                title={
+                  subscriptionIsActive && subscriptionPeriod
+                    ? t('extendSubscriptionTooltip', {
+                        count: subscriptionPeriod.daysLeft,
+                        defaultValue:
+                          'Adds another year after your current period ({{count}} days left). Avoids double-paying the same window.',
+                      })
+                    : t('subscribeNow', { defaultValue: 'Subscribe' })
+                }
+                className={`mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.14em] transition-all active:scale-[0.98] ${
+                  subscriptionIsActive
+                    ? 'border-emerald-400/45 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25'
+                    : 'border-amber-400/45 bg-amber-500/20 text-amber-50 shadow-[0_0_14px_rgba(245,158,11,0.2)] hover:bg-amber-500/30'
+                }`}
+              >
+                {subscriptionIsActive
+                  ? t('extendSubscription', { defaultValue: 'Extend subscription' })
+                  : t('subscribeNow', { defaultValue: 'Subscribe' })}
+              </button>
+            </div>
+
+            {/* KYC status */}
             <div className="space-y-3">
               <div className="flex flex-wrap gap-1.5">
-                <span className="inline-flex items-center rounded-full border border-lime-400/35 bg-lime-500/10 px-2.5 py-1 text-[10px] font-bold tabular-nums text-lime-200">
-                  {tokenBalance} {t('tokens')}
-                </span>
-                <span
-                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold ${
-                    subscriptionIsActive
-                      ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-200'
-                      : 'border-amber-400/35 bg-amber-500/10 text-amber-200'
-                  }`}
-                >
-                  {t('subscriptionStatus')}:{' '}
-                  {subscriptionIsActive ? t('subscriptionActive') : t('subscriptionExpired')}
-                </span>
                 {verificationStatusKey === 'verified' ? (
                   <span className="inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-200">
                     {t('kycTrustedBadge', { defaultValue: 'Trusted' })}
@@ -2128,8 +2269,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 </div>
               </form>
             </div>
-
-            <p className="text-[11px] leading-relaxed text-slate-400">{t('profileEconomyHint')}</p>
           </div>
         </ProfileAccordion>
 
@@ -3022,6 +3161,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         open={showTokenPackModal}
         userId={_session?.user?.id ?? null}
         onClose={() => setShowTokenPackModal(false)}
+        onSuccess={() => void fetchProfileData()}
+        initialMode="tokens"
+      />
+
+      <SubscriptionModal
+        open={showSubscriptionModal}
+        userId={_session?.user?.id ?? null}
+        onClose={() => setShowSubscriptionModal(false)}
         onSuccess={() => void fetchProfileData()}
       />
 

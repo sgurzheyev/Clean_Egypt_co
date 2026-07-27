@@ -91,7 +91,7 @@ const BidsTerminal: React.FC<BidsTerminalProps> = ({ onclose, onShowTryFree }) =
                 {errorMessage}
               </p>
               <p className="text-zinc-500 text-[10px] uppercase">
-                Возврат на карту через пару секунд...
+                Returning to map…
               </p>
             </div>
           )}
@@ -149,7 +149,7 @@ const BidsTerminal: React.FC<BidsTerminalProps> = ({ onclose, onShowTryFree }) =
               type="submit"
               className="animated-border-inner w-full py-5 text-white bg-[#020617] font-black uppercase rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all"
             >
-              CLEAN MY WALLET 🚀
+              POST MISSION
             </button>
           </div>
         </form>

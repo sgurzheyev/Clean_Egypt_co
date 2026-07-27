@@ -357,6 +357,21 @@ const resources = {
       topUpTokens: 'Top up tokens',
       buyTokens: 'Buy tokens',
       topUpShort: 'Top up',
+      tokenWalletTitle: 'Token wallet',
+      tokenWalletAvailable: 'Available Tokens: {{count}} 🪙',
+      tokenWalletHint:
+        'Tokens boost pins and crowdfunding. Work pay is P2P between client and worker.',
+      subscriptionBannerTitle: 'Subscription',
+      subscriptionPaidBadge: 'Paid',
+      subscriptionValidRange:
+        'Active Subscription: Valid from {{start}} until {{end}}',
+      subscriptionDaysRemaining: '{{count}} days remaining',
+      subscriptionNoneHint: 'No active subscription yet.',
+      subscriptionExpiredHint: 'Subscribe to unlock client contacts on the map.',
+      extendSubscription: 'Extend subscription',
+      extendSubscriptionTooltip:
+        'Adds another year after your current period ({{count}} days left). Avoids double-paying the same window.',
+      subscribeNow: 'Subscribe',
       profileInfoOverview: 'Info & Security',
       profileLeadsShort: 'Leads',
       profileEconomyHint:
@@ -1548,6 +1563,22 @@ const resources = {
       topUpTokens: 'Пополнить токены',
       buyTokens: 'Купить токены',
       topUpShort: 'Пополнить',
+      tokenWalletTitle: 'Токен-кошелёк',
+      tokenWalletAvailable: 'Доступно токенов: {{count}} 🪙',
+      tokenWalletHint:
+        'Токены — для буста пинов и краудфандинга. Оплата работы — напрямую (P2P) между клиентом и исполнителем.',
+      subscriptionBannerTitle: 'Подписка',
+      subscriptionPaidBadge: 'Оплачена',
+      subscriptionValidRange:
+        'Активная подписка: действительна с {{start}} по {{end}}',
+      subscriptionDaysRemaining: 'Осталось {{count}} дн.',
+      subscriptionNoneHint: 'Активной подписки пока нет.',
+      subscriptionExpiredHint:
+        'Оформите подписку, чтобы открывать контакты клиентов на карте.',
+      extendSubscription: 'Продлить подписку',
+      extendSubscriptionTooltip:
+        'Добавляет ещё один год после текущего периода (осталось {{count}} дн.). Защита от двойной оплаты текущего окна.',
+      subscribeNow: 'Оформить подписку',
       profileInfoOverview: 'Инфо и безопасность',
       profileLeadsShort: 'Лиды',
       profileEconomyHint:

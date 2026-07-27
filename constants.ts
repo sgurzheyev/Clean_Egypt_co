@@ -86,17 +86,8 @@ export const FILTER_BAR_CLASS =
  */
 export const INTERNAL_CURRENCY = 'USD' as const;
 
-/** City pin / Scout Stake fee (USD, integer) — must match create_public_mission_with_fee and wallet debits. */
-export const SCOUT_STAKE_FEE_USD = 49;
-
 /** Anti-fraud: repeated micro-tx at or below this USD amount. */
 export const SMALL_CARDING_USD_MAX = 100;
-
-/**
- * Applied to USD card settlements when crediting the wallet (currency risk buffer).
- * Credit USD = USD_charged × CURRENCY_RISK_BUFFER_FACTOR
- */
-export const CURRENCY_RISK_BUFFER_FACTOR = 0.97;
 
 /** Display suffix for fiat amounts in UI. */
 export const DISPLAY_CURRENCY_SUFFIX = 'USD';

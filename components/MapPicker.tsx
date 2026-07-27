@@ -59,7 +59,6 @@ import {
   HOME_MAX_PRICE,
   CITY_MIN_PRICE,
   CITY_MAX_PRICE,
-  SCOUT_STAKE_FEE_USD,
 } from '../constants';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionTokenBid, missionWorkBudgetUsd } from '../src/lib/missionBudget';

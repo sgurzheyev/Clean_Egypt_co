@@ -33,11 +33,14 @@ const Terms: React.FC = () => {
           </section>
 
           <section>
-            <h2 className="mb-2 text-lg font-bold text-cyan-300">3. Payments and Wallet</h2>
+            <h2 className="mb-2 text-lg font-bold text-cyan-300">3. Tokens, Subscriptions &amp; P2P Pay</h2>
             <p className="text-slate-300 leading-relaxed">
-              Mission payments, wallet operations, fees, and refunds are processed according to platform
-              rules shown in-app. Do not attempt to bypass platform payment flows or contact users to
-              settle payments off-platform.
+              Garbagin uses a SaaS token economy. Tokens are spent on platform actions such as
+              boosting pins and crowdfunding stakes. Worker lead access is gated by an optional
+              yearly subscription. Payment for completed cleaning work is negotiated and settled
+              directly between client and worker (P2P) — the platform does not hold fiat escrow,
+              deposits, or revenue-share payouts. Token packs and subscriptions are digital
+              services and are generally non-refundable except where required by law.
             </p>
           </section>
 
