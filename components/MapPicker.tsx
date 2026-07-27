@@ -1703,6 +1703,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   /** Neon chip filter for visible store pins / coverage. */
   const [selectedStoreFilter, setSelectedStoreFilter] =
     useState<StoreMapFilterId>('all');
+  const [storeFilterPanelOpen, setStoreFilterPanelOpen] = useState(false);
   /** Store ids with Eco-Chemical / eco-named inventory (from store_supplies). */
   const [ecoStoreIds, setEcoStoreIds] = useState<ReadonlySet<string>>(
     () => new Set()
@@ -1827,6 +1828,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setStoreProfileOwnerId(null);
       storePinTapRef.current = null;
       setSelectedStoreFilter('all');
+      setStoreFilterPanelOpen(false);
       setEcoStoreIds(new Set());
       return;
     }
@@ -5346,7 +5348,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           selectedFilter={selectedStoreFilter}
           onChange={setSelectedStoreFilter}
           resultCount={filteredStores.length}
-          className="fixed left-[4.25rem] right-3 top-[max(0.85rem,calc(env(safe-area-inset-top)+0.65rem))] z-[10014]"
+          open={storeFilterPanelOpen}
+          onOpenChange={setStoreFilterPanelOpen}
         />
       )}
 
