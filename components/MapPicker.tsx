@@ -19,6 +19,7 @@ import NotificationBell from './NotificationBell';
 import MissionFeedCard from './MissionFeedCard';
 import ImmersiveMissionFeed from './ImmersiveMissionFeed';
 import MapStorePreviewCard from './MapStorePreviewCard';
+import StoreMapFilterChips from './StoreMapFilterChips';
 import StoreProfileOverlay from './StoreProfileOverlay';
 import MissionBriefing, { type AssignedWorkerProfile } from './MissionBriefing';
 import { useNavigate } from 'react-router-dom';
@@ -34,6 +35,11 @@ import {
   type RecurrenceType,
   RECURRENCE_TYPES,
 } from '../src/lib/contractorStore';
+import {
+  filterStoresForMap,
+  supplyLooksEco,
+  type StoreMapFilterId,
+} from '../src/lib/storeMapFilter';
 import { recurrenceLabelKey } from './StoreShowcaseSections';
 import CreateMission from './CreateMission';
 import {
@@ -1695,6 +1701,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [publishedStores, setPublishedStores] = useState<ContractorStore[]>([]);
   const [storesLoading, setStoresLoading] = useState(false);
   const [selectedStore, setSelectedStore] = useState<ContractorStore | null>(null);
+  /** Neon chip filter for visible store pins / coverage. */
+  const [selectedStoreFilter, setSelectedStoreFilter] =
+    useState<StoreMapFilterId>('all');
+  /** Store ids with Eco-Chemical / eco-named inventory (from store_supplies). */
+  const [ecoStoreIds, setEcoStoreIds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
   /** Double-tap opens the full portaled storefront profile overlay. */
   const [storeProfileOwnerId, setStoreProfileOwnerId] = useState<string | null>(
     null
@@ -1814,18 +1827,49 @@ const MapPicker: React.FC<MapPickerProps> = ({
       setSelectedStore(null);
       setStoreProfileOwnerId(null);
       storePinTapRef.current = null;
+      setSelectedStoreFilter('all');
+      setEcoStoreIds(new Set());
       return;
     }
     let cancelled = false;
     setStoresLoading(true);
     void fetchPublishedContractorStores()
-      .then((rows) => {
-        if (!cancelled) setPublishedStores(rows);
+      .then(async (rows) => {
+        if (cancelled) return;
+        setPublishedStores(rows);
+        const ids = rows.map((s) => s.id).filter(Boolean);
+        if (ids.length === 0) {
+          setEcoStoreIds(new Set());
+          return;
+        }
+        try {
+          const { data: supplies } = await supabase
+            .from('store_supplies')
+            .select('store_id, category, name, brand')
+            .in('store_id', ids)
+            .limit(2000);
+          if (cancelled) return;
+          const eco = new Set<string>();
+          for (const row of supplies || []) {
+            const r = row as {
+              store_id?: string;
+              category?: string | null;
+              name?: string | null;
+              brand?: string | null;
+            };
+            if (r.store_id && supplyLooksEco(r)) eco.add(String(r.store_id));
+          }
+          setEcoStoreIds(eco);
+        } catch (err) {
+          console.warn('[stores] eco supplies enrich failed', err);
+          if (!cancelled) setEcoStoreIds(new Set());
+        }
       })
       .catch((err) => {
         console.warn('[stores] fetchPublishedContractorStores failed', err);
         if (!cancelled) {
           setPublishedStores([]);
+          setEcoStoreIds(new Set());
           toast.error(
             t('storeMapLoadFailed', {
               defaultValue: 'Could not load contractor stores.',
@@ -1840,6 +1884,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
       cancelled = true;
     };
   }, [storeMode, t, toast]);
+
+  const filteredStores = useMemo(
+    () =>
+      filterStoresForMap(publishedStores, selectedStoreFilter, { ecoStoreIds }),
+    [publishedStores, selectedStoreFilter, ecoStoreIds]
+  );
+
+  // Drop selection when the active chip filters the store out.
+  useEffect(() => {
+    if (!selectedStore) return;
+    if (!filteredStores.some((s) => s.id === selectedStore.id)) {
+      setSelectedStore(null);
+      storePinTapRef.current = null;
+    }
+  }, [filteredStores, selectedStore]);
 
   const resetMissionDraft = useCallback((options?: { keepLocation?: boolean; keepMapDraftPin?: boolean }) => {
     setTokenBid(1);
@@ -2687,7 +2746,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const findStorePinAtPoint = useCallback(
     (point: { x: number; y: number } | undefined, pad = 18): ContractorStore | null => {
-      if (!storeMode || !point || publishedStores.length === 0) return null;
+      if (!storeMode || !point || filteredStores.length === 0) return null;
       const map = mapRef.current?.getMap();
       if (!map) return null;
       try {
@@ -2700,14 +2759,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
         });
         const storeId = hits.find((h) => h.properties?.store_id)?.properties?.store_id;
         if (storeId) {
-          return publishedStores.find((s) => String(s.id) === String(storeId)) ?? null;
+          return filteredStores.find((s) => String(s.id) === String(storeId)) ?? null;
         }
       } catch {
         /* layer may be absent */
       }
       let best: ContractorStore | null = null;
       let bestDist = Infinity;
-      for (const s of publishedStores) {
+      for (const s of filteredStores) {
         if (s.office_lat == null || s.office_lng == null) continue;
         let projected: { x: number; y: number };
         try {
@@ -2725,7 +2784,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
       return best;
     },
-    [storeMode, publishedStores]
+    [storeMode, filteredStores]
   );
 
   const openStoreOnMap = useCallback((store: ContractorStore) => {
@@ -4032,7 +4091,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     if (!storeMode) {
       return { type: 'FeatureCollection' as const, features: [] };
     }
-    const features = publishedStores.map((s) => ({
+    const features = filteredStores.map((s) => ({
       type: 'Feature' as const,
       id: String(s.id),
       geometry: {
@@ -4047,7 +4106,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       },
     }));
     return { type: 'FeatureCollection' as const, features };
-  }, [storeMode, publishedStores, selectedStore?.id]);
+  }, [storeMode, filteredStores, selectedStore?.id]);
 
   /** Lilac coverage fill for the selected store (Idealista-style zone highlight). */
   const storeCoverageGeoJSON = useMemo(() => {
@@ -5264,7 +5323,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
-      {showProfileFab && (
+      {showProfileFab && !storeMode && (
         <MissionFilterPanel
           variant="floating"
           sortMode={missionSortMode}
@@ -5280,6 +5339,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
           locationCatalog={locationCatalog}
           showFreeReports={showFreeReports}
           onShowFreeReportsChange={handleShowFreeReportsChange}
+        />
+      )}
+
+      {showProfileFab && storeMode && (
+        <StoreMapFilterChips
+          selectedFilter={selectedStoreFilter}
+          onChange={setSelectedStoreFilter}
+          resultCount={filteredStores.length}
+          className="fixed left-[4.25rem] right-3 top-[max(0.85rem,calc(env(safe-area-inset-top)+0.65rem))] z-[10014]"
         />
       )}
 

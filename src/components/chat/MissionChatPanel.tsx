@@ -1,10 +1,12 @@
 /**
  * Phase 4 — mission-scoped P2P chat sheet (history + Realtime via useMissionChat).
+ * Supports text + optional compressed photo attachments (chat-photos bucket).
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader2, Send, X } from 'lucide-react';
+import { ImagePlus, Loader2, Send, X } from 'lucide-react';
 import { useMissionChat } from '../../hooks/useMissionChat';
+import { uploadChatPhoto } from '../../lib/chatPhotoUpload';
 
 export type MissionChatPanelProps = {
   open: boolean;
@@ -46,13 +48,28 @@ const MissionChatPanel: React.FC<MissionChatPanelProps> = ({
   } = useMissionChat(open ? missionId : null, open ? otherUserId : null);
 
   const [draft, setDraft] = useState('');
+  const [pendingPreview, setPendingPreview] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const busy = sending || uploadingPhoto;
 
   useEffect(() => {
     if (!open) {
       setDraft('');
+      setPendingFile(null);
+      setPendingPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setLightboxUrl(null);
+      setAttachError(null);
       return;
     }
     void markThreadRead();
@@ -63,7 +80,16 @@ const MissionChatPanel: React.FC<MissionChatPanelProps> = ({
   useEffect(() => {
     if (!open) return;
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [open, messages.length, loading]);
+  }, [open, messages.length, loading, pendingPreview]);
+
+  useEffect(() => {
+    if (!lightboxUrl) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxUrl(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightboxUrl]);
 
   if (!open) return null;
 
@@ -71,12 +97,70 @@ const MissionChatPanel: React.FC<MissionChatPanelProps> = ({
     (otherUserName || '').trim() ||
     t('publicProfileAnonymous', { defaultValue: 'Eco-Hero' });
 
+  const clearPendingPhoto = () => {
+    setPendingFile(null);
+    setPendingPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const onPickPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      e.target.value = '';
+      setAttachError(
+        t('missionChatPhotoInvalid', {
+          defaultValue: 'Please choose an image file.',
+        })
+      );
+      return;
+    }
+    setAttachError(null);
+    setPendingPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setPendingFile(file);
+  };
+
   const onSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const text = draft.trim();
-    if (!text || sending) return;
-    const sent = await sendMessage(text);
-    if (sent) setDraft('');
+    if (busy || !currentUserId) return;
+    if (!text && !pendingFile) return;
+
+    let imageUrl: string | null = null;
+    if (pendingFile) {
+      setUploadingPhoto(true);
+      setAttachError(null);
+      try {
+        imageUrl = await uploadChatPhoto({
+          file: pendingFile,
+          missionId,
+          userId: currentUserId,
+        });
+      } catch (err) {
+        console.error('[MissionChatPanel] photo upload failed', err);
+        setAttachError(
+          t('missionChatUploadFailed', {
+            defaultValue: 'Could not upload photo. Try again.',
+          })
+        );
+        setUploadingPhoto(false);
+        return;
+      }
+      setUploadingPhoto(false);
+    }
+
+    const sent = await sendMessage(text, imageUrl);
+    if (sent) {
+      setDraft('');
+      clearPendingPhoto();
+      setAttachError(null);
+    }
   };
 
   return (
@@ -131,6 +215,8 @@ const MissionChatPanel: React.FC<MissionChatPanelProps> = ({
           ) : (
             messages.map((m) => {
               const isMine = !!currentUserId && m.sender_id === currentUserId;
+              const img = String(m.image_url || '').trim();
+              const text = String(m.message || '').trim();
               return (
                 <div
                   key={m.id}
@@ -143,7 +229,32 @@ const MissionChatPanel: React.FC<MissionChatPanelProps> = ({
                         : 'rounded-bl-md border border-white/10 bg-white/10 text-slate-100'
                     }`}
                   >
-                    <p className="whitespace-pre-wrap break-words">{m.message}</p>
+                    {img ? (
+                      <button
+                        type="button"
+                        onClick={() => setLightboxUrl(img)}
+                        className="my-1 block w-full max-w-[240px] overflow-hidden rounded-xl border border-gray-800 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
+                        aria-label={t('missionChatOpenPhoto', {
+                          defaultValue: 'Open photo',
+                        })}
+                      >
+                        <img
+                          src={img}
+                          alt=""
+                          loading="lazy"
+                          className="h-auto w-full object-cover"
+                          onLoad={() =>
+                            bottomRef.current?.scrollIntoView({
+                              behavior: 'smooth',
+                              block: 'end',
+                            })
+                          }
+                        />
+                      </button>
+                    ) : null}
+                    {text ? (
+                      <p className="whitespace-pre-wrap break-words">{text}</p>
+                    ) : null}
                     <p
                       className={`mt-1 text-[9px] font-medium uppercase tracking-[0.08em] ${
                         isMine ? 'text-emerald-100/70' : 'text-slate-500'
@@ -159,10 +270,34 @@ const MissionChatPanel: React.FC<MissionChatPanelProps> = ({
           <div ref={bottomRef} />
         </div>
 
-        {error && (
+        {(error || attachError) && (
           <p className="border-t border-red-500/20 bg-red-500/10 px-4 py-2 text-xs text-red-300">
-            {error}
+            {attachError || error}
           </p>
+        )}
+
+        {pendingPreview && (
+          <div className="flex items-center gap-2 border-t border-white/10 bg-slate-900/90 px-3 py-2">
+            <div className="relative h-14 w-14 overflow-hidden rounded-xl border border-gray-800">
+              <img src={pendingPreview} alt="" className="h-full w-full object-cover" />
+            </div>
+            <p className="min-w-0 flex-1 truncate text-[11px] text-slate-400">
+              {t('missionChatPhotoReady', {
+                defaultValue: 'Photo ready to send',
+              })}
+            </p>
+            <button
+              type="button"
+              onClick={clearPendingPhoto}
+              disabled={busy}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/5 text-slate-300 hover:bg-white/10 disabled:opacity-40"
+              aria-label={t('missionChatRemovePhoto', {
+                defaultValue: 'Remove photo',
+              })}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         )}
 
         <form
@@ -170,10 +305,33 @@ const MissionChatPanel: React.FC<MissionChatPanelProps> = ({
           className="flex items-end gap-2 border-t border-white/10 bg-slate-950/95 px-3 py-3 pb-safe-sm"
         >
           <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={onPickPhoto}
+            disabled={busy || !currentUserId}
+          />
+          <button
+            type="button"
+            disabled={busy || !currentUserId}
+            onClick={() => fileInputRef.current?.click()}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/25 bg-black/60 text-cyan-300/90 shadow-[0_0_14px_rgba(34,211,238,0.12)] backdrop-blur-md transition-all hover:border-cyan-400/50 hover:bg-white/5 hover:text-cyan-200 hover:shadow-[0_0_18px_rgba(34,211,238,0.28)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+            aria-label={t('missionChatAttachPhoto', {
+              defaultValue: 'Attach photo',
+            })}
+            title={t('missionChatAttachPhoto', {
+              defaultValue: 'Attach photo',
+            })}
+          >
+            <ImagePlus className="h-4 w-4" strokeWidth={2.25} />
+          </button>
+          <input
             ref={inputRef}
             type="text"
             value={draft}
-            disabled={sending || !currentUserId}
+            disabled={busy || !currentUserId}
             maxLength={4000}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -189,11 +347,11 @@ const MissionChatPanel: React.FC<MissionChatPanelProps> = ({
           />
           <button
             type="submit"
-            disabled={sending || !draft.trim() || !currentUserId}
+            disabled={busy || (!draft.trim() && !pendingFile) || !currentUserId}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-600/90 text-white shadow-[0_4px_16px_rgba(34,211,238,0.25)] transition-all hover:bg-cyan-500/95 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
             aria-label={t('missionChatSend', { defaultValue: 'Send' })}
           >
-            {sending ? (
+            {busy ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Send className="h-4 w-4" strokeWidth={2.25} />
@@ -201,6 +359,31 @@ const MissionChatPanel: React.FC<MissionChatPanelProps> = ({
           </button>
         </form>
       </div>
+
+      {lightboxUrl && (
+        <div className="pointer-events-auto fixed inset-0 z-[10090] flex items-center justify-center bg-black/90 p-4">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-zoom-out"
+            aria-label={t('close')}
+            onClick={() => setLightboxUrl(null)}
+          />
+          <button
+            type="button"
+            onClick={() => setLightboxUrl(null)}
+            className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-[1] flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white backdrop-blur-md"
+            aria-label={t('close')}
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt=""
+            className="relative z-[1] max-h-[90dvh] max-w-full rounded-xl object-contain shadow-[0_0_40px_rgba(0,0,0,0.6)]"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 };

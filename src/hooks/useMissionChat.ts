@@ -1,6 +1,8 @@
 /**
  * Phase 4 — mission-scoped P2P chat (history + Realtime INSERT).
- * Pair with migration: supabase/migrations/20260723_p2p_chat_system.sql
+ * Pair with migrations:
+ *   supabase/migrations/20260723_p2p_chat_system.sql
+ *   supabase/migrations/20260727_mission_chat_photos.sql
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../services/supabase';
@@ -11,11 +13,15 @@ export type MissionChatMessage = {
   sender_id: string;
   receiver_id: string;
   message: string;
+  image_url?: string | null;
   created_at: string;
   is_read: boolean;
 };
 
 const PAGE_SIZE = 100;
+
+const CHAT_SELECT =
+  'id, mission_id, sender_id, receiver_id, message, image_url, created_at, is_read';
 
 function isPairMessage(
   row: MissionChatMessage,
@@ -71,7 +77,7 @@ export function useMissionChat(
 
       const { data, error: qErr } = await supabase
         .from('mission_chats')
-        .select('id, mission_id, sender_id, receiver_id, message, created_at, is_read')
+        .select(CHAT_SELECT)
         .eq('mission_id', missionId)
         .or(
           `and(sender_id.eq.${uid},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${uid})`
@@ -139,9 +145,10 @@ export function useMissionChat(
   }, [appendMessage, missionId, otherUserId]);
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, imageUrl?: string | null) => {
       const body = String(text ?? '').trim();
-      if (!body || !missionId || !otherUserId) return null;
+      const img = String(imageUrl ?? '').trim() || null;
+      if ((!body && !img) || !missionId || !otherUserId) return null;
       if (body.length > 4000) {
         setError('Message too long (max 4000 characters)');
         return null;
@@ -156,15 +163,18 @@ export function useMissionChat(
         const uid = session?.user?.id;
         if (!uid) throw new Error('Not authenticated');
 
+        const payload: Record<string, unknown> = {
+          mission_id: missionId,
+          sender_id: uid,
+          receiver_id: otherUserId,
+          message: body,
+        };
+        if (img) payload.image_url = img;
+
         const { data, error: insErr } = await supabase
           .from('mission_chats')
-          .insert({
-            mission_id: missionId,
-            sender_id: uid,
-            receiver_id: otherUserId,
-            message: body,
-          })
-          .select('id, mission_id, sender_id, receiver_id, message, created_at, is_read')
+          .insert(payload)
+          .select(CHAT_SELECT)
           .single();
 
         if (insErr) throw insErr;
