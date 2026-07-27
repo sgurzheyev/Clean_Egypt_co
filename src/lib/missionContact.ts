@@ -52,6 +52,32 @@ export async function getOwnContactEmail(): Promise<string | null> {
   return email || null;
 }
 
+/** Own private fields after profiles column SELECT lockdown. */
+export async function getOwnPrivateProfile(): Promise<{
+  token_balance: number | null;
+  telegram_username: string | null;
+  contact_email: string | null;
+  phone_number: string | null;
+  subscription_expires_at: string | null;
+  wallet_balance: number | null;
+}> {
+  const { data, error } = await supabase.rpc('get_own_private_profile');
+  if (error) throw error;
+  const row = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+  return {
+    token_balance: Number.isFinite(Number(row.token_balance)) ? Number(row.token_balance) : null,
+    telegram_username: row.telegram_username ? String(row.telegram_username) : null,
+    contact_email: row.contact_email ? String(row.contact_email).trim() || null : null,
+    phone_number: row.phone_number ? String(row.phone_number).trim() || null : null,
+    subscription_expires_at: row.subscription_expires_at
+      ? String(row.subscription_expires_at)
+      : null,
+    wallet_balance: Number.isFinite(Number(row.wallet_balance))
+      ? Number(row.wallet_balance)
+      : null,
+  };
+}
+
 export async function getMissionWorkerPhone(missionId: string): Promise<string | null> {
   if (!missionId) return null;
   const { data, error } = await supabase.rpc('get_mission_worker_phone', {

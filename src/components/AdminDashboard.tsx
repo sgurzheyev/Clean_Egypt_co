@@ -230,18 +230,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         const { data: { session } } = await supabase.auth.getSession();
         const user = session?.user ?? null;
 
-        const { data: profile } = user?.id
-          ? await supabase
-              .from('profiles')
-              .select('telegram_username, role')
-              .eq('id', user.id)
-              .maybeSingle()
-          : { data: null };
+        let role: string | null = null;
+        let telegramUsername: string | null = null;
+        if (user?.id) {
+          const [{ data: profile }, { data: priv }] = await Promise.all([
+            supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
+            supabase.rpc('get_own_private_profile'),
+          ]);
+          role = (profile as { role?: string | null } | null)?.role ?? null;
+          const row = (priv && typeof priv === 'object' ? priv : {}) as Record<string, unknown>;
+          telegramUsername = row.telegram_username ? String(row.telegram_username) : null;
+        }
 
         const isAdmin = isPlatformAdmin({
           email: user?.email,
-          telegramUsername: (profile as { telegram_username?: string | null })?.telegram_username,
-          role: (profile as { role?: string | null })?.role,
+          telegramUsername,
+          role,
         });
 
         setIsAllowedAdmin(!!isAdmin);

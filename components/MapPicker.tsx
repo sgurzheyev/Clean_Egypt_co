@@ -2075,27 +2075,40 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, avatar_url, telegram_username, role, token_balance, subscription_expires_at')
+        .select('full_name, avatar_url, role')
         .eq('id', currentUserId)
         .maybeSingle();
-      let contactEmail: string | null = null;
+      let privateProfile: {
+        token_balance: number | null;
+        telegram_username: string | null;
+        contact_email: string | null;
+        subscription_expires_at: string | null;
+      } | null = null;
       try {
-        const { data: emailData } = await supabase.rpc('get_own_contact_email');
-        contactEmail = String(emailData ?? '').trim() || null;
+        const { data: priv } = await supabase.rpc('get_own_private_profile');
+        const row = (priv && typeof priv === 'object' ? priv : {}) as Record<string, unknown>;
+        privateProfile = {
+          token_balance: Number.isFinite(Number(row.token_balance))
+            ? Number(row.token_balance)
+            : null,
+          telegram_username: row.telegram_username ? String(row.telegram_username) : null,
+          contact_email: row.contact_email ? String(row.contact_email).trim() || null : null,
+          subscription_expires_at: row.subscription_expires_at
+            ? String(row.subscription_expires_at)
+            : null,
+        };
       } catch {
-        contactEmail = null;
+        privateProfile = null;
       }
       if (!cancelled) {
         setViewerProfile({
           full_name: (data as any)?.full_name ?? null,
-          contact_email: contactEmail,
+          contact_email: privateProfile?.contact_email ?? null,
           avatar_url: (data as any)?.avatar_url ?? null,
-          telegram_username: (data as any)?.telegram_username ?? null,
+          telegram_username: privateProfile?.telegram_username ?? null,
           role: (data as any)?.role ?? null,
-          token_balance: Number.isFinite(Number((data as any)?.token_balance))
-            ? Number((data as any)?.token_balance)
-            : null,
-          subscription_expires_at: (data as any)?.subscription_expires_at ?? null,
+          token_balance: privateProfile?.token_balance ?? null,
+          subscription_expires_at: privateProfile?.subscription_expires_at ?? null,
         });
       }
     };
@@ -2446,8 +2459,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         cleaner:profiles!cleaner_id (
           full_name,
           avatar_url,
-          rating,
-          telegram_username
+          rating
         )
       `)
       .eq('mission_id', missionId)
@@ -2514,7 +2526,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     void (async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, avatar_url, rating, telegram_username')
+        .select('full_name, avatar_url, rating')
         .eq('id', cleanerId)
         .maybeSingle();
       if (cancelled) return;
@@ -3554,7 +3566,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         // Load cleaner name (joined via missions -> profiles)
         const { data: missionRow, error: missionErr } = await supabase
           .from('missions')
-          .select('id, cleaner:profiles!cleaner_id(full_name, telegram_username)')
+          .select('id, cleaner:profiles!cleaner_id(full_name)')
           .eq('id', hallOfFameMission.id)
           .maybeSingle();
 
@@ -3563,11 +3575,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
 
         const cleaner = (missionRow as any)?.cleaner as
-          | { full_name?: string | null; telegram_username?: string | null }
+          | { full_name?: string | null }
           | null
           | undefined;
-        const cleanerName =
-          cleaner?.full_name || cleaner?.telegram_username || 'an Eco-Hero';
+        const cleanerName = cleaner?.full_name || 'an Eco-Hero';
         setHallOfFameCleanerName(cleanerName);
 
         // Load Eco-Hero donors from mission_donors_view
@@ -5055,21 +5066,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
         onClose={() => setShowTokenPackModal(false)}
         onSuccess={async () => {
           if (!currentUserId) return;
-          const { data } = await supabase
-            .from('profiles')
-            .select('token_balance')
-            .eq('id', currentUserId)
-            .maybeSingle();
-          setViewerProfile((p) =>
-            !p
-              ? p
-              : {
-                  ...p,
-                  token_balance: Number.isFinite(Number((data as any)?.token_balance))
-                    ? Number((data as any)?.token_balance)
-                    : p.token_balance,
-                }
-          );
+          try {
+            const { data: priv } = await supabase.rpc('get_own_private_profile');
+            const row = (priv && typeof priv === 'object' ? priv : {}) as Record<string, unknown>;
+            const nextBal = Number(row.token_balance);
+            setViewerProfile((p) =>
+              !p
+                ? p
+                : {
+                    ...p,
+                    token_balance: Number.isFinite(nextBal) ? nextBal : p.token_balance,
+                  }
+            );
+          } catch {
+            /* ignore refresh errors */
+          }
         }}
       />
 
@@ -5140,20 +5151,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }}
         onSuccess={async () => {
           if (!currentUserId) return;
-          const { data } = await supabase
-            .from('profiles')
-            .select('subscription_expires_at')
-            .eq('id', currentUserId)
-            .maybeSingle();
-          const exp = (data as any)?.subscription_expires_at ?? null;
-          setViewerProfile((p) =>
-            !p
-              ? p
-              : {
-                  ...p,
-                  subscription_expires_at: exp ?? p.subscription_expires_at,
-                }
-          );
+          let exp: string | null = null;
+          try {
+            const { data: priv } = await supabase.rpc('get_own_private_profile');
+            const row = (priv && typeof priv === 'object' ? priv : {}) as Record<string, unknown>;
+            exp =
+              typeof row.subscription_expires_at === 'string'
+                ? row.subscription_expires_at
+                : row.subscription_expires_at == null
+                  ? null
+                  : String(row.subscription_expires_at);
+            setViewerProfile((p) =>
+              !p
+                ? p
+                : {
+                    ...p,
+                    subscription_expires_at: exp ?? p.subscription_expires_at,
+                  }
+            );
+          } catch {
+            /* ignore refresh errors */
+          }
           setShowWorkerSubscriptionGate(false);
           if (exp && Date.parse(exp) > Date.now() && selectedMission?.id) {
             void handleUnlockLead();

@@ -51,7 +51,7 @@ import {
 import { filterMissionsByMutedCreators } from '../src/lib/mutedCreators';
 import { useMutedCreators } from '../src/hooks/useMutedCreators';
 import { checkHomeMissionWorkerVerification } from '../src/lib/homeMissionAccess';
-import { getMissionWorkerPhone, getOwnContactEmail, getOwnPhoneNumber } from '../src/lib/missionContact';
+import { getMissionWorkerPhone, getOwnPrivateProfile } from '../src/lib/missionContact';
 import { creatorRejectProof, submitMissionProof } from '../src/lib/submitMissionProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import RatingReviewModal, { type RatingTarget } from './RatingReviewModal';
@@ -646,7 +646,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     void (async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, telegram_username')
+        .select('full_name, avatar_url')
         .eq('id', cleanerId)
         .maybeSingle();
       if (cancelled) return;
@@ -655,14 +655,21 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         setReviewWorkerProfile(null);
         return;
       }
+      setReviewWorkerProfile({
+        full_name: (data as { full_name?: string | null } | null)?.full_name ?? null,
+        telegram_username: null,
+        phone_number: null,
+      });
       let phone: string | null = null;
       try {
         phone = await getMissionWorkerPhone(missionId);
       } catch (e) {
         console.warn('get_mission_worker_phone failed', e);
       }
-      setReviewWorkerProfile({ ...(data ?? {}), phone_number: phone });
-    })();
+      if (cancelled) return;
+      setReviewWorkerProfile((prev) =>
+        prev ? { ...prev, phone_number: phone } : prev
+      );    })();
     return () => {
       cancelled = true;
     };
@@ -864,34 +871,41 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       const { data: profile } = await supabase
         .from('profiles')
         .select(
-          'id, role, token_balance, subscription_expires_at, is_verified, verification_status, full_name, telegram_username, rating, avatar_url'
+          'id, role, is_verified, verification_status, full_name, rating, avatar_url'
         )
         .eq('id', userId)
         .maybeSingle();
 
       const profileRow = profile as ProfileRow | null;
-      let ownPhone = '';
-      let ownEmail = '';
+      let privateProfile: Awaited<ReturnType<typeof getOwnPrivateProfile>> | null = null;
       try {
-        ownPhone = (await getOwnPhoneNumber()) || '';
+        privateProfile = await getOwnPrivateProfile();
       } catch (e) {
-        console.warn('get_own_phone_number failed', e);
+        console.warn('get_own_private_profile failed', e);
       }
-      try {
-        ownEmail = (await getOwnContactEmail()) || '';
-      } catch (e) {
-        console.warn('get_own_contact_email failed', e);
-      }
+      const ownPhone = privateProfile?.phone_number || '';
+      const ownEmail = privateProfile?.contact_email || '';
+      const ownTelegram = privateProfile?.telegram_username || null;
       setUserProfile(
         profileRow
-          ? { ...profileRow, phone_number: ownPhone || null, contact_email: ownEmail || null }
+          ? {
+              ...profileRow,
+              phone_number: ownPhone || null,
+              contact_email: ownEmail || null,
+              telegram_username: ownTelegram,
+              token_balance: privateProfile?.token_balance ?? profileRow.token_balance ?? null,
+              subscription_expires_at:
+                privateProfile?.subscription_expires_at ??
+                profileRow.subscription_expires_at ??
+                null,
+            }
           : null
       );
       if (profileRow) {
         setPhoneNumber(ownPhone);
-        setTelegramUsername(profileRow.telegram_username ?? '');
+        setTelegramUsername(ownTelegram ?? '');
         setContactEmail(ownEmail || session.user.email || '');
-        setContactEditMode(!(ownEmail || ownPhone || profileRow.telegram_username));
+        setContactEditMode(!(ownEmail || ownPhone || ownTelegram));
       }
 
       const { data: homeJobsData } = await supabase
@@ -947,8 +961,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           started_at,
           is_disputed,
           cleaner:profiles!missions_cleaner_id_fkey (
-            full_name,
-            telegram_username
+            full_name
           )
         `
         )
@@ -2822,9 +2835,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         ? t('homeMission')
                         : t('cityMission');
                   const cleanerName = job.cleaner?.full_name || t('newHero');
-                  const cleanerHandle = job.cleaner?.telegram_username
-                    ? `(@${job.cleaner.telegram_username})`
-                    : '';
+                  const cleanerHandle = '';
                   const hasPhoto = Array.isArray(job.photo_urls) && !!job.photo_urls[0];
 
                   return (
