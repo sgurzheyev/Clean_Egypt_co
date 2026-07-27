@@ -2125,6 +2125,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <ContractorStorePanel
               userId={userProfile.id}
               embedded
+              onStorePresenceChange={setHasContractorStore}
             />
           </ProfileAccordion>
         )}

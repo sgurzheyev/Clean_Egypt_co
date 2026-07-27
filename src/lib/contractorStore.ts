@@ -497,6 +497,15 @@ export async function upsertContractorStore(
   return rowToContractorStore(data as Record<string, unknown>);
 }
 
+/** Permanently remove the contractor storefront (cascades store_supplies via FK). */
+export async function deleteContractorStore(ownerId: string): Promise<void> {
+  const { error } = await supabase
+    .from('contractor_stores')
+    .delete()
+    .eq('owner_id', ownerId);
+  if (error) throw error;
+}
+
 export async function fetchStoreSupplies(storeId: string): Promise<StoreSupply[]> {
   const { data, error } = await supabase
     .from('store_supplies')

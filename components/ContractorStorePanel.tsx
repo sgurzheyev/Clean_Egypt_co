@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Sparkles,
   Store,
+  Trash2,
   X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -30,6 +31,7 @@ import {
   STORE_SUPPLIES_MAX,
   SUPPLY_CATEGORIES,
   createEmptyBundle,
+  deleteContractorStore,
   deleteStoreSupply,
   fetchContractorStore,
   fetchStoreSupplies,
@@ -52,6 +54,8 @@ export type ContractorStorePanelProps = {
   userId: string;
   /** Compact embed inside a Profile accordion. */
   embedded?: boolean;
+  /** Fired when a store row is created or permanently removed. */
+  onStorePresenceChange?: (hasStore: boolean) => void;
 };
 
 type StoreTab = 'basics' | 'inventory' | 'bundles' | 'recurring';
@@ -59,6 +63,7 @@ type StoreTab = 'basics' | 'inventory' | 'bundles' | 'recurring';
 const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
   userId,
   embedded = true,
+  onStorePresenceChange,
 }) => {
   const { t } = useTranslation();
   const [tab, setTab] = useState<StoreTab>('basics');
@@ -401,6 +406,7 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
       const saved = await upsertContractorStore(userId, next);
       setDraft(storeToDraft(saved));
       setStoreId(saved.id);
+      onStorePresenceChange?.(true);
       setSuccess(
         next.is_published
           ? t('storeSavedPublished', {
@@ -413,6 +419,76 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
       setError(
         t('storeSaveFailed', {
           defaultValue: 'Could not save store. Check permissions and try again.',
+        })
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUnpublish = async () => {
+    if (!draft.is_published || saving || uploading) return;
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const next = {
+        ...draft,
+        is_published: false,
+        service_bundles: draft.service_bundles.filter((b) => b.title.trim()),
+      };
+      const saved = await upsertContractorStore(userId, next);
+      setDraft(storeToDraft(saved));
+      setStoreId(saved.id);
+      setSuccess(
+        t('storeUnpublishedSuccess', {
+          defaultValue: 'Store unpublished — hidden from public maps.',
+        })
+      );
+    } catch (err) {
+      console.error('unpublish store failed', err);
+      setError(
+        t('storeUnpublishFailed', {
+          defaultValue: 'Could not unpublish store. Try again.',
+        })
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteStore = async () => {
+    if (!storeId || saving || uploading) return;
+    const confirmed = window.confirm(
+      t('storeDeleteConfirm', {
+        defaultValue:
+          'Are you sure? This will permanently delete your storefront, supplies, and coverage zone.',
+      })
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await deleteContractorStore(userId);
+      setDraft({ ...EMPTY_STORE_DRAFT, service_bundles: [] });
+      setStoreId(null);
+      setSupplies([]);
+      setSupplyDraft({ ...EMPTY_SUPPLY_DRAFT });
+      setMaterialInput('');
+      setTab('basics');
+      onStorePresenceChange?.(false);
+      setSuccess(
+        t('storeDeletedSuccess', {
+          defaultValue: 'Store permanently deleted.',
+        })
+      );
+    } catch (err) {
+      console.error('deleteContractorStore failed', err);
+      setError(
+        t('storeDeleteFailed', {
+          defaultValue: 'Could not delete store. Check permissions and try again.',
         })
       );
     } finally {
@@ -1093,6 +1169,38 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
           >
             {t('storeShareCta', { defaultValue: 'Share Store' })}
           </button>
+        </div>
+      )}
+
+      {(draft.is_published || storeId) && (
+        <div className="space-y-2 border-t border-gray-800 pt-4">
+          {draft.is_published && (
+            <button
+              type="button"
+              disabled={saving || uploading}
+              onClick={() => void handleUnpublish()}
+              className="inline-flex w-full items-center justify-center rounded-full border border-amber-500/35 bg-amber-500/5 py-2.5 text-[11px] font-black uppercase tracking-[0.14em] text-amber-200 transition-colors hover:bg-amber-500/10 disabled:opacity-50"
+            >
+              {saving
+                ? t('processing')
+                : t('storeUnpublish', { defaultValue: 'Unpublish Store' })}
+            </button>
+          )}
+          {storeId && (
+            <button
+              type="button"
+              disabled={saving || uploading}
+              onClick={() => void handleDeleteStore()}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-red-500/40 bg-red-950/20 py-2.5 text-[11px] font-black uppercase tracking-[0.14em] text-red-400 shadow-[0_0_14px_rgba(239,68,68,0.12)] transition-colors hover:bg-red-500/10 disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              {saving
+                ? t('processing')
+                : t('storeDeletePermanent', {
+                    defaultValue: 'Delete Store Permanently',
+                  })}
+            </button>
+          )}
         </div>
       )}
 
