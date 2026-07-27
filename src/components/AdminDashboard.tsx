@@ -199,11 +199,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     setError(null);
     try {
       const [profRes, missRes, txRes] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('id, full_name, telegram_username, contact_email, wallet_balance, avatar_url, is_verified, is_banned, first_gps_track')
-          .order('wallet_balance', { ascending: false })
-          .limit(50),
+        supabase.rpc('admin_list_profiles_finance', { p_limit: 50 }),
         supabase.from('missions').select('id, status, creator_id').limit(50),
         supabase
           .from('transactions')
@@ -288,10 +284,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const toggleVerify = async (userId: string, nextValue: boolean) => {
     setVerifyLoadingUserId(userId);
     try {
-      const { error: updErr } = await supabase
-        .from('profiles')
-        .update({ is_verified: nextValue })
-        .eq('id', userId);
+      const { error: updErr } = await supabase.rpc('admin_set_profile_verified', {
+        p_user_id: userId,
+        p_verified: nextValue,
+      });
       if (updErr) throw updErr;
 
       setProfiles((prev) =>
@@ -308,10 +304,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
   const toggleBan = async (userId: string, nextValue: boolean) => {
     try {
-      const { error: updErr } = await supabase
-        .from('profiles')
-        .update({ is_banned: nextValue })
-        .eq('id', userId);
+      const { error: updErr } = await supabase.rpc('admin_set_profile_banned', {
+        p_user_id: userId,
+        p_banned: nextValue,
+      });
       if (updErr) throw updErr;
       setProfiles((prev) => prev.map((p) => (p.id === userId ? { ...p, is_banned: nextValue } : p)));
       alert(nextValue ? 'User banned.' : 'User unbanned.');
@@ -330,10 +326,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     }
     setEditBalanceSubmitting(true);
     try {
-      const { error: updErr } = await supabase
-        .from('profiles')
-        .update({ wallet_balance: next })
-        .eq('id', editBalanceUser.id);
+      const { error: updErr } = await supabase.rpc('admin_set_wallet_balance', {
+        p_user_id: editBalanceUser.id,
+        p_balance: next,
+      });
       if (updErr) throw updErr;
       setProfiles((prev) => prev.map((p) => (p.id === editBalanceUser.id ? { ...p, wallet_balance: next } : p)));
       alert('Balance updated.');
@@ -350,12 +346,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     setGodLoading(true);
     setGodError(null);
     try {
-      const base = supabase
-        .from('profiles')
-        .select('id, full_name, telegram_username, contact_email, wallet_balance, avatar_url, is_verified, is_banned', { count: 'exact' })
-        .order('wallet_balance', { ascending: false })
-        .limit(50);
-      const { data, error } = await base;
+      const { data, error } = await supabase.rpc('admin_list_profiles_finance', {
+        p_limit: 50,
+      });
       if (error) throw error;
       setProfiles(await withAdminPhones((data || []) as ProfileRow[]));
     } catch (e: any) {

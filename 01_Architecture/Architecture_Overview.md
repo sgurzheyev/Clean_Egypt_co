@@ -5,6 +5,7 @@
 ## Feature notes (keep the graph dense)
 
 - [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]] — Contractor stores, lilac map coverage, tiered bids, trust badges, missions RLS 2026-07-26
+- [[01_Architecture/Security_Audit_20260727]] — Pre-release RLS / PII / token-economy audit + hardening migration
 - [[01_Architecture/KYC_Verification]] — WebRTC liveness, private `kyc_documents`, admin signed URLs
 - [[01_Architecture/Security_and_RPCs]] — `submit_mission_proof`, locked contribute RPC, EGP removal
 - [[01_Architecture/P2P_Deal_Flow]] — USD direct payment + dispute (no fiat escrow)

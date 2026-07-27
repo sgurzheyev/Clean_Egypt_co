@@ -59,6 +59,7 @@ Chronological — June–July 2026 token / crowdfunding / privacy stack.
 | 2026-07-26 | [[20260726_contractor_stores.sql]] | Contractor storefronts: office pin, coverage polygon, services, materials, photos + RLS + `get_contractor_store()`. |
 | 2026-07-26 | [[20260726_store_supplies_bundles_recurrence.sql]] | `store_supplies`, JSONB `service_bundles`, recurrence on stores/missions, RPC updates. |
 | 2026-07-26 | [[20260726_tiered_bid_packages.sql]] | eBay-style `offer_packages` on bids; `place_mission_bid` / `accept_mission_bid` package selection. |
+| 2026-07-27 | [[20260727_security_hardening_rls_economy.sql]] | CRITICAL: mission_bids RLS, profiles economy column lock, phone/email revoke, service-only money RPCs, admin finance RPCs, notifications INSERT lock. |
 
 > Full marketplace architecture write-up: [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]]
 

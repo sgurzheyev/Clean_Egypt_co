@@ -2075,13 +2075,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
       }
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, contact_email, avatar_url, telegram_username, role, token_balance, subscription_expires_at')
+        .select('full_name, avatar_url, telegram_username, role, token_balance, subscription_expires_at')
         .eq('id', currentUserId)
         .maybeSingle();
+      let contactEmail: string | null = null;
+      try {
+        const { data: emailData } = await supabase.rpc('get_own_contact_email');
+        contactEmail = String(emailData ?? '').trim() || null;
+      } catch {
+        contactEmail = null;
+      }
       if (!cancelled) {
         setViewerProfile({
           full_name: (data as any)?.full_name ?? null,
-          contact_email: (data as any)?.contact_email ?? null,
+          contact_email: contactEmail,
           avatar_url: (data as any)?.avatar_url ?? null,
           telegram_username: (data as any)?.telegram_username ?? null,
           role: (data as any)?.role ?? null,

@@ -45,6 +45,13 @@ export async function getOwnPhoneNumber(): Promise<string | null> {
   return phone || null;
 }
 
+export async function getOwnContactEmail(): Promise<string | null> {
+  const { data, error } = await supabase.rpc('get_own_contact_email');
+  if (error) throw error;
+  const email = String(data ?? '').trim();
+  return email || null;
+}
+
 export async function getMissionWorkerPhone(missionId: string): Promise<string | null> {
   if (!missionId) return null;
   const { data, error } = await supabase.rpc('get_mission_worker_phone', {

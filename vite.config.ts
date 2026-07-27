@@ -52,8 +52,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [react(), firebaseMessagingSwPlugin(mode)],
     define: {
-      'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      // Do not embed GEMINI_API_KEY / other secrets into the client bundle.
       global: 'window',
     },
     resolve: {

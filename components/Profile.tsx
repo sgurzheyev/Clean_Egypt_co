@@ -51,7 +51,7 @@ import {
 import { filterMissionsByMutedCreators } from '../src/lib/mutedCreators';
 import { useMutedCreators } from '../src/hooks/useMutedCreators';
 import { checkHomeMissionWorkerVerification } from '../src/lib/homeMissionAccess';
-import { getMissionWorkerPhone, getOwnPhoneNumber } from '../src/lib/missionContact';
+import { getMissionWorkerPhone, getOwnContactEmail, getOwnPhoneNumber } from '../src/lib/missionContact';
 import { creatorRejectProof, submitMissionProof } from '../src/lib/submitMissionProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import RatingReviewModal, { type RatingTarget } from './RatingReviewModal';
@@ -864,24 +864,34 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       const { data: profile } = await supabase
         .from('profiles')
         .select(
-          'id, role, token_balance, subscription_expires_at, contact_email, is_verified, verification_status, full_name, telegram_username, rating, avatar_url'
+          'id, role, token_balance, subscription_expires_at, is_verified, verification_status, full_name, telegram_username, rating, avatar_url'
         )
         .eq('id', userId)
         .maybeSingle();
 
       const profileRow = profile as ProfileRow | null;
       let ownPhone = '';
+      let ownEmail = '';
       try {
         ownPhone = (await getOwnPhoneNumber()) || '';
       } catch (e) {
         console.warn('get_own_phone_number failed', e);
       }
-      setUserProfile(profileRow ? { ...profileRow, phone_number: ownPhone || null } : null);
+      try {
+        ownEmail = (await getOwnContactEmail()) || '';
+      } catch (e) {
+        console.warn('get_own_contact_email failed', e);
+      }
+      setUserProfile(
+        profileRow
+          ? { ...profileRow, phone_number: ownPhone || null, contact_email: ownEmail || null }
+          : null
+      );
       if (profileRow) {
         setPhoneNumber(ownPhone);
         setTelegramUsername(profileRow.telegram_username ?? '');
-        setContactEmail(profileRow.contact_email ?? session.user.email ?? '');
-        setContactEditMode(!(profileRow.contact_email || ownPhone || profileRow.telegram_username));
+        setContactEmail(ownEmail || session.user.email || '');
+        setContactEditMode(!(ownEmail || ownPhone || profileRow.telegram_username));
       }
 
       const { data: homeJobsData } = await supabase

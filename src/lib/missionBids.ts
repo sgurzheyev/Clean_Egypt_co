@@ -26,10 +26,16 @@ export type MissionBidRow = {
   } | null;
 };
 
-export function bidWorkerDisplayName(bid: MissionBidRow): string {
+export function bidWorkerDisplayName(
+  bid: MissionBidRow,
+  opts?: { unlockContact?: boolean }
+): string {
   const c = bid.cleaner;
   if (c?.full_name?.trim()) return c.full_name.trim();
-  if (c?.telegram_username?.trim()) return `@${c.telegram_username.trim()}`;
+  const unlock =
+    opts?.unlockContact ?? String(bid.status || '').toLowerCase() === 'accepted';
+  // Hungry-Games: Telegram stays locked until the bid is accepted.
+  if (unlock && c?.telegram_username?.trim()) return `@${c.telegram_username.trim()}`;
   return 'Eco Hero';
 }
 
@@ -38,19 +44,32 @@ export function rowToMissionBid(row: Record<string, unknown>): MissionBidRow {
   const selected = row.selected_package
     ? normalizeBidOfferPackages([row.selected_package])[0] ?? null
     : null;
+  const status = String(row.status || 'pending');
+  const cleanerRaw = row.cleaner as MissionBidRow['cleaner'] | MissionBidRow['cleaner'][] | null;
+  const cleanerRow = Array.isArray(cleanerRaw) ? cleanerRaw[0] : cleanerRaw;
+  const accepted = status.toLowerCase() === 'accepted';
+  const cleaner = cleanerRow
+    ? {
+        full_name: cleanerRow.full_name ?? null,
+        avatar_url: cleanerRow.avatar_url ?? null,
+        rating: cleanerRow.rating ?? null,
+        // Redact Telegram for pending bids (network still may carry it; UI + helpers hide it).
+        telegram_username: accepted ? cleanerRow.telegram_username ?? null : null,
+      }
+    : null;
   return {
     id: String(row.id),
     mission_id: String(row.mission_id),
     cleaner_id: String(row.cleaner_id),
     bid_amount: Number(row.bid_amount) || 0,
-    status: String(row.status ?? ''),
+    status,
     created_at: String(row.created_at ?? ''),
     offer_packages: packages,
     selected_package_id: row.selected_package_id
       ? String(row.selected_package_id)
       : null,
     selected_package: selected,
-    cleaner: (row.cleaner as MissionBidRow['cleaner']) ?? null,
+    cleaner,
   };
 }
 
