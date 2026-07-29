@@ -340,10 +340,20 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
             exit={{ y: 32, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 280, damping: 24 }}
             onClick={(e) => e.stopPropagation()}
-            className="ce-bottom-sheet absolute inset-x-0 bottom-0 mx-auto flex w-full max-w-xl flex-col overflow-hidden rounded-t-2xl border-t border-white/10 bg-[#0A0A12]/95 shadow-[0_-12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl"
-            style={{ maxHeight: 'min(85svh, 85dvh, 85vh)', height: 'min(85svh, 85dvh, 85vh)' }}
+            className="ce-bottom-sheet absolute inset-x-0 bottom-0 mx-auto flex h-[min(85svh,85dvh,85vh)] max-h-[min(85svh,85dvh,85vh)] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl border-t border-white/10 bg-[#0A0A12]/95 shadow-[0_-12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              height: 'min(85svh, 85dvh, 85vh)',
+              maxHeight: 'min(85svh, 85dvh, 85vh)',
+            }}
           >
-            <div className="flex min-h-0 flex-1 flex-col">
+            {/* Column shell: header + filters (shrink-0) + Virtuoso (flex-1 min-h-0).
+                Filters stay outside Virtuoso so expand/collapse never remounts the list. */}
+            <div
+              className="flex h-full min-h-0 w-full flex-1 flex-col"
+              style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}
+            >
               <div className="relative shrink-0 border-b border-white/10 bg-[#0A0A12]/95 p-4 backdrop-blur-xl">
                 <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-white/20" aria-hidden />
                 <button
@@ -360,7 +370,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                 <p className="mt-0.5 pr-10 text-xs text-slate-500">{t('liveMarketBrowseHint')}</p>
               </div>
 
-              <div className="shrink-0 border-b border-white/5 px-3 pt-3 pb-2">
+              <div className="max-h-[min(42%,22rem)] shrink-0 overflow-x-hidden overflow-y-auto overscroll-contain border-b border-white/5 px-3 pt-3 pb-2">
                 <MissionFilterPanel
                   sortMode={sortMode}
                   onSortChange={setSortMode}
@@ -378,7 +388,11 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                 />
               </div>
 
-              <div className="min-h-0 flex-1">
+              {/* Critical: flex-1 + min-h-0 so Virtuoso owns internal scroll when filters grow. */}
+              <div
+                className="relative min-h-0 flex-1 overflow-hidden"
+                style={{ flex: '1 1 0%', minHeight: 0 }}
+              >
                 {loading && (
                   <p className="py-4 text-center text-xs text-slate-400">{t('loading')}</p>
                 )}
@@ -394,115 +408,118 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                   </p>
                 )}
                 {!loading && !loadError && visibleMissions.length > 0 && (
-                  <Virtuoso
-                    style={{ height: '100%', width: '100%' }}
-                    data={visibleMissions}
-                    computeItemKey={(_index, mission) => String(mission.id)}
-                    increaseViewportBy={MARKET_LIST_OVERSCAN_PX}
-                    itemContent={(_index, mission) => {
-                      const budget = missionWorkBudgetUsd(mission);
-                      const isOwnTask =
-                        !!currentUserId && mission.creator_id === currentUserId;
-                      const isHome =
-                        missionSector(mission.service_type, mission.category) === 'home';
-                      const remainingForStart = fundingCleanerLockRemaining(mission);
-                      const statusLabel =
-                        mission.status === 'in_progress' ? t('accepted') : mission.status;
+                  <div className="absolute inset-0 min-h-0" style={{ height: '100%', minHeight: 0 }}>
+                    <Virtuoso
+                      style={{ height: '100%', width: '100%' }}
+                      data={visibleMissions}
+                      computeItemKey={(_index, mission) => String(mission.id)}
+                      increaseViewportBy={MARKET_LIST_OVERSCAN_PX}
+                      itemContent={(_index, mission) => {
+                        const budget = missionWorkBudgetUsd(mission);
+                        const isOwnTask =
+                          !!currentUserId && mission.creator_id === currentUserId;
+                        const isHome =
+                          missionSector(mission.service_type, mission.category) === 'home';
+                        const remainingForStart = fundingCleanerLockRemaining(mission);
+                        const statusLabel =
+                          mission.status === 'in_progress' ? t('accepted') : mission.status;
 
-                      return (
-                        <div
-                          key={mission.id}
-                          data-mission-id={mission.id}
-                          className="px-3 pb-3"
-                          style={CARD_GPU_STYLE}
-                        >                          <MissionFeedCard
-                            photoUrl={mission.photo_urls?.[0] ?? null}
-                            placeholderVariant={isHome ? 'home' : 'city'}
-                            placeholderIcon={missionPinIcon(
-                              mission.service_type,
-                              mission.category
-                            )}
-                            budgetValue={formatWorkBudgetUsd(budget)}
-                            locationLine={missionLocationLine(mission, t)}
-                            description={extractMissionFeedDescription(mission.description)}
-                            metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
-                            submittedLabel={
-                              mission.created_at
-                                ? `${t('submittedLabel')}: ${formatSubmittedRelative(
-                                    mission.created_at,
-                                    i18n.language
-                                  )}`
-                                : undefined
-                            }
-                            creatorAvatarUrl={mission.creator?.avatar_url ?? null}
-                            creatorName={mission.creator?.full_name ?? null}
-                            creatorAriaLabel={t('viewCreatorProfile')}
-                            trustBadges={
-                              mission.creator_id &&
-                              (creatorBadges[mission.creator_id]?.length ?? 0) > 0 ? (
-                                <TrustBadgeRow
-                                  badges={creatorBadges[mission.creator_id]}
-                                  compact
-                                  vertical
-                                />
-                              ) : undefined
-                            }
-                            onCreatorClick={
-                              mission.creator_id
-                                ? () => {
-                                    onClose();
-                                    navigate(`/profile/${mission.creator_id}`);
-                                  }
-                                : undefined
-                            }
-                            highlighted={isOwnTask}
-                            topLeftBadge={
-                              isOwnTask ? (
-                                <span className="rounded-full border border-emerald-400/50 bg-emerald-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100 backdrop-blur-sm">
-                                  {t('yourTaskBadge')}
+                        return (
+                          <div
+                            key={mission.id}
+                            data-mission-id={mission.id}
+                            className="px-3 pb-3"
+                            style={CARD_GPU_STYLE}
+                          >
+                            <MissionFeedCard
+                              photoUrl={mission.photo_urls?.[0] ?? null}
+                              placeholderVariant={isHome ? 'home' : 'city'}
+                              placeholderIcon={missionPinIcon(
+                                mission.service_type,
+                                mission.category
+                              )}
+                              budgetValue={formatWorkBudgetUsd(budget)}
+                              locationLine={missionLocationLine(mission, t)}
+                              description={extractMissionFeedDescription(mission.description)}
+                              metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
+                              submittedLabel={
+                                mission.created_at
+                                  ? `${t('submittedLabel')}: ${formatSubmittedRelative(
+                                      mission.created_at,
+                                      i18n.language
+                                    )}`
+                                  : undefined
+                              }
+                              creatorAvatarUrl={mission.creator?.avatar_url ?? null}
+                              creatorName={mission.creator?.full_name ?? null}
+                              creatorAriaLabel={t('viewCreatorProfile')}
+                              trustBadges={
+                                mission.creator_id &&
+                                (creatorBadges[mission.creator_id]?.length ?? 0) > 0 ? (
+                                  <TrustBadgeRow
+                                    badges={creatorBadges[mission.creator_id]}
+                                    compact
+                                    vertical
+                                  />
+                                ) : undefined
+                              }
+                              onCreatorClick={
+                                mission.creator_id
+                                  ? () => {
+                                      onClose();
+                                      navigate(`/profile/${mission.creator_id}`);
+                                    }
+                                  : undefined
+                              }
+                              highlighted={isOwnTask}
+                              topLeftBadge={
+                                isOwnTask ? (
+                                  <span className="rounded-full border border-emerald-400/50 bg-emerald-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100 backdrop-blur-sm">
+                                    {t('yourTaskBadge')}
+                                  </span>
+                                ) : undefined
+                              }
+                              statusBadge={
+                                <span
+                                  className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${statusClass(
+                                    mission.status
+                                  )}`}
+                                >
+                                  {t('status')}: {statusLabel}
                                 </span>
-                              ) : undefined
-                            }
-                            statusBadge={
-                              <span
-                                className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${statusClass(
-                                  mission.status
-                                )}`}
-                              >
-                                {t('status')}: {statusLabel}
-                              </span>
-                            }
-                            callout={
-                              remainingForStart != null ? (
-                                <span className="inline-flex max-w-full rounded-lg border border-violet-400/45 bg-violet-600/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-[0_4px_14px_rgba(139,92,246,0.35)] backdrop-blur-sm">
-                                  {t('feedCleanerLockedNeedsMore', {
-                                    amount: remainingForStart,
-                                    defaultValue:
-                                      'Cleaner locked in! Needs ${{amount}} more to start',
-                                  })}
-                                </span>
-                              ) : undefined
-                            }
-                            onClick={() => onSelectMission(mission)}
-                            onPhotoClick={() => setImmersiveStartId(mission.id)}
-                            photoAriaLabel={t('immersiveOpenFeed', {
-                              defaultValue: 'Open visual feed',
-                            })}
-                            onLocate={() => onSelectMission(mission)}
-                            locateAriaLabel={t('locateOnMap')}
+                              }
+                              callout={
+                                remainingForStart != null ? (
+                                  <span className="inline-flex max-w-full rounded-lg border border-violet-400/45 bg-violet-600/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-[0_4px_14px_rgba(139,92,246,0.35)] backdrop-blur-sm">
+                                    {t('feedCleanerLockedNeedsMore', {
+                                      amount: remainingForStart,
+                                      defaultValue:
+                                        'Cleaner locked in! Needs ${{amount}} more to start',
+                                    })}
+                                  </span>
+                                ) : undefined
+                              }
+                              onClick={() => onSelectMission(mission)}
+                              onPhotoClick={() => setImmersiveStartId(mission.id)}
+                              photoAriaLabel={t('immersiveOpenFeed', {
+                                defaultValue: 'Open visual feed',
+                              })}
+                              onLocate={() => onSelectMission(mission)}
+                              locateAriaLabel={t('locateOnMap')}
+                            />
+                          </div>
+                        );
+                      }}
+                      components={{
+                        Footer: () => (
+                          <div
+                            className="h-[max(2.5rem,calc(env(safe-area-inset-bottom,0px)+2rem))]"
+                            aria-hidden
                           />
-                        </div>
-                      );
-                    }}
-                    components={{
-                      Footer: () => (
-                        <div
-                          className="h-[max(2.5rem,calc(env(safe-area-inset-bottom,0px)+2rem))]"
-                          aria-hidden
-                        />
-                      ),
-                    }}
-                  />
+                        ),
+                      }}
+                    />
+                  </div>
                 )}
               </div>
             </div>
