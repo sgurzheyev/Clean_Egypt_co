@@ -5,7 +5,9 @@
  */
 import { supabase } from '../../services/supabase';
 import type { ServiceType } from './serviceSectors';
+import { DEFAULT_STORE_COLOR, normalizeStoreColor } from './mapboxStandardTheme';
 
+export { DEFAULT_STORE_COLOR, normalizeStoreColor };
 /** GeoJSON Polygon coordinates: outer ring first, then holes. */
 export type GeoJsonPosition = [number, number]; // [lng, lat]
 
@@ -88,6 +90,8 @@ export type ContractorStore = {
   store_name: string | null;
   store_bio: string | null;
   is_published: boolean;
+  /** HEX `#rrggbb` for map coverage + pin. */
+  color: string;
   service_bundles: ServiceBundle[];
   recurrence_type: RecurrenceType;
   supported_recurrence_types: RecurrenceType[];
@@ -106,6 +110,7 @@ export type ContractorStoreDraft = {
   store_name: string;
   store_bio: string;
   is_published: boolean;
+  color: string;
   service_bundles: ServiceBundle[];
   recurrence_type: RecurrenceType;
   supported_recurrence_types: RecurrenceType[];
@@ -122,6 +127,7 @@ export const EMPTY_STORE_DRAFT: ContractorStoreDraft = {
   store_name: '',
   store_bio: '',
   is_published: false,
+  color: DEFAULT_STORE_COLOR,
   service_bundles: [],
   recurrence_type: 'one_time',
   supported_recurrence_types: ['one_time'],
@@ -377,6 +383,7 @@ export function rowToContractorStore(row: Record<string, unknown>): ContractorSt
     store_name: (row.store_name as string | null) ?? null,
     store_bio: (row.store_bio as string | null) ?? null,
     is_published: Boolean(row.is_published),
+    color: normalizeStoreColor(row.color),
     service_bundles: normalizeServiceBundles(row.service_bundles),
     recurrence_type: supported.includes(primary) ? primary : supported[0],
     supported_recurrence_types: supported,
@@ -398,6 +405,7 @@ export function storeToDraft(store: ContractorStore | null): ContractorStoreDraf
     store_name: store.store_name ?? '',
     store_bio: store.store_bio ?? '',
     is_published: store.is_published,
+    color: normalizeStoreColor(store.color),
     service_bundles: store.service_bundles.map((b) => ({ ...b })),
     recurrence_type: store.recurrence_type,
     supported_recurrence_types: [...store.supported_recurrence_types],
@@ -482,6 +490,7 @@ export async function upsertContractorStore(
     store_name: draft.store_name.trim() || null,
     store_bio: draft.store_bio.trim() || null,
     is_published: Boolean(draft.is_published),
+    color: normalizeStoreColor(draft.color),
     service_bundles: normalizeServiceBundles(draft.service_bundles),
     recurrence_type: primary,
     supported_recurrence_types: supported,

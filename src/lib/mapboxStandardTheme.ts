@@ -10,14 +10,37 @@
 export const MAPBOX_STANDARD_STYLE = 'mapbox://styles/mapbox/standard' as const;
 
 /** Neon store coverage / pin accents — high contrast on dusk monochrome land. */
-export const STORE_COVERAGE_FILL = '#ff00ff';
+export const DEFAULT_STORE_COLOR = '#22d3ee';
+/** @deprecated Prefer DEFAULT_STORE_COLOR / per-store `color` — kept as fallback paint. */
+export const STORE_COVERAGE_FILL = DEFAULT_STORE_COLOR;
 export const STORE_COVERAGE_FILL_OPACITY = 0.35;
-export const STORE_COVERAGE_STROKE = '#bc7dfa';
+export const STORE_COVERAGE_STROKE = DEFAULT_STORE_COLOR;
 export const STORE_COVERAGE_STROKE_WIDTH = 3;
-export const STORE_PIN_CORE = '#bc7dfa';
-export const STORE_PIN_GLOW = '#bc7dfa';
+export const STORE_PIN_CORE = DEFAULT_STORE_COLOR;
+export const STORE_PIN_GLOW = DEFAULT_STORE_COLOR;
 export const STORE_PIN_STROKE = '#ffffff';
 
+/** Curated neon palette for store zone customization. */
+export const STORE_NEON_PALETTE = [
+  { id: 'cyan', hex: '#22d3ee', labelKey: 'storeColorCyan' },
+  { id: 'acid', hex: '#39ff14', labelKey: 'storeColorAcid' },
+  { id: 'magenta', hex: '#ff00ff', labelKey: 'storeColorMagenta' },
+  { id: 'violet', hex: '#c026ff', labelKey: 'storeColorViolet' },
+  { id: 'yellow', hex: '#facc15', labelKey: 'storeColorYellow' },
+  { id: 'hotpink', hex: '#ff2d55', labelKey: 'storeColorHotPink' },
+  { id: 'orange', hex: '#ff6b00', labelKey: 'storeColorOrange' },
+  { id: 'electric', hex: '#00ffff', labelKey: 'storeColorElectric' },
+] as const;
+
+export type StoreNeonPaletteId = (typeof STORE_NEON_PALETTE)[number]['id'];
+
+/** Normalize / validate `#RRGGBB`; falls back to DEFAULT_STORE_COLOR. */
+export function normalizeStoreColor(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (/^#[0-9A-Fa-f]{6}$/.test(raw)) return raw.toLowerCase();
+  if (/^[0-9A-Fa-f]{6}$/.test(raw)) return `#${raw.toLowerCase()}`;
+  return DEFAULT_STORE_COLOR;
+}
 export type MapboxLightPreset = 'dusk' | 'dawn' | 'day' | 'night';
 
 /**

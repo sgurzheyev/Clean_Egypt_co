@@ -56,6 +56,11 @@ import {
   type OfflineUploadFlushedDetail,
 } from '../src/lib/offlineUploadQueue';
 import { recurrenceLabelKey } from './StoreShowcaseSections';
+import {
+  DEFAULT_STORE_COLOR,
+  normalizeStoreColor,
+  STORE_NEON_PALETTE,
+} from '../src/lib/mapboxStandardTheme';
 import StoreCoverageMap from './StoreCoverageMap';
 
 export type ContractorStorePanelProps = {
@@ -707,10 +712,72 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
                 defaultValue: 'Office & coverage zone',
               })}
             </p>
+
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                {t('storeZoneColor', { defaultValue: 'Zone color' })}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                {STORE_NEON_PALETTE.map((swatch) => {
+                  const active =
+                    normalizeStoreColor(draft.color) ===
+                    normalizeStoreColor(swatch.hex);
+                  return (
+                    <button
+                      key={swatch.id}
+                      type="button"
+                      title={t(swatch.labelKey, { defaultValue: swatch.hex })}
+                      aria-label={t(swatch.labelKey, { defaultValue: swatch.hex })}
+                      aria-pressed={active}
+                      onClick={() =>
+                        setDraft((p) => ({
+                          ...p,
+                          color: normalizeStoreColor(swatch.hex),
+                        }))
+                      }
+                      className={`h-8 w-8 rounded-full border-2 transition-transform active:scale-95 ${
+                        active
+                          ? 'scale-110 border-white shadow-[0_0_14px_currentColor]'
+                          : 'border-white/25 hover:border-white/60'
+                      }`}
+                      style={{
+                        backgroundColor: swatch.hex,
+                        color: swatch.hex,
+                        boxShadow: active
+                          ? `0 0 14px ${swatch.hex}, 0 0 28px ${swatch.hex}66`
+                          : undefined,
+                      }}
+                    />
+                  );
+                })}
+                <label className="relative inline-flex h-8 w-8 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-white/35 bg-black/40 text-[9px] font-black uppercase tracking-wider text-slate-400 hover:border-cyan-400/50">
+                  <span aria-hidden>+</span>
+                  <input
+                    type="color"
+                    value={normalizeStoreColor(draft.color || DEFAULT_STORE_COLOR)}
+                    onChange={(e) =>
+                      setDraft((p) => ({
+                        ...p,
+                        color: normalizeStoreColor(e.target.value),
+                      }))
+                    }
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                    aria-label={t('storeZoneColorCustom', {
+                      defaultValue: 'Custom color',
+                    })}
+                  />
+                </label>
+                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-400">
+                  {normalizeStoreColor(draft.color)}
+                </span>
+              </div>
+            </div>
+
             <StoreCoverageMap
               officeLat={draft.office_lat}
               officeLng={draft.office_lng}
               polygon={draft.service_radius_polygon}
+              zoneColor={draft.color}
               onOfficeChange={(lat, lng) =>
                 setDraft((p) => ({ ...p, office_lat: lat, office_lng: lng }))
               }

@@ -209,6 +209,7 @@ const StorefrontPage: React.FC = () => {
                   officeLat={store.office_lat}
                   officeLng={store.office_lng}
                   polygon={store.service_radius_polygon}
+                  zoneColor={store.color}
                   onOfficeChange={() => undefined}
                   onPolygonChange={() => undefined}
                   interactive={false}

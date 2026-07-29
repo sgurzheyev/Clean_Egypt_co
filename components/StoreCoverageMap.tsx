@@ -24,14 +24,13 @@ import {
   applyMapboxStandardBasemapConfig,
   isMapStyleReady,
   MAPBOX_STANDARD_STYLE,
-  STORE_COVERAGE_FILL,
+  DEFAULT_STORE_COLOR,
+  normalizeStoreColor,
   STORE_COVERAGE_FILL_OPACITY,
-  STORE_COVERAGE_STROKE,
   STORE_COVERAGE_STROKE_WIDTH,
-  STORE_PIN_CORE,
+  STORE_PIN_STROKE,
   whenMapStyleReady,
 } from '../src/lib/mapboxStandardTheme';
-
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
 
 type Mode = 'office' | 'draw' | 'idle';
@@ -42,6 +41,8 @@ export type StoreCoverageMapProps = {
   polygon: ServiceRadiusPolygon | null;
   onOfficeChange: (lat: number, lng: number) => void;
   onPolygonChange: (polygon: ServiceRadiusPolygon | null) => void;
+  /** HEX zone accent — coverage fill/stroke + office pin. */
+  zoneColor?: string | null;
   /** Compact height for profile accordion. */
   heightClassName?: string;
   interactive?: boolean;
@@ -53,10 +54,12 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
   polygon,
   onOfficeChange,
   onPolygonChange,
+  zoneColor,
   heightClassName = 'h-56',
   interactive = true,
 }) => {
   const { t } = useTranslation();
+  const accent = normalizeStoreColor(zoneColor ?? DEFAULT_STORE_COLOR);
   const mapRef = useRef<MapRef | null>(null);
   const hasOffice =
     typeof officeLat === 'number' &&
@@ -379,14 +382,17 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
             id="store-coverage-preview"
             type="geojson"
             data={previewGeoJson}
-            key={polygon ? JSON.stringify(polygon.coordinates?.[0]?.[0]) : 'empty'}
-          >
+            key={
+              polygon
+                ? `${accent}-${JSON.stringify(polygon.coordinates?.[0]?.[0])}`
+                : `empty-${accent}`
+            }          >
             <Layer
               id="store-coverage-fill"
               type="fill"
               filter={['==', '$type', 'Polygon']}
               paint={{
-                'fill-color': STORE_COVERAGE_FILL,
+                'fill-color': accent,
                 'fill-opacity': STORE_COVERAGE_FILL_OPACITY,
               }}
             />
@@ -394,7 +400,7 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
               id="store-coverage-line"
               type="line"
               paint={{
-                'line-color': STORE_COVERAGE_STROKE,
+                'line-color': accent,
                 'line-width': STORE_COVERAGE_STROKE_WIDTH,
                 'line-opacity': 1,
               }}
@@ -417,9 +423,9 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
                 <span
                   className="rounded-full border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white backdrop-blur-sm"
                   style={{
-                    borderColor: 'rgba(255,255,255,0.85)',
-                    backgroundColor: 'rgba(188,125,250,0.45)',
-                    boxShadow: '0 0 12px rgba(188,125,250,0.75)',
+                    borderColor: STORE_PIN_STROKE,
+                    backgroundColor: `${accent}73`,
+                    boxShadow: `0 0 12px ${accent}bf`,
                   }}
                 >
                   {t('storeOfficeBadge', { defaultValue: 'Office' })}
@@ -429,7 +435,7 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
                     className="absolute inset-0 rounded-full"
                     style={{
                       backgroundColor: '#ffffff',
-                      boxShadow: `0 0 16px ${STORE_PIN_CORE}, 0 0 28px rgba(255,0,255,0.55)`,
+                      boxShadow: `0 0 16px ${accent}, 0 0 28px ${accent}8c`,
                       opacity: 0.95,
                     }}
                     aria-hidden
@@ -437,8 +443,8 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
                   <MapPin
                     className="relative h-7 w-7"
                     style={{
-                      color: STORE_PIN_CORE,
-                      filter: 'drop-shadow(0 0 8px rgba(188,125,250,0.95))',
+                      color: accent,
+                      filter: `drop-shadow(0 0 8px ${accent})`,
                     }}
                   />
                 </span>

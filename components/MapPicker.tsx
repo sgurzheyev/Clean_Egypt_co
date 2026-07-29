@@ -123,17 +123,14 @@ import {
   applyMapboxStandardBasemapConfig,
   isMapStyleReady,
   MAPBOX_STANDARD_STYLE,
+  normalizeStoreColor,
   resolveMapboxLightPreset,
-  STORE_COVERAGE_FILL,
+  DEFAULT_STORE_COLOR,
   STORE_COVERAGE_FILL_OPACITY,
-  STORE_COVERAGE_STROKE,
   STORE_COVERAGE_STROKE_WIDTH,
-  STORE_PIN_CORE,
-  STORE_PIN_GLOW,
   STORE_PIN_STROKE,
   whenMapStyleReady,
-} from '../src/lib/mapboxStandardTheme';
-import {
+} from '../src/lib/mapboxStandardTheme';import {
   applyWeatherFog,
   isWeatherDebugEnabled,
   setWeatherDebugEnabled,
@@ -4103,25 +4100,29 @@ const MapPicker: React.FC<MapPickerProps> = ({
         store_id: String(s.id),
         owner_id: String(s.owner_id),
         store_name: s.store_name || '',
+        color: normalizeStoreColor(s.color),
         selected: selectedStore?.id === s.id ? 1 : 0,
       },
     }));
     return { type: 'FeatureCollection' as const, features };
   }, [storeMode, filteredStores, selectedStore?.id]);
 
-  /** Lilac coverage fill for the selected store (Idealista-style zone highlight). */
+  /** Coverage fill for the selected store — uses that store's custom neon color. */
   const storeCoverageGeoJSON = useMemo(() => {
     const poly = selectedStore?.service_radius_polygon;
     if (!storeMode || !poly || !selectedStore) {
       return { type: 'FeatureCollection' as const, features: [] };
     }
-    // Deep-clone geometry so Mapbox Source always sees a fresh object.
+    const accent = normalizeStoreColor(selectedStore.color);
     return {
       type: 'FeatureCollection' as const,
       features: [
         {
           type: 'Feature' as const,
-          properties: { store_id: String(selectedStore.id) },
+          properties: {
+            store_id: String(selectedStore.id),
+            color: accent,
+          },
           geometry: {
             type: 'Polygon' as const,
             coordinates: poly.coordinates.map((ring) =>
@@ -4133,6 +4134,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
     };
   }, [storeMode, selectedStore]);
 
+  const selectedStoreAccent = useMemo(
+    () => normalizeStoreColor(selectedStore?.color),
+    [selectedStore?.color]
+  );
   // Ensure Mapbox Source data + camera stay in sync when a store is selected.
   useEffect(() => {
     if (!storeMode || !selectedStore) return;
@@ -4951,7 +4956,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           <>
             <Source
               id="store-coverage"
-              key={`store-coverage-${selectedStore?.id ?? 'none'}`}
+              key={`store-coverage-${selectedStore?.id ?? 'none'}-${selectedStoreAccent}`}
               type="geojson"
               data={storeCoverageGeoJSON}
             >
@@ -4960,7 +4965,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 type="fill"
                 filter={['==', '$type', 'Polygon']}
                 paint={{
-                  'fill-color': STORE_COVERAGE_FILL,
+                  'fill-color': [
+                    'coalesce',
+                    ['get', 'color'],
+                    selectedStoreAccent,
+                    DEFAULT_STORE_COLOR,
+                  ],
                   'fill-opacity': STORE_COVERAGE_FILL_OPACITY,
                 }}
               />
@@ -4968,7 +4978,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 id="store-coverage-line"
                 type="line"
                 paint={{
-                  'line-color': STORE_COVERAGE_STROKE,
+                  'line-color': [
+                    'coalesce',
+                    ['get', 'color'],
+                    selectedStoreAccent,
+                    DEFAULT_STORE_COLOR,
+                  ],
                   'line-width': STORE_COVERAGE_STROKE_WIDTH,
                   'line-opacity': 1,
                 }}
@@ -4990,7 +5005,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     22,
                     16,
                   ],
-                  'circle-color': STORE_PIN_GLOW,
+                  'circle-color': [
+                    'coalesce',
+                    ['get', 'color'],
+                    DEFAULT_STORE_COLOR,
+                  ],
                   'circle-blur': 0.7,
                   'circle-opacity': 0.55,
                 }}
@@ -5005,7 +5024,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     11,
                     8,
                   ],
-                  'circle-color': STORE_PIN_CORE,
+                  'circle-color': [
+                    'coalesce',
+                    ['get', 'color'],
+                    DEFAULT_STORE_COLOR,
+                  ],
                   'circle-stroke-width': 2.5,
                   'circle-stroke-color': STORE_PIN_STROKE,
                   'circle-opacity': 0.95,
