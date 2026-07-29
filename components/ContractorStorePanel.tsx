@@ -47,6 +47,14 @@ import {
   type StoreSupplyDraft,
   type SupplyCategory,
 } from '../src/lib/contractorStore';
+import {
+  OFFLINE_UPLOAD_FLUSHED_EVENT,
+  ensureOfflineUploadListeners,
+  enqueueOfflineUpload,
+  flushOfflineUploadQueue,
+  isUploadNetworkFailure,
+  type OfflineUploadFlushedDetail,
+} from '../src/lib/offlineUploadQueue';
 import { recurrenceLabelKey } from './StoreShowcaseSections';
 import StoreCoverageMap from './StoreCoverageMap';
 
@@ -78,11 +86,28 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
   const [uploading, setUploading] = useState(false);
   const [materialInput, setMaterialInput] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [errorIsSoft, setErrorIsSoft] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const showHardError = (message: string) => {
+    setErrorIsSoft(false);
+    setError(message);
+  };
+
+  const showSoftNetworkNotice = () => {
+    setErrorIsSoft(true);
+    setError(
+      t('weakConnectionQueuedUpload', {
+        defaultValue:
+          'Weak connection. Saving data — it will send automatically when the network is back.',
+      })
+    );
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setErrorIsSoft(false);
     try {
       const store = await fetchContractorStore(userId);
       setDraft(storeToDraft(store));
@@ -94,11 +119,15 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
       }
     } catch (err) {
       console.error('fetchContractorStore failed', err);
-      setError(
-        t('storeLoadFailed', {
-          defaultValue: 'Could not load your store. Try again.',
-        })
-      );
+      if (isUploadNetworkFailure(err)) {
+        showSoftNetworkNotice();
+      } else {
+        showHardError(
+          t('storeLoadFailed', {
+            defaultValue: 'Could not load your store. Try again.',
+          })
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -107,6 +136,37 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    ensureOfflineUploadListeners();
+    void flushOfflineUploadQueue(userId);
+  }, [userId]);
+
+  useEffect(() => {
+    const onFlushed = (ev: Event) => {
+      const detail = (ev as CustomEvent<OfflineUploadFlushedDetail>).detail;
+      if (!detail || detail.userId !== userId) return;
+      if (detail.kind === 'store_photo') {
+        setDraft((prev) => ({
+          ...prev,
+          store_photos: [...prev.store_photos, detail.url].slice(0, STORE_PHOTOS_MAX),
+        }));
+      } else if (detail.kind === 'supply_photo') {
+        setSupplyDraft((prev) =>
+          prev.image_url ? prev : { ...prev, image_url: detail.url }
+        );
+      }
+      setSuccess(
+        t('storeSavedDraft', {
+          defaultValue: 'Store draft saved.',
+        })
+      );
+      setError(null);
+      setErrorIsSoft(false);
+    };
+    window.addEventListener(OFFLINE_UPLOAD_FLUSHED_EVENT, onFlushed);
+    return () => window.removeEventListener(OFFLINE_UPLOAD_FLUSHED_EVENT, onFlushed);
+  }, [t, userId]);
 
   const toggleService = (id: ServiceType) => {
     setDraft((prev) => {
@@ -165,6 +225,7 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
     }
     setUploading(true);
     setError(null);
+    setErrorIsSoft(false);
     try {
       const urls: string[] = [];
       for (const file of files.slice(0, remaining)) {
@@ -174,19 +235,39 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
           useWebWorker: true,
           fileType: 'image/jpeg',
         })) as File;
-        urls.push(await uploadStorePhoto(userId, compressed));
+        try {
+          urls.push(await uploadStorePhoto(userId, compressed));
+        } catch (uploadErr) {
+          if (isUploadNetworkFailure(uploadErr)) {
+            await enqueueOfflineUpload({
+              userId,
+              kind: 'store_photo',
+              file: compressed,
+              fileName: compressed.name || file.name,
+            });
+            showSoftNetworkNotice();
+            continue;
+          }
+          throw uploadErr;
+        }
       }
-      setDraft((prev) => ({
-        ...prev,
-        store_photos: [...prev.store_photos, ...urls].slice(0, STORE_PHOTOS_MAX),
-      }));
+      if (urls.length > 0) {
+        setDraft((prev) => ({
+          ...prev,
+          store_photos: [...prev.store_photos, ...urls].slice(0, STORE_PHOTOS_MAX),
+        }));
+      }
     } catch (err) {
       console.error('store photo upload failed', err);
-      setError(
-        t('storePhotoUploadFailed', {
-          defaultValue: 'Photo upload failed. Please try again.',
-        })
-      );
+      if (isUploadNetworkFailure(err)) {
+        showSoftNetworkNotice();
+      } else {
+        showHardError(
+          t('storePhotoUploadFailed', {
+            defaultValue: 'Photo upload failed. Please try again.',
+          })
+        );
+      }
     } finally {
       setUploading(false);
     }
@@ -216,6 +297,7 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
     if (!file || !file.type.startsWith('image/')) return;
     setUploading(true);
     setError(null);
+    setErrorIsSoft(false);
     try {
       const compressed = (await imageCompression(file, {
         maxSizeMB: 0.5,
@@ -223,15 +305,33 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
         useWebWorker: true,
         fileType: 'image/jpeg',
       })) as File;
-      const url = await uploadSupplyPhoto(userId, compressed);
-      setSupplyDraft((prev) => ({ ...prev, image_url: url }));
+      try {
+        const url = await uploadSupplyPhoto(userId, compressed);
+        setSupplyDraft((prev) => ({ ...prev, image_url: url }));
+      } catch (uploadErr) {
+        if (isUploadNetworkFailure(uploadErr)) {
+          await enqueueOfflineUpload({
+            userId,
+            kind: 'supply_photo',
+            file: compressed,
+            fileName: compressed.name || file.name,
+          });
+          showSoftNetworkNotice();
+          return;
+        }
+        throw uploadErr;
+      }
     } catch (err) {
       console.error('supply photo upload failed', err);
-      setError(
-        t('storePhotoUploadFailed', {
-          defaultValue: 'Photo upload failed. Please try again.',
-        })
-      );
+      if (isUploadNetworkFailure(err)) {
+        showSoftNetworkNotice();
+      } else {
+        showHardError(
+          t('storePhotoUploadFailed', {
+            defaultValue: 'Photo upload failed. Please try again.',
+          })
+        );
+      }
     } finally {
       setUploading(false);
     }
@@ -416,11 +516,15 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
       );
     } catch (err) {
       console.error('upsertContractorStore failed', err);
-      setError(
-        t('storeSaveFailed', {
-          defaultValue: 'Could not save store. Check permissions and try again.',
-        })
-      );
+      if (isUploadNetworkFailure(err)) {
+        showSoftNetworkNotice();
+      } else {
+        showHardError(
+          t('storeSaveFailed', {
+            defaultValue: 'Could not save store. Check permissions and try again.',
+          })
+        );
+      }
     } finally {
       setSaving(false);
     }
@@ -1111,7 +1215,15 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
         </div>
       )}
 
-      {error && <p className="text-xs font-medium text-red-400">{error}</p>}
+      {error && (
+        <p
+          className={`text-xs font-medium ${
+            errorIsSoft ? 'text-amber-300' : 'text-red-400'
+          }`}
+        >
+          {error}
+        </p>
+      )}
       {success && <p className="text-xs font-medium text-emerald-400">{success}</p>}
 
       {(tab === 'basics' || tab === 'bundles' || tab === 'recurring') && (

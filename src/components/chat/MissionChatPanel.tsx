@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { ImagePlus, Loader2, Send, X } from 'lucide-react';
 import { useMissionChat } from '../../hooks/useMissionChat';
 import { uploadChatPhoto } from '../../lib/chatPhotoUpload';
+import { isUploadNetworkFailure } from '../../lib/offlineUploadQueue';
 
 export type MissionChatPanelProps = {
   open: boolean;
@@ -145,9 +146,14 @@ const MissionChatPanel: React.FC<MissionChatPanelProps> = ({
       } catch (err) {
         console.error('[MissionChatPanel] photo upload failed', err);
         setAttachError(
-          t('missionChatUploadFailed', {
-            defaultValue: 'Could not upload photo. Try again.',
-          })
+          isUploadNetworkFailure(err)
+            ? t('weakConnectionQueuedUpload', {
+                defaultValue:
+                  'Weak connection. Saving data — it will send automatically when the network is back.',
+              })
+            : t('missionChatUploadFailed', {
+                defaultValue: 'Could not upload photo. Try again.',
+              })
         );
         setUploadingPhoto(false);
         return;

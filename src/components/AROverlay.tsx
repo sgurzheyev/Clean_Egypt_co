@@ -7,6 +7,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { XR, createXRStore } from '@react-three/xr';
 import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../services/supabase';
 
 /**
@@ -325,14 +326,21 @@ const GLASS_PANEL =
   'backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl';
 
 export default function AROverlay({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   // Fresh store per mount — never reuses a singleton with stale session config.
   const store = useMemo(() => createAROnlyStore(), []);
   const [missions, setMissions] = useState<ARMission[]>([]);
   const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorTone, setErrorTone] = useState<'soft' | 'hard'>('hard');
   const [xrSupported, setXrSupported] = useState<boolean | null>(null);
   const [inSession, setInSession] = useState(false);
   const closedRef = useRef(false);
+
+  const unsupportedMsg = t('arUnsupportedDevice', {
+    defaultValue:
+      'Your device does not support augmented reality technologies (WebXR).',
+  });
 
   // 1) Capability check — immersive-ar only
   useEffect(() => {
@@ -340,6 +348,8 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
     const xr = (navigator as any).xr;
     if (!xr?.isSessionSupported) {
       setXrSupported(false);
+      setErrorTone('soft');
+      setError(unsupportedMsg);
       return;
     }
     xr.isSessionSupported('immersive-ar')
@@ -347,14 +357,22 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
         if (cancelled) return;
         console.log('[AROverlay] isSessionSupported(immersive-ar):', ok);
         setXrSupported(ok);
+        if (!ok) {
+          setErrorTone('soft');
+          setError(unsupportedMsg);
+        }
       })
       .catch(() => {
-        if (!cancelled) setXrSupported(false);
+        if (!cancelled) {
+          setXrSupported(false);
+          setErrorTone('soft');
+          setError(unsupportedMsg);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [unsupportedMsg]);
 
   // 2) Geolocation (origin for GPS→AR mapping).
   // High-accuracy GPS can tick every second; each new origin object re-renders
@@ -363,7 +381,12 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
   // visually irrelevant.
   useEffect(() => {
     if (!navigator.geolocation) {
-      setError('Geolocation is not available on this device.');
+      setErrorTone('soft');
+      setError(
+        t('arGpsUnavailable', {
+          defaultValue: 'Geolocation is not available on this device.',
+        })
+      );
       return;
     }
     let last: { lat: number; lng: number } | null = null;
@@ -378,11 +401,16 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
         last = next;
         setOrigin(next);
       },
-      (err) => setError(err.message || 'Location permission denied.'),
+      (err) => {
+        setErrorTone('soft');
+        setError(err.message || t('arGpsUnavailable', {
+          defaultValue: 'Geolocation is not available on this device.',
+        }));
+      },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
+  }, [t]);
 
   // 3) Missions from Supabase (existing client, no map coupling)
   useEffect(() => {
@@ -461,11 +489,24 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
       } catch {
         /* ignore */
       }
+      const msg = String(err?.message || '').toLowerCase();
+      const unsupported =
+        msg.includes('not supported') ||
+        msg.includes('unsupported') ||
+        err?.name === 'NotSupportedError' ||
+        err?.name === 'SecurityError';
+      setErrorTone('soft');
       setError(
-        `AR Error: ${err?.name ?? 'Error'} - ${err?.message ?? String(e) ?? 'unknown'}`
+        unsupported
+          ? unsupportedMsg
+          : t('arUnsupportedDevice', {
+              defaultValue:
+                'Your device does not support augmented reality technologies (WebXR).',
+            })
       );
+      setXrSupported(false);
     }
-  }, [store]);
+  }, [store, t, unsupportedMsg]);
 
   const handleExit = useCallback(() => {
     closedRef.current = false;
@@ -507,14 +548,21 @@ export default function AROverlay({ onClose }: { onClose: () => void }) {
               )}
             </p>
 
-            {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
+            {error && (
+              <p
+                className={`mt-3 text-xs leading-relaxed ${
+                  errorTone === 'soft' ? 'text-amber-200/95' : 'text-red-400'
+                }`}
+              >
+                {error}
+              </p>
+            )}
             {!origin && !error && (
               <p className="mt-3 text-xs text-slate-500 animate-pulse">Acquiring GPS…</p>
             )}
-            {xrSupported === false && (
-              <p className="mt-3 text-xs text-amber-300/90">
-                AR is not available on this device. Close this screen and use the 2D
-                map instead.
+            {xrSupported === false && !error && (
+              <p className="mt-3 text-xs leading-relaxed text-amber-200/95">
+                {unsupportedMsg}
               </p>
             )}
 

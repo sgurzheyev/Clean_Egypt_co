@@ -449,6 +449,11 @@ const resources = {
       storeLoadFailed: 'Could not load your store. Try again.',
       storeSaveFailed: 'Could not save store. Check permissions and try again.',
       storePhotoUploadFailed: 'Photo upload failed. Please try again.',
+      weakConnectionQueuedUpload:
+        'Weak connection. Saving data — it will send automatically when the network is back.',
+      arUnsupportedDevice:
+        'Your device does not support augmented reality technologies (WebXR).',
+      arGpsUnavailable: 'Geolocation is not available on this device.',
       storePhotosCap: 'Maximum {{count}} store photos.',
       storePinOffice: 'Pin office',
       storeDrawZone: 'Draw zone',
@@ -1656,6 +1661,11 @@ const resources = {
       storeLoadFailed: 'Не удалось загрузить магазин. Попробуйте снова.',
       storeSaveFailed: 'Не удалось сохранить магазин. Проверьте права доступа.',
       storePhotoUploadFailed: 'Не удалось загрузить фото. Попробуйте снова.',
+      weakConnectionQueuedUpload:
+        'Слабое соединение. Сохраняем данные, они отправятся автоматически при восстановлении сети.',
+      arUnsupportedDevice:
+        'Ваше устройство не поддерживает технологии дополненной реальности (WebXR).',
+      arGpsUnavailable: 'Геолокация недоступна на этом устройстве.',
       storePhotosCap: 'Максимум {{count}} фото магазина.',
       storePinOffice: 'Точка офиса',
       storeDrawZone: 'Нарисовать зону',
