@@ -44,7 +44,7 @@ import {
 } from '../src/lib/trustBadges';
 import TrustBadgeRow from './TrustBadgeRow';
 import LazyMissionPhoto from './LazyMissionPhoto';
-
+import MissionFeedErrorBoundary from './MissionFeedErrorBoundary';
 /** Structural mission shape — both LiveMarketMission and Profile's Job satisfy it. */
 export type ImmersiveFeedMission = {
   id: string;
@@ -354,7 +354,7 @@ const ImmersiveScroller = React.forwardRef<
 
 const immersiveVirtuosoComponents = { Scroller: ImmersiveScroller };
 
-const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
+const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
   open,
   missions,
   startMissionId,
@@ -754,5 +754,16 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
     </AnimatePresence>
   );
 };
+
+/** Public export — WSOD guard so a feed crash never blanks the map. */
+const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = (props) => (
+  <MissionFeedErrorBoundary
+    variant="fullscreen"
+    resetKeys={[props.open, props.startMissionId, props.missions.length]}
+    onClose={props.onClose}
+  >
+    <ImmersiveMissionFeedInner {...props} />
+  </MissionFeedErrorBoundary>
+);
 
 export default ImmersiveMissionFeed;

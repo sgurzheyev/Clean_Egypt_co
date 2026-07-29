@@ -42,7 +42,7 @@ import {
   type TrustBadgeId,
 } from '../src/lib/trustBadges';
 import TrustBadgeRow from './TrustBadgeRow';
-
+import MissionFeedErrorBoundary from './MissionFeedErrorBoundary';
 /** Extra pixels kept mounted above/below the visible Service Market list. */
 const MARKET_LIST_OVERSCAN_PX = { top: 480, bottom: 720 } as const;
 
@@ -318,6 +318,11 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
 
   return (
     <>
+    <MissionFeedErrorBoundary
+      variant="sheet"
+      resetKeys={[open]}
+      onClose={onClose}
+    >
     <AnimatePresence>
       {open && (
         <motion.div
@@ -498,8 +503,11 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
         </motion.div>
       )}
     </AnimatePresence>
+    </MissionFeedErrorBoundary>
 
-    {/* Immersive Visual Feed — mission stack mirrors the active filter state. */}
+    {/* Immersive Visual Feed — mission stack mirrors the active filter state.
+        Has its own ErrorBoundary (fullscreen) so a crash there does not
+        blank the market sheet or the map. */}
     <ImmersiveMissionFeed
       open={open && !!immersiveStartId}
       missions={visibleMissions}
