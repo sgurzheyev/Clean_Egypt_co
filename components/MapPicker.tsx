@@ -113,13 +113,15 @@ import {
 import {
   bindMapRenderBudget,
   flyMapTo,
+  MAP_BOOT_GPS_VIEW,
   MAP_CINEMATIC_FLY,
   MAP_FALLBACK_CENTER,
   MAP_INITIAL_VIEW,
   MAP_QUICK_FLY,
   type MetallicWaterController,
 } from '../src/lib/mapEgyptTheme';
-import {
+import { resolveBootMapLocation, type BootMapOrigin } from '../src/lib/mapBootLocation';
+import MapBootSplash from './MapBootSplash';import {
   applyMapboxStandardBasemapConfig,
   isMapStyleReady,
   MAPBOX_STANDARD_STYLE,
@@ -1353,11 +1355,61 @@ const MapPicker: React.FC<MapPickerProps> = ({
     pitch: MAP_INITIAL_VIEW.pitch,
     bearing: MAP_INITIAL_VIEW.bearing,
   });
+  /** Null until GPS (or Cairo fallback) resolves — MapGL must not mount before this. */
+  const [bootOrigin, setBootOrigin] = useState<BootMapOrigin | null>(null);
+  const [splashVisible, setSplashVisible] = useState(true);
+  const [splashMounted, setSplashMounted] = useState(true);
   const initialLocateDoneRef = React.useRef(false);
+  const [userLocation, setUserLocation] = useState<{
+    lat: number;
+    lng: number;
+    accuracy?: number;
+  } | null>(null);
   const [jobs, setJobs] = useState<JobOnMap[]>([]);
   const [mapReady, setMapReady] = useState(false);
   /** True while Mapbox is flying/panning — freezes pin GeoJSON + pauses water FX. */
   const [mapCameraBusy, setMapCameraBusy] = useState(false);
+
+  /**
+   * Pre-mount boot: wait for GPS (or Cairo), seed camera — then create MapGL.
+   * Prevents default-center → style → flyTo jumps.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    void resolveBootMapLocation().then((origin) => {
+      if (cancelled) return;
+      const fromGps = origin.fromGps;
+      const nextView = {
+        latitude: origin.lat,
+        longitude: origin.lng,
+        zoom: fromGps ? MAP_BOOT_GPS_VIEW.zoom : MAP_INITIAL_VIEW.zoom,
+        pitch: fromGps ? MAP_BOOT_GPS_VIEW.pitch : MAP_INITIAL_VIEW.pitch,
+        bearing: fromGps ? MAP_BOOT_GPS_VIEW.bearing : MAP_INITIAL_VIEW.bearing,
+      };
+      setViewState(nextView);
+      setWeatherFetchCenter({ lat: origin.lat, lng: origin.lng });
+      if (fromGps) {
+        setUserLocation({
+          lat: origin.lat,
+          lng: origin.lng,
+          accuracy: origin.accuracy,
+        });
+      }
+      initialLocateDoneRef.current = true;
+      setBootOrigin(origin);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** Dismiss splash only after Standard style + DEM/layers are ready. */
+  useEffect(() => {
+    if (!mapReady) return;
+    setSplashVisible(false);
+    const t = window.setTimeout(() => setSplashMounted(false), 560);
+    return () => window.clearTimeout(t);
+  }, [mapReady]);
 
   const updateAtmosphere = useCallback(() => {
     const map = mapInstanceRef.current;
@@ -4320,71 +4372,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   // Custom map controls (replace the default Mapbox NavigationControl/GeolocateControl).
   // Blue "puck" marker restored after removing the stock GeolocateControl.
-  const [userLocation, setUserLocation] = useState<{
-    lat: number;
-    lng: number;
-    accuracy?: number;
-  } | null>(null);
   const [geolocating, setGeolocating] = useState(false);
 
-  /**
-   * Boot camera: prefer the user's GPS; otherwise cinematic settle on
-   * La Cumbre Peak (Santa Barbara) — the global fallback center.
-   */
-  useEffect(() => {
-    if (!mapReady || initialLocateDoneRef.current) return;
-    initialLocateDoneRef.current = true;
-
-    const settleOn = (lat: number, lng: number, opts?: { fromGps?: boolean; accuracy?: number }) => {
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        lat = MAP_FALLBACK_CENTER.lat;
-        lng = MAP_FALLBACK_CENTER.lng;
-      }
-      setWeatherFetchCenter({ lat, lng });
-      if (opts?.fromGps) {
-        setUserLocation({ lat, lng, accuracy: opts.accuracy });
-      }
-      const map = mapRef.current?.getMap?.() ?? mapInstanceRef.current;
-      flyMapTo(map, [lng, lat], {
-        ...MAP_CINEMATIC_FLY,
-        zoom: opts?.fromGps ? 15 : 13.5,
-        pitch: 60,
-        bearing: opts?.fromGps ? -20 : MAP_INITIAL_VIEW.bearing,
-        duration: opts?.fromGps ? 1800 : 1600,
-      });
-      // Keep controlled React viewState in sync after programmatic fly.
-      setViewState((prev) => ({
-        ...prev,
-        latitude: lat,
-        longitude: lng,
-        zoom: opts?.fromGps ? 15 : 13.5,
-        pitch: 60,
-      }));
-    };
-
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      settleOn(MAP_FALLBACK_CENTER.lat, MAP_FALLBACK_CENTER.lng);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        settleOn(pos.coords.latitude, pos.coords.longitude, {
-          fromGps: true,
-          accuracy: pos.coords.accuracy,
-        });
-      },
-      (err) => {
-        console.info('[map-boot] geolocation unavailable — La Cumbre Peak fallback', err?.code);
-        settleOn(MAP_FALLBACK_CENTER.lat, MAP_FALLBACK_CENTER.lng);
-      },
-      {
-        enableHighAccuracy: false,
-        timeout: 9000,
-        maximumAge: 120_000,
-      }
-    );
-  }, [mapReady]);
+  // Boot locate runs BEFORE MapGL mounts (see resolveBootMapLocation above).
 
   const handleZoomIn = useCallback(() => {
     mapRef.current?.getMap()?.zoomIn({ duration: 280, essential: true });
@@ -4639,8 +4629,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
       `}</style>
 
-      {/* Full-screen 3D map — no blocking overlays */}
-      <div className="ce-map relative z-0 w-full h-full">
+      {/* Map mounts only after GPS/Cairo origin is known — no flyTo from a wrong default. */}
+      <div className="ce-map relative z-0 w-full h-full bg-[#05060a]">
+        {bootOrigin ? (
         <MapGL
           ref={mapRef}
           {...viewState}
@@ -5105,6 +5096,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           />
         )}
         </MapGL>
+        ) : null}
 
         <WeatherOverlay weather={mapWeather} />
 
@@ -6095,6 +6087,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }}
         toast={toast}
       />
+
+      {splashMounted && (
+        <MapBootSplash
+          visible={splashVisible}
+          phase={bootOrigin ? 'loading_map' : 'locating'}
+        />
+      )}
 
     </div>
   );

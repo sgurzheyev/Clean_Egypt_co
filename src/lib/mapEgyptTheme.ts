@@ -252,20 +252,27 @@ export const MAP_CINEMATIC_FLY = {
 
 /**
  * Default map center when GPS is denied/unavailable —
- * La Cumbre Peak overlooking Santa Barbara, California.
+ * Cairo, Egypt (marketplace hub).
  */
 export const MAP_FALLBACK_CENTER = {
-  lat: 34.4897,
-  lng: -119.7183,
-  label: 'La Cumbre Peak, Santa Barbara',
+  lat: 30.0444,
+  lng: 31.2357,
+  label: 'Cairo, Egypt',
 } as const;
 
-/** First-paint viewport before (or without) geolocation — clean 3D Standard tilt. */
+/** First-paint viewport used when seeding the camera at boot (GPS or Cairo). */
 export const MAP_INITIAL_VIEW = {
   latitude: MAP_FALLBACK_CENTER.lat,
   longitude: MAP_FALLBACK_CENTER.lng,
-  zoom: 12.5,
-  pitch: 45,
+  zoom: 13.5,
+  pitch: 60,
+  bearing: -20,
+} as const;
+
+/** Settled GPS boot camera — applied as initialViewState (no flyTo). */
+export const MAP_BOOT_GPS_VIEW = {
+  zoom: 15,
+  pitch: 60,
   bearing: -20,
 } as const;
 
