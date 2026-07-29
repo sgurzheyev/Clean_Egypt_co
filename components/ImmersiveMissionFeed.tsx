@@ -5,20 +5,21 @@
  * (TikTok-style). Entered by tapping a mission photo in the Services Market,
  * Profile marketplace list, or My Orders.
  *
- * Virtualized with react-virtuoso: only the visible slide + overscan neighbors
- * stay in the DOM to keep mobile FPS stable and avoid OOM on long stacks.
+ * Scroll uses native CSS scroll-snap (100dvh slides) — not react-virtuoso —
+ * because Virtuoso's absolute item layout fights mandatory snap and was
+ * resetting the camera to slide 0. Active slide is tracked with
+ * IntersectionObserver; heavy photos mount only near the active index.
  *
  * LAYERING CONTRACT
- *   Moving layer  — Virtuoso scroller: photo + that mission's own
+ *   Moving layer  — snap scroller: photo + that mission's own
  *                   price/place/description overlay travel together.
  *   Static layer  — top chrome, right action sidebar and bottom nav are
  *                   siblings of the scroller, never inside a slide, so they
  *                   stay pinned during vertical and horizontal swipes. They
- *                   read from `current`, which updates on scroll snap.
+ *                   read from `current`, which updates on snap.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import {
   ChevronLeft,
   ChevronRight,
@@ -45,6 +46,7 @@ import {
 import TrustBadgeRow from './TrustBadgeRow';
 import LazyMissionPhoto from './LazyMissionPhoto';
 import MissionFeedErrorBoundary from './MissionFeedErrorBoundary';
+
 /** Structural mission shape — both LiveMarketMission and Profile's Job satisfy it. */
 export type ImmersiveFeedMission = {
   id: string;
@@ -95,9 +97,6 @@ export interface ImmersiveMissionFeedProps {
 /** Slides whose photos stay mounted around the active index. */
 const PHOTO_WINDOW = 2;
 
-/** Extra full-viewport slides kept mounted above/below the visible one. */
-const OVERSCAN_SLIDES = 1;
-
 /** Matches the upload cap enforced by create_garbage_zone_report. */
 const MAX_PHOTOS = 9;
 
@@ -143,13 +142,15 @@ const sidebarBtnClass =
 
 type MissionSlideProps = {
   mission: ImmersiveFeedMission;
+  /** Index in the feed — used by IntersectionObserver. */
+  slideIndex: number;
   /** This slide is the snapped one — drives smooth vs. instant pager sync. */
   active: boolean;
   /** Within the mount window: photos are rendered, otherwise a cheap placeholder. */
   nearActive: boolean;
   /** This mission's own photo position (remembered while the feed is open). */
   photoIndex: number;
-  onPhotoIndexChange: (next: number) => void;
+  onPhotoIndexChange: (missionId: string, next: number) => void;
   showSwipeHint: boolean;
 };
 
@@ -158,14 +159,15 @@ type MissionSlideProps = {
  * describes *this* mission. Everything here is expected to travel with the
  * vertical scroll — no action controls belong in this subtree.
  */
-const MissionSlide: React.FC<MissionSlideProps> = ({
+const MissionSlide = React.memo(function MissionSlide({
   mission,
+  slideIndex,
   active,
   nearActive,
   photoIndex,
   onPhotoIndexChange,
   showSwipeHint,
-}) => {
+}: MissionSlideProps) {
   const { t } = useTranslation();
   const pagerRef = useRef<HTMLDivElement | null>(null);
   const photoIndexRef = useRef(0);
@@ -221,8 +223,8 @@ const MissionSlide: React.FC<MissionSlideProps> = ({
     );
     if (next === photoIndexRef.current) return;
     photoIndexRef.current = next;
-    onPhotoIndexChange(next);
-  }, [onPhotoIndexChange, photos.length]);
+    onPhotoIndexChange(mission.id, next);
+  }, [mission.id, onPhotoIndexChange, photos.length]);
 
   const placeholder = (
     <div
@@ -238,8 +240,15 @@ const MissionSlide: React.FC<MissionSlideProps> = ({
 
   return (
     <section
-      className="relative h-full w-full overflow-hidden"
-      style={SLIDE_GPU_STYLE}
+      data-mission-id={mission.id}
+      data-slide-index={slideIndex}
+      className="relative h-[100dvh] w-full shrink-0 snap-start snap-always overflow-hidden"
+      style={{
+        ...SLIDE_GPU_STYLE,
+        height: '100dvh',
+        scrollSnapAlign: 'start',
+        scrollSnapStop: 'always',
+      }}
     >
       {/* Media layer — horizontal pager over the mission phototheque.
           `overflow-y-hidden` lets vertical gestures fall through to the feed
@@ -336,24 +345,7 @@ const MissionSlide: React.FC<MissionSlideProps> = ({
       </div>
     </section>
   );
-};
-
-/** Virtuoso scroller — scrollbar hidden, overscroll contained. */
-const ImmersiveScroller = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(function ImmersiveScroller({ className, style, ...props }, ref) {
-  return (
-    <div
-      {...props}
-      ref={ref}
-      className={`ce-hide-scrollbar overscroll-contain ${className ?? ''}`}
-      style={style}
-    />
-  );
 });
-
-const immersiveVirtuosoComponents = { Scroller: ImmersiveScroller };
 
 const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
   open,
@@ -369,18 +361,14 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
   creatorTrustBadges,
 }) => {
   const { t } = useTranslation();
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const indexRef = useRef(0);
-  const snapTimerRef = useRef<number | null>(null);
   const [index, setIndex] = useState(0);
   /** Photo position per mission id — a mission keeps its place while the feed is open. */
   const [photoIndexByMission, setPhotoIndexByMission] = useState<Record<string, number>>(
     {}
   );
   const [liveBadges, setLiveBadges] = useState<TrustBadgeId[]>([]);
-  const [viewportH, setViewportH] = useState(() =>
-    typeof window !== 'undefined' ? Math.max(1, window.innerHeight) : 800
-  );
 
   const startIndex = useMemo(() => {
     if (!startMissionId) return 0;
@@ -388,36 +376,70 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
     return found >= 0 ? found : 0;
   }, [missions, startMissionId]);
 
-  useEffect(() => {
-    if (!open) return;
-    const measure = () => setViewportH(Math.max(1, window.innerHeight));
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [open]);
+  const missionIdsKey = useMemo(
+    () => missions.map((m) => m.id).join('\0'),
+    [missions]
+  );
 
-  // Jump (no animation) to the tapped mission every time the feed opens.
+  // Jump once to the tapped mission when the feed opens — never on index updates.
   useEffect(() => {
     if (!open) return;
     indexRef.current = startIndex;
     setIndex(startIndex);
     setPhotoIndexByMission({});
-    const raf = requestAnimationFrame(() => {
-      virtuosoRef.current?.scrollToIndex({
-        index: startIndex,
-        align: 'start',
-        behavior: 'auto',
-      });
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [open, startIndex]);
 
-  useEffect(
-    () => () => {
-      if (snapTimerRef.current !== null) window.clearTimeout(snapTimerRef.current);
-    },
-    []
-  );
+    const jumpToStart = () => {
+      const el = scrollerRef.current;
+      if (!el) return;
+      const h = el.clientHeight || window.innerHeight;
+      el.scrollTop = startIndex * h;
+    };
+
+    const raf1 = requestAnimationFrame(() => {
+      jumpToStart();
+      requestAnimationFrame(jumpToStart);
+    });
+    return () => cancelAnimationFrame(raf1);
+    // Only when feed opens / start mission changes — not when active index updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, startMissionId, startIndex]);
+
+  // Track the snapped slide via IntersectionObserver — avoids scrollTop maths that
+  // fight CSS snap, and never remounts the scroller when the counter updates.
+  useEffect(() => {
+    if (!open) return;
+    const root = scrollerRef.current;
+    if (!root) return;
+
+    const ratios = new Map<number, number>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const raw = (entry.target as HTMLElement).dataset.slideIndex;
+          const idx = Number(raw);
+          if (!Number.isFinite(idx)) continue;
+          ratios.set(idx, entry.isIntersecting ? entry.intersectionRatio : 0);
+        }
+        let bestIdx = indexRef.current;
+        let bestRatio = -1;
+        for (const [idx, ratio] of ratios) {
+          if (ratio > bestRatio) {
+            bestRatio = ratio;
+            bestIdx = idx;
+          }
+        }
+        if (bestRatio >= 0.5 && bestIdx !== indexRef.current) {
+          indexRef.current = bestIdx;
+          setIndex(bestIdx);
+        }
+      },
+      { root, threshold: [0.5, 0.65, 0.8, 1] }
+    );
+
+    const slides = root.querySelectorAll<HTMLElement>('[data-slide-index]');
+    slides.forEach((slide) => observer.observe(slide));
+    return () => observer.disconnect();
+  }, [open, missionIdsKey]);
 
   const current = missions[Math.min(index, Math.max(0, missions.length - 1))];
   const currentPhotoCount = current ? missionPhotos(current).length : 0;
@@ -450,33 +472,6 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose, stepPhoto]);
-
-  const handleRangeChanged = useCallback(
-    (range: { startIndex: number; endIndex: number }) => {
-      const next = Math.min(
-        Math.max(0, missions.length - 1),
-        Math.max(0, range.startIndex)
-      );
-      if (next !== indexRef.current) {
-        indexRef.current = next;
-        setIndex(next);
-      }
-    },
-    [missions.length]
-  );
-
-  const handleIsScrolling = useCallback((scrolling: boolean) => {
-    if (snapTimerRef.current !== null) window.clearTimeout(snapTimerRef.current);
-    if (scrolling) return;
-    // Soft snap to the nearest full-viewport slide after the finger settles.
-    snapTimerRef.current = window.setTimeout(() => {
-      virtuosoRef.current?.scrollToIndex({
-        index: indexRef.current,
-        align: 'start',
-        behavior: 'smooth',
-      });
-    }, 60);
-  }, []);
 
   const creatorName = current?.creator?.full_name ?? null;
   const creatorInitial = (creatorName || '?').trim().charAt(0).toUpperCase() || '?';
@@ -529,45 +524,6 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
     </button>
   );
 
-  const itemContent = useCallback(
-    (i: number) => {
-      const mission = missions[i];
-      if (!mission) return null;
-      return (
-        <div
-          key={mission.id}
-          data-mission-id={mission.id}
-          style={{ height: viewportH, width: '100%', ...SLIDE_GPU_STYLE }}
-        >
-          <MissionSlide
-            mission={mission}
-            active={i === index}
-            nearActive={Math.abs(i - index) <= PHOTO_WINDOW}
-            photoIndex={photoIndexByMission[mission.id] ?? 0}
-            onPhotoIndexChange={(next) => setMissionPhotoIndex(mission.id, next)}
-            showSwipeHint={i === startIndex && missions.length > 1}
-          />
-        </div>
-      );
-    },
-    [
-      missions,
-      viewportH,
-      index,
-      photoIndexByMission,
-      setMissionPhotoIndex,
-      startIndex,
-    ]
-  );
-
-  const computeItemKey = useCallback(
-    (i: number) => {
-      const id = missions[i]?.id;
-      return id ? String(id) : `mission-${i}`;
-    },
-    [missions]
-  );
-
   return (
     <AnimatePresence>
       {open && missions.length > 0 && (
@@ -577,30 +533,36 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.98 }}
           transition={{ duration: 0.22, ease: 'easeOut' }}
-          className="fixed inset-0 z-[10040] h-dvh bg-black"
+          className="fixed inset-0 z-[10040] h-[100dvh] bg-black"
+          style={{ height: '100dvh' }}
           role="dialog"
           aria-modal="true"
           aria-label={t('immersiveFeedTitle', { defaultValue: 'Visual feed' })}
         >
-          {/* ---- Moving layer: virtualized vertical scroller. ---- */}
-          <Virtuoso
-            ref={virtuosoRef}
-            style={{ height: '100%', width: '100%' }}
-            totalCount={missions.length}
-            initialTopMostItemIndex={startIndex}
-            defaultItemHeight={viewportH}
-            fixedItemHeight={viewportH}
-            increaseViewportBy={{
-              top: viewportH * OVERSCAN_SLIDES,
-              bottom: viewportH * OVERSCAN_SLIDES,
+          {/* ---- Moving layer: native CSS snap scroller (no Virtuoso). ---- */}
+          <div
+            ref={scrollerRef}
+            className="ce-hide-scrollbar h-[100dvh] w-full snap-y snap-mandatory overflow-y-auto overscroll-contain"
+            style={{
+              height: '100dvh',
+              overflowY: 'auto',
+              scrollSnapType: 'y mandatory',
+              WebkitOverflowScrolling: 'touch',
             }}
-            overscan={OVERSCAN_SLIDES}
-            computeItemKey={computeItemKey}
-            itemContent={itemContent}
-            rangeChanged={handleRangeChanged}
-            isScrolling={handleIsScrolling}
-            components={immersiveVirtuosoComponents}
-          />
+          >
+            {missions.map((mission, i) => (
+              <MissionSlide
+                key={mission.id}
+                mission={mission}
+                slideIndex={i}
+                active={i === index}
+                nearActive={Math.abs(i - index) <= PHOTO_WINDOW}
+                photoIndex={photoIndexByMission[mission.id] ?? 0}
+                onPhotoIndexChange={setMissionPhotoIndex}
+                showSwipeHint={i === startIndex && missions.length > 1}
+              />
+            ))}
+          </div>
 
           {/* ---- Static layer: never inside a slide, never moves. ---- */}
 
