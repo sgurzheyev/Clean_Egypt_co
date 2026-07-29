@@ -6,6 +6,7 @@ import {
   missionFeedPlaceholderGradient,
   type MissionFeedPlaceholderVariant,
 } from '../src/lib/missionFeedVisuals';
+import LazyMissionPhoto from './LazyMissionPhoto';
 
 export type { MissionFeedPlaceholderVariant };
 
@@ -124,11 +125,12 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
               {photo}
             </div>
           ) : photoUrl ? (
-            <img
+            <LazyMissionPhoto
               src={photoUrl}
               alt=""
-              draggable={false}
-              className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover"
+              className="pointer-events-none absolute inset-0 h-full w-full"
+              imgClassName="h-full w-full select-none object-cover"
+              loading="lazy"
             />
           ) : (
             <div
@@ -186,6 +188,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
                   <img
                     src={creatorAvatarUrl}
                     alt=""
+                    loading="lazy"
                     className="h-full w-full object-cover"
                   />
                 ) : (

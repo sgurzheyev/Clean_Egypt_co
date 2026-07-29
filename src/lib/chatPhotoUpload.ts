@@ -2,17 +2,10 @@
  * Compress + upload chat photos to the `chat-photos` Storage bucket.
  * Path: {missionId}/{userId}/{timestamp}_{rand}.jpg
  */
-import imageCompression from 'browser-image-compression';
 import { supabase } from '../../services/supabase';
+import { compressMissionPhoto } from './missionPhotoCompression';
 
 const CHAT_PHOTO_BUCKET = 'chat-photos';
-
-const COMPRESSION = {
-  maxSizeMB: 0.4,
-  maxWidthOrHeight: 1280,
-  useWebWorker: true,
-  fileType: 'image/jpeg' as const,
-};
 
 export async function uploadChatPhoto(params: {
   file: File;
@@ -27,12 +20,7 @@ export async function uploadChatPhoto(params: {
     throw new Error('Missing mission or user for chat photo upload');
   }
 
-  let fileToUpload: File | Blob = file;
-  try {
-    fileToUpload = await imageCompression(file, COMPRESSION);
-  } catch (err) {
-    console.warn('[chatPhotoUpload] compression failed', file.name, err);
-  }
+  const fileToUpload = await compressMissionPhoto(file);
 
   const safeName = `chat_${Date.now()}_${Math.random().toString(36).slice(2, 10)}.jpg`;
   const path = `${missionId}/${userId}/${safeName}`;

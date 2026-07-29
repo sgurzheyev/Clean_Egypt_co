@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { supabase } from '../services/supabase';
 import { Pencil, Target, Globe, Building2, Clock, Info, Lock, Coins, Store, BadgeCheck, Sparkles, Trash2 } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
+import { compressMissionPhoto } from '../src/lib/missionPhotoCompression';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import AdminDashboard from '../src/components/AdminDashboard';
@@ -1351,30 +1352,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       if (!session?.user?.id) throw new Error('You must be signed in.');
 
       const uploadedUrls: string[] = [];
-      const compressionOptions = {
-        maxSizeMB: 0.4,
-        maxWidthOrHeight: 1280,
-        useWebWorker: true,
-        fileType: 'image/jpeg',
-      };
       for (const file of proofFiles.slice(0, 9)) {
         if (!file.type || !file.type.startsWith('image/')) {
           setProofError('Only images are allowed');
           return;
         }
-        let fileToUpload: File = file;
-        try {
-          const compressed = await imageCompression(file, compressionOptions);
-          console.log('Proof photo compression:', {
-            name: file.name,
-            originalMB: (file.size / 1024 / 1024).toFixed(2),
-            compressedMB: (compressed.size / 1024 / 1024).toFixed(2),
-          });
-          fileToUpload = compressed as File;
-        } catch (compressErr) {
-          console.warn('Compression failed for proof photo:', file.name, compressErr);
-          fileToUpload = file;
-        }
+        const fileToUpload = await compressMissionPhoto(file);
 
         const fileExt = 'jpg';
         const safeFileName = `mission_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;

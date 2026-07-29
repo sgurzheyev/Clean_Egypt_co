@@ -1,10 +1,10 @@
-import imageCompression from 'browser-image-compression';
 import { supabase } from '../../services/supabase';
 import {
   extractMissionFeedDescription,
   MISSION_SHORT_DESCRIPTION_MAX,
 } from './missionDescription';
 import { filterMissionDescription, validateMissionDescription } from './missionContentPolicy';
+import { compressMissionPhoto } from './missionPhotoCompression';
 
 export const EDITABLE_MISSION_STATUSES = new Set([
   'available',
@@ -14,13 +14,6 @@ export const EDITABLE_MISSION_STATUSES = new Set([
 ]);
 
 export const MAX_MISSION_PHOTOS = 9;
-
-const COMPRESSION = {
-  maxSizeMB: 0.4,
-  maxWidthOrHeight: 1280,
-  useWebWorker: true,
-  fileType: 'image/jpeg' as const,
-};
 
 export function isMissionEditableStatus(status: string | null | undefined): boolean {
   return EDITABLE_MISSION_STATUSES.has(String(status || '').toLowerCase());
@@ -57,12 +50,7 @@ export async function uploadMissionPhotoFiles(files: File[]): Promise<string[]> 
       throw new Error('Only images are allowed');
     }
 
-    let fileToUpload: File | Blob = file;
-    try {
-      fileToUpload = await imageCompression(file, COMPRESSION);
-    } catch (err) {
-      console.warn('[updateMissionDetails] compression failed', file.name, err);
-    }
+    const fileToUpload = await compressMissionPhoto(file);
 
     const safeFileName = `mission_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
     const { error: uploadError } = await supabase.storage

@@ -49,6 +49,7 @@ import {
   type TrustBadgeId,
 } from '../src/lib/trustBadges';
 import TrustBadgeRow from './TrustBadgeRow';
+import LazyMissionPhoto from './LazyMissionPhoto';
 
 /** Structural mission shape — both LiveMarketMission and Profile's Job satisfy it. */
 export type ImmersiveFeedMission = {
@@ -248,12 +249,13 @@ const MissionSlide: React.FC<MissionSlideProps> = ({
               key={`${mission.id}-${p}`}
               className="relative h-full w-full shrink-0 snap-center snap-always"
             >
-              <img
+              <LazyMissionPhoto
                 src={url}
                 alt=""
                 draggable={false}
                 loading={active && p === 0 ? 'eager' : 'lazy'}
-                className="h-full w-full select-none object-cover"
+                className="absolute inset-0 h-full w-full"
+                imgClassName="h-full w-full select-none object-cover"
               />
             </div>
           ))}

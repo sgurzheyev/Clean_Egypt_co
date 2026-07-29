@@ -34,6 +34,15 @@
       body {
         font-family: 'Nunito', sans-serif;
       }
+
+      /* LazyMissionPhoto — shimmer sweep keyframe (CDN Tailwind has no extend). */
+      @keyframes skeletonSweep {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(200%); }
+      }
+      .skeleton-sweep {
+        animation: skeletonSweep 1.6s ease-in-out infinite;
+      }
     </style>
   <script type="importmap">
 {
