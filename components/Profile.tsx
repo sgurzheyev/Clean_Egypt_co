@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { supabase } from '../services/supabase';
-import { Pencil, Target, Globe, Building2, Clock, Info, Lock, Coins, Store, BadgeCheck, Sparkles } from 'lucide-react';
+import { Pencil, Target, Globe, Building2, Clock, Info, Lock, Coins, Store, BadgeCheck, Sparkles, Trash2 } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -76,6 +76,8 @@ import ContractorStorePanel from './ContractorStorePanel';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
 import { missionPinIcon } from '../src/lib/serviceSectors';
 import { fetchContractorStore } from '../src/lib/contractorStore';
+import { requestDeleteAccount } from '../src/lib/deleteAccount';
+import { isEdgeFunctionUnreachable } from '../src/lib/supabaseFunctionError';
 
 const MISSION_CREATOR_EMBED = 'creator:profiles!creator_id (full_name, avatar_url)';
 
@@ -364,6 +366,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const toastTimerRef = useRef<number | null>(null);
   const langMenuRef = useRef<HTMLDivElement>(null);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleteAccountConfirm, setDeleteAccountConfirm] = useState('');
+  const [deleteAccountSubmitting, setDeleteAccountSubmitting] = useState(false);
 
   const languageOptions = [
     { code: 'en', labelKey: 'english' as const, short: 'EN' },
@@ -712,6 +717,39 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const handleLogout = async () => {
     await supabase.auth.signOut();
     onClose();
+  };
+
+  const openDeleteAccountModal = () => {
+    setDeleteAccountConfirm('');
+    setShowDeleteAccountModal(true);
+  };
+
+  const handleDeleteAccount = async () => {
+    const phrase = String(t('deleteAccountConfirmPhrase') || 'DELETE').trim();
+    const typed = deleteAccountConfirm.trim();
+    if (typed !== phrase && typed.toUpperCase() !== 'DELETE' && typed !== 'УДАЛИТЬ') {
+      toast.error(t('deleteAccountConfirmHint'));
+      return;
+    }
+    try {
+      setDeleteAccountSubmitting(true);
+      await requestDeleteAccount(typed);
+      toast.success(t('deleteAccountSuccess'));
+      setShowDeleteAccountModal(false);
+      await supabase.auth.signOut();
+      onClose();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e || '');
+      if (/ACTIVE_MISSIONS/i.test(msg) || /active missions/i.test(msg)) {
+        toast.error(t('deleteAccountActiveMissions'));
+      } else if (isEdgeFunctionUnreachable(e)) {
+        toast.error(t('deleteAccountFailed'));
+      } else {
+        toast.error(msg || t('deleteAccountFailed'));
+      }
+    } finally {
+      setDeleteAccountSubmitting(false);
+    }
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2269,6 +2307,29 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 </div>
               </form>
             </div>
+
+            {/* GDPR / App Store — permanent account deletion */}
+            <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-950/30 px-3 py-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <Trash2 className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" aria-hidden />
+                <div className="min-w-0 space-y-1">
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-rose-300">
+                    {t('deleteAccount')}
+                  </p>
+                  <p className="text-[10px] leading-snug text-rose-200/70">
+                    {t('deleteAccountWarning')}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={openDeleteAccountModal}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] border border-rose-500/60 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25 hover:shadow-[0_0_14px_rgba(244,63,94,0.25)] transition-all active:scale-[0.98]"
+              >
+                <Trash2 className="w-3.5 h-3.5" aria-hidden />
+                {t('deleteAccount')}
+              </button>
+            </div>
           </div>
         </ProfileAccordion>
 
@@ -3058,6 +3119,15 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
         <button
           type="button"
+          onClick={openDeleteAccountModal}
+          className="mt-2 w-full px-6 py-2.5 rounded-full font-black text-sm uppercase tracking-[0.2em] border border-rose-500/55 text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 hover:shadow-[0_0_15px_rgba(244,63,94,0.3)] transition-all inline-flex items-center justify-center gap-2"
+        >
+          <Trash2 className="w-4 h-4" aria-hidden />
+          {t('deleteAccount')}
+        </button>
+
+        <button
+          type="button"
           onClick={handleLogout}
           className="mt-2 w-full px-6 py-2.5 rounded-full font-black text-sm uppercase tracking-[0.2em] border border-orange-500/50 text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] transition-all"
         >
@@ -3149,6 +3219,77 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           onClose={() => setShowRefunds(false)}
         />
       )}
+
+      {showDeleteAccountModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[10050] flex items-end sm:items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-account-title"
+            onClick={() => {
+              if (!deleteAccountSubmitting) setShowDeleteAccountModal(false);
+            }}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl border border-rose-500/40 bg-[#0a0610]/95 p-5 shadow-[0_0_40px_rgba(244,63,94,0.2)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2
+                id="delete-account-title"
+                className="text-sm font-black uppercase tracking-[0.16em] text-rose-300"
+              >
+                {t('deleteAccountTitle')}
+              </h2>
+              <p className="mt-3 text-[11px] leading-relaxed text-rose-100/75">
+                {t('deleteAccountWarning')}
+              </p>
+              <label className="mt-4 block space-y-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                  {t('deleteAccountConfirmHint')}
+                </span>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  value={deleteAccountConfirm}
+                  disabled={deleteAccountSubmitting}
+                  onChange={(e) => setDeleteAccountConfirm(e.target.value)}
+                  placeholder={String(t('deleteAccountConfirmPhrase'))}
+                  className="w-full rounded-xl border border-white/15 bg-black/50 px-3 py-2.5 text-sm text-white placeholder:text-slate-600 outline-none focus:border-rose-400/60"
+                />
+              </label>
+              <div className="mt-4 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+                <button
+                  type="button"
+                  disabled={deleteAccountSubmitting}
+                  onClick={() => setShowDeleteAccountModal(false)}
+                  className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] border border-white/15 text-slate-300 hover:bg-white/5 disabled:opacity-50"
+                >
+                  {t('deleteAccountCancel')}
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    deleteAccountSubmitting ||
+                    !(
+                      deleteAccountConfirm.trim() ===
+                        String(t('deleteAccountConfirmPhrase')).trim() ||
+                      deleteAccountConfirm.trim().toUpperCase() === 'DELETE' ||
+                      deleteAccountConfirm.trim() === 'УДАЛИТЬ'
+                    )
+                  }
+                  onClick={() => void handleDeleteAccount()}
+                  className="rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] border border-rose-500/60 bg-rose-500/20 text-rose-100 hover:bg-rose-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {deleteAccountSubmitting
+                    ? t('deleteAccountDeleting')
+                    : t('deleteAccountConfirmButton')}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       <VerificationModal
         open={showVerificationModal}

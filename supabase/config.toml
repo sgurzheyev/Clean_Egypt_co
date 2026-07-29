@@ -30,3 +30,10 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/send-push-notification/deno.json"
 entrypoint = "./functions/send-push-notification/index.ts"
+
+# GDPR account deletion (requires user JWT; Storage purge + auth.admin.deleteUser).
+[functions.delete-account]
+enabled = true
+verify_jwt = true
+import_map = "./functions/delete-account/deno.json"
+entrypoint = "./functions/delete-account/index.ts"
