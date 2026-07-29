@@ -102,8 +102,9 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
       }`}
       style={{
         transform: 'translateZ(0)',
-        willChange: 'transform',
+        willChange: 'transform, opacity',
         backfaceVisibility: 'hidden',
+        WebkitBackfaceVisibility: 'hidden',
       }}
     >
       <div

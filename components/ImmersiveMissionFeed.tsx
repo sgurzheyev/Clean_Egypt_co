@@ -101,11 +101,12 @@ const OVERSCAN_SLIDES = 1;
 /** Matches the upload cap enforced by create_garbage_zone_report. */
 const MAX_PHOTOS = 9;
 
-/** GPU composite layer for scroll slides (moves paint to GPU). */
+/** GPU composite layer for scroll slides (moves paint to GPU, reduces flicker). */
 const SLIDE_GPU_STYLE: React.CSSProperties = {
   transform: 'translateZ(0)',
-  willChange: 'transform',
+  willChange: 'transform, opacity',
   backfaceVisibility: 'hidden',
+  WebkitBackfaceVisibility: 'hidden',
 };
 
 function missionPhotos(mission: ImmersiveFeedMission): string[] {
@@ -533,7 +534,11 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
       const mission = missions[i];
       if (!mission) return null;
       return (
-        <div style={{ height: viewportH, width: '100%', ...SLIDE_GPU_STYLE }}>
+        <div
+          key={mission.id}
+          data-mission-id={mission.id}
+          style={{ height: viewportH, width: '100%', ...SLIDE_GPU_STYLE }}
+        >
           <MissionSlide
             mission={mission}
             active={i === index}
@@ -553,6 +558,14 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
       setMissionPhotoIndex,
       startIndex,
     ]
+  );
+
+  const computeItemKey = useCallback(
+    (i: number) => {
+      const id = missions[i]?.id;
+      return id ? String(id) : `mission-${i}`;
+    },
+    [missions]
   );
 
   return (
@@ -582,6 +595,7 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
               bottom: viewportH * OVERSCAN_SLIDES,
             }}
             overscan={OVERSCAN_SLIDES}
+            computeItemKey={computeItemKey}
             itemContent={itemContent}
             rangeChanged={handleRangeChanged}
             isScrolling={handleIsScrolling}

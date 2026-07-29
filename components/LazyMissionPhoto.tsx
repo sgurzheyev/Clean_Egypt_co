@@ -9,7 +9,8 @@
  *   1. Shows an animated glassmorphism skeleton until the image is decoded.
  *   2. Uses native `loading="lazy"` to defer off-screen network requests.
  *   3. Falls back gracefully to a styled placeholder on network / decode errors.
- *   4. Skeleton dims out with a CSS transition; no layout shift (absolute overlay).
+ *   4. Remembers successfully loaded URLs in a module Set so virtualized
+ *      remounts skip the skeleton (no flicker on scroll recycle).
  */
 import React, { useEffect, useRef, useState } from 'react';
 
@@ -35,6 +36,17 @@ const FALLBACK_SVG =
       '</svg>'
   );
 
+/** URLs that have already decoded successfully this session — survives Virtuoso remounts. */
+const loadedMissionPhotoUrls = new Set<string>();
+
+function markPhotoLoaded(url: string) {
+  if (url) loadedMissionPhotoUrls.add(url);
+}
+
+function isPhotoCached(url: string): boolean {
+  return Boolean(url) && loadedMissionPhotoUrls.has(url);
+}
+
 const LazyMissionPhoto: React.FC<LazyMissionPhotoProps> = ({
   src,
   alt = '',
@@ -44,47 +56,72 @@ const LazyMissionPhoto: React.FC<LazyMissionPhotoProps> = ({
   onLoad,
   draggable = false,
 }) => {
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
-
-  // If src is empty / invalid, skip to fallback immediately.
   const isValid =
     typeof src === 'string' && src.length > 0 && !src.startsWith('censored://');
 
-  // If the image is already in the browser cache it might be decoded before the
-  // React effect fires — check naturalWidth synchronously after mount.
+  const [loaded, setLoaded] = useState(() => isValid && isPhotoCached(src));
+  const [error, setError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // Sync with module cache / browser decode cache when src changes or cell remounts.
   useEffect(() => {
-    const el = imgRef.current;
-    if (!el) return;
-    if (el.complete && el.naturalWidth > 0) {
-      setLoaded(true);
+    if (!isValid) {
+      setLoaded(false);
+      setError(false);
+      return;
     }
-  }, [src]);
+    if (isPhotoCached(src)) {
+      setLoaded(true);
+      setError(false);
+      return;
+    }
+    const el = imgRef.current;
+    if (el && el.complete && el.naturalWidth > 0) {
+      markPhotoLoaded(src);
+      setLoaded(true);
+      setError(false);
+      return;
+    }
+    setLoaded(false);
+    setError(false);
+  }, [src, isValid]);
 
   if (!isValid) {
     return (
-      <div
-        className={`relative overflow-hidden ${className}`}
-        aria-hidden
-      >
+      <div className={`relative overflow-hidden ${className}`} aria-hidden>
         <img src={FALLBACK_SVG} alt="" className={imgClassName} draggable={false} />
       </div>
     );
   }
 
+  const showSkeleton = !loaded && !error;
+
   return (
-    <div className={`relative overflow-hidden ${className}`}>
+    <div
+      className={`relative overflow-hidden ${className}`}
+      style={{
+        transform: 'translateZ(0)',
+        backfaceVisibility: 'hidden',
+        WebkitBackfaceVisibility: 'hidden',
+      }}
+    >
       <img
         ref={imgRef}
         src={src}
         alt={alt}
         draggable={draggable}
-        loading={loading}
+        loading={isPhotoCached(src) ? 'eager' : loading}
         decoding="async"
         className={imgClassName}
+        style={{
+          transform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+        }}
         onLoad={() => {
+          markPhotoLoaded(src);
           setLoaded(true);
+          setError(false);
           onLoad?.();
         }}
         onError={() => {
@@ -98,8 +135,8 @@ const LazyMissionPhoto: React.FC<LazyMissionPhotoProps> = ({
         }}
       />
 
-      {/* Glassmorphism skeleton — sits above the image until decoded, then fades. */}
-      {!loaded && !error && (
+      {/* Skeleton only on first decode — never on Virtuoso recycle of a known URL. */}
+      {showSkeleton && (
         <div
           aria-hidden
           className="skeleton-shimmer pointer-events-none absolute inset-0 overflow-hidden"
@@ -108,9 +145,10 @@ const LazyMissionPhoto: React.FC<LazyMissionPhotoProps> = ({
               'linear-gradient(135deg, rgba(15,17,24,0.92) 0%, rgba(22,30,40,0.88) 100%)',
             backdropFilter: 'blur(2px)',
             WebkitBackdropFilter: 'blur(2px)',
+            transform: 'translateZ(0)',
+            backfaceVisibility: 'hidden',
           }}
         >
-          {/* Faint neon grid */}
           <div
             className="absolute inset-0 opacity-20"
             style={{
@@ -119,7 +157,6 @@ const LazyMissionPhoto: React.FC<LazyMissionPhotoProps> = ({
               backgroundSize: '28px 28px',
             }}
           />
-          {/* Shimmer sweep via inline keyframe */}
           <div
             className="skeleton-sweep absolute inset-0"
             style={{
@@ -127,7 +164,6 @@ const LazyMissionPhoto: React.FC<LazyMissionPhotoProps> = ({
                 'linear-gradient(90deg, transparent 0%, rgba(34,211,238,0.07) 40%, rgba(192,38,255,0.06) 60%, transparent 100%)',
             }}
           />
-          {/* Corner pulse dot */}
           <span className="absolute right-3 top-3 h-1.5 w-1.5 animate-ping rounded-full bg-cyan-400/50" />
         </div>
       )}

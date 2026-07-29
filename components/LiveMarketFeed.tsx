@@ -43,14 +43,16 @@ import {
 } from '../src/lib/trustBadges';
 import TrustBadgeRow from './TrustBadgeRow';
 import MissionFeedErrorBoundary from './MissionFeedErrorBoundary';
+
 /** Extra pixels kept mounted above/below the visible Service Market list. */
 const MARKET_LIST_OVERSCAN_PX = { top: 480, bottom: 720 } as const;
 
-/** GPU layer for mission cards during scroll. */
+/** GPU layer for mission cards during scroll (glass / buttons stay composited). */
 const CARD_GPU_STYLE: React.CSSProperties = {
   transform: 'translateZ(0)',
-  willChange: 'transform',
+  willChange: 'transform, opacity',
   backfaceVisibility: 'hidden',
+  WebkitBackfaceVisibility: 'hidden',
 };
 export interface LiveMarketMission {
   id: string;
@@ -395,6 +397,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                   <Virtuoso
                     style={{ height: '100%', width: '100%' }}
                     data={visibleMissions}
+                    computeItemKey={(_index, mission) => String(mission.id)}
                     increaseViewportBy={MARKET_LIST_OVERSCAN_PX}
                     itemContent={(_index, mission) => {
                       const budget = missionWorkBudgetUsd(mission);
@@ -407,8 +410,12 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                         mission.status === 'in_progress' ? t('accepted') : mission.status;
 
                       return (
-                        <div className="px-3 pb-3" style={CARD_GPU_STYLE}>
-                          <MissionFeedCard
+                        <div
+                          key={mission.id}
+                          data-mission-id={mission.id}
+                          className="px-3 pb-3"
+                          style={CARD_GPU_STYLE}
+                        >                          <MissionFeedCard
                             photoUrl={mission.photo_urls?.[0] ?? null}
                             placeholderVariant={isHome ? 'home' : 'city'}
                             placeholderIcon={missionPinIcon(
