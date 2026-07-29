@@ -100,6 +100,11 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
       className={`w-full overflow-hidden rounded-xl ${
         highlighted ? 'ring-1 ring-emerald-400/45' : ''
       }`}
+      style={{
+        transform: 'translateZ(0)',
+        willChange: 'transform',
+        backfaceVisibility: 'hidden',
+      }}
     >
       <div
         role={onClick ? 'button' : undefined}

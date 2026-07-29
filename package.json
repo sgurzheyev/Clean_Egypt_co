@@ -28,6 +28,7 @@
     "react-i18next": "^16.5.8",
     "react-map-gl": "^7.1.9",
     "react-router-dom": "^7.13.1",
+    "react-virtuoso": "^4.18.11",
     "suncalc": "^1.9.0",
     "three": "^0.185.1",
     "vite-plugin-node-polyfills": "^0.25.0",

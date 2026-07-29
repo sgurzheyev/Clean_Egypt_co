@@ -2,29 +2,23 @@
  * [[Frontend_Components.md]] · [[Architecture_Overview.md]]
  *
  * Immersive Visual Feed — full-screen, vertical, media-first mission browser
- * (TikTok-style snap scroll). Entered by tapping a mission photo in the
- * Services Market, Profile marketplace list, or My Orders.
+ * (TikTok-style). Entered by tapping a mission photo in the Services Market,
+ * Profile marketplace list, or My Orders.
  *
- * The mission stack is the caller's already-filtered + sorted list, so active
- * Country / City / Tag filters carry over 1:1 — swiping up always moves to the
- * next mission of the current selection. Swiping sideways pages through the
- * current mission's phototheque without leaving it.
+ * Virtualized with react-virtuoso: only the visible slide + overscan neighbors
+ * stay in the DOM to keep mobile FPS stable and avoid OOM on long stacks.
  *
  * LAYERING CONTRACT
- *   Moving layer  — the vertical snap scroller: photo + that mission's own
+ *   Moving layer  — Virtuoso scroller: photo + that mission's own
  *                   price/place/description overlay travel together.
  *   Static layer  — top chrome, right action sidebar and bottom nav are
  *                   siblings of the scroller, never inside a slide, so they
  *                   stay pinned during vertical and horizontal swipes. They
- *                   read from `current`, which updates on snap.
- *
- * Right action sidebar: creator avatar → public profile, location pin → map
- * focus, Contact → mission briefing (contact stays privacy-locked until a bid
- * is accepted — "Hungry-Games" rule), Message → briefing P2P chat.
- * Bottom nav: Map (back to map, focused on current mission) / Messages / Profile.
+ *                   read from `current`, which updates on scroll snap.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import {
   ChevronLeft,
   ChevronRight,
@@ -96,13 +90,23 @@ export interface ImmersiveMissionFeedProps {
   onCreateMission?: () => void;
   /** Optional precomputed trust badges keyed by creator id. */
   creatorTrustBadges?: Record<string, TrustBadgeId[]>;
-}
+};
 
-/** Slides whose photos stay mounted around the active index (cheap windowing). */
+/** Slides whose photos stay mounted around the active index. */
 const PHOTO_WINDOW = 2;
+
+/** Extra full-viewport slides kept mounted above/below the visible one. */
+const OVERSCAN_SLIDES = 1;
 
 /** Matches the upload cap enforced by create_garbage_zone_report. */
 const MAX_PHOTOS = 9;
+
+/** GPU composite layer for scroll slides (moves paint to GPU). */
+const SLIDE_GPU_STYLE: React.CSSProperties = {
+  transform: 'translateZ(0)',
+  willChange: 'transform',
+  backfaceVisibility: 'hidden',
+};
 
 function missionPhotos(mission: ImmersiveFeedMission): string[] {
   return (mission.photo_urls ?? [])
@@ -232,7 +236,10 @@ const MissionSlide: React.FC<MissionSlideProps> = ({
   );
 
   return (
-    <section className="relative h-full w-full snap-start snap-always overflow-hidden">
+    <section
+      className="relative h-full w-full overflow-hidden"
+      style={SLIDE_GPU_STYLE}
+    >
       {/* Media layer — horizontal pager over the mission phototheque.
           `overflow-y-hidden` lets vertical gestures fall through to the feed
           scroller, so sideways paging never blocks the next mission.
@@ -248,6 +255,7 @@ const MissionSlide: React.FC<MissionSlideProps> = ({
             <div
               key={`${mission.id}-${p}`}
               className="relative h-full w-full shrink-0 snap-center snap-always"
+              style={SLIDE_GPU_STYLE}
             >
               <LazyMissionPhoto
                 src={url}
@@ -329,6 +337,23 @@ const MissionSlide: React.FC<MissionSlideProps> = ({
   );
 };
 
+/** Virtuoso scroller — scrollbar hidden, overscroll contained. */
+const ImmersiveScroller = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(function ImmersiveScroller({ className, style, ...props }, ref) {
+  return (
+    <div
+      {...props}
+      ref={ref}
+      className={`ce-hide-scrollbar overscroll-contain ${className ?? ''}`}
+      style={style}
+    />
+  );
+});
+
+const immersiveVirtuosoComponents = { Scroller: ImmersiveScroller };
+
 const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
   open,
   missions,
@@ -343,20 +368,32 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
   creatorTrustBadges,
 }) => {
   const { t } = useTranslation();
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   const indexRef = useRef(0);
+  const snapTimerRef = useRef<number | null>(null);
   const [index, setIndex] = useState(0);
   /** Photo position per mission id — a mission keeps its place while the feed is open. */
   const [photoIndexByMission, setPhotoIndexByMission] = useState<Record<string, number>>(
     {}
   );
   const [liveBadges, setLiveBadges] = useState<TrustBadgeId[]>([]);
+  const [viewportH, setViewportH] = useState(() =>
+    typeof window !== 'undefined' ? Math.max(1, window.innerHeight) : 800
+  );
 
   const startIndex = useMemo(() => {
     if (!startMissionId) return 0;
     const found = missions.findIndex((m) => m.id === startMissionId);
     return found >= 0 ? found : 0;
   }, [missions, startMissionId]);
+
+  useEffect(() => {
+    if (!open) return;
+    const measure = () => setViewportH(Math.max(1, window.innerHeight));
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [open]);
 
   // Jump (no animation) to the tapped mission every time the feed opens.
   useEffect(() => {
@@ -365,11 +402,21 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
     setIndex(startIndex);
     setPhotoIndexByMission({});
     const raf = requestAnimationFrame(() => {
-      const el = scrollerRef.current;
-      if (el) el.scrollTop = startIndex * el.clientHeight;
+      virtuosoRef.current?.scrollToIndex({
+        index: startIndex,
+        align: 'start',
+        behavior: 'auto',
+      });
     });
     return () => cancelAnimationFrame(raf);
   }, [open, startIndex]);
+
+  useEffect(
+    () => () => {
+      if (snapTimerRef.current !== null) window.clearTimeout(snapTimerRef.current);
+    },
+    []
+  );
 
   const current = missions[Math.min(index, Math.max(0, missions.length - 1))];
   const currentPhotoCount = current ? missionPhotos(current).length : 0;
@@ -403,18 +450,32 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose, stepPhoto]);
 
-  const handleScroll = useCallback(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    const next = Math.min(
-      Math.max(0, missions.length - 1),
-      Math.max(0, Math.round(el.scrollTop / Math.max(1, el.clientHeight)))
-    );
-    if (next !== indexRef.current) {
-      indexRef.current = next;
-      setIndex(next);
-    }
-  }, [missions.length]);
+  const handleRangeChanged = useCallback(
+    (range: { startIndex: number; endIndex: number }) => {
+      const next = Math.min(
+        Math.max(0, missions.length - 1),
+        Math.max(0, range.startIndex)
+      );
+      if (next !== indexRef.current) {
+        indexRef.current = next;
+        setIndex(next);
+      }
+    },
+    [missions.length]
+  );
+
+  const handleIsScrolling = useCallback((scrolling: boolean) => {
+    if (snapTimerRef.current !== null) window.clearTimeout(snapTimerRef.current);
+    if (scrolling) return;
+    // Soft snap to the nearest full-viewport slide after the finger settles.
+    snapTimerRef.current = window.setTimeout(() => {
+      virtuosoRef.current?.scrollToIndex({
+        index: indexRef.current,
+        align: 'start',
+        behavior: 'smooth',
+      });
+    }, 60);
+  }, []);
 
   const creatorName = current?.creator?.full_name ?? null;
   const creatorInitial = (creatorName || '?').trim().charAt(0).toUpperCase() || '?';
@@ -467,6 +528,33 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
     </button>
   );
 
+  const itemContent = useCallback(
+    (i: number) => {
+      const mission = missions[i];
+      if (!mission) return null;
+      return (
+        <div style={{ height: viewportH, width: '100%', ...SLIDE_GPU_STYLE }}>
+          <MissionSlide
+            mission={mission}
+            active={i === index}
+            nearActive={Math.abs(i - index) <= PHOTO_WINDOW}
+            photoIndex={photoIndexByMission[mission.id] ?? 0}
+            onPhotoIndexChange={(next) => setMissionPhotoIndex(mission.id, next)}
+            showSwipeHint={i === startIndex && missions.length > 1}
+          />
+        </div>
+      );
+    },
+    [
+      missions,
+      viewportH,
+      index,
+      photoIndexByMission,
+      setMissionPhotoIndex,
+      startIndex,
+    ]
+  );
+
   return (
     <AnimatePresence>
       {open && missions.length > 0 && (
@@ -481,24 +569,24 @@ const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = ({
           aria-modal="true"
           aria-label={t('immersiveFeedTitle', { defaultValue: 'Visual feed' })}
         >
-          {/* ---- Moving layer: vertical snap scroller, one slide per mission. ---- */}
-          <div
-            ref={scrollerRef}
-            onScroll={handleScroll}
-            className="ce-hide-scrollbar h-full w-full snap-y snap-mandatory overflow-y-auto overscroll-contain"
-          >
-            {missions.map((mission, i) => (
-              <MissionSlide
-                key={mission.id}
-                mission={mission}
-                active={i === index}
-                nearActive={Math.abs(i - index) <= PHOTO_WINDOW}
-                photoIndex={photoIndexByMission[mission.id] ?? 0}
-                onPhotoIndexChange={(next) => setMissionPhotoIndex(mission.id, next)}
-                showSwipeHint={i === startIndex && missions.length > 1}
-              />
-            ))}
-          </div>
+          {/* ---- Moving layer: virtualized vertical scroller. ---- */}
+          <Virtuoso
+            ref={virtuosoRef}
+            style={{ height: '100%', width: '100%' }}
+            totalCount={missions.length}
+            initialTopMostItemIndex={startIndex}
+            defaultItemHeight={viewportH}
+            fixedItemHeight={viewportH}
+            increaseViewportBy={{
+              top: viewportH * OVERSCAN_SLIDES,
+              bottom: viewportH * OVERSCAN_SLIDES,
+            }}
+            overscan={OVERSCAN_SLIDES}
+            itemContent={itemContent}
+            rangeChanged={handleRangeChanged}
+            isScrolling={handleIsScrolling}
+            components={immersiveVirtuosoComponents}
+          />
 
           {/* ---- Static layer: never inside a slide, never moves. ---- */}
 
