@@ -115,7 +115,6 @@ import {
   flyMapTo,
   MAP_BOOT_GPS_VIEW,
   MAP_CINEMATIC_FLY,
-  MAP_FALLBACK_CENTER,
   MAP_INITIAL_VIEW,
   MAP_QUICK_FLY,
   type MetallicWaterController,
