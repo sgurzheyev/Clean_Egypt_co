@@ -92,6 +92,14 @@ select,
   touch-action: none;
 }
 
+/* Store coverage mini-map — dark shell while Standard dusk config paints */
+.ce-store-coverage-map,
+.ce-store-coverage-map .mapboxgl-map,
+.ce-store-coverage-map .mapboxgl-canvas-container,
+.ce-store-coverage-map .mapboxgl-canvas {
+  background-color: #05060a !important;
+}
+
 /* Slide-up animation for adaptive form panel */
 @keyframes slideUp {
   from {

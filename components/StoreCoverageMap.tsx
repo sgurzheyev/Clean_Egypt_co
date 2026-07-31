@@ -23,7 +23,7 @@ import {
 import {
   applyMapboxStandardBasemapConfig,
   isMapStyleReady,
-  MAPBOX_STANDARD_STYLE,
+  MAPBOX_STANDARD_STYLE_WITH_CONFIG,
   DEFAULT_STORE_COLOR,
   normalizeStoreColor,
   STORE_COVERAGE_FILL_OPACITY,
@@ -32,6 +32,9 @@ import {
   whenMapStyleReady,
 } from '../src/lib/mapboxStandardTheme';
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
+
+/** App-shell dark — covers the canvas until Standard dusk config paints. */
+const COVERAGE_MAP_SHELL_BG = '#05060a';
 
 type Mode = 'office' | 'draw' | 'idle';
 
@@ -87,6 +90,8 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
   const [viewState, setViewState] = useState(initialView);
   /** Gate GeoJSON Source/Layer until Standard style.load finishes. */
   const [styleReady, setStyleReady] = useState(false);
+  /** Hide canvas flash until dusk monochrome config is applied. */
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
   const styleReadyCancelRef = useRef<(() => void) | null>(null);
 
   const fitToCoverage = useCallback(
@@ -342,7 +347,8 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
       )}
 
       <div
-        className={`relative overflow-hidden rounded-xl border border-violet-400/30 ${heightClassName}`}
+        className={`ce-store-coverage-map relative overflow-hidden rounded-xl border border-violet-400/30 bg-[#05060a] ${heightClassName}`}
+        style={{ backgroundColor: COVERAGE_MAP_SHELL_BG }}
       >
         <MapGL
           ref={mapRef}
@@ -353,28 +359,40 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
             const map = mapRef.current?.getMap?.();
             if (!map) return;
             setStyleReady(false);
+            setIsMapLoaded(false);
             styleReadyCancelRef.current?.();
             styleReadyCancelRef.current = whenMapStyleReady(map, (readyMap) => {
+              // Apply dusk monochrome again even when baked into mapStyle imports —
+              // Standard can still paint a brief light default before config lands.
               applyMapboxStandardBasemapConfig(readyMap);
               setStyleReady(true);
-              if (!interactive) {
-                // Defer fit one frame so Source layers can mount after styleReady.
-                requestAnimationFrame(() => fitToCoverage({ animate: false }));
-              }
+              // Reveal only after dark style is on the globe (style.load / idle).
+              requestAnimationFrame(() => {
+                setIsMapLoaded(true);
+                if (!interactive) {
+                  fitToCoverage({ animate: false });
+                }
+              });
             });
           }}
           mapboxAccessToken={MAPBOX_TOKEN}
-          mapStyle={MAPBOX_STANDARD_STYLE}
-          style={{ width: '100%', height: '100%' }}
+          mapStyle={MAPBOX_STANDARD_STYLE_WITH_CONFIG}
+          style={{
+            width: '100%',
+            height: '100%',
+            backgroundColor: COVERAGE_MAP_SHELL_BG,
+            opacity: isMapLoaded ? 1 : 0,
+            transition: 'opacity 280ms ease-out',
+          }}
           attributionControl={false}
           reuseMaps={false}
           cursor={!interactive ? 'pointer' : mode === 'idle' ? 'grab' : 'crosshair'}
-          dragPan
-          scrollZoom
-          doubleClickZoom
-          touchZoomRotate
-          dragRotate
-          touchPitch
+          dragPan={isMapLoaded}
+          scrollZoom={isMapLoaded}
+          doubleClickZoom={isMapLoaded}
+          touchZoomRotate={isMapLoaded}
+          dragRotate={isMapLoaded}
+          touchPitch={isMapLoaded}
           maxPitch={70}
         >
           {styleReady && (
@@ -458,6 +476,26 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
             </Marker>
           ))}
         </MapGL>
+
+        {!isMapLoaded && (
+          <div
+            className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[#05060a]"
+            style={{ backgroundColor: COVERAGE_MAP_SHELL_BG }}
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <span
+              className="h-8 w-8 animate-spin rounded-full border-2 border-violet-400/25 border-t-violet-300 border-r-cyan-400"
+              aria-hidden
+            />
+            <p className="animate-pulse text-[11px] font-black uppercase tracking-[0.16em] text-violet-200/80">
+              {t('storeCoverageMapLoading', {
+                defaultValue: 'Loading coverage zone...',
+              })}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
