@@ -370,7 +370,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                 <p className="mt-0.5 pr-10 text-xs text-slate-500">{t('liveMarketBrowseHint')}</p>
               </div>
 
-              <div className="max-h-[min(42%,22rem)] shrink-0 overflow-x-hidden overflow-y-auto overscroll-contain border-b border-white/5 px-3 pt-3 pb-2">
+              <div className="scrollable-sheet-content max-h-[min(42%,22rem)] shrink-0 overflow-x-hidden border-b border-white/5 px-3 pt-3 pb-2">
                 <MissionFilterPanel
                   sortMode={sortMode}
                   onSortChange={setSortMode}

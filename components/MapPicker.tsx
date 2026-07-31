@@ -1199,7 +1199,7 @@ function ProofUploadModal({
               </button>
             </div>
 
-            <div className="ce-bottom-sheet-body min-h-0 flex-1 px-5 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="ce-bottom-sheet-body scrollable-sheet-content min-h-0 flex-1 px-5 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <label className="block w-full cursor-pointer rounded-2xl border-2 border-dashed border-cyan-400/65 bg-cyan-500/5 p-8 text-center hover:bg-cyan-500/10 transition-all">
                 <div className="mx-auto mb-3 inline-flex h-14 w-14 items-center justify-center rounded-full border border-cyan-400/60 bg-black/50 text-cyan-300">
                   <Camera className="h-6 w-6" />
@@ -4549,7 +4549,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   return (
     <div
-      className={`relative h-dvh w-full overflow-hidden bg-black${
+      className={`absolute inset-0 h-full w-full overflow-hidden bg-black${
         showProfileFab ? ' ce-map-root--profile-fab' : ''
       }`}
     >
@@ -4629,7 +4629,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       `}</style>
 
       {/* Map mounts only after GPS/Cairo origin is known — no flyTo from a wrong default. */}
-      <div className="ce-map relative z-0 w-full h-full bg-[#05060a]">
+      <div className="ce-map absolute inset-0 z-0 h-full w-full bg-[#05060a]">
         {bootOrigin ? (
         <MapGL
           ref={mapRef}
@@ -5588,7 +5588,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }}
           >
             <form ref={orderFormRef} onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-              <div className="ce-bottom-sheet-body flex-1 min-h-0 pl-2 pr-3 pb-3 space-y-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
+              <div className="ce-bottom-sheet-body scrollable-sheet-content flex-1 min-h-0 pl-2 pr-3 pb-3 space-y-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
               <div className="flex items-center justify-between mb-2">
                 <button
                   type="button"

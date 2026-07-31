@@ -133,7 +133,7 @@ const PublicProfile: React.FC = () => {
     ['verified', 'approved'].includes(String(profile?.verification_status || '').toLowerCase());
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 text-slate-100">
+    <div className="scrollable-sheet-content h-full w-full overflow-x-hidden bg-slate-950 text-slate-100">
       <div className="mx-auto flex w-full max-w-xl flex-col px-4 pb-16 pt-6">
         <button
           type="button"

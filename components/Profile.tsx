@@ -1750,7 +1750,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             )}
           </div>
           {/* Scrollable content — job cards and forms */}
-          <div className="flex max-w-full min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto overscroll-y-contain p-4 pb-[max(9rem,calc(env(safe-area-inset-bottom,0px)+5rem))]">
+          <div className="flex max-w-full min-h-0 flex-1 flex-col gap-4 overflow-x-hidden scrollable-sheet-content p-4 pb-[max(9rem,calc(env(safe-area-inset-bottom,0px)+5rem))]">
           <div className="w-full max-w-md mx-auto flex flex-col gap-3 min-w-0">
         {showAdmin ? (
           <AdminDashboard onBack={() => setShowAdmin(false)} />

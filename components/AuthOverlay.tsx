@@ -200,7 +200,7 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, onSuccess })
       onClick={onClose}
     >
       <div
-        className="my-auto w-full max-w-md overflow-y-auto overscroll-contain rounded-3xl border border-white/10 bg-black/90 p-6 shadow-2xl backdrop-blur-xl [-webkit-overflow-scrolling:touch]"
+        className="my-auto w-full max-w-md overflow-y-auto scrollable-sheet-content rounded-3xl border border-white/10 bg-black/90 p-6 shadow-2xl backdrop-blur-xl"
         style={{
           maxHeight:
             'calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 2rem)',

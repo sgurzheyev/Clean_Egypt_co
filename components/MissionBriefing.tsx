@@ -721,7 +721,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           <div className="h-1.5 w-14 rounded-full bg-white/20" aria-hidden />
         </div>
 
-        <div className="ce-bottom-sheet-body min-h-0 flex-1 touch-pan-y [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+        <div className="ce-bottom-sheet-body scrollable-sheet-content min-h-0 flex-1 touch-pan-y [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
         {booting ? (
           <div className="flex flex-col items-center justify-center px-5 py-16">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-500/60 border-t-cyan-200" />

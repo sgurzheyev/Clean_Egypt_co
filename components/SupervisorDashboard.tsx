@@ -181,7 +181,7 @@ const SupervisorDashboard: React.FC = () => {
 
   if (authChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-300">
+      <div className="flex h-full min-h-0 items-center justify-center bg-slate-950 text-slate-300">
         <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Checking permissions...</p>
       </div>
     );
@@ -189,7 +189,7 @@ const SupervisorDashboard: React.FC = () => {
 
   if (!isSupervisor) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-300">
+      <div className="flex h-full min-h-0 items-center justify-center bg-slate-950 text-slate-300">
         <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
           Supervisor access required to view this dashboard.
         </p>
@@ -198,7 +198,7 @@ const SupervisorDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white px-4 py-6">
+    <div className="scrollable-sheet-content h-full min-h-0 bg-slate-950 text-white px-4 py-6">
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="flex items-center justify-between">
           <div>

@@ -513,7 +513,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div
-                  className="ce-bottom-sheet-body min-h-0 flex-1 touch-pan-y"
+                  className="ce-bottom-sheet-body scrollable-sheet-content min-h-0 flex-1 touch-pan-y"
                   style={{ WebkitOverflowScrolling: 'touch' }}
                   onTouchMove={(e) => e.stopPropagation()}
                 >

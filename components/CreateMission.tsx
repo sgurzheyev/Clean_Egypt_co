@@ -371,7 +371,7 @@ const CreateMission: React.FC<Props> = ({
           placeholder={
             taskType === 'city' ? t('describeCitySpot') : t('describeHomeTask')
           }
-          className={`w-full min-h-[4.5rem] max-h-[20rem] overflow-y-auto ${PROFILE_GLASS_PANEL} px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none ${
+          className={`w-full min-h-[4.5rem] max-h-[20rem] overflow-y-auto ${PROFILE_GLASS_PANEL} px-4 py-3 text-base text-white placeholder:text-slate-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-500 resize-none ${
             hasTextWarning ? 'border-b-2 border-dashed border-[#ea580c]' : ''
           }`}
         />

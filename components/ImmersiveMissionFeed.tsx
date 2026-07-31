@@ -548,6 +548,8 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
               overflowY: 'auto',
               scrollSnapType: 'y mandatory',
               WebkitOverflowScrolling: 'touch',
+              overscrollBehaviorY: 'contain',
+              touchAction: 'pan-y',
             }}
           >
             {missions.map((mission, i) => (

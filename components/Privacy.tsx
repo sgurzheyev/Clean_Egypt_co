@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 const Privacy: React.FC = () => {
   return (
-    <div className="min-h-screen w-full bg-slate-950 text-white">
+    <div className="scrollable-sheet-content h-full w-full overflow-x-hidden bg-slate-950 text-white">
       <div className="mx-auto max-w-4xl px-6 py-10">
         <header className="mb-8 flex items-center justify-between gap-4">
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Garbagin Privacy Policy</h1>

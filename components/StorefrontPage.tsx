@@ -118,7 +118,7 @@ const StorefrontPage: React.FC = () => {
     t('storeDefaultName', { defaultValue: 'Contractor store' });
 
   return (
-    <div className="min-h-dvh bg-slate-950 text-white">
+    <div className="scrollable-sheet-content h-full w-full overflow-x-hidden bg-slate-950 text-white">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(168,85,247,0.18),_transparent_55%),radial-gradient(ellipse_at_bottom,_rgba(16,185,129,0.12),_transparent_50%)]" />
 
       <header className="relative z-10 mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">

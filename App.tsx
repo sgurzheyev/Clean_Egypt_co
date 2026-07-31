@@ -95,9 +95,9 @@ const App: React.FC = () => {
       <Route
         path="/*"
         element={
-    <div className="relative h-dvh w-full overflow-hidden bg-slate-950">
+    <div className="app-container relative h-full w-full overflow-hidden bg-slate-950">
       {/* Single map interface — never unmounts */}
-      <div className="fixed inset-0 z-0 h-full w-full isolate">
+      <div className="absolute inset-0 z-0 h-full w-full isolate overflow-hidden">
         <MapPicker
           onLocationSelect={() => {}}
           selectedCoords={null}
