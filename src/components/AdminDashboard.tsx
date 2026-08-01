@@ -21,6 +21,24 @@ import { formatTokens } from '../lib/formatMoney';
 import ModeratedMissionPhoto from '../../components/ModeratedMissionPhoto';
 import ProfileCard from '../../components/ProfileCard';
 
+/** Supabase Postgrest errors are plain objects — String(e) becomes "[object Object]". */
+function formatUnknownError(e: unknown, fallback: string): string {
+  if (e instanceof Error && e.message.trim()) return e.message;
+  if (typeof e === 'string' && e.trim()) return e;
+  if (e && typeof e === 'object') {
+    const o = e as Record<string, unknown>;
+    if (typeof o.message === 'string' && o.message.trim()) return o.message;
+    if (typeof o.details === 'string' && o.details.trim()) return o.details;
+    if (typeof o.hint === 'string' && o.hint.trim()) return o.hint;
+    try {
+      return JSON.stringify(e);
+    } catch {
+      /* ignore */
+    }
+  }
+  return fallback;
+}
+
 interface ProfileRow {
   id: string;
   full_name?: string | null;
@@ -239,9 +257,9 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       }
       setTransactions((txRes.data || []) as TransactionRow[]);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = formatUnknownError(e, 'Failed to load analytics.');
       console.error('Admin analytics', msg);
-      setError(msg || 'Failed to load analytics.');
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -257,8 +275,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       if (err) throw err;
       setProfiles(await withAdminPhones((data || []) as ProfileRow[]));
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(msg || 'Failed to load users.');
+      setError(formatUnknownError(e, 'Failed to load users.'));
     } finally {
       setLoading(false);
     }
@@ -274,8 +291,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       if (err) throw err;
       setStores((data || []) as StoreRow[]);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(msg || 'Failed to load stores.');
+      setError(formatUnknownError(e, 'Failed to load stores.'));
     } finally {
       setLoading(false);
     }
@@ -329,8 +345,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       if (err) throw err;
       setMissions((data || []) as MissionRow[]);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setMissionsError(msg || 'Failed to load missions.');
+      setMissionsError(formatUnknownError(e, 'Failed to load missions.'));
     } finally {
       setMissionsLoading(false);
     }
@@ -351,8 +366,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       if (err) throw err;
       setDisputes((data || []) as MissionRow[]);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setDisputesError(msg || 'Failed to load disputes.');
+      setDisputesError(formatUnknownError(e, 'Failed to load disputes.'));
     } finally {
       setDisputesLoading(false);
     }
@@ -441,7 +455,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         prev?.id === userId ? { ...prev, is_verified: nextValue } : prev
       );
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Failed to update verification.');
+      alert(formatUnknownError(e, 'Failed to update verification.'));
     } finally {
       setVerifyLoadingUserId(null);
     }
@@ -462,7 +476,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       );
       alert(nextValue ? 'User banned.' : 'User unbanned.');
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Failed to update ban status.');
+      alert(formatUnknownError(e, 'Failed to update ban status.'));
     }
   };
 
@@ -496,7 +510,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       setGrantUser(null);
       alert(`Token balance updated → ${next}`);
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Failed to grant tokens.');
+      alert(formatUnknownError(e, 'Failed to grant tokens.'));
     } finally {
       setGrantBusy(false);
     }
@@ -515,7 +529,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       alert('Ghost pins cleaned.');
       await loadMissionControl();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Failed to clean ghost pins.');
+      alert(formatUnknownError(e, 'Failed to clean ghost pins.'));
     }
   };
 
@@ -529,7 +543,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       alert('Mission cancelled.');
       await loadMissionControl();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Failed to cancel mission.');
+      alert(formatUnknownError(e, 'Failed to cancel mission.'));
     }
   };
 
@@ -558,7 +572,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       alert(decision === 'approve' ? 'Approved (P2P, no escrow).' : 'Rejected.');
       await loadDisputes();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Failed to resolve dispute.');
+      alert(formatUnknownError(e, 'Failed to resolve dispute.'));
     }
   };
 
@@ -578,7 +592,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       alert('AI analysis saved.');
       await loadDisputes();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'AI analysis failed.');
+      alert(formatUnknownError(e, 'AI analysis failed.'));
     } finally {
       setAiRunningMissionId(null);
     }
@@ -592,7 +606,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       await fetchPendingApprovals();
       alert('Mission deleted.');
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Failed to delete mission.');
+      alert(formatUnknownError(e, 'Failed to delete mission.'));
     } finally {
       setAdminDeleteLoadingId(null);
     }
