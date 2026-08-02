@@ -1,7 +1,7 @@
 /**
  * Admin Console — 3 pillars: Analytics · Users & Stores · Platform Control
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -224,6 +224,24 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [disputesLoading, setDisputesLoading] = useState(false);
   const [disputesError, setDisputesError] = useState<string | null>(null);
   const [aiRunningMissionId, setAiRunningMissionId] = useState<string | null>(null);
+  const [nukeBusy, setNukeBusy] = useState(false);
+  const [adminToast, setAdminToast] = useState<{
+    message: string;
+    kind: 'success' | 'error';
+  } | null>(null);
+  const adminToastTimerRef = useRef<number | null>(null);
+
+  const showAdminToast = useCallback((message: string, kind: 'success' | 'error') => {
+    setAdminToast({ message, kind });
+    if (adminToastTimerRef.current) window.clearTimeout(adminToastTimerRef.current);
+    adminToastTimerRef.current = window.setTimeout(() => setAdminToast(null), 3200);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (adminToastTimerRef.current) window.clearTimeout(adminToastTimerRef.current);
+    };
+  }, []);
 
   const loadAnalytics = useCallback(async () => {
     setLoading(true);
@@ -609,6 +627,35 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       alert(formatUnknownError(e, 'Failed to delete mission.'));
     } finally {
       setAdminDeleteLoadingId(null);
+    }
+  };
+
+  const handleFactoryReset = async () => {
+    if (
+      !window.confirm(
+        'Are you absolutely sure? This will delete ALL missions, bids, and transactions across the platform!'
+      )
+    ) {
+      return;
+    }
+    if (nukeBusy) return;
+    setNukeBusy(true);
+    try {
+      const { error: rpcErr } = await supabase.rpc('admin_factory_reset');
+      if (rpcErr) throw rpcErr;
+      showAdminToast('Factory reset complete. Missions, bids, and transactions wiped.', 'success');
+      setPendingApprovals([]);
+      setMissions([]);
+      setDisputes([]);
+      setTransactions([]);
+      if (controlSub === 'stuck') void fetchPendingApprovals();
+      if (controlSub === 'missions') void loadMissionControl();
+      if (controlSub === 'disputes') void loadDisputes();
+      if (pillar === 'analytics') void loadAnalytics();
+    } catch (e: unknown) {
+      showAdminToast(formatUnknownError(e, 'Factory reset failed.'), 'error');
+    } finally {
+      setNukeBusy(false);
     }
   };
 
@@ -1190,6 +1237,38 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               </div>
             </section>
           )}
+
+          <section className="rounded-2xl border-2 border-rose-500/50 bg-rose-950/40 p-4 shadow-[0_0_28px_rgba(244,63,94,0.18)]">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.22em] text-rose-300">
+              Danger zone
+            </h3>
+            <p className="mt-2 text-xs leading-relaxed text-rose-100/80">
+              Factory reset wipes all missions, bids, contributions, notifications, reviews, and
+              transactions. User profiles are kept.
+            </p>
+            <button
+              type="button"
+              disabled={nukeBusy}
+              onClick={() => void handleFactoryReset()}
+              className="mt-4 w-full rounded-full border border-rose-400/70 bg-rose-600/90 px-4 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-white shadow-[0_0_20px_rgba(244,63,94,0.45)] transition-transform hover:bg-rose-500 disabled:cursor-wait disabled:opacity-60 active:scale-[0.98]"
+            >
+              {nukeBusy ? 'Nuking…' : 'Nuke Database (Factory Reset)'}
+            </button>
+          </section>
+        </div>
+      )}
+
+      {adminToast && (
+        <div
+          className={`fixed bottom-6 left-1/2 z-[200] max-w-md -translate-x-1/2 rounded-2xl border px-4 py-3 text-center text-sm font-semibold shadow-2xl backdrop-blur-md ${
+            adminToast.kind === 'success'
+              ? 'border-emerald-400/40 bg-emerald-950/90 text-emerald-100'
+              : 'border-rose-400/40 bg-rose-950/90 text-rose-100'
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          {adminToast.message}
         </div>
       )}
 
