@@ -123,7 +123,7 @@ import { resolveBootMapLocation, type BootMapOrigin } from '../src/lib/mapBootLo
 import MapBootSplash from './MapBootSplash';import {
   applyMapboxStandardBasemapConfig,
   isMapStyleReady,
-  MAPBOX_STANDARD_STYLE,
+  MAPBOX_STANDARD_STYLE_WITH_CONFIG,
   normalizeStoreColor,
   resolveMapboxLightPreset,
   DEFAULT_STORE_COLOR,
@@ -1272,7 +1272,7 @@ interface MapPickerProps {
   profileOverlayOpen?: boolean;
 }
 
-/** Legacy custom vector style retired — basemap is Mapbox Standard monochrome dusk. */
+/** Legacy custom vector style retired — basemap is Mapbox Standard night + default theme. */
 const MapPicker: React.FC<MapPickerProps> = ({
   onLocationSelect,
   selectedCoords = null,
@@ -1638,7 +1638,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
 
     try {
-      // Dynamic Standard light (dawn / day / dusk) — never lock to pitch-black night.
+      // Dynamic Standard light (dawn / day / night) — night unlocks glowing facades.
       applyMapboxStandardBasemapConfig(map, {
         lightPreset: resolveMapboxLightPreset({ isNight, golden }),
       });
@@ -3091,7 +3091,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       map.on('mouseleave', 'mission-pins-core', onLayerLeave);
     };
 
-    // Pins must render above 3d-buildings/labels or fill-extrusions hide them at zoom 13+.
+    // Pins must render above Standard 3D buildings/labels at zoom 13+.
     const keepPinLayersOnTop = () => {
       try {
         const layers = map.getStyle()?.layers;
@@ -4769,7 +4769,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             waterFxRef.current = null;
           };
         }}
-        mapStyle={MAPBOX_STANDARD_STYLE}
+        mapStyle={MAPBOX_STANDARD_STYLE_WITH_CONFIG}
         mapboxAccessToken={MAPBOX_TOKEN}
         style={{ width: '100%', height: '100%' }}
       >

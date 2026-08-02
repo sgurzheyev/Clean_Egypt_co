@@ -362,8 +362,8 @@ const StoreCoverageMap: React.FC<StoreCoverageMapProps> = ({
             setIsMapLoaded(false);
             styleReadyCancelRef.current?.();
             styleReadyCancelRef.current = whenMapStyleReady(map, (readyMap) => {
-              // Apply dusk monochrome again even when baked into mapStyle imports —
-              // Standard can still paint a brief light default before config lands.
+              // Re-apply night/default Standard config after style.load —
+              // import config covers first paint; this catches runtime drift.
               applyMapboxStandardBasemapConfig(readyMap);
               setStyleReady(true);
               // Reveal only after dark style is on the globe (style.load / idle).

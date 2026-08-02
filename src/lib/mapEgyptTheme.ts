@@ -339,6 +339,7 @@ export const egyptRoadLineColorExpr: unknown[] = [
 
 type MapLike = {
   getLayer?: (id: string) => unknown;
+  removeLayer?: (id: string) => void;
   getStyle?: () => { layers?: Array<{ id?: string; type?: string; 'source-layer'?: string }> };
   setPaintProperty?: (layerId: string, name: string, value: unknown) => void;
   addLayer?: (layer: Record<string, unknown>, beforeId?: string) => void;
@@ -353,38 +354,21 @@ function safePaint(map: MapLike, layerId: string, prop: string, value: unknown) 
 }
 
 /**
- * Apply Egypt/Orient paint after style load (buildings + road/line layers).
- * Safe to call multiple times; creates `3d-buildings` if missing.
+ * Apply Egypt/Orient paint after style load (road/line accents only).
+ *
+ * Manual fill-extrusion `3d-buildings` is intentionally NOT added — Mapbox
+ * Standard (v3) already provides textured 3D buildings with lit facades.
+ * A custom extrusion would conflict and hide those windows.
  */
-export function applyEgyptMapTheme(map: MapLike, options?: { beforeLayerId?: string }) {
-  const beforeId = options?.beforeLayerId ?? 'place_label';
-
-  // --- 3D building extrusions ---
-  if (!map.getLayer?.('3d-buildings')) {
-    try {
-      map.addLayer?.(
-        {
-          id: '3d-buildings',
-          source: 'composite',
-          'source-layer': 'building',
-          filter: ['==', 'extrude', 'true'],
-          type: 'fill-extrusion',
-          minzoom: 13,
-          paint: { ...egyptBuildingExtrusionPaint },
-        },
-        beforeId
-      );
-    } catch (e) {
-      console.warn('[applyEgyptMapTheme] add 3d-buildings failed', e);
+export function applyEgyptMapTheme(map: MapLike, _options?: { beforeLayerId?: string }) {
+  // Remove any leftover legacy extrusion from older sessions / hot reload.
+  try {
+    if (map.getLayer?.('3d-buildings')) {
+      map.removeLayer?.('3d-buildings');
     }
-  } else {
-    for (const [prop, value] of Object.entries(egyptBuildingExtrusionPaint)) {
-      safePaint(map, '3d-buildings', prop, value);
-    }
+  } catch {
+    /* ignore */
   }
-
-  // Optional foundation tint (supported on newer Mapbox GL only).
-  safePaint(map, '3d-buildings', 'fill-extrusion-base-color', '#1E1E22');
 
   // --- Road / border / admin lines ---
   const style = map.getStyle?.();

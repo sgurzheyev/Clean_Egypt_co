@@ -8,7 +8,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '../../services/supabase';
 import {
   applyMapboxStandardBasemapConfig,
-  MAPBOX_STANDARD_STYLE,
+  MAPBOX_STANDARD_STYLE_WITH_CONFIG,
   whenMapStyleReady,
 } from '../lib/mapboxStandardTheme';
 import { runMissionAiAnalysis } from '../lib/openai';
@@ -1359,7 +1359,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                         pitch: 45,
                       }}
                       style={{ width: '100%', height: 180 }}
-                      mapStyle={MAPBOX_STANDARD_STYLE}
+                      mapStyle={MAPBOX_STANDARD_STYLE_WITH_CONFIG}
                       onLoad={(e) => {
                         const map = e.target as {
                           isStyleLoaded?: () => boolean;
