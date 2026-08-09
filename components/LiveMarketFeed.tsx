@@ -340,7 +340,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
             exit={{ y: 32, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 280, damping: 24 }}
             onClick={(e) => e.stopPropagation()}
-            className="ce-bottom-sheet absolute inset-x-0 bottom-0 mx-auto flex h-[min(85svh,85dvh,85vh)] max-h-[min(85svh,85dvh,85vh)] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl border-t border-white/10 bg-[#0A0A12]/95 shadow-[0_-12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+            className="ce-bottom-sheet glass-panel absolute inset-x-0 bottom-0 mx-auto flex h-[min(85svh,85dvh,85vh)] max-h-[min(85svh,85dvh,85vh)] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl"
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -354,17 +354,17 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
               className="flex h-full min-h-0 w-full flex-1 flex-col"
               style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}
             >
-              <div className="relative shrink-0 border-b border-white/10 bg-[#0A0A12]/95 p-4 backdrop-blur-xl">
+              <div className="relative shrink-0 border-b border-white/10 bg-white/[0.03] p-4">
                 <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-white/20" aria-hidden />
                 <button
                   type="button"
                   onClick={onClose}
-                  className="absolute right-3 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-slate-300"
+                  className="glass-button absolute right-3 top-2 flex h-8 w-8 items-center justify-center rounded-full text-slate-300"
                   aria-label={t('close')}
                 >
                   ✕
                 </button>
-                <p className="pr-10 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400">
+                <p className="glass-text pr-10 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
                   {t('serviceMarketplace')}
                 </p>
                 <p className="mt-0.5 pr-10 text-xs text-slate-500">{t('liveMarketBrowseHint')}</p>

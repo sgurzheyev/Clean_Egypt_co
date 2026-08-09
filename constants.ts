@@ -31,22 +31,24 @@ export const ADMIN_FORCE_RELEASE_PAYMENT_BTN =
   'disabled:opacity-70 disabled:cursor-not-allowed ' +
   'inline-flex items-center justify-center gap-1.5';
 
-/** Profile / Telegram WebView — frosted silver glass panels */
-export const PROFILE_GLASS_PANEL =
-  'rounded-2xl border border-white/12 backdrop-blur-[16px] [-webkit-backdrop-filter:blur(16px)] bg-[linear-gradient(135deg,rgba(50,50,55,0.55)_0%,rgba(40,40,45,0.65)_100%)]';
+/** Profile / Telegram WebView — Apple Liquid Glass panels */
+export const PROFILE_GLASS_PANEL = 'glass-panel';
 
 /**
- * Floating map filter / bottom-sheet chrome — translucent steel glassmorphism.
- * Background uses an inline gradient (see STEEL_GLASS_PANEL_STYLE); keep button
- * accents and icons untouched when applying this shell.
+ * Floating map filter / bottom-sheet chrome — Liquid Glass shell.
+ * Prefer class-driven blur/border; neon accents stay on child controls.
  */
-export const STEEL_GLASS_PANEL =
-  'border border-white/10 backdrop-blur-[16px] [-webkit-backdrop-filter:blur(16px)]';
+export const STEEL_GLASS_PANEL = 'glass-panel';
 
 export const STEEL_GLASS_PANEL_STYLE = {
-  background:
-    'linear-gradient(135deg, rgba(32, 32, 37, 0.75) 0%, rgba(20, 20, 25, 0.85) 100%)',
+  background: 'rgba(255, 255, 255, 0.05)',
 } as const;
+
+/** Interactive glass control (hover/active neon glow via index.css). */
+export const GLASS_BUTTON = 'glass-button';
+export const GLASS_BUTTON_NEON = 'glass-button-neon';
+export const GLASS_NAV = 'glass-nav';
+export const GLASS_TEXT = 'glass-text';
 
 /**
  * Mobile Chrome / iOS bottom-sheet geometry.

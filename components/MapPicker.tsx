@@ -5543,7 +5543,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             type="button"
             onClick={() => onAvatarClick?.()}
             style={{ gridColumn: '3 / 4' }}
-            className="pointer-events-auto flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/60 bg-black/80 backdrop-blur-lg shadow-[0_0_24px_rgba(34,211,238,0.35)] transition-transform active:scale-95"
+            className="pointer-events-auto glass-button-neon flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-400/60"
             aria-label="Profile"
           >
             {viewerProfile?.avatar_url ? (

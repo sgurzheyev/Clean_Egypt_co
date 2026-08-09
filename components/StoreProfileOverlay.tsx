@@ -33,7 +33,7 @@ const StoreProfileOverlay: React.FC<StoreProfileOverlayProps> = ({
         onClick={onClose}
       />
       <div
-        className="ce-bottom-sheet relative z-[1] flex w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-violet-400/30 bg-slate-950/95 shadow-[0_-16px_48px_rgba(168,85,247,0.22)] sm:rounded-3xl"
+        className="ce-bottom-sheet glass-panel relative z-[1] flex w-full max-w-md flex-col overflow-hidden rounded-t-3xl border-violet-400/30 sm:rounded-3xl"
         style={{
           maxHeight: 'min(88svh, 88dvh, 42rem)',
         }}

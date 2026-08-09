@@ -705,7 +705,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
       />
 
       <div
-        className="ce-bottom-sheet relative z-[10030] flex w-full max-w-xl flex-col overflow-hidden rounded-t-3xl bg-slate-950 shadow-[0_-10px_40px_rgba(0,229,255,0.12)] pointer-events-auto"
+        className="ce-bottom-sheet glass-panel relative z-[10030] flex w-full max-w-xl flex-col overflow-hidden rounded-t-3xl pointer-events-auto shadow-[0_-10px_40px_rgba(0,229,255,0.12)]"
         onClick={(e) => e.stopPropagation()}
         style={{
           ...BOTTOM_SHEET_MAX_HEIGHT_STYLE,
@@ -1556,7 +1556,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
         </div>
 
         {!booting && (
-          <div className="ce-bottom-sheet-footer shrink-0 border-t border-white/10 bg-slate-950 px-5 pt-3">
+          <div className="ce-bottom-sheet-footer shrink-0 px-5 pt-3">
               {isCompletedStatus ? (
                 <div className="space-y-3">
                   <p className="text-sm font-semibold text-amber-200">{t('missionAccomplished')}</p>

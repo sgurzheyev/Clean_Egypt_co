@@ -54,10 +54,10 @@ const StoreMapFilterChips: React.FC<StoreMapFilterChipsProps> = ({
       <button
         type="button"
         onClick={() => onOpenChange(!open)}
-        className={`fixed left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[10015] flex h-12 w-12 items-center justify-center rounded-full border backdrop-blur-lg transition-transform active:scale-95 ${
+        className={`fixed left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[10015] flex h-12 w-12 items-center justify-center rounded-full border transition-transform active:scale-95 ${
           open || filterActive
-            ? 'border-cyan-400 bg-cyan-500/90 text-white shadow-[0_0_22px_rgba(34,211,238,0.45)]'
-            : 'border-cyan-400/50 bg-black/70 text-cyan-200 shadow-[0_0_18px_rgba(34,211,238,0.28)]'
+            ? 'glass-button-neon border-cyan-400 text-white'
+            : 'glass-button-neon border-cyan-400/50 text-cyan-200'
         }`}
         aria-label={t('storeFilterBarLabel', { defaultValue: 'Store filters' })}
         aria-expanded={open}

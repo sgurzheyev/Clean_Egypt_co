@@ -97,7 +97,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
 
   return (
     <article
-      className={`relative overflow-hidden rounded-3xl border border-white/12 bg-[linear-gradient(135deg,rgba(50,50,55,0.55)_0%,rgba(40,40,45,0.65)_100%)] backdrop-blur-[16px] shadow-[0_8px_32px_rgba(0,0,0,0.35)] ${className}`}
+      className={`relative overflow-hidden glass-panel ${className}`}
     >
       <div className={`h-16 w-full bg-gradient-to-b ${theme.band}`} aria-hidden />
 

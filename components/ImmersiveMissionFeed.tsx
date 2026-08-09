@@ -138,7 +138,7 @@ function missionPlaceLine(mission: ImmersiveFeedMission): string | undefined {
 
 /** Sidebar action base — accent border/glow per button, matching the map's neon chrome. */
 const sidebarBtnClass =
-  'flex h-12 w-12 items-center justify-center rounded-full border bg-black/70 backdrop-blur-lg transition-transform active:scale-90';
+  'glass-button flex h-12 w-12 items-center justify-center rounded-full';
 
 type MissionSlideProps = {
   mission: ImmersiveFeedMission;
@@ -570,13 +570,13 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
 
           {/* Top chrome: position counter + close. */}
           <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
-            <span className="rounded-full border border-white/15 bg-black/45 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-200 backdrop-blur-md">
+            <span className="glass-button rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-200">
               {index + 1} / {missions.length}
             </span>
             <button
               type="button"
               onClick={onClose}
-              className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white backdrop-blur-md transition-transform hover:bg-black/75 active:scale-90"
+              className="pointer-events-auto glass-button flex h-10 w-10 items-center justify-center rounded-full text-white"
               aria-label={t('close', { defaultValue: 'Close' })}
             >
               <X className="h-5 w-5" strokeWidth={2.25} />
@@ -673,7 +673,7 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
               Strict 5-column grid: the raised "+" (new mission at my location)
               sits in column 3, geometric 50%. No translate / flex spacers. */}
           <nav
-            className="absolute inset-x-0 bottom-0 z-30 items-center border-t border-white/10 bg-black/65 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] backdrop-blur-lg"
+            className="absolute inset-x-0 bottom-0 z-30 glass-nav items-center px-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]"
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',

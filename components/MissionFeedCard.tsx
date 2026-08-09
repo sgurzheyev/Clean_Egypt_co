@@ -172,7 +172,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
               <button
                 type="button"
                 onClick={handleLocate}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-black/55 text-cyan-200 shadow-lg backdrop-blur-md transition-transform hover:bg-black/70 active:scale-95"
+                className="glass-button flex h-9 w-9 items-center justify-center rounded-full text-cyan-200"
                 aria-label={locateAriaLabel}
               >
                 <MapPin className="h-4 w-4" strokeWidth={2.25} />

@@ -141,10 +141,10 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, onOpenMissi
       <button
         type="button"
         onClick={handleToggle}
-        className={`relative flex h-11 w-11 items-center justify-center rounded-full border bg-black/70 text-cyan-200 backdrop-blur-lg transition-transform active:scale-95 ${
+        className={`relative glass-button flex h-11 w-11 items-center justify-center rounded-full border text-cyan-200 ${
           unread > 0
             ? 'border-cyan-300/80 shadow-[0_0_22px_rgba(34,211,238,0.55)] animate-pulse'
-            : 'border-cyan-400/50 shadow-[0_0_18px_rgba(34,211,238,0.28)]'
+            : 'border-cyan-400/50'
         }`}
         aria-label={t('notifications')}
         aria-expanded={open}
@@ -159,7 +159,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, onOpenMissi
 
       {open && (
         <div
-          className="mt-2 flex w-[min(88vw,22rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/95 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+          className="mt-2 flex w-[min(88vw,22rem)] flex-col overflow-hidden glass-panel"
           style={{
             maxHeight:
               'calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 5.5rem)',
