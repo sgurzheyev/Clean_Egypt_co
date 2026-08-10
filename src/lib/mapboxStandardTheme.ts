@@ -47,27 +47,60 @@ export function normalizeStoreColor(value: unknown): string {
 export type MapboxLightPreset = 'dusk' | 'dawn' | 'day' | 'night';
 
 /**
- * Dynamic Standard light — night unlocks glowing facade windows;
- * golden hour → dusk; midday → day.
+ * Clock-band fallback when sun position is not yet available
+ * (first paint / embedded maps without atmosphere).
+ * Bands: night 21–5, dawn 5–8, day 8–17, dusk 17–21 (local time).
+ */
+export function resolveMapboxLightPresetByClock(
+  date: Date = new Date()
+): MapboxLightPreset {
+  const h = date.getHours() + date.getMinutes() / 60;
+  if (h >= 21 || h < 5) return 'night';
+  if (h < 8) return 'dawn';
+  if (h < 17) return 'day';
+  return 'dusk';
+}
+
+/**
+ * Sun-driven Standard light — night unlocks glowing facade windows;
+ * low sun / civil twilight → dawn (morning) or dusk (evening); midday → day.
+ *
+ * Prefer `sunAltDeg` when available. Civil twilight (−6°…0°) and golden hour
+ * (0°…10°) map to warm dawn/dusk presets so sky + 3D buildings tint correctly.
  */
 export function resolveMapboxLightPreset(opts: {
-  isNight: boolean;
-  golden: boolean;
+  isNight?: boolean;
+  golden?: boolean;
+  /** True before local solar noon (sunrise side → dawn). */
+  isMorning?: boolean;
+  /** Solar altitude in degrees (−90…90). */
+  sunAltDeg?: number;
 }): MapboxLightPreset {
+  const morning = opts.isMorning === true;
+  const alt = opts.sunAltDeg;
+
+  if (typeof alt === 'number' && Number.isFinite(alt)) {
+    if (alt < -6) return 'night';
+    if (alt < 0) return morning ? 'dawn' : 'dusk';
+    if (alt <= 10) return morning ? 'dawn' : 'dusk';
+    return 'day';
+  }
+
   if (opts.isNight) return 'night';
-  if (opts.golden) return 'dusk';
+  if (opts.golden) return morning ? 'dawn' : 'dusk';
   return 'day';
 }
 
 /**
  * Standard Style configuration for GarbaGin.
  * - `theme: 'default'` keeps photoreal facades (not monochrome wash).
- * - `lightPreset: 'night'` enables lit windows + night ambience.
+ * - `lightPreset` follows local clock on first paint; MapPicker atmosphere
+ *   overrides with sun-accurate dawn/day/dusk/night.
  * - 3D objects/buildings/facades stay ON (built into Standard).
  */
 export const MAPBOX_STANDARD_BASEMAP_CONFIG = {
   theme: 'default',
-  lightPreset: 'night' as MapboxLightPreset,
+  lightPreset: resolveMapboxLightPresetByClock() as MapboxLightPreset,
   show3dObjects: true,
   show3dBuildings: true,
   show3dTrees: true,
@@ -179,8 +212,8 @@ export function removeLegacy3dBuildingsLayer(
 }
 
 /**
- * Apply Standard basemap config (night + default theme + 3D facades).
- * Pass `lightPreset` to follow sun-driven dawn/day/night overrides.
+ * Apply Standard basemap config (default theme + 3D facades + time-of-day light).
+ * Pass `lightPreset` for sun-driven dawn/day/dusk/night; otherwise uses local clock.
  * Returns false if the style is not ready yet (caller should retry via whenMapStyleReady).
  */
 export function applyMapboxStandardBasemapConfig(
@@ -194,7 +227,7 @@ export function applyMapboxStandardBasemapConfig(
 
   const config = {
     ...MAPBOX_STANDARD_BASEMAP_CONFIG,
-    ...(overrides?.lightPreset ? { lightPreset: overrides.lightPreset } : null),
+    lightPreset: overrides?.lightPreset ?? resolveMapboxLightPresetByClock(),
   };
 
   for (const [key, value] of Object.entries(config)) {
@@ -208,8 +241,8 @@ export function applyMapboxStandardBasemapConfig(
 }
 
 /**
- * Prefer baking night/default into the style import so the first paint is dark
- * (avoids day-flash). Callers may still re-apply via whenMapStyleReady.
+ * Bake current clock lightPreset into the style import for first paint.
+ * MapPicker atmosphere then smoothly retunes via setConfigProperty.
  */
 export const MAPBOX_STANDARD_STYLE_WITH_CONFIG = {
   version: 8 as const,
@@ -217,7 +250,10 @@ export const MAPBOX_STANDARD_STYLE_WITH_CONFIG = {
     {
       id: 'basemap',
       url: MAPBOX_STANDARD_STYLE,
-      config: { ...MAPBOX_STANDARD_BASEMAP_CONFIG },
+      config: {
+        ...MAPBOX_STANDARD_BASEMAP_CONFIG,
+        lightPreset: resolveMapboxLightPresetByClock(),
+      },
     },
   ],
   sources: {},

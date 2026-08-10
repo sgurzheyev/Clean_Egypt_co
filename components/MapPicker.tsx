@@ -1442,8 +1442,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const moonSkyPolarDeg = toSkyPolarDeg(moonElevDeg);
     const sunSkyPolarDeg = toSkyPolarDeg(sunAltDeg);
 
-    const isNight = sunAltDeg < 0;
+    const isNight = sunAltDeg < -6;
     const moonFrac = Math.max(0, Math.min(1, Number(moonIll?.fraction ?? 0)));
+
+    /** Morning vs evening — solar noon splits dawn vs dusk warm presets. */
+    let isMorning = now.getHours() < 12;
+    try {
+      const times = SunCalc.getTimes(now, lat, lng);
+      const noonMs = times?.solarNoon?.getTime?.();
+      if (typeof noonMs === 'number' && Number.isFinite(noonMs)) {
+        isMorning = now.getTime() < noonMs;
+      }
+    } catch {
+      /* clock fallback */
+    }
 
     /** Moon above horizon: visible disc + scattering; scales with illumination (≈5–10 at full). */
     const moonAboveHorizon = moonElevDeg > 0.5;
@@ -1455,11 +1467,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
       ? moonSkyDiscIntensity * (0.55 + 0.45 * Math.min(1, moonElevDeg / 60))
       : Math.max(2, moonFrac * 4);
 
-    const skySunVec = isNight
-      ? ([moonAziDeg, moonSkyPolarDeg] as [number, number])
-      : ([sunAziDeg, sunSkyPolarDeg] as [number, number]);
+    /** Use moon disc only in deep night; keep sun vector through civil twilight. */
+    const skySunVec =
+      sunAltDeg < -6
+        ? ([moonAziDeg, moonSkyPolarDeg] as [number, number])
+        : ([sunAziDeg, sunSkyPolarDeg] as [number, number]);
 
-    const golden = sunAltDeg >= 0 && sunAltDeg <= 10;
+    /** Civil twilight (−6…0) + golden hour (0…10) → warm dawn/dusk fog & lightPreset. */
+    const golden = sunAltDeg >= -6 && sunAltDeg <= 10;
 
     /** Moonlit night: sharp, cool micro-glow toward zenith only (high-color), keep horizon band dark. */
     const moonGlowMix = isNight
@@ -1531,7 +1546,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
     const skySunIntensity = isNight
       ? nightSkyIntensityUse
-      : Math.max(0, Math.min(15, (sunAltDeg / 45) * 15));
+      : golden
+        ? Math.max(4, Math.min(12, 6 + Math.max(0, sunAltDeg) * 0.4))
+        : Math.max(0, Math.min(15, (Math.max(0, sunAltDeg) / 45) * 15));
 
     /** Sample zoom curve when runtime rejects star-intensity expressions. */
     const starIntensitySampleAtZoom = (z: number, s: number) => {
@@ -1560,14 +1577,24 @@ const MapPicker: React.FC<MapPickerProps> = ({
         'star-intensity': starIntensityExpr,
       };
     } else if (golden) {
-      fogPack = {
-        range: [0.8, 8],
-        color: '#ff9e64',
-        'high-color': '#ff9e64',
-        'horizon-blend': 0.18,
-        'space-color': '#000000',
-        'star-intensity': 0.2,
-      };
+      // Dawn: cooler peach / rose; dusk: classic warm orange twilight.
+      fogPack = isMorning
+        ? {
+            range: [0.8, 8],
+            color: '#ffb4a2',
+            'high-color': '#ff8a6a',
+            'horizon-blend': 0.2,
+            'space-color': '#1a0a12',
+            'star-intensity': sunAltDeg < 0 ? 0.35 : 0.12,
+          }
+        : {
+            range: [0.8, 8],
+            color: '#ff9e64',
+            'high-color': '#ff7a3d',
+            'horizon-blend': 0.22,
+            'space-color': '#0a0610',
+            'star-intensity': sunAltDeg < 0 ? 0.4 : 0.15,
+          };
     } else {
       fogPack = {
         range: [0.8, 8],
@@ -1586,7 +1613,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
       if (map.getLayer?.('sky')) {
         map.setPaintProperty('sky', 'sky-atmosphere-sun', skySunVec);
         map.setPaintProperty('sky', 'sky-atmosphere-sun-intensity', skySunIntensity);
-        map.setPaintProperty('sky', 'sky-atmosphere-color', isNight ? '#020617' : '#0f172a');
+        map.setPaintProperty(
+          'sky',
+          'sky-atmosphere-color',
+          isNight ? '#020617' : golden ? (isMorning ? '#1a1020' : '#1a0c14') : '#0f172a'
+        );
         try {
           map.setPaintProperty('sky', 'sky-opacity', 1);
         } catch {
@@ -1603,11 +1634,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
               'sky-atmosphere-halo-color',
               `rgba(224,248,255,${haloA})`
             );
+          } else if (golden) {
+            map.setPaintProperty(
+              'sky',
+              'sky-atmosphere-halo-color',
+              isMorning ? 'rgba(255,180,150,0.6)' : 'rgba(255,140,70,0.65)'
+            );
           } else {
             map.setPaintProperty(
               'sky',
               'sky-atmosphere-halo-color',
-              'rgba(255,158,100,0.55)'
+              'rgba(255,220,180,0.35)'
             );
           }
         } catch {
@@ -1638,9 +1675,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
 
     try {
-      // Dynamic Standard light (dawn / day / night) — night unlocks glowing facades.
+      // Dynamic Standard light (dawn / day / dusk / night) — night unlocks glowing facades.
       applyMapboxStandardBasemapConfig(map, {
-        lightPreset: resolveMapboxLightPreset({ isNight, golden }),
+        lightPreset: resolveMapboxLightPreset({
+          isNight,
+          golden,
+          isMorning,
+          sunAltDeg,
+        }),
       });
     } catch {
       /* Custom vector style may not expose Standard basemap config */
@@ -1676,8 +1718,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   useEffect(() => {
     updateAtmosphere();
-    const id = window.setInterval(updateAtmosphere, 5 * 60 * 1000);
-    return () => window.clearInterval(id);
+    // ~1 min keeps dawn/dusk transitions smooth without thrashing setConfigProperty.
+    const id = window.setInterval(updateAtmosphere, 60 * 1000);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') updateAtmosphere();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [updateAtmosphere]);
 
   useEffect(() => {

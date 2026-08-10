@@ -97,7 +97,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
 
   return (
     <article
-      className={`w-full overflow-hidden rounded-xl ${
+      className={`glass-panel w-full overflow-hidden rounded-xl border border-white/20 ${
         highlighted ? 'ring-1 ring-emerald-400/45' : ''
       }`}
       style={{
@@ -114,8 +114,9 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
         onKeyDown={handleKeyDown}
         className={`w-full text-left ${onClick ? 'cursor-pointer' : ''}`}
       >
+        {/* Top half — large cover photo */}
         <div
-          className="relative aspect-[4/3] w-full touch-pan-y overflow-hidden rounded-xl bg-slate-900 sm:aspect-video"
+          className="relative h-[9.5rem] w-full touch-pan-y overflow-hidden rounded-t-xl bg-slate-950 sm:h-[11rem]"
           onClick={
             onPhotoClick
               ? (e) => {
@@ -157,7 +158,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
           )}
 
           <div
-            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/5"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/85 via-black/40 to-transparent"
             aria-hidden
           />
 
@@ -206,41 +207,43 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
               <div className="pointer-events-none max-w-[4.75rem]">{trustBadges}</div>
             )}
           </div>
+        </div>
 
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] p-3 pt-8">
-            {metaLine && (
-              <p className="mb-1.5 truncate text-[10px] font-medium leading-snug uppercase tracking-[0.14em] text-slate-300/80">
-                {metaLine}
+        {/* Bottom half — dense dark glass so white copy never washes on day map */}
+        <div className="relative bg-[rgba(2,6,23,0.88)] px-3 py-3 backdrop-blur-xl supports-[backdrop-filter]:bg-[rgba(2,6,23,0.78)]">
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+            aria-hidden
+          />
+          {metaLine && (
+            <p className="mb-1.5 truncate text-[10px] font-medium leading-snug uppercase tracking-[0.14em] text-slate-300/90">
+              {metaLine}
+            </p>
+          )}
+          <div className="space-y-1.5">
+            <p className="break-words text-[clamp(1.5rem,7vw,2rem)] font-black leading-[1.15] tracking-tight text-orange-300 [font-variant-numeric:tabular-nums] drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]">
+              {budgetValue}
+            </p>
+            {locationLine && (
+              <p className="truncate text-xs font-medium leading-snug text-slate-100">
+                {locationTranslation.displayText}
               </p>
             )}
-            {/* Keep the mission identity stack in normal flow with explicit
-                rhythm. `leading-none` clipped large currency glyphs and left
-                the following location line visually attached to the price. */}
-            <div className="space-y-1.5">
-              <p className="break-words text-[clamp(1.5rem,7vw,2rem)] font-black leading-[1.15] tracking-tight text-orange-300 [font-variant-numeric:tabular-nums] drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)]">
-                {budgetValue}
-              </p>
-              {locationLine && (
-                <p className="truncate text-xs font-medium leading-snug text-slate-100/90">
-                  {locationTranslation.displayText}
-                </p>
-              )}
-              {description && (
-                <TranslatableMissionDescription
-                  text={description}
-                  autoTranslate
-                  clampClassName="line-clamp-2"
-                />
-              )}
-            </div>
-            {statusBadge && <div className="mt-2 flex flex-wrap gap-1.5">{statusBadge}</div>}
-            {callout && <div className="mt-2">{callout}</div>}
-            {submittedLabel && (
-              <p className="mt-1.5 truncate text-[10px] font-medium uppercase tracking-[0.1em] text-slate-300/70">
-                {submittedLabel}
-              </p>
+            {description && (
+              <TranslatableMissionDescription
+                text={description}
+                autoTranslate
+                clampClassName="line-clamp-2"
+              />
             )}
           </div>
+          {statusBadge && <div className="mt-2 flex flex-wrap gap-1.5">{statusBadge}</div>}
+          {callout && <div className="mt-2">{callout}</div>}
+          {submittedLabel && (
+            <p className="mt-1.5 truncate text-[10px] font-medium uppercase tracking-[0.1em] text-slate-300/80">
+              {submittedLabel}
+            </p>
+          )}
         </div>
 
         {footer && <div className="px-0.5 pt-2 text-xs text-slate-400">{footer}</div>}
