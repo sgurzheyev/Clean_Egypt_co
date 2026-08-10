@@ -6,7 +6,7 @@
     <link rel="icon" type="image/png" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#05060a" />
     <meta name="application-name" content="GarbaGin" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -43,6 +43,47 @@
       .skeleton-sweep {
         animation: skeletonSweep 1.6s ease-in-out infinite;
       }
+
+      /* Boot splash — GPU-only (transform/opacity). Matches PWA icon continuity. */
+      #gg-boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #05060a;
+        transition: opacity 0.28s ease-out;
+        pointer-events: none;
+      }
+      #gg-boot-splash svg {
+        width: 72px;
+        height: 72px;
+        transform: translateZ(0);
+      }
+      @keyframes ggLogoRingPulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.045); opacity: 0.82; }
+      }
+      .gg-logo-ring-pulse {
+        transform-origin: 64px 64px;
+        animation: ggLogoRingPulse 1.35s ease-in-out infinite;
+        will-change: transform, opacity;
+      }
+      @keyframes ggLogoLoaderSpin {
+        to { transform: rotate(360deg); }
+      }
+      .gg-logo-loader-spin {
+        animation: ggLogoLoaderSpin 0.85s linear infinite;
+        will-change: transform;
+        transform: translateZ(0);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .gg-logo-ring-pulse,
+        .gg-logo-loader-spin {
+          animation: none !important;
+        }
+      }
     </style>
   <script type="importmap">
 {
@@ -58,6 +99,14 @@
 <link rel="stylesheet" href="/index.css">
 </head>
   <body class="bg-slate-950">
+    <!-- Static shell: same black canvas + toxic-G mark as the home-screen icon,
+         so launch → React splash feels continuous (removed by MapBootSplash). -->
+    <div id="gg-boot-splash" aria-hidden="true">
+      <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="64" cy="64" r="54" fill="none" stroke="#00e5ff" stroke-width="5.5"/>
+        <text x="64" y="70" text-anchor="middle" font-family="Nunito, system-ui, -apple-system, sans-serif" font-weight="900" font-size="78" letter-spacing="-0.04em" fill="#b8ff00">G</text>
+      </svg>
+    </div>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
