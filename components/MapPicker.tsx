@@ -1402,45 +1402,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
     };
   }, []);
 
-  /**
-   * Dismiss splash only after Standard is ready AND the map has painted once
-   * (`idle`) — avoids fading out onto a half-blank / still-loading basemap.
-   */
+  /** Dismiss splash only after Standard style + DEM/layers are ready. */
   useEffect(() => {
     if (!mapReady) return;
-    const map = mapInstanceRef.current;
-    let settled = false;
-    let unmountTimer: number | undefined;
-    let idleFallback: number | undefined;
-
-    const dismiss = () => {
-      if (settled) return;
-      settled = true;
-      if (idleFallback) window.clearTimeout(idleFallback);
-      setSplashVisible(false);
-      unmountTimer = window.setTimeout(() => setSplashMounted(false), 520);
-    };
-
-    const onIdle = () => dismiss();
-
-    try {
-      map?.once?.('idle', onIdle);
-      // Safety: never stick on splash if idle is delayed (slow tiles / offline).
-      idleFallback = window.setTimeout(dismiss, 2800);
-    } catch {
-      dismiss();
-    }
-
-    return () => {
-      if (idleFallback) window.clearTimeout(idleFallback);
-      try {
-        map?.off?.('idle', onIdle);
-      } catch {
-        /* ignore */
-      }
-      // Only abort unmount if we never started the fade (mapReady reset).
-      if (!settled && unmountTimer) window.clearTimeout(unmountTimer);
-    };
+    setSplashVisible(false);
+    const t = window.setTimeout(() => setSplashMounted(false), 560);
+    return () => window.clearTimeout(t);
   }, [mapReady]);
 
   const updateAtmosphere = useCallback(() => {
