@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "bff3b9eb4fa6d36e",
+        "id": "420f8fa1928dd7dd",
         "type": "tabs",
         "children": [
           {
-            "id": "703f44fa8dc22281",
+            "id": "68337d60133015c4",
             "type": "leaf",
             "state": {
               "type": "graph",
@@ -37,7 +37,9 @@
               "type": "file-explorer",
               "state": {
                 "sortOrder": "alphabetical",
-                "autoReveal": false
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
               },
               "icon": "lucide-folder-closed",
               "title": "Файловый менеджер"
@@ -162,8 +164,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 300
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -176,44 +177,53 @@
       "bases:Создать новую базу": false
     }
   },
-  "active": "703f44fa8dc22281",
+  "active": "68337d60133015c4",
   "lastOpenFiles": [
-    "dist/assets/music_room-DAOruTFO.js",
-    "dist/assets/emulate-CdC6psFQ.js",
-    "dist/assets/living_room-CVCYIB7e.js",
-    "dist/assets/index-BuPDVpwB.js",
-    "dist/assets/AROverlay-ANr4xfsC.js",
-    "dist/assets/office_large-DoJFWIAy.js",
-    "dist/assets/office_small-BStFvcdU.js",
-    "dist/assets/vendor-BXkCF5-T.js",
-    "dist/assets/index-CgvJhjB5.css",
-    "components/ImmersiveMissionFeed.tsx",
-    "01_Architecture/Global_Location_Filtering.md",
-    "dist/assets/emulate-CCgPu66L.js",
-    "03_Backend_SQL/Backend_Edge_and_API.md",
-    "supabase/manual/AUDIT_phone_missions_access.md",
-    "02_Frontend/Frontend_Components.md",
-    "🗺️ GARBAGIN Master Index.md",
-    "05_Archive/CleanEgypt_Roadmap_Update.md",
-    "04_Roadmap_Tasks/Roadmap_to_GooglePlay.md",
-    "04_Roadmap_Tasks/00_Dashboard.md",
-    "03_Backend_SQL/AUDIT_phone_missions_access.md",
-    "03_Backend_SQL/SQL_Migrations_Index.md",
-    "01_Architecture/Security_and_RPCs.md",
-    "01_Architecture/P2P_Deal_Flow.md",
-    "01_Architecture/Stripe_USD_Flow.md",
-    "01_Architecture/KYC_Verification.md",
-    "01_Architecture/Architecture_Overview.md",
-    "node_modules/html-to-image/README.md",
-    "node_modules/idb/README.md",
-    "node_modules/idb/CHANGELOG.md",
-    "node_modules/cliui/node_modules/ansi-regex/readme.md",
-    "node_modules/cliui/node_modules/wrap-ansi/readme.md",
-    "node_modules/cliui/node_modules/strip-ansi/readme.md",
-    "node_modules/cliui/node_modules/emoji-regex/README.md",
-    "node_modules/cliui/node_modules/string-width/readme.md",
-    "node_modules/cliui/node_modules/ansi-styles/readme.md",
-    "node_modules/cliui/README.md",
-    "Без названия.canvas"
+    "Без названия.canvas",
+    "Без названия.base",
+    "Без названия",
+    "supabase/migrations/20260802_admin_factory_reset.sql",
+    "supabase/migrations/20260801_admin_delete_mission_cascade.sql",
+    "components/MissionFeedErrorBoundary.tsx",
+    "components/ErrorBoundary.tsx",
+    "node_modules/react-virtuoso/dist/index.d.ts",
+    "node_modules/react-virtuoso/dist/index.mjs",
+    "node_modules/react-virtuoso/README.md",
+    "node_modules/react-virtuoso/package.json",
+    "node_modules/react-virtuoso/LICENSE",
+    "public/icon-192.png",
+    "public/apple-touch-icon.png",
+    "public/icon-512.png",
+    "01_Architecture/Security_Audit_20260727.md",
+    "node_modules/@maplibre/maplibre-gl-style-spec/docs/public/maplibre-logo-dark.svg",
+    "node_modules/@maplibre/maplibre-gl-style-spec/docs/public/maplibre-logo-big.svg",
+    "node_modules/@maplibre/maplibre-gl-style-spec/docs/public/img/src/layer-symbol.png",
+    "node_modules/@maplibre/maplibre-gl-style-spec/docs/public/img/src/layer-raster.png",
+    "node_modules/@maplibre/maplibre-gl-style-spec/docs/public/img/src/layer-line.png",
+    "node_modules/@maplibre/maplibre-gl-style-spec/docs/public/img/src/layer-hillshade.png",
+    "node_modules/@maplibre/maplibre-gl-style-spec/docs/public/img/src/layer-heatmap.png",
+    "node_modules/json-stringify-pretty-compact/README.md",
+    "node_modules/json-stringify-pretty-compact/CHANGELOG.md",
+    "node_modules/split-string/node_modules/is-extendable/README.md",
+    "node_modules/split-string/node_modules/extend-shallow/README.md",
+    "node_modules/split-string/README.md",
+    "node_modules/@maplibre/maplibre-gl-style-spec/src/feature_filter/README.md",
+    "node_modules/@maplibre/maplibre-gl-style-spec/README.md",
+    "node_modules/@maplibre/maplibre-gl-style-spec/COMMUNITY.md",
+    "node_modules/@maplibre/maplibre-gl-style-spec/CODE-OF-CONDUCT.md",
+    "node_modules/@maplibre/maplibre-gl-style-spec/CHANGELOG.md",
+    "node_modules/@mapbox/jsonlint-lines-primitives/README.md",
+    "node_modules/is-plain-object/README.md",
+    "node_modules/assign-symbols/README.md",
+    "node_modules/isobject/README.md",
+    "node_modules/typewise-core/README.md",
+    "node_modules/extend-shallow/README.md",
+    "node_modules/set-value/README.md",
+    "node_modules/arr-union/README.md",
+    "node_modules/typewise/README.md",
+    "node_modules/typewise/CONTRIBUTING.md",
+    "node_modules/bytewise-core/README.md",
+    "node_modules/union-value/README.md",
+    "node_modules/sort-desc/README.md"
   ]
 }
