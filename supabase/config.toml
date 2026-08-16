@@ -37,3 +37,17 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/delete-account/deno.json"
 entrypoint = "./functions/delete-account/index.ts"
+
+# Crowdfunding proof video: worker-only PUT presign to Cloudflare R2.
+[functions.r2-presign-proof]
+enabled = true
+verify_jwt = true
+import_map = "./functions/r2-presign-proof/deno.json"
+entrypoint = "./functions/r2-presign-proof/index.ts"
+
+# Crowdfunding proof video: donor/creator/worker GET presign from R2.
+[functions.r2-sign-playback]
+enabled = true
+verify_jwt = true
+import_map = "./functions/r2-sign-playback/deno.json"
+entrypoint = "./functions/r2-sign-playback/index.ts"
