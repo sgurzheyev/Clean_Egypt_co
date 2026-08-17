@@ -50,6 +50,8 @@ import { CITY_MIN_PRICE, BOTTOM_SHEET_MAX_HEIGHT_STYLE } from '../constants';
 import MissionChatPanel from '../src/components/chat/MissionChatPanel';
 import EcoHeroesRibbon from './EcoHeroesRibbon';
 import ImpactCardModal from './ImpactCardModal';
+import DonorProofReview from './DonorProofReview';
+import { userIsMissionDonor } from '../src/lib/escrowProofVotes';
 import {
   StoreBundlesShowcase,
   StoreRecurrenceBadge,
@@ -92,6 +94,7 @@ export type MissionBriefingMission = {
   description?: string | null;
   photo_urls?: string[] | null;
   after_photo_urls?: string[] | null;
+  proof_video_url?: string | null;
   completion_distance_meters?: number | null;
   is_report?: boolean | null;
   recurrence_type?: RecurrenceType | string | null;
@@ -140,6 +143,8 @@ export type MissionBriefingProps = {
   onSubscribe: () => void;
   onSubmitReview: (rating: number, comment: string) => void;
   onSelectRating: (rating: number) => void;
+  onEscrowVoted?: (status: string) => void;
+  toast?: { success: (m: string) => void; error: (m: string) => void };
   isPlatformAdmin?: boolean;
   adminDeleteSubmitting?: boolean;
   onAdminDeleteMission?: () => void;
@@ -222,7 +227,10 @@ function statusBadgeClass(status: string): string {
   if (status === 'in_progress') {
     return 'border-cyan-400/55 bg-cyan-500/25 text-cyan-100';
   }
-  if (status === 'completed') {
+  if (status === 'awaiting_approval') {
+    return 'border-violet-400/55 bg-violet-500/25 text-violet-100';
+  }
+  if (status === 'approved' || status === 'completed') {
     return 'border-amber-400/55 bg-amber-500/25 text-amber-100';
   }
   return 'border-emerald-400/55 bg-emerald-500/25 text-emerald-100';
@@ -267,6 +275,8 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   onSubscribe,
   onSubmitReview,
   onSelectRating,
+  onEscrowVoted,
+  toast,
   isPlatformAdmin = false,
   adminDeleteSubmitting = false,
   onAdminDeleteMission,
@@ -305,6 +315,23 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const [impactOpen, setImpactOpen] = useState(false);
   const [cleanerStore, setCleanerStore] = useState<ContractorStore | null>(null);
   const [cleanerSupplies, setCleanerSupplies] = useState<StoreSupply[]>([]);
+  const [isDonorViewer, setIsDonorViewer] = useState(false);
+
+  useEffect(() => {
+    const awaiting =
+      String(mission.status || '').toLowerCase() === 'awaiting_approval';
+    if (!currentUserId || !mission.id || !awaiting) {
+      setIsDonorViewer(false);
+      return;
+    }
+    let cancelled = false;
+    void userIsMissionDonor(mission.id, currentUserId).then((ok) => {
+      if (!cancelled) setIsDonorViewer(ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId, mission.id, mission.status]);
 
   useEffect(() => {
     const cleanerId = mission.cleaner_id ? String(mission.cleaner_id) : '';
@@ -365,7 +392,9 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const locationTranslation = useMissionTextTranslation(locationSource);
   const budgetValue = formatWorkBudgetUsd(missionWorkBudgetUsd(mission));
   const isInProgress = String(mission?.status || '').toLowerCase() === 'in_progress';
-  const isCompletedStatus = ['completed', 'finished'].includes(
+  const isAwaitingApproval =
+    String(mission?.status || '').toLowerCase() === 'awaiting_approval';
+  const isCompletedStatus = ['completed', 'finished', 'approved'].includes(
     String(mission?.status || '').toLowerCase()
   );
   const isFundingStatus = String(mission.status || '').toLowerCase() === 'funding';
@@ -377,6 +406,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const showBidsSection =
     !isReportPin &&
     !isInProgress &&
+    !isAwaitingApproval &&
     (isMissionCreator || canPlaceBid || missionBids.length > 0 || bidsLoading);
   const crowdfundingOpen = isCrowdfundingOpen(mission);
   const isCrowdfundingMissionFlag = !!mission.crowdfunding_mode;
@@ -1557,7 +1587,30 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
 
         {!booting && (
           <div className="ce-bottom-sheet-footer shrink-0 px-5 pt-3">
-              {isCompletedStatus ? (
+              {isAwaitingApproval && mission.crowdfunding_mode ? (
+                <div className="space-y-3">
+                  {isDonorViewer ? (
+                    <DonorProofReview
+                      missionId={mission.id}
+                      proofVideoUrl={mission.proof_video_url}
+                      toast={toast}
+                      onVoted={(status) => onEscrowVoted?.(status)}
+                    />
+                  ) : mission.cleaner_id === currentUserId ? (
+                    <p className="text-sm font-semibold text-violet-200">
+                      {t('escrowWaitingDonorsWorker', {
+                        defaultValue: 'Video submitted. Waiting for a donor to approve or reject.',
+                      })}
+                    </p>
+                  ) : (
+                    <p className="text-sm font-semibold text-violet-200">
+                      {t('escrowWaitingDonors', {
+                        defaultValue: 'Waiting for a donor to review the video report.',
+                      })}
+                    </p>
+                  )}
+                </div>
+              ) : isCompletedStatus ? (
                 <div className="space-y-3">
                   <p className="text-sm font-semibold text-amber-200">{t('missionAccomplished')}</p>
                   <div className="w-full rounded-full animated-border-completed">

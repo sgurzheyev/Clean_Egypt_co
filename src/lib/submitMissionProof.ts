@@ -1,22 +1,24 @@
 import { supabase } from '../../services/supabase';
 
-/** Worker submits proof — secure in_progress → review (no wallet mutation). */
+/** Worker submits proof — P2P photos → review; crowdfunding R2 video → awaiting_approval. */
 export async function submitMissionProof(input: {
   missionId: string;
-  afterPhotoUrls: string[];
+  afterPhotoUrls?: string[];
   /** Worker GPS at submission time (required server-side, ≤200m from mission). */
   workerLat: number;
   workerLng: number;
   completionLat?: number | null;
   completionLng?: number | null;
   completionDistanceMeters?: number | null;
+  /** R2 object key (crowdfunding) or optional liveness URL (P2P). */
   proofVideoUrl?: string | null;
   livenessLat?: number | null;
   livenessLng?: number | null;
 }): Promise<void> {
   const urls = (input.afterPhotoUrls || []).filter((u) => typeof u === 'string' && u.trim().length > 0);
-  if (urls.length < 1) {
-    throw new Error('After photos are required');
+  const video = (input.proofVideoUrl || '').trim();
+  if (urls.length < 1 && !video) {
+    throw new Error('After photos or a proof video are required');
   }
   if (
     typeof input.workerLat !== 'number' ||
@@ -35,7 +37,7 @@ export async function submitMissionProof(input: {
     p_completion_lat: input.completionLat ?? input.workerLat,
     p_completion_lng: input.completionLng ?? input.workerLng,
     p_completion_distance_meters: input.completionDistanceMeters ?? null,
-    p_proof_video_url: input.proofVideoUrl ?? null,
+    p_proof_video_url: video || null,
     p_liveness_lat: input.livenessLat ?? null,
     p_liveness_lng: input.livenessLng ?? null,
   });

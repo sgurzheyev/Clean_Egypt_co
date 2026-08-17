@@ -58,6 +58,8 @@ import { getMissionWorkerPhone, getOwnPrivateProfile } from '../src/lib/missionC
 import { creatorRejectProof, submitMissionProof } from '../src/lib/submitMissionProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import RatingReviewModal, { type RatingTarget } from './RatingReviewModal';
+import DonorProofReview from './DonorProofReview';
+import { userIsMissionDonor } from '../src/lib/escrowProofVotes';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionWorkBudgetUsd, missionTokenBid } from '../src/lib/missionBudget';
 import { isPlatformAdmin, isArchivedMissionStatus } from '../src/lib/platformAdmin';
@@ -83,10 +85,10 @@ import { isEdgeFunctionUnreachable } from '../src/lib/supabaseFunctionError';
 const MISSION_CREATOR_EMBED = 'creator:profiles!creator_id (full_name, avatar_url)';
 
 const MISSION_PROFILE_SELECT =
-  `id, creator_id, cleaner_id, category, amount_target, expected_price, current_funding, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ai_confidence_score, ai_verdict, ${MISSION_CREATOR_EMBED}`;
+  `id, creator_id, cleaner_id, category, amount_target, expected_price, current_funding, crowdfunding_mode, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, proof_video_url, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ai_confidence_score, ai_verdict, ${MISSION_CREATOR_EMBED}`;
 
 const MISSION_ACTIVE_SELECT =
-  `id, creator_id, cleaner_id, category, amount_target, expected_price, current_funding, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ${MISSION_CREATOR_EMBED}`;
+  `id, creator_id, cleaner_id, category, amount_target, expected_price, current_funding, crowdfunding_mode, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, proof_video_url, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ${MISSION_CREATOR_EMBED}`;
 
 /** 📍 description line → city/country → coordinates — matches Market card place line. */
 function orderMissionLocationLine(job: {
@@ -112,8 +114,10 @@ function orderMissionLocationLine(job: {
 const orderStatusBadgeClass = (status: string) => {
   const key = String(status || '').toLowerCase();
   if (key === 'in_progress') return 'border-cyan-400/55 bg-cyan-500/25 text-cyan-100';
-  if (key === 'review' || key === 'pending_approval')
+  if (key === 'review' || key === 'pending_approval' || key === 'awaiting_approval')
     return 'border-amber-400/55 bg-amber-500/25 text-amber-100';
+  if (key === 'approved') return 'border-emerald-400/55 bg-emerald-500/25 text-emerald-100';
+  if (key === 'failed') return 'border-red-400/55 bg-red-500/25 text-red-100';
   if (key === 'funding') return 'border-violet-400/55 bg-violet-500/25 text-violet-100';
   if (key === 'pending_payment') return 'border-red-400/55 bg-red-500/25 text-red-100';
   if (key === 'completed' || key === 'finished')
@@ -151,6 +155,7 @@ interface Job {
   started_at?: string | null;
   photo_urls?: string[] | null;
   after_photo_urls?: string[] | null;
+  proof_video_url?: string | null;
   is_disputed?: boolean | null;
   retry_count?: number | null;
   rejection_reason?: string | null;
@@ -335,6 +340,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [paymentSyncing, setPaymentSyncing] = useState(false);
   const [reviewJob, setReviewJob] = useState<Job | null>(null);
+  const [reviewJobIsDonor, setReviewJobIsDonor] = useState(false);
   const [reviewWorkerProfile, setReviewWorkerProfile] = useState<{
     full_name?: string | null;
     phone_number?: string | null;
@@ -709,6 +715,24 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     };
   }, [reviewJob?.id, reviewJob?.cleaner_id]);
 
+  useEffect(() => {
+    const awaiting =
+      String(reviewJob?.status || '').toLowerCase() === 'awaiting_approval' &&
+      !!reviewJob?.crowdfunding_mode;
+    const uid = _session?.user?.id as string | undefined;
+    if (!awaiting || !uid || !reviewJob?.id) {
+      setReviewJobIsDonor(false);
+      return;
+    }
+    let cancelled = false;
+    void userIsMissionDonor(reviewJob.id, uid).then((ok) => {
+      if (!cancelled) setReviewJobIsDonor(ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [reviewJob?.id, reviewJob?.status, reviewJob?.crowdfunding_mode, _session?.user?.id]);
+
   const closeReviewModal = useCallback(() => {
     if (releasePaySubmitting) return;
     setReviewJob(null);
@@ -995,7 +1019,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         .from('missions')
         .select(MISSION_ACTIVE_SELECT)
         .eq('cleaner_id', userId)
-        .in('status', ['in_progress', 'review', 'pending_approval', 'completed', 'finished'])
+        .in('status', ['in_progress', 'review', 'pending_approval', 'awaiting_approval', 'completed', 'finished'])
         .order('created_at', { ascending: false });
       setMyActiveJobs(
         ((activeJobsData || []) as unknown as Job[]).map((job) => ({
@@ -2540,7 +2564,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </div>
                       )}
 
-                      {job.status === 'review' && job.cleaner_id && (
+                      {(job.status === 'review' ||
+                        job.status === 'awaiting_approval') &&
+                        job.cleaner_id && (
                         <div>
                           <p className="w-full rounded-full border border-amber-500/30 bg-amber-500/10 py-3 text-center text-xs font-black uppercase tracking-[0.2em] text-amber-300">
                             {t('pendingReview')}
@@ -3411,7 +3437,26 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
 
             <div className="ce-bottom-sheet-footer border-t border-cyan-500/30 bg-cyan-950/95 px-5 pt-4 backdrop-blur-md">
-              {(reviewJob.status === 'completed' || reviewJob.status === 'finished') ? (
+              {String(reviewJob.status || '').toLowerCase() === 'awaiting_approval' &&
+              reviewJob.crowdfunding_mode ? (
+                reviewJobIsDonor ? (
+                  <DonorProofReview
+                    missionId={reviewJob.id}
+                    proofVideoUrl={reviewJob.proof_video_url}
+                    toast={toast}
+                    onVoted={() => {
+                      closeReviewModal();
+                      void fetchProfileData();
+                    }}
+                  />
+                ) : (
+                  <p className="w-full rounded-full border border-violet-400/35 bg-violet-500/10 py-3 text-center text-xs font-black uppercase tracking-[0.16em] text-violet-200">
+                    {t('escrowWaitingDonors', {
+                      defaultValue: 'Waiting for a donor to review the video report.',
+                    })}
+                  </p>
+                )
+              ) : (reviewJob.status === 'completed' || reviewJob.status === 'finished' || reviewJob.status === 'approved') ? (
                 <p className="w-full rounded-full border border-emerald-500/30 bg-emerald-500/10 py-3 text-center text-sm font-black uppercase tracking-[0.2em] text-emerald-400">
                   MISSION ACCOMPLISHED
                 </p>

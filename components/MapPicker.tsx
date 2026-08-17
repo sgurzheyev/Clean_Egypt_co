@@ -11,9 +11,10 @@ import { useTranslation } from 'react-i18next';
 import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
 import { getWorkerGeolocation, submitMissionProof } from '../src/lib/submitMissionProof';
+import { uploadCrowdfundingProofToR2, type ProofUploadPhase } from '../src/lib/r2ProofUpload';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import { resolveMissionCleanerId, submitReview } from '../src/lib/reviews';
-import { Navigation, Camera, X, User, Plus, Minus, Crosshair, Loader2, TriangleAlert, Store } from 'lucide-react';
+import { Navigation, Camera, Video, X, User, Plus, Minus, Crosshair, Loader2, TriangleAlert, Store } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import NotificationBell from './NotificationBell';
 import MissionFeedCard from './MissionFeedCard';
@@ -364,6 +365,7 @@ interface JobOnMap {
   description?: string | null;
   photo_urls?: string[] | null;
   after_photo_urls?: string[] | null;
+  proof_video_url?: string | null;
   created_at?: string | null;
   started_at?: string | null;
   completion_lat?: number | null;
@@ -386,6 +388,8 @@ function missionEligibleForMapPin(job: JobOnMap): boolean {
   if (job.status === 'available') return true;
   if (job.status === 'funding') return true;
   if (job.status === 'in_progress') return true;
+  if (job.status === 'review' || job.status === 'pending_approval') return true;
+  if (job.status === 'awaiting_approval') return true;
   if (job.status === 'completed') {
     const ts = job.created_at;
     if (!ts) return false;
@@ -468,6 +472,10 @@ function normalizeJobOnMap(row: any): JobOnMap | null {
     description: row.description ?? null,
     photo_urls: photos,
     after_photo_urls: afterPhotos,
+    proof_video_url:
+      typeof row.proof_video_url === 'string' && row.proof_video_url.trim()
+        ? String(row.proof_video_url).trim()
+        : null,
     created_at: row.created_at ?? null,
     started_at: row.started_at ?? null,
     completion_lat:
@@ -513,6 +521,7 @@ function buildOptimisticReportMission(
     description: description || '#GarbageZone Needs attention',
     photo_urls: photoUrls || [],
     after_photo_urls: null,
+    proof_video_url: null,
     created_at: new Date().toISOString(),
     started_at: null,
     completion_lat: null,
@@ -564,6 +573,7 @@ function buildOptimisticLeadMission(
     description: descriptionToSave || null,
     photo_urls: creatorPhotoUrls || [],
     after_photo_urls: null,
+    proof_video_url: null,
     created_at: new Date().toISOString(),
     started_at: null,
     completion_lat: null,
@@ -1062,11 +1072,18 @@ function ProofUploadModal({
   toast: { error: (msg: string) => void; success: (msg: string) => void };
 }) {
   const { t } = useTranslation();
+  const isCrowd = !!mission?.crowdfunding_mode;
   const [files, setFiles] = useState<File[]>([]);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadPhase, setUploadPhase] = useState<ProofUploadPhase>('idle');
 
   useEffect(() => {
-    if (!open) setFiles([]);
+    if (!open) {
+      setFiles([]);
+      setVideoFile(null);
+      setUploadPhase('idle');
+    }
   }, [open]);
 
   const onFilesChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1075,11 +1092,23 @@ function ProofUploadModal({
     event.target.value = '';
   }, []);
 
+  const onVideoChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const next = Array.from(event.target.files || []).find(
+      (f) => f.type.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(f.name)
+    );
+    setVideoFile(next || null);
+    event.target.value = '';
+  }, []);
+
   const removeFileAt = useCallback((index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   const previewUrls = useMemo(() => files.map((file) => URL.createObjectURL(file)), [files]);
+  const videoPreviewUrl = useMemo(
+    () => (videoFile ? URL.createObjectURL(videoFile) : null),
+    [videoFile]
+  );
 
   useEffect(() => {
     return () => {
@@ -1087,9 +1116,20 @@ function ProofUploadModal({
     };
   }, [previewUrls]);
 
+  useEffect(() => {
+    return () => {
+      if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+    };
+  }, [videoPreviewUrl]);
+
   const submitProof = useCallback(async () => {
     if (!mission) return;
-    if (files.length === 0) {
+    if (isCrowd) {
+      if (!videoFile) {
+        toast.error(t('proofAddVideoRequired', { defaultValue: 'Please add a short proof video.' }));
+        return;
+      }
+    } else if (files.length === 0) {
       toast.error(t('proofAddPhotoRequired'));
       return;
     }
@@ -1100,6 +1140,36 @@ function ProofUploadModal({
       } = await supabase.auth.getSession();
       if (!session?.user?.id) {
         toast.error(t('signInToPlaceBid'));
+        return;
+      }
+
+      const geo = await getWorkerGeolocation();
+
+      if (isCrowd && videoFile) {
+        const { objectKey } = await uploadCrowdfundingProofToR2(
+          mission.id,
+          videoFile,
+          setUploadPhase
+        );
+        setUploadPhase('submitting');
+        await submitMissionProof({
+          missionId: mission.id,
+          afterPhotoUrls: [],
+          workerLat: geo.lat,
+          workerLng: geo.lng,
+          completionLat: geo.lat,
+          completionLng: geo.lng,
+          proofVideoUrl: objectKey,
+        });
+        await notifyMissionEvent(mission.id, 'proof_uploaded');
+        toast.success(
+          t('proofCrowdUploadSuccess', {
+            defaultValue: 'Video submitted. Donors will review it.',
+          })
+        );
+        await onSuccess();
+        onClose();
+        setVideoFile(null);
         return;
       }
 
@@ -1140,8 +1210,6 @@ function ProofUploadModal({
         if (uploadError) throw uploadError;
       }
 
-      const geo = await getWorkerGeolocation();
-
       await submitMissionProof({
         missionId: mission.id,
         afterPhotoUrls: uploadedUrls,
@@ -1160,8 +1228,9 @@ function ProofUploadModal({
       toast.error(err?.message || t('failedUploadProof'));
     } finally {
       setSubmitting(false);
+      setUploadPhase('idle');
     }
-  }, [files, mission, onClose, onSuccess, t, toast]);
+  }, [files, isCrowd, mission, onClose, onSuccess, t, toast, videoFile]);
 
   return (
     <AnimatePresence>
@@ -1200,46 +1269,111 @@ function ProofUploadModal({
             </div>
 
             <div className="ce-bottom-sheet-body scrollable-sheet-content min-h-0 flex-1 px-5 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <label className="block w-full cursor-pointer rounded-2xl border-2 border-dashed border-cyan-400/65 bg-cyan-500/5 p-8 text-center hover:bg-cyan-500/10 transition-all">
-                <div className="mx-auto mb-3 inline-flex h-14 w-14 items-center justify-center rounded-full border border-cyan-400/60 bg-black/50 text-cyan-300">
-                  <Camera className="h-6 w-6" />
-                </div>
-                <p className="text-sm font-bold text-cyan-200">Tap to capture/upload AFTER photos</p>
-                <p className="mt-1 text-xs text-slate-400">Drag & drop supported, up to 9 photos</p>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  multiple
-                  onChange={onFilesChange}
-                  disabled={submitting}
-                  className="hidden"
-                />
-              </label>
-
-              {files.length > 0 && (
+              {isCrowd ? (
                 <>
-                  <p className="mt-3 text-xs font-semibold text-emerald-300">
-                    {files.length} photo(s) selected
-                  </p>
-                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {previewUrls.map((url, idx) => (
-                      <div
-                        key={`${url}-${idx}`}
-                        className="relative overflow-hidden rounded-xl border border-cyan-500/35 bg-black/50 shadow-[0_0_12px_rgba(34,211,238,0.15)]"
+                  <label className="block w-full cursor-pointer rounded-2xl border-2 border-dashed border-violet-400/65 bg-violet-500/5 p-8 text-center hover:bg-violet-500/10 transition-all">
+                    <div className="mx-auto mb-3 inline-flex h-14 w-14 items-center justify-center rounded-full border border-violet-400/60 bg-black/50 text-violet-200">
+                      <Video className="h-6 w-6" />
+                    </div>
+                    <p className="text-sm font-bold text-violet-100">
+                      {t('proofVideoTap', { defaultValue: 'Tap to record or pick a short video' })}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {t('proofVideoHelp', {
+                        defaultValue: 'One clip. Uploads directly to secure storage.',
+                      })}
+                    </p>
+                    <input
+                      type="file"
+                      accept="video/*"
+                      capture="environment"
+                      onChange={onVideoChange}
+                      disabled={submitting}
+                      className="hidden"
+                    />
+                  </label>
+                  {videoFile && videoPreviewUrl && (
+                    <div className="relative mt-3 overflow-hidden rounded-xl border border-violet-400/40 bg-black/50">
+                      <video
+                        src={videoPreviewUrl}
+                        controls
+                        playsInline
+                        className="max-h-48 w-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setVideoFile(null)}
+                        disabled={submitting}
+                        className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-full border border-red-400/70 bg-red-500/25 text-red-100"
+                        aria-label={t('close')}
                       >
-                        <img src={url} alt={`Proof ${idx + 1}`} className="h-28 w-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => removeFileAt(idx)}
-                          className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-full border border-red-400/70 bg-red-500/25 text-red-100 hover:bg-red-500/35 hover:shadow-[0_0_12px_rgba(248,113,113,0.55)] transition-all"
-                          aria-label="Remove image"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
+                        <X className="h-4 w-4" />
+                      </button>
+                      <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-violet-200">
+                        {t('proofVideoSelected', {
+                          defaultValue: 'Video selected ({{size}} MB)',
+                          size: (videoFile.size / (1024 * 1024)).toFixed(1),
+                        })}
+                      </p>
+                    </div>
+                  )}
+                  {submitting && (
+                    <div className="mt-4 flex items-center gap-3 rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-3 text-cyan-100">
+                      <Loader2 className="h-5 w-5 shrink-0 animate-spin" aria-hidden />
+                      <p className="text-xs font-bold uppercase tracking-[0.14em]">
+                        {uploadPhase === 'presigning'
+                          ? t('proofUploadingPresign', { defaultValue: 'Requesting upload slot…' })
+                          : uploadPhase === 'uploading'
+                            ? t('proofUploadingR2', { defaultValue: 'Uploading video…' })
+                            : t('proofUploadingSubmit', { defaultValue: 'Submitting report…' })}
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <label className="block w-full cursor-pointer rounded-2xl border-2 border-dashed border-cyan-400/65 bg-cyan-500/5 p-8 text-center hover:bg-cyan-500/10 transition-all">
+                    <div className="mx-auto mb-3 inline-flex h-14 w-14 items-center justify-center rounded-full border border-cyan-400/60 bg-black/50 text-cyan-300">
+                      <Camera className="h-6 w-6" />
+                    </div>
+                    <p className="text-sm font-bold text-cyan-200">Tap to capture/upload AFTER photos</p>
+                    <p className="mt-1 text-xs text-slate-400">Drag & drop supported, up to 9 photos</p>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      multiple
+                      onChange={onFilesChange}
+                      disabled={submitting}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {files.length > 0 && (
+                    <>
+                      <p className="mt-3 text-xs font-semibold text-emerald-300">
+                        {files.length} photo(s) selected
+                      </p>
+                      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        {previewUrls.map((url, idx) => (
+                          <div
+                            key={`${url}-${idx}`}
+                            className="relative overflow-hidden rounded-xl border border-cyan-500/35 bg-black/50 shadow-[0_0_12px_rgba(34,211,238,0.15)]"
+                          >
+                            <img src={url} alt={`Proof ${idx + 1}`} className="h-28 w-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => removeFileAt(idx)}
+                              className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-full border border-red-400/70 bg-red-500/25 text-red-100 hover:bg-red-500/35 hover:shadow-[0_0_12px_rgba(248,113,113,0.55)] transition-all"
+                              aria-label="Remove image"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -1248,10 +1382,15 @@ function ProofUploadModal({
               <button
                 type="button"
                 onClick={submitProof}
-                disabled={submitting || files.length === 0}
-                className="w-full rounded-full border border-orange-500/70 bg-orange-500/20 px-6 py-3.5 text-sm font-black uppercase tracking-[0.2em] text-orange-100 hover:bg-orange-500/30 hover:shadow-[0_0_24px_rgba(249,115,22,0.45)] disabled:opacity-60"
+                disabled={submitting || (isCrowd ? !videoFile : files.length === 0)}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-orange-500/70 bg-orange-500/20 px-6 py-3.5 text-sm font-black uppercase tracking-[0.2em] text-orange-100 hover:bg-orange-500/30 hover:shadow-[0_0_24px_rgba(249,115,22,0.45)] disabled:opacity-60"
               >
-                {submitting ? 'SUBMITTING...' : 'SUBMIT PROOF & GET PAID'}
+                {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+                {submitting
+                  ? t('submitting', { defaultValue: 'Submitting…' })
+                  : isCrowd
+                    ? t('proofSubmitVideoCta', { defaultValue: 'Submit video report' })
+                    : 'SUBMIT PROOF & GET PAID'}
               </button>
             </div>
           </motion.div>
@@ -2301,6 +2440,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         description,
         photo_urls,
         after_photo_urls,
+        proof_video_url,
         created_at,
         started_at,
         completion_lat,
@@ -2320,6 +2460,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         'in_progress',
         'review',
         'pending_approval',
+        'awaiting_approval',
         'reported',
       ])
       .not('status', 'eq', 'pending_payment')
@@ -4367,7 +4508,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const { data, error } = await supabase
         .from('missions')
         .select(
-          'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, is_report, location_lat, location_lng, country, city, status, building_id, cleaner_id, creator_id, description, photo_urls, after_photo_urls, created_at, started_at, creator:profiles!creator_id (full_name, avatar_url, is_verified)'
+          'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, is_report, location_lat, location_lng, country, city, status, building_id, cleaner_id, creator_id, description, photo_urls, after_photo_urls, proof_video_url, created_at, started_at, creator:profiles!creator_id (full_name, avatar_url, is_verified)'
         )
         .eq('id', missionId)
         .maybeSingle();
@@ -5971,6 +6112,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
           onSubscribe={() => setShowWorkerSubscriptionGate(true)}
           onSubmitReview={handleSubmitReview}
           onSelectRating={setSelectedRating}
+          onEscrowVoted={(status) => {
+            setSelectedMission((prev) =>
+              prev ? { ...prev, status } : prev
+            );
+            void fetchMissions();
+          }}
+          toast={toast}
           isPlatformAdmin={isPlatformAdminViewer}
           adminDeleteSubmitting={adminDeleteMissionId === selectedMission.id}
           onAdminDeleteMission={() => void handleAdminDeleteMission()}
