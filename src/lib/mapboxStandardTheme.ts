@@ -16,9 +16,9 @@ export const MAPBOX_STANDARD_STYLE = 'mapbox://styles/mapbox/standard' as const;
 export const DEFAULT_STORE_COLOR = '#22d3ee';
 /** @deprecated Prefer DEFAULT_STORE_COLOR / per-store `color` — kept as fallback paint. */
 export const STORE_COVERAGE_FILL = DEFAULT_STORE_COLOR;
-export const STORE_COVERAGE_FILL_OPACITY = 0.35;
+export const STORE_COVERAGE_FILL_OPACITY = 0.18;
 export const STORE_COVERAGE_STROKE = DEFAULT_STORE_COLOR;
-export const STORE_COVERAGE_STROKE_WIDTH = 3;
+export const STORE_COVERAGE_STROKE_WIDTH = 2;
 export const STORE_PIN_CORE = DEFAULT_STORE_COLOR;
 export const STORE_PIN_GLOW = DEFAULT_STORE_COLOR;
 export const STORE_PIN_STROKE = '#ffffff';
@@ -97,16 +97,15 @@ export function resolveMapboxLightPreset(opts: {
 
 /**
  * Standard Style configuration for GarbaGin.
- * - `theme: 'monochrome'` gives a dark, desaturated basemap that renders
- *   correctly dark buildings/roads under all lightPresets (esp. night/dusk).
- *   `theme: 'default'` (photoreal) causes white-road mismatch with dark fog/sky.
- * - `lightPreset` follows local clock on first paint; MapPicker atmosphere
- *   overrides with sun-accurate dawn/day/dusk/night.
+ * - `theme: 'default'` keeps textured 3D facades (photoreal).
+ * - `lightPreset: 'night'` ensures a dark basemap on first paint — prevents
+ *   white roads/tiles flashing before `updateAtmosphere` fires with real SunCalc.
+ *   MapPicker overrides dynamically via setConfigProperty each minute.
  * - 3D objects/buildings/facades stay ON (built into Standard).
  */
 export const MAPBOX_STANDARD_BASEMAP_CONFIG = {
-  theme: 'monochrome',
-  lightPreset: resolveMapboxLightPresetByClock() as MapboxLightPreset,
+  theme: 'default',
+  lightPreset: 'night' as MapboxLightPreset,
   show3dObjects: true,
   show3dBuildings: true,
   show3dTrees: true,
@@ -218,7 +217,7 @@ export function removeLegacy3dBuildingsLayer(
 }
 
 /**
- * Apply Standard basemap config (monochrome theme + 3D facades + time-of-day light).
+ * Apply Standard basemap config (default theme + night fallback + 3D facades).
  * Pass `lightPreset` for sun-driven dawn/day/dusk/night; otherwise uses local clock.
  * Returns false if the style is not ready yet (caller should retry via whenMapStyleReady).
  */
@@ -233,7 +232,7 @@ export function applyMapboxStandardBasemapConfig(
 
   const config = {
     ...MAPBOX_STANDARD_BASEMAP_CONFIG,
-    lightPreset: overrides?.lightPreset ?? resolveMapboxLightPresetByClock(),
+    lightPreset: overrides?.lightPreset ?? 'night',
   };
 
   for (const [key, value] of Object.entries(config)) {
@@ -247,8 +246,8 @@ export function applyMapboxStandardBasemapConfig(
 }
 
 /**
- * Bake current clock lightPreset into the style import for first paint.
- * MapPicker atmosphere then smoothly retunes via setConfigProperty.
+ * Bake night lightPreset into the style import for first paint (dark by default).
+ * MapPicker atmosphere then smoothly retunes via setConfigProperty each minute.
  */
 export const MAPBOX_STANDARD_STYLE_WITH_CONFIG = {
   version: 8 as const,
@@ -258,7 +257,6 @@ export const MAPBOX_STANDARD_STYLE_WITH_CONFIG = {
       url: MAPBOX_STANDARD_STYLE,
       config: {
         ...MAPBOX_STANDARD_BASEMAP_CONFIG,
-        lightPreset: resolveMapboxLightPresetByClock(),
       },
     },
   ],
