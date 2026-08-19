@@ -49,15 +49,19 @@ export type MapboxLightPreset = 'dusk' | 'dawn' | 'day' | 'night';
 /**
  * Clock-band fallback when sun position is not yet available
  * (first paint / embedded maps without atmosphere).
- * Bands: night 21–5, dawn 5–8, day 8–17, dusk 17–21 (local time).
+ * Bands: night 21–6, dawn 6–8, day 8–18, dusk 18–21 (local time).
+ *
+ * NOTE: With monochrome theme this is only used for first-paint before
+ * updateAtmosphere fires and corrects it with real sun position.
+ * Always returns 'night' as a safe dark fallback outside day hours.
  */
 export function resolveMapboxLightPresetByClock(
   date: Date = new Date()
 ): MapboxLightPreset {
   const h = date.getHours() + date.getMinutes() / 60;
-  if (h >= 21 || h < 5) return 'night';
+  if (h >= 21 || h < 6) return 'night';
   if (h < 8) return 'dawn';
-  if (h < 17) return 'day';
+  if (h < 18) return 'day';
   return 'dusk';
 }
 
@@ -93,13 +97,15 @@ export function resolveMapboxLightPreset(opts: {
 
 /**
  * Standard Style configuration for GarbaGin.
- * - `theme: 'default'` keeps photoreal facades (not monochrome wash).
+ * - `theme: 'monochrome'` gives a dark, desaturated basemap that renders
+ *   correctly dark buildings/roads under all lightPresets (esp. night/dusk).
+ *   `theme: 'default'` (photoreal) causes white-road mismatch with dark fog/sky.
  * - `lightPreset` follows local clock on first paint; MapPicker atmosphere
  *   overrides with sun-accurate dawn/day/dusk/night.
  * - 3D objects/buildings/facades stay ON (built into Standard).
  */
 export const MAPBOX_STANDARD_BASEMAP_CONFIG = {
-  theme: 'default',
+  theme: 'monochrome',
   lightPreset: resolveMapboxLightPresetByClock() as MapboxLightPreset,
   show3dObjects: true,
   show3dBuildings: true,
@@ -212,7 +218,7 @@ export function removeLegacy3dBuildingsLayer(
 }
 
 /**
- * Apply Standard basemap config (default theme + 3D facades + time-of-day light).
+ * Apply Standard basemap config (monochrome theme + 3D facades + time-of-day light).
  * Pass `lightPreset` for sun-driven dawn/day/dusk/night; otherwise uses local clock.
  * Returns false if the style is not ready yet (caller should retry via whenMapStyleReady).
  */
