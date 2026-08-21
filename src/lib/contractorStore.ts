@@ -597,6 +597,47 @@ export function polygonFromRing(ring: GeoJsonPosition[]): ServiceRadiusPolygon |
   return { type: 'Polygon', coordinates: [closed] };
 }
 
+/**
+ * Approximate a coverage circle as a GeoJSON Polygon around an office pin.
+ * Uses spherical destination points (Earth radius 6371 km).
+ */
+export function polygonFromRadiusKm(
+  lat: number,
+  lng: number,
+  radiusKm: number,
+  points = 64
+): ServiceRadiusPolygon | null {
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    !Number.isFinite(radiusKm) ||
+    radiusKm <= 0
+  ) {
+    return null;
+  }
+  const R = 6371;
+  const lat1 = (lat * Math.PI) / 180;
+  const lng1 = (lng * Math.PI) / 180;
+  const angDist = radiusKm / R;
+  const ring: GeoJsonPosition[] = [];
+  for (let i = 0; i < points; i++) {
+    const bearing = (i / points) * 2 * Math.PI;
+    const lat2 = Math.asin(
+      Math.sin(lat1) * Math.cos(angDist) +
+        Math.cos(lat1) * Math.sin(angDist) * Math.cos(bearing)
+    );
+    const lng2 =
+      lng1 +
+      Math.atan2(
+        Math.sin(bearing) * Math.sin(angDist) * Math.cos(lat1),
+        Math.cos(angDist) - Math.sin(lat1) * Math.sin(lat2)
+      );
+    ring.push([(lng2 * 180) / Math.PI, (lat2 * 180) / Math.PI]);
+  }
+  ring.push([ring[0][0], ring[0][1]]);
+  return { type: 'Polygon', coordinates: [ring] };
+}
+
 export async function fetchContractorStore(
   ownerId: string
 ): Promise<ContractorStore | null> {

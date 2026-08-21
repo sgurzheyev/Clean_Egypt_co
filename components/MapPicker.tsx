@@ -164,6 +164,12 @@ import {
   APP_EVENT_OPEN_MISSION,
   getAppOrigin,
 } from '../src/lib/brand';
+import {
+  consumeStoreMissionRequest,
+  formTriggerForServiceId,
+  isKnownServiceType,
+  type StoreMissionRequestDetail,
+} from '../src/lib/storeMissionRequest';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const PROOF_IMAGE_COMPRESSION = {
@@ -2162,7 +2168,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setDescriptionPolicyError(null);
   }, []);
 
-  const openMissionForm = useCallback((trigger: FormTrigger) => {
+  const openMissionForm = useCallback((
+    trigger: FormTrigger,
+    prefill?: { serviceType?: ServiceType; expectedPrice?: number }
+  ) => {
     setShowLiveMarketFeed(false);
     setShowMyOrdersPanel(false);
     setDraftPinMenuExpanded(false);
@@ -2176,7 +2185,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setActiveFormTrigger(trigger);
     const nextTaskType = taskTypeForTrigger(trigger);
     setTaskType(nextTaskType);
-    setServiceType(defaultServiceForTrigger(trigger));
+    const sectorIds = servicesForTrigger(trigger).map((s) => s.id);
+    const preferred = prefill?.serviceType;
+    const nextService =
+      preferred && sectorIds.includes(preferred)
+        ? preferred
+        : defaultServiceForTrigger(trigger);
+    setServiceType(nextService);
+    if (
+      typeof prefill?.expectedPrice === 'number' &&
+      Number.isFinite(prefill.expectedPrice) &&
+      prefill.expectedPrice > 0
+    ) {
+      setWorkBudget(Math.floor(prefill.expectedPrice));
+    }
+    if (!isGarbageRemovalService(nextService)) setCrowdfundingMode(false);
     setTaskTypeSelected(nextTaskType);
   }, [mapDraftPin, selectedLocation, resetMissionDraft, onLocationSelect]);
 
@@ -4673,11 +4696,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [t, toast, userLocation]);
 
   /**
-   * Immersive feed "+" — back on the map, drop the draft mission pin at the
-   * user's location (cached puck → fresh GPS → map center), exactly like a
-   * map tap: the avatar hub with the task-type menu takes over from there.
+   * Immersive feed "+" / storefront Book — back on the map, drop the draft
+   * mission pin at the user's location. Optional storefront prefill opens the
+   * creation sheet with service_type + expected_price (floor) filled in.
    */
-  const startCreateMissionAtCurrentLocation = useCallback(() => {
+  const startCreateMissionAtCurrentLocation = useCallback((
+    prefill?: StoreMissionRequestDetail | null
+  ) => {
     setShowLiveMarketFeed(false);
     setShowMyOrdersPanel(false);
     setSelectedMission(null);
@@ -4686,11 +4711,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setReportSheetOpen(false);
     setDraftPinMenuExpanded(false);
 
+    const openPrefillForm = () => {
+      if (!prefill?.serviceType || !isKnownServiceType(prefill.serviceType)) {
+        return;
+      }
+      const trigger = formTriggerForServiceId(prefill.serviceType);
+      openMissionForm(trigger, {
+        serviceType: prefill.serviceType,
+        expectedPrice: prefill.expectedPrice,
+      });
+    };
+
     const placeAt = (lat: number, lng: number) => {
       if (!isValidWorldCoordinate(lng, lat)) return;
       setMapDraftPin({ lat, lng });
+      setSelectedLocation({ lat, lng });
       onLocationSelect?.(lat, lng);
       flyMapTo(mapRef.current?.getMap?.(), [lng, lat], { ...MAP_CINEMATIC_FLY });
+      if (prefill?.serviceType) {
+        // Let pin + location state commit before opening the sheet.
+        window.setTimeout(openPrefillForm, 0);
+      }
     };
 
     const fallbackCenter = () => {
@@ -4723,13 +4764,33 @@ const MapPicker: React.FC<MapPickerProps> = ({
       () => fallbackCenter(),
       { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
     );
-  }, [onLocationSelect, userLocation]);
+  }, [onLocationSelect, openMissionForm, userLocation]);
 
-  // Overlays outside MapPicker (Profile's immersive feed) request the same flow.
+  // Overlays outside MapPicker (Profile feed, storefront) request create flow.
   useEffect(() => {
-    const onCreateEvent = () => startCreateMissionAtCurrentLocation();
+    const onCreateEvent = (event: Event) => {
+      const detail = (event as CustomEvent<StoreMissionRequestDetail>).detail;
+      const hasPrefill =
+        detail &&
+        typeof detail === 'object' &&
+        typeof detail.serviceType === 'string' &&
+        detail.serviceType.length > 0;
+      // Clear any queued copy so the mount consumer does not double-open.
+      const queued = consumeStoreMissionRequest();
+      startCreateMissionAtCurrentLocation(hasPrefill ? detail : queued);
+    };
     window.addEventListener(APP_EVENT_CREATE_MISSION, onCreateEvent);
     return () => window.removeEventListener(APP_EVENT_CREATE_MISSION, onCreateEvent);
+  }, [startCreateMissionAtCurrentLocation]);
+
+  // StorefrontPage is a separate route — consume queued Book request on map mount.
+  useEffect(() => {
+    const pending = consumeStoreMissionRequest();
+    if (!pending) return;
+    const t = window.setTimeout(() => {
+      startCreateMissionAtCurrentLocation(pending);
+    }, 120);
+    return () => window.clearTimeout(t);
   }, [startCreateMissionAtCurrentLocation]);
 
   const showProfileFab =

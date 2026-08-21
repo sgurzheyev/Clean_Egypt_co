@@ -1,11 +1,15 @@
 /**
- * Contractor "My Store" management panel — Basics, Inventory & Supplies,
- * Service Bundles, and Recurring Availability (Subscribe & Save).
+ * Contractor "My Store" — 3-step onboarding wizard (Identity → Zone → Publish)
+ * plus optional Advanced tools (Inventory / Bundles / Recurring).
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import imageCompression from 'browser-image-compression';
 import {
   Camera,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Circle,
   Package,
   Plus,
   RefreshCw,
@@ -37,6 +41,7 @@ import {
   fetchContractorStore,
   fetchStoreSupplies,
   insertStoreSupply,
+  polygonFromRadiusKm,
   skuIds,
   storeToDraft,
   toggleStoreServiceInDraft,
@@ -76,7 +81,10 @@ export type ContractorStorePanelProps = {
   onStorePresenceChange?: (hasStore: boolean) => void;
 };
 
-type StoreTab = 'basics' | 'inventory' | 'bundles' | 'recurring';
+type WizardStep = 1 | 2 | 3;
+type AdvancedTab = 'inventory' | 'bundles' | 'recurring' | null;
+
+const COVERAGE_RADIUS_KM = 5;
 
 const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
   userId,
@@ -84,7 +92,8 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
   onStorePresenceChange,
 }) => {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<StoreTab>('basics');
+  const [step, setStep] = useState<WizardStep>(1);
+  const [advancedTab, setAdvancedTab] = useState<AdvancedTab>(null);
   const [draft, setDraft] = useState<ContractorStoreDraft>({ ...EMPTY_STORE_DRAFT });
   const [storeId, setStoreId] = useState<string | null>(null);
   const [supplies, setSupplies] = useState<StoreSupply[]>([]);
@@ -524,6 +533,26 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
   };
 
   const handleSave = async (publish?: boolean) => {
+    if (publish === true) {
+      const okName = draft.store_name.trim().length > 0;
+      const okOffice =
+        typeof draft.office_lat === 'number' &&
+        typeof draft.office_lng === 'number' &&
+        Number.isFinite(draft.office_lat) &&
+        Number.isFinite(draft.office_lng);
+      const okSku = draft.store_service_skus.some((s) => s.base_price > 0);
+      if (!okName || !okOffice || !okSku) {
+        setStep(3);
+        setError(
+          t('storePublishBlocked', {
+            defaultValue:
+              'Finish the checklist before publishing (name, office pin, priced service).',
+          })
+        );
+        return;
+      }
+    }
+
     setSaving(true);
     setError(null);
     setSuccess(null);
@@ -615,7 +644,8 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
       setSupplies([]);
       setSupplyDraft({ ...EMPTY_SUPPLY_DRAFT });
       setMaterialInput('');
-      setTab('basics');
+      setStep(1);
+      setAdvancedTab(null);
       onStorePresenceChange?.(false);
       setSuccess(
         t('storeDeletedSuccess', {
@@ -634,30 +664,94 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
     }
   };
 
+  const applyFiveKmRadius = () => {
+    const lat = draft.office_lat;
+    const lng = draft.office_lng;
+    if (
+      typeof lat !== 'number' ||
+      typeof lng !== 'number' ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng)
+    ) {
+      setError(
+        t('storeRadiusNeedOffice', {
+          defaultValue: 'Pin your office first, then apply a 5 km radius.',
+        })
+      );
+      return;
+    }
+    const poly = polygonFromRadiusKm(lat, lng, COVERAGE_RADIUS_KM);
+    if (!poly) return;
+    setDraft((p) => ({ ...p, service_radius_polygon: poly }));
+    setError(null);
+    setSuccess(
+      t('storeRadiusApplied', {
+        defaultValue: '5 km coverage circle applied around your office.',
+      })
+    );
+  };
+
+  const publishChecklist = useMemo(() => {
+    const hasName = draft.store_name.trim().length > 0;
+    const hasOffice =
+      typeof draft.office_lat === 'number' &&
+      typeof draft.office_lng === 'number' &&
+      Number.isFinite(draft.office_lat) &&
+      Number.isFinite(draft.office_lng);
+    const hasPricedSku = draft.store_service_skus.some((s) => s.base_price > 0);
+    return {
+      hasName,
+      hasOffice,
+      hasPricedSku,
+      canPublish: hasName && hasOffice && hasPricedSku,
+    };
+  }, [draft.store_name, draft.office_lat, draft.office_lng, draft.store_service_skus]);
+
   if (loading) {
     return <p className="text-sm italic text-slate-500">{t('loading')}</p>;
   }
 
-  const tabs: { id: StoreTab; label: string; icon: React.ReactNode }[] = [
+  const wizardSteps: { id: WizardStep; label: string }[] = [
     {
-      id: 'basics',
-      label: t('storeTabBasics', { defaultValue: 'Basics' }),
-      icon: <Store className="h-3.5 w-3.5" />,
+      id: 1,
+      label: t('storeWizardStepIdentity', {
+        defaultValue: 'Identity & Services',
+      }),
     },
     {
-      id: 'inventory',
-      label: t('storeTabInventory', { defaultValue: 'Inventory' }),
-      icon: <Package className="h-3.5 w-3.5" />,
+      id: 2,
+      label: t('storeWizardStepCoverage', { defaultValue: 'Coverage Zone' }),
     },
     {
-      id: 'bundles',
-      label: t('storeTabBundles', { defaultValue: 'Bundles' }),
-      icon: <Sparkles className="h-3.5 w-3.5" />,
+      id: 3,
+      label: t('storeWizardStepPublish', { defaultValue: 'Publish' }),
+    },
+  ];
+
+  const checklistItems = [
+    {
+      key: 'name',
+      ok: publishChecklist.hasName,
+      label: t('storeCheckName', {
+        defaultValue: 'Store name filled in',
+      }),
+      go: () => setStep(1) as void,
     },
     {
-      id: 'recurring',
-      label: t('storeTabRecurring', { defaultValue: 'Recurring' }),
-      icon: <RefreshCw className="h-3.5 w-3.5" />,
+      key: 'office',
+      ok: publishChecklist.hasOffice,
+      label: t('storeCheckOffice', {
+        defaultValue: 'Office pin placed on the map',
+      }),
+      go: () => setStep(2) as void,
+    },
+    {
+      key: 'sku',
+      ok: publishChecklist.hasPricedSku,
+      label: t('storeCheckSku', {
+        defaultValue: 'At least one service with a floor price',
+      }),
+      go: () => setStep(1) as void,
     },
   ];
 
@@ -673,34 +767,57 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
       )}
 
       <p className="text-[11px] leading-relaxed text-slate-400">
-        {t('storePanelHint', {
+        {t('storeWizardHint', {
           defaultValue:
-            'Build your business storefront: office, coverage, supplies, bundles, and Subscribe & Save.',
+            'Three steps to go live: identity & prices → coverage → publish checklist.',
         })}
       </p>
 
-      <div className="flex flex-wrap gap-1.5">
-        {tabs.map((item) => {
-          const active = tab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setTab(item.id)}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] transition-colors ${
-                active
-                  ? 'border-emerald-400/55 bg-emerald-500/25 text-emerald-100'
-                  : 'border-white/12 bg-white/5 text-slate-400 hover:border-white/25'
-              }`}
-            >
-              {item.icon}
-              {item.label}
-            </button>
-          );
-        })}
+      {/* Wizard step indicator */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-1">
+          {wizardSteps.map((item, idx) => {
+            const active = step === item.id;
+            const done = step > item.id;
+            return (
+              <React.Fragment key={item.id}>
+                {idx > 0 && (
+                  <div
+                    className={`h-px flex-1 ${
+                      done ? 'bg-emerald-400/50' : 'bg-white/10'
+                    }`}
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => setStep(item.id)}
+                  className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-[11px] font-black transition-colors ${
+                    active
+                      ? 'border-emerald-400/60 bg-emerald-500/30 text-emerald-50'
+                      : done
+                        ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
+                        : 'border-white/15 bg-white/5 text-slate-400'
+                  }`}
+                  aria-current={active ? 'step' : undefined}
+                  aria-label={item.label}
+                >
+                  {done && !active ? (
+                    <Check className="h-3.5 w-3.5" aria-hidden />
+                  ) : (
+                    item.id
+                  )}
+                </button>
+              </React.Fragment>
+            );
+          })}
+        </div>
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300/90">
+          {wizardSteps.find((s) => s.id === step)?.label}
+        </p>
       </div>
 
-      {tab === 'basics' && (
+      {/* ─── Step 1: Identity & Services ─── */}
+      {step === 1 && (
         <div className="space-y-5">
           <section className="space-y-2">
             <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
@@ -737,98 +854,51 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
 
           <section className="space-y-2">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-              {t('storeCoverageSection', {
-                defaultValue: 'Office & coverage zone',
+              {t('storeHeroPhoto', {
+                defaultValue: 'Main / cover photo',
               })}
             </p>
-
-            <div className="space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                {t('storeZoneColor', { defaultValue: 'Zone color' })}
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                {STORE_NEON_PALETTE.map((swatch) => {
-                  const active =
-                    normalizeStoreColor(draft.color) ===
-                    normalizeStoreColor(swatch.hex);
-                  return (
-                    <button
-                      key={swatch.id}
-                      type="button"
-                      title={t(swatch.labelKey, { defaultValue: swatch.hex })}
-                      aria-label={t(swatch.labelKey, { defaultValue: swatch.hex })}
-                      aria-pressed={active}
-                      onClick={() =>
-                        setDraft((p) => ({
-                          ...p,
-                          color: normalizeStoreColor(swatch.hex),
-                        }))
-                      }
-                      className={`h-8 w-8 rounded-full border-2 transition-transform active:scale-95 ${
-                        active
-                          ? 'scale-110 border-white shadow-[0_0_14px_currentColor]'
-                          : 'border-white/25 hover:border-white/60'
-                      }`}
-                      style={{
-                        backgroundColor: swatch.hex,
-                        color: swatch.hex,
-                        boxShadow: active
-                          ? `0 0 14px ${swatch.hex}, 0 0 28px ${swatch.hex}66`
-                          : undefined,
-                      }}
-                    />
-                  );
-                })}
-                <label className="relative inline-flex h-8 w-8 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-white/35 bg-black/40 text-[9px] font-black uppercase tracking-wider text-slate-400 hover:border-cyan-400/50">
-                  <span aria-hidden>+</span>
-                  <input
-                    type="color"
-                    value={normalizeStoreColor(draft.color || DEFAULT_STORE_COLOR)}
-                    onChange={(e) =>
-                      setDraft((p) => ({
-                        ...p,
-                        color: normalizeStoreColor(e.target.value),
-                      }))
-                    }
-                    className="absolute inset-0 cursor-pointer opacity-0"
-                    aria-label={t('storeZoneColorCustom', {
-                      defaultValue: 'Custom color',
-                    })}
-                  />
-                </label>
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-400">
-                  {normalizeStoreColor(draft.color)}
-                </span>
-              </div>
-            </div>
-
-            <StoreCoverageMap
-              officeLat={draft.office_lat}
-              officeLng={draft.office_lng}
-              polygon={draft.service_radius_polygon}
-              zoneColor={draft.color}
-              onOfficeChange={(lat, lng) =>
-                setDraft((p) => ({ ...p, office_lat: lat, office_lng: lng }))
-              }
-              onPolygonChange={(poly) =>
-                setDraft((p) => ({ ...p, service_radius_polygon: poly }))
-              }
-            />
-            <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-              {t('storeAddressLabel', { defaultValue: 'Office address' })}
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-cyan-400/40 bg-cyan-500/5 px-4 py-6 text-center transition-colors hover:bg-cyan-500/10">
+              <Camera className="h-6 w-6 text-cyan-300" />
+              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-100">
+                {uploading
+                  ? t('processing')
+                  : t('storeUploadPhotos', { defaultValue: 'Upload photos' })}
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                disabled={uploading || draft.store_photos.length >= STORE_PHOTOS_MAX}
+                onChange={(e) => void onPhotosSelected(e)}
+                className="hidden"
+              />
             </label>
-            <input
-              type="text"
-              value={draft.office_address}
-              onChange={(e) =>
-                setDraft((p) => ({ ...p, office_address: e.target.value }))
-              }
-              maxLength={200}
-              placeholder={t('storeAddressPlaceholder', {
-                defaultValue: 'Street, building, city',
-              })}
-              className={`w-full ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-400/50`}
-            />
+            {draft.store_photos.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {draft.store_photos.map((url, idx) => (
+                  <div
+                    key={url}
+                    className="relative overflow-hidden rounded-lg border border-white/10 bg-slate-900"
+                  >
+                    <img src={url} alt="" className="h-24 w-full object-cover" />
+                    {idx === 0 && (
+                      <span className="absolute left-1 top-1 rounded bg-emerald-500/90 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-white">
+                        {t('storeCoverBadge', { defaultValue: 'Cover' })}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(url)}
+                      className="absolute right-1 top-1 rounded-full border border-red-400/50 bg-black/70 p-1 text-red-200"
+                      aria-label={t('remove', { defaultValue: 'Remove' })}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="space-y-2">
@@ -949,459 +1019,620 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
               </div>
             )}
           </section>
+        </div>
+      )}
 
+      {/* ─── Step 2: Coverage Zone ─── */}
+      {step === 2 && (
+        <div className="space-y-4">
           <section className="space-y-2">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-              {t('storeMaterialsSection', {
-                defaultValue: 'Materials & chemicals',
+              {t('storeCoverageSection', {
+                defaultValue: 'Office & coverage zone',
               })}
             </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={materialInput}
-                onChange={(e) => setMaterialInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addMaterial();
-                  }
-                }}
-                maxLength={80}
-                placeholder={t('storeMaterialPlaceholder', {
-                  defaultValue: 'e.g. Eco detergent, HEPA vacuum…',
+            <p className="text-[11px] leading-relaxed text-slate-400">
+              {t('storeCoverageWizardHint', {
+                defaultValue:
+                  'Pin your office, then draw a zone — or tap 5 km radius for a quick circle.',
+              })}
+            </p>
+
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                {t('storeZoneColor', { defaultValue: 'Zone color' })}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                {STORE_NEON_PALETTE.map((swatch) => {
+                  const active =
+                    normalizeStoreColor(draft.color) ===
+                    normalizeStoreColor(swatch.hex);
+                  return (
+                    <button
+                      key={swatch.id}
+                      type="button"
+                      title={t(swatch.labelKey, { defaultValue: swatch.hex })}
+                      aria-label={t(swatch.labelKey, { defaultValue: swatch.hex })}
+                      aria-pressed={active}
+                      onClick={() =>
+                        setDraft((p) => ({
+                          ...p,
+                          color: normalizeStoreColor(swatch.hex),
+                        }))
+                      }
+                      className={`h-8 w-8 rounded-full border-2 transition-transform active:scale-95 ${
+                        active
+                          ? 'scale-110 border-white shadow-[0_0_14px_currentColor]'
+                          : 'border-white/25 hover:border-white/60'
+                      }`}
+                      style={{
+                        backgroundColor: swatch.hex,
+                        color: swatch.hex,
+                        boxShadow: active
+                          ? `0 0 14px ${swatch.hex}, 0 0 28px ${swatch.hex}66`
+                          : undefined,
+                      }}
+                    />
+                  );
                 })}
-                className={`min-w-0 flex-1 ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-cyan-400/50`}
-              />
-              <button
-                type="button"
-                onClick={addMaterial}
-                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-500/15 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {t('add', { defaultValue: 'Add' })}
-              </button>
+                <label className="relative inline-flex h-8 w-8 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-white/35 bg-black/40 text-[9px] font-black uppercase tracking-wider text-slate-400 hover:border-cyan-400/50">
+                  <span aria-hidden>+</span>
+                  <input
+                    type="color"
+                    value={normalizeStoreColor(draft.color || DEFAULT_STORE_COLOR)}
+                    onChange={(e) =>
+                      setDraft((p) => ({
+                        ...p,
+                        color: normalizeStoreColor(e.target.value),
+                      }))
+                    }
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                    aria-label={t('storeZoneColorCustom', {
+                      defaultValue: 'Custom color',
+                    })}
+                  />
+                </label>
+              </div>
             </div>
-            {draft.materials_and_chemicals.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {draft.materials_and_chemicals.map((item) => (
-                  <span
-                    key={item}
-                    className="inline-flex items-center gap-1 rounded-full border border-violet-400/35 bg-violet-500/15 px-2.5 py-1 text-[11px] font-medium text-violet-100"
-                  >
-                    {item}
-                    <button
-                      type="button"
-                      onClick={() => removeMaterial(item)}
-                      className="text-violet-200/80 hover:text-white"
-                      aria-label={t('remove', { defaultValue: 'Remove' })}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </section>
 
-          <section className="space-y-2">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-              {t('storePhotosSection', {
-                defaultValue: 'Office / team / hygiene photos',
+            <button
+              type="button"
+              onClick={applyFiveKmRadius}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-cyan-400/45 bg-cyan-500/15 py-2.5 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-50"
+            >
+              <Circle className="h-3.5 w-3.5" aria-hidden />
+              {t('storeRadius5km', {
+                defaultValue: 'Use 5 km radius',
               })}
-            </p>
-            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-cyan-400/40 bg-cyan-500/5 px-4 py-6 text-center transition-colors hover:bg-cyan-500/10">
-              <Camera className="h-6 w-6 text-cyan-300" />
-              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-100">
-                {uploading
-                  ? t('processing')
-                  : t('storeUploadPhotos', { defaultValue: 'Upload photos' })}
-              </span>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                disabled={uploading || draft.store_photos.length >= STORE_PHOTOS_MAX}
-                onChange={(e) => void onPhotosSelected(e)}
-                className="hidden"
-              />
+            </button>
+
+            <StoreCoverageMap
+              officeLat={draft.office_lat}
+              officeLng={draft.office_lng}
+              polygon={draft.service_radius_polygon}
+              zoneColor={draft.color}
+              onOfficeChange={(lat, lng) =>
+                setDraft((p) => ({ ...p, office_lat: lat, office_lng: lng }))
+              }
+              onPolygonChange={(poly) =>
+                setDraft((p) => ({ ...p, service_radius_polygon: poly }))
+              }
+            />
+            <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+              {t('storeAddressLabel', { defaultValue: 'Office address' })}
             </label>
-            {draft.store_photos.length > 0 && (
-              <div className="grid grid-cols-3 gap-2">
-                {draft.store_photos.map((url) => (
-                  <div
-                    key={url}
-                    className="relative overflow-hidden rounded-lg border border-white/10 bg-slate-900"
-                  >
-                    <img src={url} alt="" className="h-24 w-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => removePhoto(url)}
-                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full border border-red-400/50 bg-red-500/30 text-red-100"
-                      aria-label={t('remove', { defaultValue: 'Remove' })}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <input
+              type="text"
+              value={draft.office_address}
+              onChange={(e) =>
+                setDraft((p) => ({ ...p, office_address: e.target.value }))
+              }
+              maxLength={200}
+              placeholder={t('storeAddressPlaceholder', {
+                defaultValue: 'Street, building, city',
+              })}
+              className={`w-full ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-400/50`}
+            />
           </section>
         </div>
       )}
 
-      {tab === 'inventory' && (
+      {/* ─── Step 3: Publish Checklist ─── */}
+      {step === 3 && (
         <div className="space-y-4">
-          <p className="text-[11px] leading-relaxed text-slate-400">
-            {t('storeInventoryHint', {
-              defaultValue:
-                'Showcase detergents, chemicals, and equipment you bring — mark free inclusions vs paid add-ons.',
-            })}
-          </p>
-
-          <section className={`space-y-2 rounded-xl border border-cyan-400/25 bg-cyan-500/5 p-3`}>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200/90">
-              {t('storeSupplyAddTitle', { defaultValue: 'Add supply item' })}
-            </p>
-            <input
-              type="text"
-              value={supplyDraft.name}
-              onChange={(e) =>
-                setSupplyDraft((p) => ({ ...p, name: e.target.value }))
-              }
-              maxLength={120}
-              placeholder={t('storeSupplyNamePlaceholder', {
-                defaultValue: 'Product name',
-              })}
-              className={`w-full ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-cyan-400/50`}
-            />
-            <input
-              type="text"
-              value={supplyDraft.brand}
-              onChange={(e) =>
-                setSupplyDraft((p) => ({ ...p, brand: e.target.value }))
-              }
-              maxLength={80}
-              placeholder={t('storeSupplyBrandPlaceholder', {
-                defaultValue: 'Brand (optional)',
-              })}
-              className={`w-full ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-cyan-400/50`}
-            />
-            <div className="flex flex-wrap gap-1.5">
-              {SUPPLY_CATEGORIES.map((cat: SupplyCategory) => {
-                const active = supplyDraft.category === cat;
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() =>
-                      setSupplyDraft((p) => ({ ...p, category: cat }))
-                    }
-                    className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.1em] ${
-                      active
-                        ? 'border-cyan-400/55 bg-cyan-500/25 text-cyan-100'
-                        : 'border-white/12 bg-white/5 text-slate-400'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                );
-              })}
-            </div>
-            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-white/20 bg-black/20 px-3 py-2 text-xs text-slate-300">
-              <Camera className="h-4 w-4 text-cyan-300" />
-              {supplyDraft.image_url
-                ? t('storeSupplyPhotoSet', { defaultValue: 'Photo attached' })
-                : t('storeSupplyAddPhoto', { defaultValue: 'Add photo' })}
-              <input
-                type="file"
-                accept="image/*"
-                disabled={uploading}
-                onChange={(e) => void onSupplyPhotoSelected(e)}
-                className="hidden"
-              />
-            </label>
-            {supplyDraft.image_url && (
-              <img
-                src={supplyDraft.image_url}
-                alt=""
-                className="h-20 w-20 rounded-lg border border-white/10 object-cover"
-              />
-            )}
-            <label className="flex items-center gap-2 text-xs text-slate-300">
-              <input
-                type="checkbox"
-                checked={supplyDraft.is_included_in_service}
-                onChange={(e) =>
-                  setSupplyDraft((p) => ({
-                    ...p,
-                    is_included_in_service: e.target.checked,
-                    extra_price: e.target.checked ? '' : p.extra_price,
-                  }))
-                }
-                className="rounded border-white/30"
-              />
-              {t('storeSupplyIncludedToggle', {
-                defaultValue: 'Included free with service',
-              })}
-            </label>
-            {!supplyDraft.is_included_in_service && (
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={supplyDraft.extra_price}
-                onChange={(e) =>
-                  setSupplyDraft((p) => ({
-                    ...p,
-                    extra_price:
-                      e.target.value === '' ? '' : Number(e.target.value),
-                  }))
-                }
-                placeholder={t('storeSupplyExtraPrice', {
-                  defaultValue: 'Add-on price (USD)',
-                })}
-                className={`w-full ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-cyan-400/50`}
-              />
-            )}
-            <button
-              type="button"
-              disabled={saving || uploading}
-              onClick={() => void handleAddSupply()}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-cyan-400/45 bg-cyan-500/20 py-2.5 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-50 disabled:opacity-50"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {t('storeSupplyAddCta', { defaultValue: 'Add to inventory' })}
-            </button>
-          </section>
-
-          {supplies.length === 0 ? (
-            <p className="text-xs italic text-slate-500">
-              {t('storeSuppliesEmpty', {
-                defaultValue: 'No supply items yet.',
+          <section
+            className={`space-y-3 rounded-xl border p-3 ${PROFILE_GLASS_PANEL} ${
+              publishChecklist.canPublish
+                ? 'border-emerald-400/35 bg-emerald-500/10'
+                : 'border-white/15 bg-black/20'
+            }`}
+          >
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+              {t('storePublishChecklist', {
+                defaultValue: 'Publish checklist',
               })}
             </p>
-          ) : (
             <ul className="space-y-2">
-              {supplies.map((item) => (
-                <li
-                  key={item.id}
-                  className="flex gap-3 rounded-xl border border-white/10 bg-black/25 p-2.5"
-                >
-                  {item.image_url ? (
-                    <img
-                      src={item.image_url}
-                      alt=""
-                      className="h-14 w-14 shrink-0 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-900">
-                      <Package className="h-5 w-5 text-slate-600" />
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-white">
-                      {item.name}
-                    </p>
-                    <p className="truncate text-[10px] text-slate-400">
-                      {[item.brand, item.category].filter(Boolean).join(' · ')}
-                    </p>
-                    <p
-                      className={`mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] ${
-                        item.is_included_in_service
-                          ? 'text-emerald-300'
-                          : 'text-amber-300'
+              {checklistItems.map((item) => (
+                <li key={item.key}>
+                  <button
+                    type="button"
+                    onClick={item.go}
+                    className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-2.5 py-2 text-left transition-colors hover:border-white/25"
+                  >
+                    <span
+                      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
+                        item.ok
+                          ? 'border-emerald-400/50 bg-emerald-500/25 text-emerald-200'
+                          : 'border-red-400/45 bg-red-500/15 text-red-300'
                       }`}
                     >
-                      {item.is_included_in_service
-                        ? t('storeSupplyIncluded', { defaultValue: 'Included' })
-                        : t('storeSupplyAddOn', {
-                            defaultValue: 'Add-on',
-                          })}
-                      {!item.is_included_in_service &&
-                        item.extra_price != null &&
-                        ` · $${Math.floor(item.extra_price)}`}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => void handleRemoveSupply(item.id)}
-                    className="self-start rounded-full border border-red-400/40 bg-red-500/20 p-1.5 text-red-100"
-                    aria-label={t('remove', { defaultValue: 'Remove' })}
-                  >
-                    <X className="h-3.5 w-3.5" />
+                      {item.ok ? (
+                        <Check className="h-3.5 w-3.5" aria-hidden />
+                      ) : (
+                        <X className="h-3.5 w-3.5" aria-hidden />
+                      )}
+                    </span>
+                    <span
+                      className={`text-xs font-medium ${
+                        item.ok ? 'text-emerald-100' : 'text-red-200/90'
+                      }`}
+                    >
+                      {item.label}
+                    </span>
                   </button>
                 </li>
               ))}
             </ul>
-          )}
-        </div>
-      )}
+            {!publishChecklist.canPublish && (
+              <p className="text-[11px] leading-relaxed text-amber-200/85">
+                {t('storePublishGateHint', {
+                  defaultValue:
+                    'Publish unlocks when all items are green. Tap a row to jump back and fix it.',
+                })}
+              </p>
+            )}
+          </section>
 
-      {tab === 'bundles' && (
-        <div className="space-y-4">
-          <p className="text-[11px] leading-relaxed text-slate-400">
-            {t('storeBundlesHint', {
-              defaultValue:
-                'Package 2–3 services into a fixed starting-price deal for your storefront.',
-            })}
-          </p>
-          {draft.service_bundles.map((bundle) => (
-            <section
-              key={bundle.id}
-              className="space-y-2 rounded-xl border border-violet-400/30 bg-violet-500/10 p-3"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <input
-                  type="text"
-                  value={bundle.title}
-                  onChange={(e) =>
-                    updateBundle(bundle.id, { title: e.target.value })
-                  }
-                  maxLength={80}
-                  placeholder={t('storeBundleTitlePlaceholder', {
-                    defaultValue: 'Bundle title',
-                  })}
-                  className={`min-w-0 flex-1 ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-violet-400/50`}
-                />
-                <button
-                  type="button"
-                  onClick={() => removeBundle(bundle.id)}
-                  className="rounded-full border border-red-400/40 bg-red-500/20 p-1.5 text-red-100"
-                  aria-label={t('remove', { defaultValue: 'Remove' })}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <textarea
-                value={bundle.description}
-                onChange={(e) =>
-                  updateBundle(bundle.id, { description: e.target.value })
-                }
-                maxLength={400}
-                rows={2}
-                placeholder={t('storeBundleDescPlaceholder', {
-                  defaultValue: 'What’s included…',
-                })}
-                className={`w-full resize-none ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-violet-400/50`}
-              />
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={bundle.starting_price || ''}
-                onChange={(e) =>
-                  updateBundle(bundle.id, {
-                    starting_price: Math.max(
-                      0,
-                      Math.floor(Number(e.target.value) || 0)
-                    ),
-                  })
-                }
-                placeholder={t('storeBundlePricePlaceholder', {
-                  defaultValue: 'Starting price (USD)',
-                })}
-                className={`w-full ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-violet-400/50`}
-              />
-              <p className="text-[9px] font-black uppercase tracking-[0.14em] text-violet-200/80">
-                {t('storeBundlePickServices', {
-                  defaultValue: 'Pick 2–3 services',
-                })}
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {ALL_SECTOR_SERVICES.map((svc) => {
-                  const active = bundle.service_ids.includes(svc.id);
-                  return (
-                    <button
-                      key={svc.id}
-                      type="button"
-                      onClick={() => toggleBundleService(bundle.id, svc.id)}
-                      className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] ${
-                        active
-                          ? 'border-violet-400/55 bg-violet-500/30 text-violet-50'
-                          : 'border-white/12 bg-white/5 text-slate-400'
-                      }`}
-                    >
-                      {t(svc.labelKey)}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
-          <button
-            type="button"
-            disabled={draft.service_bundles.length >= STORE_BUNDLES_MAX}
-            onClick={addBundle}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-violet-400/45 bg-violet-500/20 py-2.5 text-[11px] font-black uppercase tracking-[0.14em] text-violet-50 disabled:opacity-50"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {t('storeBundleAddCta', { defaultValue: 'Create bundle' })}
-          </button>
-        </div>
-      )}
-
-      {tab === 'recurring' && (
-        <div className="space-y-4">
-          <p className="text-[11px] leading-relaxed text-slate-400">
-            {t('storeRecurringHint', {
-              defaultValue:
-                'Signal that you accept regular weekly / monthly clients (Subscribe & Save showcase).',
-            })}
-          </p>
-          <label className="flex items-center justify-between gap-3 rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-3">
-            <div>
-              <p className="text-sm font-bold text-white">
-                {t('storeRecurringToggle', {
-                  defaultValue: 'Accept recurring clients',
-                })}
-              </p>
-              <p className="mt-0.5 text-[11px] text-fuchsia-100/75">
-                {t('storeRecurringToggleHint', {
-                  defaultValue: 'Shown on your public storefront as Subscribe & Save.',
-                })}
-              </p>
-            </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
-              role="switch"
-              aria-checked={acceptsRecurring}
-              onClick={() => setAcceptsRecurring(!acceptsRecurring)}
-              className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors ${
-                acceptsRecurring
-                  ? 'border-fuchsia-400/60 bg-fuchsia-500/40'
-                  : 'border-white/20 bg-white/10'
-              }`}
+              disabled={saving || uploading}
+              onClick={() => void handleSave(false)}
+              className="flex-1 rounded-full border border-white/20 bg-white/5 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-slate-200 disabled:opacity-50"
             >
-              <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                  acceptsRecurring ? 'left-6' : 'left-0.5'
-                }`}
-              />
+              {saving
+                ? t('processing')
+                : t('storeSaveDraft', { defaultValue: 'Save draft' })}
             </button>
-          </label>
-          {acceptsRecurring && (
+            <button
+              type="button"
+              disabled={saving || uploading || !publishChecklist.canPublish}
+              onClick={() => void handleSave(true)}
+              className="flex-1 rounded-full border border-emerald-400/50 bg-emerald-500/25 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.25)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {saving
+                ? t('processing')
+                : t('storePublish', { defaultValue: 'Publish store' })}
+            </button>
+          </div>
+
+          {/* Optional advanced tools — collapsed by default */}
+          <div className="space-y-2 border-t border-white/10 pt-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+              {t('storeAdvancedTools', {
+                defaultValue: 'Advanced (optional)',
+              })}
+            </p>
             <div className="flex flex-wrap gap-1.5">
-              {RECURRENCE_TYPES.filter((r) => r !== 'one_time').map((r) => {
-                const active = draft.supported_recurrence_types.includes(r);
+              {(
+                [
+                  {
+                    id: 'inventory' as const,
+                    label: t('storeTabInventory', { defaultValue: 'Inventory' }),
+                    icon: <Package className="h-3.5 w-3.5" />,
+                  },
+                  {
+                    id: 'bundles' as const,
+                    label: t('storeTabBundles', { defaultValue: 'Bundles' }),
+                    icon: <Sparkles className="h-3.5 w-3.5" />,
+                  },
+                  {
+                    id: 'recurring' as const,
+                    label: t('storeTabRecurring', { defaultValue: 'Recurring' }),
+                    icon: <RefreshCw className="h-3.5 w-3.5" />,
+                  },
+                ] as const
+              ).map((item) => {
+                const active = advancedTab === item.id;
                 return (
                   <button
-                    key={r}
+                    key={item.id}
                     type="button"
-                    onClick={() => toggleRecurrence(r)}
-                    className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${
+                    onClick={() =>
+                      setAdvancedTab((prev) => (prev === item.id ? null : item.id))
+                    }
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] transition-colors ${
                       active
-                        ? 'border-fuchsia-400/55 bg-fuchsia-500/25 text-fuchsia-50'
-                        : 'border-white/12 bg-white/5 text-slate-400'
+                        ? 'border-violet-400/55 bg-violet-500/25 text-violet-100'
+                        : 'border-white/12 bg-white/5 text-slate-400 hover:border-white/25'
                     }`}
                   >
-                    {t(recurrenceLabelKey(r), { defaultValue: r })}
+                    {item.icon}
+                    {item.label}
                   </button>
                 );
               })}
             </div>
-          )}
+
+            {advancedTab === 'inventory' && (
+              <div className="space-y-3 pt-2">
+                <p className="text-[11px] leading-relaxed text-slate-400">
+                  {t('storeInventoryHint', {
+                    defaultValue:
+                      'Showcase detergents, chemicals, and equipment you bring — mark free inclusions vs paid add-ons.',
+                  })}
+                </p>
+                <div className={`space-y-2 rounded-xl border border-cyan-400/25 bg-cyan-500/5 p-3 ${PROFILE_GLASS_PANEL}`}>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200/80">
+                    {t('storeSupplyAddTitle', { defaultValue: 'Add supply item' })}
+                  </p>
+                  <input
+                    type="text"
+                    value={supplyDraft.name}
+                    onChange={(e) =>
+                      setSupplyDraft((p) => ({ ...p, name: e.target.value }))
+                    }
+                    maxLength={120}
+                    placeholder={t('storeSupplyNamePlaceholder', {
+                      defaultValue: 'Product name',
+                    })}
+                    className={`w-full ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-cyan-400/50`}
+                  />
+                  <input
+                    type="text"
+                    value={supplyDraft.brand}
+                    onChange={(e) =>
+                      setSupplyDraft((p) => ({ ...p, brand: e.target.value }))
+                    }
+                    maxLength={80}
+                    placeholder={t('storeSupplyBrandPlaceholder', {
+                      defaultValue: 'Brand (optional)',
+                    })}
+                    className={`w-full ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-cyan-400/50`}
+                  />
+                  <select
+                    value={supplyDraft.category}
+                    onChange={(e) =>
+                      setSupplyDraft((p) => ({
+                        ...p,
+                        category: e.target.value as SupplyCategory,
+                      }))
+                    }
+                    className={`w-full ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-cyan-400/50`}
+                  >
+                    {SUPPLY_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat} className="bg-slate-900">
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="flex cursor-pointer items-center gap-2 text-[11px] text-cyan-100">
+                    <input
+                      type="checkbox"
+                      checked={supplyDraft.is_included_in_service}
+                      onChange={(e) =>
+                        setSupplyDraft((p) => ({
+                          ...p,
+                          is_included_in_service: e.target.checked,
+                          extra_price: e.target.checked ? '' : p.extra_price,
+                        }))
+                      }
+                    />
+                    {t('storeSupplyIncludedToggle', {
+                      defaultValue: 'Included free with service',
+                    })}
+                  </label>
+                  {!supplyDraft.is_included_in_service && (
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={supplyDraft.extra_price === '' ? '' : supplyDraft.extra_price}
+                      onChange={(e) =>
+                        setSupplyDraft((p) => ({
+                          ...p,
+                          extra_price:
+                            e.target.value === ''
+                              ? ''
+                              : Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                        }))
+                      }
+                      placeholder={t('storeSupplyExtraPrice', {
+                        defaultValue: 'Add-on price (USD)',
+                      })}
+                      className={`w-full ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-cyan-400/50`}
+                    />
+                  )}
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-200">
+                    <Camera className="h-3.5 w-3.5" />
+                    {supplyDraft.image_url
+                      ? t('storeSupplyPhotoSet', { defaultValue: 'Photo attached' })
+                      : t('storeSupplyAddPhoto', { defaultValue: 'Add photo' })}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploading}
+                      onChange={(e) => void onSupplyPhotoSelected(e)}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={saving || uploading}
+                    onClick={() => void handleAddSupply()}
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-cyan-400/45 bg-cyan-500/20 py-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-50 disabled:opacity-50"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {t('storeSupplyAddCta', { defaultValue: 'Add to inventory' })}
+                  </button>
+                </div>
+                {supplies.length === 0 ? (
+                  <p className="text-[11px] italic text-slate-500">
+                    {t('storeSuppliesEmpty', { defaultValue: 'No supply items yet.' })}
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {supplies.map((item) => (
+                      <li
+                        key={item.id}
+                        className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 p-2"
+                      >
+                        {item.image_url ? (
+                          <img
+                            src={item.image_url}
+                            alt=""
+                            className="h-10 w-10 rounded object-cover"
+                          />
+                        ) : (
+                          <Package className="h-5 w-5 text-cyan-500/50" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-bold text-white">{item.name}</p>
+                          <p className="truncate text-[10px] text-slate-400">
+                            {[item.brand, item.category].filter(Boolean).join(' · ')}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void handleRemoveSupply(item.id)}
+                          className="rounded-full border border-red-400/40 p-1 text-red-200"
+                          aria-label={t('remove', { defaultValue: 'Remove' })}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                    {t('storeMaterialsSection', {
+                      defaultValue: 'Materials & chemicals',
+                    })}
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={materialInput}
+                      onChange={(e) => setMaterialInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addMaterial();
+                        }
+                      }}
+                      maxLength={80}
+                      placeholder={t('storeMaterialPlaceholder', {
+                        defaultValue: 'e.g. Eco detergent, HEPA vacuum…',
+                      })}
+                      className={`min-w-0 flex-1 ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-cyan-400/50`}
+                    />
+                    <button
+                      type="button"
+                      onClick={addMaterial}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-500/15 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {t('add', { defaultValue: 'Add' })}
+                    </button>
+                  </div>
+                  {draft.materials_and_chemicals.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {draft.materials_and_chemicals.map((item) => (
+                        <span
+                          key={item}
+                          className="inline-flex items-center gap-1 rounded-full border border-violet-400/35 bg-violet-500/15 px-2.5 py-1 text-[11px] font-medium text-violet-100"
+                        >
+                          {item}
+                          <button
+                            type="button"
+                            onClick={() => removeMaterial(item)}
+                            className="text-violet-200/80 hover:text-white"
+                            aria-label={t('remove', { defaultValue: 'Remove' })}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {advancedTab === 'bundles' && (
+              <div className="space-y-3 pt-2">
+                <p className="text-[11px] leading-relaxed text-slate-400">
+                  {t('storeBundlesHint', {
+                    defaultValue:
+                      'Package 2–3 services into a fixed starting-price deal for your storefront.',
+                  })}
+                </p>
+                {draft.service_bundles.map((bundle) => (
+                  <section
+                    key={bundle.id}
+                    className="space-y-2 rounded-xl border border-violet-400/30 bg-violet-500/10 p-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <input
+                        type="text"
+                        value={bundle.title}
+                        onChange={(e) =>
+                          updateBundle(bundle.id, { title: e.target.value })
+                        }
+                        maxLength={80}
+                        placeholder={t('storeBundleTitlePlaceholder', {
+                          defaultValue: 'Bundle title',
+                        })}
+                        className={`min-w-0 flex-1 ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-violet-400/50`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeBundle(bundle.id)}
+                        className="rounded-full border border-red-400/40 bg-red-500/20 p-1.5 text-red-100"
+                        aria-label={t('remove', { defaultValue: 'Remove' })}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <textarea
+                      value={bundle.description}
+                      onChange={(e) =>
+                        updateBundle(bundle.id, { description: e.target.value })
+                      }
+                      maxLength={400}
+                      rows={2}
+                      placeholder={t('storeBundleDescPlaceholder', {
+                        defaultValue: 'What’s included…',
+                      })}
+                      className={`w-full resize-none ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-violet-400/50`}
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={bundle.starting_price || ''}
+                      onChange={(e) =>
+                        updateBundle(bundle.id, {
+                          starting_price: Math.max(
+                            0,
+                            Math.floor(Number(e.target.value) || 0)
+                          ),
+                        })
+                      }
+                      placeholder={t('storeBundlePricePlaceholder', {
+                        defaultValue: 'Starting price (USD)',
+                      })}
+                      className={`w-full ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-violet-400/50`}
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {ALL_SECTOR_SERVICES.map((svc) => {
+                        const active = bundle.service_ids.includes(svc.id);
+                        return (
+                          <button
+                            key={svc.id}
+                            type="button"
+                            onClick={() => toggleBundleService(bundle.id, svc.id)}
+                            className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] ${
+                              active
+                                ? 'border-violet-400/55 bg-violet-500/30 text-violet-50'
+                                : 'border-white/12 bg-white/5 text-slate-400'
+                            }`}
+                          >
+                            {t(svc.labelKey)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+                <button
+                  type="button"
+                  disabled={draft.service_bundles.length >= STORE_BUNDLES_MAX}
+                  onClick={addBundle}
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-violet-400/45 bg-violet-500/20 py-2.5 text-[11px] font-black uppercase tracking-[0.14em] text-violet-50 disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {t('storeBundleAddCta', { defaultValue: 'Create bundle' })}
+                </button>
+              </div>
+            )}
+
+            {advancedTab === 'recurring' && (
+              <div className="space-y-4 pt-2">
+                <p className="text-[11px] leading-relaxed text-slate-400">
+                  {t('storeRecurringHint', {
+                    defaultValue:
+                      'Signal that you accept regular weekly / monthly clients (Subscribe & Save showcase).',
+                  })}
+                </p>
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-3">
+                  <div>
+                    <p className="text-sm font-bold text-white">
+                      {t('storeRecurringToggle', {
+                        defaultValue: 'Accept recurring clients',
+                      })}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-fuchsia-100/75">
+                      {t('storeRecurringToggleHint', {
+                        defaultValue:
+                          'Shown on your public storefront as Subscribe & Save.',
+                      })}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={acceptsRecurring}
+                    onClick={() => setAcceptsRecurring(!acceptsRecurring)}
+                    className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors ${
+                      acceptsRecurring
+                        ? 'border-fuchsia-400/60 bg-fuchsia-500/40'
+                        : 'border-white/20 bg-white/10'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                        acceptsRecurring ? 'left-6' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                </label>
+                {acceptsRecurring && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {RECURRENCE_TYPES.filter((r) => r !== 'one_time').map((r) => {
+                      const active = draft.supported_recurrence_types.includes(r);
+                      return (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => toggleRecurrence(r)}
+                          className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${
+                            active
+                              ? 'border-fuchsia-400/55 bg-fuchsia-500/25 text-fuchsia-50'
+                              : 'border-white/12 bg-white/5 text-slate-400'
+                          }`}
+                        >
+                          {t(recurrenceLabelKey(r), { defaultValue: r })}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1416,30 +1647,42 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
       )}
       {success && <p className="text-xs font-medium text-emerald-400">{success}</p>}
 
-      {(tab === 'basics' || tab === 'bundles' || tab === 'recurring') && (
-        <div className="flex flex-col gap-2 sm:flex-row">
+      {/* Wizard navigation */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={step === 1}
+          onClick={() => setStep((s) => (s > 1 ? ((s - 1) as WizardStep) : s))}
+          className="inline-flex flex-1 items-center justify-center gap-1 rounded-full border border-white/15 bg-white/5 py-2.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-200 disabled:opacity-35"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
+          {t('storeWizardBack', { defaultValue: 'Back' })}
+        </button>
+        {step < 3 ? (
+          <button
+            type="button"
+            onClick={() => {
+              void handleSave(false);
+              setStep((s) => (s < 3 ? ((s + 1) as WizardStep) : s));
+            }}
+            className="inline-flex flex-1 items-center justify-center gap-1 rounded-full border border-emerald-400/45 bg-emerald-500/20 py-2.5 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-50"
+          >
+            {t('storeWizardNext', { defaultValue: 'Next' })}
+            <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        ) : (
           <button
             type="button"
             disabled={saving || uploading}
             onClick={() => void handleSave(false)}
-            className="flex-1 rounded-full border border-white/20 bg-white/5 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-slate-200 disabled:opacity-50"
+            className="inline-flex flex-1 items-center justify-center gap-1 rounded-full border border-white/20 bg-white/5 py-2.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-200 disabled:opacity-50"
           >
             {saving
               ? t('processing')
               : t('storeSaveDraft', { defaultValue: 'Save draft' })}
           </button>
-          <button
-            type="button"
-            disabled={saving || uploading}
-            onClick={() => void handleSave(true)}
-            className="flex-1 rounded-full border border-emerald-400/50 bg-emerald-500/25 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.25)] disabled:opacity-50"
-          >
-            {saving
-              ? t('processing')
-              : t('storePublish', { defaultValue: 'Publish store' })}
-          </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {draft.is_published && (
         <div className="space-y-2">
@@ -1506,10 +1749,10 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
         </div>
       )}
 
-      {draft.offered_services.length > 0 && (
+      {draft.store_service_skus.length > 0 && (
         <p className="sr-only">
-          {draft.offered_services
-            .map((id) => findServiceOption(id)?.labelKey)
+          {draft.store_service_skus
+            .map((s) => findServiceOption(s.id)?.labelKey)
             .filter(Boolean)
             .join(', ')}
         </p>

@@ -1,8 +1,9 @@
 /**
  * Shareable B2B mini-storefront landing at /store/:id and /cleaner/:id.
  * Amazon/eBay-style public page for a published contractor store.
+ * Sticky Book bar → map mission draft with SKU floor price prefilled.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, MapPin, Share2, Store } from 'lucide-react';
@@ -10,6 +11,7 @@ import {
   fetchContractorStore,
   fetchStoreSupplies,
   type ContractorStore,
+  type StoreServiceSku,
   type StoreSupply,
 } from '../src/lib/contractorStore';
 import {
@@ -19,10 +21,17 @@ import {
   type TrustBadgeId,
 } from '../src/lib/trustBadges';
 import {
+  pickDefaultStoreSku,
+  queueStoreMissionRequest,
+} from '../src/lib/storeMissionRequest';
+import { findServiceOption } from '../src/lib/serviceSectors';
+import { formatWorkBudgetUsd } from '../src/lib/formatMoney';
+import {
   StoreBundlesShowcase,
   StoreRecurrenceBadge,
   StoreServiceSkusShowcase,
   StoreSuppliesShowcase,
+  storeSkuUnitLabelKey,
 } from './StoreShowcaseSections';
 import StoreCoverageMap from './StoreCoverageMap';
 import TrustBadgeRow from './TrustBadgeRow';
@@ -92,6 +101,22 @@ const StorefrontPage: React.FC = () => {
     };
   }, [id, t]);
 
+  const defaultSku = useMemo(
+    () => (store ? pickDefaultStoreSku(store.store_service_skus) : null),
+    [store]
+  );
+
+  const requestSku = (sku: StoreServiceSku | null) => {
+    if (!store || !sku) return;
+    queueStoreMissionRequest({
+      serviceType: sku.id,
+      expectedPrice: sku.base_price > 0 ? sku.base_price : 0,
+      storeOwnerId: store.owner_id,
+      storeName: store.store_name,
+    });
+    navigate('/');
+  };
+
   const handleShare = async () => {
     if (!store) return;
     const result = await shareStoreLink({
@@ -116,6 +141,28 @@ const StorefrontPage: React.FC = () => {
   const title =
     store?.store_name?.trim() ||
     t('storeDefaultName', { defaultValue: 'Contractor store' });
+
+  const stickySubtitle = (() => {
+    if (!defaultSku) {
+      return t('storeBookBarHintEmpty', {
+        defaultValue: 'Place a blind P2P request on the map',
+      });
+    }
+    const opt = findServiceOption(defaultSku.id);
+    const name = opt ? t(opt.labelKey) : defaultSku.name || defaultSku.id;
+    if (defaultSku.base_price > 0) {
+      const unit = t(storeSkuUnitLabelKey(defaultSku.unit), {
+        defaultValue: 'job',
+      }).toLowerCase();
+      return t('storeBookBarHintSku', {
+        defaultValue: '{{service}} · From {{price}} / {{unit}}',
+        service: name,
+        price: formatWorkBudgetUsd(defaultSku.base_price),
+        unit,
+      });
+    }
+    return name;
+  })();
 
   return (
     <div className="scrollable-sheet-content h-full w-full overflow-x-hidden bg-slate-950 text-white">
@@ -142,7 +189,7 @@ const StorefrontPage: React.FC = () => {
         )}
       </header>
 
-      <main className="relative z-10 mx-auto max-w-3xl space-y-5 px-4 pb-16 pt-2">
+      <main className="relative z-10 mx-auto max-w-3xl space-y-5 px-4 pb-28 pt-2">
         {loading && (
           <p className="text-sm italic text-slate-500">{t('loading')}</p>
         )}
@@ -218,7 +265,10 @@ const StorefrontPage: React.FC = () => {
               </section>
             )}
 
-            <StoreServiceSkusShowcase skus={store.store_service_skus} />
+            <StoreServiceSkusShowcase
+              skus={store.store_service_skus}
+              onSelectSku={requestSku}
+            />
 
             <StoreBundlesShowcase bundles={store.service_bundles} />
             <StoreSuppliesShowcase supplies={supplies} />
@@ -242,9 +292,37 @@ const StorefrontPage: React.FC = () => {
                 </div>
               </section>
             )}
+
+            <p className="text-center text-[10px] leading-relaxed text-slate-500">
+              {t('storeBookPrivacyNote', {
+                defaultValue:
+                  'Contacts stay locked until the store accepts your bid (Hungry-Games).',
+              })}
+            </p>
           </>
         )}
       </main>
+
+      {store && !loading && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-emerald-400/25 bg-[rgba(2,6,23,0.92)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl">
+          <div className="mx-auto flex max-w-3xl items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300/85">
+                {t('storeBookBarTitle', { defaultValue: 'Request service' })}
+              </p>
+              <p className="truncate text-xs text-slate-300">{stickySubtitle}</p>
+            </div>
+            <button
+              type="button"
+              disabled={!defaultSku}
+              onClick={() => requestSku(defaultSku)}
+              className="shrink-0 rounded-full border border-emerald-400/55 bg-emerald-500/30 px-4 py-3 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-50 shadow-[0_0_20px_rgba(16,185,129,0.35)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {t('storeBookCta', { defaultValue: 'Book' })}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

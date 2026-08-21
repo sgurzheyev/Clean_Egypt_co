@@ -39,15 +39,33 @@ export function storeSkuUnitLabelKey(unit: StoreServiceUnit): string {
 export type StoreServiceSkusShowcaseProps = {
   skus: StoreServiceSku[];
   compact?: boolean;
+  /** When set, SKU rows become request CTAs (store → mission draft). */
+  onSelectSku?: (sku: StoreServiceSku) => void;
 };
 
 /** Public priced service catalog (floor prices). */
 export const StoreServiceSkusShowcase: React.FC<StoreServiceSkusShowcaseProps> = ({
   skus,
   compact = false,
+  onSelectSku,
 }) => {
   const { t } = useTranslation();
   if (!skus.length) return null;
+
+  const priceUnitLabel = (sku: StoreServiceSku) => {
+    const unit = t(storeSkuUnitLabelKey(sku.unit), {
+      defaultValue:
+        sku.unit === 'hour' ? 'Per hour' : sku.unit === 'sqm' ? 'Per m²' : 'Per job',
+    });
+    if (sku.base_price > 0) {
+      return t('storeSkuChipPrice', {
+        defaultValue: 'From {{price}} / {{unit}}',
+        price: formatWorkBudgetUsd(sku.base_price),
+        unit: unit.toLowerCase(),
+      });
+    }
+    return t('storeSkuPriceOnRequest', { defaultValue: 'On request' });
+  };
 
   if (compact) {
     return (
@@ -55,20 +73,31 @@ export const StoreServiceSkusShowcase: React.FC<StoreServiceSkusShowcaseProps> =
         {skus.slice(0, 6).map((sku) => {
           const opt = findServiceOption(sku.id);
           const label = opt ? t(opt.labelKey) : sku.name || sku.id;
-          return (
-            <span
-              key={sku.id}
-              className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-100"
-            >
+          const body = (
+            <>
               <span>{label}</span>
-              {sku.base_price > 0 && (
-                <span className="font-black text-emerald-50/90">
-                  {t('storeSkuFromShort', {
-                    defaultValue: 'from {{price}}',
-                    price: formatWorkBudgetUsd(sku.base_price),
-                  })}
-                </span>
-              )}
+              <span className="font-black text-emerald-50/90">
+                · {priceUnitLabel(sku)}
+              </span>
+            </>
+          );
+          const className =
+            'inline-flex max-w-full items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-100';
+          if (onSelectSku) {
+            return (
+              <button
+                key={sku.id}
+                type="button"
+                onClick={() => onSelectSku(sku)}
+                className={`${className} transition-colors hover:border-emerald-300/70 hover:bg-emerald-500/25`}
+              >
+                {body}
+              </button>
+            );
+          }
+          return (
+            <span key={sku.id} className={className}>
+              {body}
             </span>
           );
         })}
@@ -89,25 +118,39 @@ export const StoreServiceSkusShowcase: React.FC<StoreServiceSkusShowcaseProps> =
       <div className="space-y-2">
         {skus.map((sku) => {
           const opt = findServiceOption(sku.id);
-          return (
-            <div
-              key={sku.id}
-              className="flex items-start justify-between gap-3 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2.5"
-            >
+          const name = opt ? t(opt.labelKey) : sku.name || sku.id;
+          const unit = t(storeSkuUnitLabelKey(sku.unit), {
+            defaultValue:
+              sku.unit === 'hour'
+                ? 'Per hour'
+                : sku.unit === 'sqm'
+                  ? 'Per m²'
+                  : 'Per job',
+          });
+          const className =
+            'flex w-full items-start justify-between gap-3 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2.5 text-left transition-colors';
+          const inner = (
+            <>
               <div className="min-w-0">
-                <p className="text-sm font-bold text-white">
-                  {opt ? t(opt.labelKey) : sku.name || sku.id}
+                <p className="text-sm font-bold text-white">{name}</p>
+                <p className="mt-0.5 text-[11px] leading-snug text-emerald-100/85">
+                  {sku.base_price > 0
+                    ? t('storeSkuCardLine', {
+                        defaultValue: 'From {{price}} / {{unit}}',
+                        price: formatWorkBudgetUsd(sku.base_price),
+                        unit: unit.toLowerCase(),
+                      })
+                    : t('storeSkuPriceOnRequest', {
+                        defaultValue: 'On request',
+                      })}
                 </p>
-                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-200/80">
-                  {t(storeSkuUnitLabelKey(sku.unit), {
-                    defaultValue:
-                      sku.unit === 'hour'
-                        ? 'Per hour'
-                        : sku.unit === 'sqm'
-                          ? 'Per m²'
-                          : 'Per job',
-                  })}
-                </p>
+                {onSelectSku && (
+                  <p className="mt-1 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-300/80">
+                    {t('storeSkuTapToRequest', {
+                      defaultValue: 'Tap to request',
+                    })}
+                  </p>
+                )}
               </div>
               {sku.base_price > 0 ? (
                 <span className="shrink-0 rounded-full border border-emerald-400/45 bg-emerald-500/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-50">
@@ -123,6 +166,23 @@ export const StoreServiceSkusShowcase: React.FC<StoreServiceSkusShowcaseProps> =
                   })}
                 </span>
               )}
+            </>
+          );
+          if (onSelectSku) {
+            return (
+              <button
+                key={sku.id}
+                type="button"
+                onClick={() => onSelectSku(sku)}
+                className={`${className} hover:border-emerald-300/55 hover:bg-emerald-500/20 active:scale-[0.99]`}
+              >
+                {inner}
+              </button>
+            );
+          }
+          return (
+            <div key={sku.id} className={className}>
+              {inner}
             </div>
           );
         })}

@@ -8,6 +8,7 @@ import {
   fetchContractorStore,
   fetchStoreSupplies,
   type ContractorStore,
+  type StoreServiceSku,
   type StoreSupply,
 } from '../src/lib/contractorStore';
 import {
@@ -16,6 +17,8 @@ import {
   shareStoreLink,
   type TrustBadgeId,
 } from '../src/lib/trustBadges';
+import { dispatchStoreMissionRequest } from '../src/lib/storeMissionRequest';
+import { useNavigate } from 'react-router-dom';
 import {
   StoreBundlesShowcase,
   StoreRecurrenceBadge,
@@ -39,6 +42,7 @@ const PublicStoreCard: React.FC<PublicStoreCardProps> = ({
   showShare = true,
 }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [store, setStore] = useState<ContractorStore | null>(null);
   const [supplies, setSupplies] = useState<StoreSupply[]>([]);
   const [badges, setBadges] = useState<TrustBadgeId[]>([]);
@@ -113,6 +117,17 @@ const PublicStoreCard: React.FC<PublicStoreCardProps> = ({
     window.setTimeout(() => setShareMsg(null), 2500);
   };
 
+  const requestSku = (sku: StoreServiceSku) => {
+    if (!store) return;
+    dispatchStoreMissionRequest({
+      serviceType: sku.id,
+      expectedPrice: sku.base_price > 0 ? sku.base_price : 0,
+      storeOwnerId: store.owner_id,
+      storeName: store.store_name,
+    });
+    navigate('/');
+  };
+
   if (loading || !store) return null;
 
   const title =
@@ -178,7 +193,10 @@ const PublicStoreCard: React.FC<PublicStoreCardProps> = ({
         />
       )}
 
-      <StoreServiceSkusShowcase skus={store.store_service_skus} />
+      <StoreServiceSkusShowcase
+        skus={store.store_service_skus}
+        onSelectSku={requestSku}
+      />
 
       <StoreBundlesShowcase bundles={store.service_bundles} />
       <StoreSuppliesShowcase supplies={supplies} />
