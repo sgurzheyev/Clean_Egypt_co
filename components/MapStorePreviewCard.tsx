@@ -7,9 +7,9 @@ import React from 'react';
 import { MapPin, Store, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { findServiceOption } from '../src/lib/serviceSectors';
 import type { ContractorStore } from '../src/lib/contractorStore';
 import { PROFILE_GLASS_PANEL } from '../constants';
+import { StoreServiceSkusShowcase } from './StoreShowcaseSections';
 
 export type MapStorePreviewCardProps = {
   store: ContractorStore;
@@ -29,7 +29,15 @@ const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({
     store.store_name?.trim() ||
     t('storeDefaultName', { defaultValue: 'Contractor store' });
   const hero = store.store_photos[0] ?? null;
-  const services = store.offered_services.slice(0, 6);
+  const skus =
+    store.store_service_skus.length > 0
+      ? store.store_service_skus
+      : store.offered_services.map((id) => ({
+          id,
+          name: id,
+          base_price: 0,
+          unit: 'job' as const,
+        }));
 
   const openFull = () => {
     onClose();
@@ -104,26 +112,7 @@ const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({
           </p>
         )}
 
-        {services.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {services.map((id) => {
-              const opt = findServiceOption(id);
-              return (
-                <span
-                  key={id}
-                  className="rounded-full border border-violet-400/45 bg-violet-500/25 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-violet-50"
-                >
-                  {opt ? t(opt.labelKey) : id}
-                </span>
-              );
-            })}
-            {store.offered_services.length > services.length && (
-              <span className="rounded-full border border-white/20 bg-black/40 px-2 py-0.5 text-[9px] font-bold text-slate-300">
-                +{store.offered_services.length - services.length}
-              </span>
-            )}
-          </div>
-        )}
+        {skus.length > 0 && <StoreServiceSkusShowcase skus={skus} compact />}
 
         {(store.service_bundles.length > 0 ||
           store.supported_recurrence_types.some((r) => r !== 'one_time')) && (

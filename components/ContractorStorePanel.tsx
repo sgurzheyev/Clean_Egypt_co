@@ -28,6 +28,7 @@ import {
   STORE_BUNDLES_MAX,
   STORE_MATERIALS_MAX,
   STORE_PHOTOS_MAX,
+  STORE_SERVICE_UNITS,
   STORE_SUPPLIES_MAX,
   SUPPLY_CATEGORIES,
   createEmptyBundle,
@@ -36,13 +37,17 @@ import {
   fetchContractorStore,
   fetchStoreSupplies,
   insertStoreSupply,
+  skuIds,
   storeToDraft,
+  toggleStoreServiceInDraft,
+  updateStoreServiceSkuInDraft,
   uploadStorePhoto,
   uploadSupplyPhoto,
   upsertContractorStore,
   type ContractorStoreDraft,
   type RecurrenceType,
   type ServiceBundle,
+  type StoreServiceUnit,
   type StoreSupply,
   type StoreSupplyDraft,
   type SupplyCategory,
@@ -175,12 +180,32 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
 
   const toggleService = (id: ServiceType) => {
     setDraft((prev) => {
-      const exists = prev.offered_services.includes(id);
+      const store_service_skus = toggleStoreServiceInDraft(
+        prev.store_service_skus,
+        id
+      );
       return {
         ...prev,
-        offered_services: exists
-          ? prev.offered_services.filter((s) => s !== id)
-          : [...prev.offered_services, id],
+        store_service_skus,
+        offered_services: skuIds(store_service_skus),
+      };
+    });
+  };
+
+  const patchServiceSku = (
+    serviceId: string,
+    patch: Partial<{ base_price: number; unit: StoreServiceUnit }>
+  ) => {
+    setDraft((prev) => {
+      const store_service_skus = updateStoreServiceSkuInDraft(
+        prev.store_service_skus,
+        serviceId,
+        patch
+      );
+      return {
+        ...prev,
+        store_service_skus,
+        offered_services: skuIds(store_service_skus),
       };
     });
   };
@@ -581,7 +606,11 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
     setSuccess(null);
     try {
       await deleteContractorStore(userId);
-      setDraft({ ...EMPTY_STORE_DRAFT, service_bundles: [] });
+      setDraft({
+        ...EMPTY_STORE_DRAFT,
+        service_bundles: [],
+        store_service_skus: [],
+      });
       setStoreId(null);
       setSupplies([]);
       setSupplyDraft({ ...EMPTY_SUPPLY_DRAFT });
@@ -806,9 +835,15 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
               {t('storeServicesSection', { defaultValue: 'Services offered' })}
             </p>
+            <p className="text-[11px] leading-relaxed text-slate-400">
+              {t('storeServicesSkuHint', {
+                defaultValue:
+                  'Toggle services, then set a floor price and unit for each. Customers see “From $X”.',
+              })}
+            </p>
             <div className="flex flex-wrap gap-2">
               {ALL_SECTOR_SERVICES.map((svc) => {
-                const active = draft.offered_services.includes(svc.id);
+                const active = draft.store_service_skus.some((s) => s.id === svc.id);
                 return (
                   <button
                     key={svc.id}
@@ -825,6 +860,94 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
                 );
               })}
             </div>
+
+            {draft.store_service_skus.length > 0 && (
+              <div className="space-y-2 pt-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-400/80">
+                  {t('storeSkuPricingTitle', {
+                    defaultValue: 'Floor prices',
+                  })}
+                </p>
+                {draft.store_service_skus.map((sku) => {
+                  const opt = findServiceOption(sku.id);
+                  return (
+                    <div
+                      key={sku.id}
+                      className={`space-y-2 rounded-xl border border-emerald-400/25 bg-emerald-500/5 p-3 ${PROFILE_GLASS_PANEL}`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-bold text-emerald-50">
+                          {opt ? t(opt.labelKey) : sku.name || sku.id}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => toggleService(sku.id as ServiceType)}
+                          className="rounded-full border border-white/15 bg-black/30 p-1 text-slate-300 hover:text-white"
+                          aria-label={t('remove', { defaultValue: 'Remove' })}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="space-y-1">
+                          <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                            {t('storeSkuFloorPrice', {
+                              defaultValue: 'Floor price (USD)',
+                            })}
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            inputMode="numeric"
+                            value={sku.base_price || ''}
+                            onChange={(e) =>
+                              patchServiceSku(sku.id, {
+                                base_price: Math.max(
+                                  0,
+                                  Math.floor(Number(e.target.value) || 0)
+                                ),
+                              })
+                            }
+                            placeholder="0"
+                            className={`w-full ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400/50`}
+                          />
+                        </label>
+                        <label className="space-y-1">
+                          <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                            {t('storeSkuUnit', {
+                              defaultValue: 'Unit',
+                            })}
+                          </span>
+                          <select
+                            value={sku.unit}
+                            onChange={(e) =>
+                              patchServiceSku(sku.id, {
+                                unit: e.target.value as StoreServiceUnit,
+                              })
+                            }
+                            className={`w-full ${PROFILE_GLASS_PANEL} bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400/50`}
+                          >
+                            {STORE_SERVICE_UNITS.map((unit) => (
+                              <option key={unit} value={unit} className="bg-slate-900">
+                                {t(`storeSkuUnit_${unit}`, {
+                                  defaultValue:
+                                    unit === 'job'
+                                      ? 'Per job'
+                                      : unit === 'hour'
+                                        ? 'Per hour'
+                                        : 'Per m²',
+                                })}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
 
           <section className="space-y-2">

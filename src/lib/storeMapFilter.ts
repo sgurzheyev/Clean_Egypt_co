@@ -57,6 +57,9 @@ const DEEP_CLEAN_SERVICES = new Set([
 
 function storeServiceIds(store: ContractorStore): Set<string> {
   const ids = new Set<string>();
+  for (const sku of store.store_service_skus || []) {
+    if (sku?.id) ids.add(String(sku.id));
+  }
   for (const id of store.offered_services) {
     if (id) ids.add(String(id));
   }

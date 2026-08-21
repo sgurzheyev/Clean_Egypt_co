@@ -9,6 +9,8 @@ import { findServiceOption } from '../src/lib/serviceSectors';
 import {
   type RecurrenceType,
   type ServiceBundle,
+  type StoreServiceSku,
+  type StoreServiceUnit,
   type StoreSupply,
 } from '../src/lib/contractorStore';
 import { formatWorkBudgetUsd } from '../src/lib/formatMoney';
@@ -20,9 +22,114 @@ const RECURRENCE_LABEL_KEYS: Record<RecurrenceType, string> = {
   monthly: 'recurrenceMonthly',
 };
 
+const UNIT_LABEL_KEYS: Record<StoreServiceUnit, string> = {
+  job: 'storeSkuUnit_job',
+  hour: 'storeSkuUnit_hour',
+  sqm: 'storeSkuUnit_sqm',
+};
+
 export function recurrenceLabelKey(type: RecurrenceType): string {
   return RECURRENCE_LABEL_KEYS[type] ?? 'recurrenceOneTime';
 }
+
+export function storeSkuUnitLabelKey(unit: StoreServiceUnit): string {
+  return UNIT_LABEL_KEYS[unit] ?? 'storeSkuUnit_job';
+}
+
+export type StoreServiceSkusShowcaseProps = {
+  skus: StoreServiceSku[];
+  compact?: boolean;
+};
+
+/** Public priced service catalog (floor prices). */
+export const StoreServiceSkusShowcase: React.FC<StoreServiceSkusShowcaseProps> = ({
+  skus,
+  compact = false,
+}) => {
+  const { t } = useTranslation();
+  if (!skus.length) return null;
+
+  if (compact) {
+    return (
+      <div className="flex flex-wrap gap-1">
+        {skus.slice(0, 6).map((sku) => {
+          const opt = findServiceOption(sku.id);
+          const label = opt ? t(opt.labelKey) : sku.name || sku.id;
+          return (
+            <span
+              key={sku.id}
+              className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-100"
+            >
+              <span>{label}</span>
+              {sku.base_price > 0 && (
+                <span className="font-black text-emerald-50/90">
+                  {t('storeSkuFromShort', {
+                    defaultValue: 'from {{price}}',
+                    price: formatWorkBudgetUsd(sku.base_price),
+                  })}
+                </span>
+              )}
+            </span>
+          );
+        })}
+        {skus.length > 6 && (
+          <span className="rounded-full border border-white/20 bg-black/40 px-2 py-0.5 text-[9px] font-bold text-slate-300">
+            +{skus.length - 6}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+        {t('storeServicesSection', { defaultValue: 'Services offered' })}
+      </p>
+      <div className="space-y-2">
+        {skus.map((sku) => {
+          const opt = findServiceOption(sku.id);
+          return (
+            <div
+              key={sku.id}
+              className="flex items-start justify-between gap-3 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2.5"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-white">
+                  {opt ? t(opt.labelKey) : sku.name || sku.id}
+                </p>
+                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-200/80">
+                  {t(storeSkuUnitLabelKey(sku.unit), {
+                    defaultValue:
+                      sku.unit === 'hour'
+                        ? 'Per hour'
+                        : sku.unit === 'sqm'
+                          ? 'Per m²'
+                          : 'Per job',
+                  })}
+                </p>
+              </div>
+              {sku.base_price > 0 ? (
+                <span className="shrink-0 rounded-full border border-emerald-400/45 bg-emerald-500/25 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-50">
+                  {t('storeBundleFrom', {
+                    defaultValue: 'From {{price}}',
+                    price: formatWorkBudgetUsd(sku.base_price),
+                  })}
+                </span>
+              ) : (
+                <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                  {t('storeSkuPriceOnRequest', {
+                    defaultValue: 'On request',
+                  })}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 export type StoreSuppliesShowcaseProps = {
   supplies: StoreSupply[];

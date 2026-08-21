@@ -2,9 +2,14 @@
  * Contractor / business storefront — types + Supabase CRUD helpers.
  * Backed by public.contractor_stores + store_supplies
  * (see 20260726_contractor_stores.sql, 20260726_store_supplies_bundles_recurrence.sql).
+ *
+ * Service catalog: `store_service_skus` (JSONB) is the source of truth for priced
+ * SKUs. Legacy `offered_services text[]` is kept in sync as service ids for map
+ * filters and older clients.
  */
 import { supabase } from '../../services/supabase';
 import type { ServiceType } from './serviceSectors';
+import { findServiceOption } from './serviceSectors';
 import { DEFAULT_STORE_COLOR, normalizeStoreColor } from './mapboxStandardTheme';
 
 export { DEFAULT_STORE_COLOR, normalizeStoreColor };
@@ -77,6 +82,23 @@ export type ServiceBundle = {
   starting_price: number;
 };
 
+/** Price unit for a storefront service SKU (floor price display). */
+export type StoreServiceUnit = 'job' | 'hour' | 'sqm';
+
+export const STORE_SERVICE_UNITS: StoreServiceUnit[] = ['job', 'hour', 'sqm'];
+
+/**
+ * Priced service card on a contractor storefront.
+ * `id` matches `missions.service_type` / sector catalog (e.g. junk_removal).
+ */
+export type StoreServiceSku = {
+  id: string;
+  name: string;
+  /** Floor / starting price in USD (integer dollars, same as bundles). */
+  base_price: number;
+  unit: StoreServiceUnit;
+};
+
 export type ContractorStore = {
   id: string;
   owner_id: string;
@@ -84,7 +106,13 @@ export type ContractorStore = {
   office_lng: number | null;
   office_address: string | null;
   service_radius_polygon: ServiceRadiusPolygon | null;
+  /**
+   * Legacy service-id tags. Kept in sync with `store_service_skus[].id`
+   * for map filters and older readers.
+   */
   offered_services: string[];
+  /** Priced service catalog (JSONB). Source of truth for SKU UI. */
+  store_service_skus: StoreServiceSku[];
   materials_and_chemicals: string[];
   store_photos: string[];
   store_name: string | null;
@@ -104,7 +132,12 @@ export type ContractorStoreDraft = {
   office_lng: number | null;
   office_address: string;
   service_radius_polygon: ServiceRadiusPolygon | null;
+  /**
+   * @deprecated Prefer `store_service_skus`. Still accepted on upsert and
+   * hydrated into SKUs when the catalog array is empty (old panel saves).
+   */
   offered_services: ServiceType[] | string[];
+  store_service_skus: StoreServiceSku[];
   materials_and_chemicals: string[];
   store_photos: string[];
   store_name: string;
@@ -122,6 +155,7 @@ export const EMPTY_STORE_DRAFT: ContractorStoreDraft = {
   office_address: '',
   service_radius_polygon: null,
   offered_services: [],
+  store_service_skus: [],
   materials_and_chemicals: [],
   store_photos: [],
   store_name: '',
@@ -137,6 +171,7 @@ export const STORE_PHOTOS_MAX = 12;
 export const STORE_MATERIALS_MAX = 48;
 export const STORE_SUPPLIES_MAX = 48;
 export const STORE_BUNDLES_MAX = 12;
+export const STORE_SERVICE_SKUS_MAX = 32;
 
 export function isRecurrenceType(value: unknown): value is RecurrenceType {
   return (
@@ -303,6 +338,135 @@ export function createEmptyBundle(): ServiceBundle {
   };
 }
 
+export function isStoreServiceUnit(value: unknown): value is StoreServiceUnit {
+  return value === 'job' || value === 'hour' || value === 'sqm';
+}
+
+export function normalizeStoreServiceUnit(value: unknown): StoreServiceUnit {
+  return isStoreServiceUnit(value) ? value : 'job';
+}
+
+/** Default display name for a sector service id (EN label key fallback = id). */
+export function defaultSkuNameForServiceId(serviceId: string): string {
+  const opt = findServiceOption(serviceId);
+  if (!opt) return serviceId;
+  // Persist a stable English-ish slug name; UI still translates via labelKey.
+  return opt.id
+    .split('_')
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
+
+/** Build a SKU row when the contractor toggles a service chip on. */
+export function createStoreServiceSku(
+  serviceId: string,
+  overrides?: Partial<Pick<StoreServiceSku, 'name' | 'base_price' | 'unit'>>
+): StoreServiceSku {
+  const id = String(serviceId ?? '').trim();
+  return {
+    id,
+    name: (overrides?.name ?? defaultSkuNameForServiceId(id)).trim().slice(0, 80) || id,
+    base_price:
+      typeof overrides?.base_price === 'number' &&
+      Number.isFinite(overrides.base_price) &&
+      overrides.base_price >= 0
+        ? Math.floor(overrides.base_price)
+        : 0,
+    unit: normalizeStoreServiceUnit(overrides?.unit),
+  };
+}
+
+/**
+ * Normalize JSONB / draft SKU arrays. Dedupes by service id (last wins).
+ * Accepts legacy plain string ids and upgrades them to zero-price job SKUs.
+ */
+export function normalizeStoreServiceSkus(value: unknown): StoreServiceSku[] {
+  if (!Array.isArray(value)) return [];
+  const byId = new Map<string, StoreServiceSku>();
+
+  for (const raw of value) {
+    if (typeof raw === 'string') {
+      const id = raw.trim();
+      if (!id) continue;
+      byId.set(id, createStoreServiceSku(id));
+      if (byId.size >= STORE_SERVICE_SKUS_MAX) break;
+      continue;
+    }
+    if (!raw || typeof raw !== 'object') continue;
+    const row = raw as Record<string, unknown>;
+    const id = String(row.id ?? '').trim();
+    if (!id) continue;
+    const price = Number(row.base_price);
+    const nameRaw = String(row.name ?? '').trim();
+    byId.set(id, {
+      id,
+      name: (nameRaw || defaultSkuNameForServiceId(id)).slice(0, 80),
+      base_price:
+        Number.isFinite(price) && price >= 0 ? Math.floor(price) : 0,
+      unit: normalizeStoreServiceUnit(row.unit),
+    });
+    if (byId.size >= STORE_SERVICE_SKUS_MAX) break;
+  }
+
+  return Array.from(byId.values());
+}
+
+/** Merge priced SKUs with legacy offered_services ids (SKUs win on price/unit). */
+export function resolveStoreServiceSkus(opts: {
+  skus?: unknown;
+  offeredServices?: unknown;
+}): StoreServiceSku[] {
+  const fromSkus = normalizeStoreServiceSkus(opts.skus);
+  if (fromSkus.length > 0) return fromSkus;
+  return normalizeStoreServiceSkus(opts.offeredServices);
+}
+
+export function skuIds(skus: StoreServiceSku[]): string[] {
+  return skus.map((s) => s.id);
+}
+
+/**
+ * Toggle a sector service on/off in the draft catalog.
+ * Preserves base_price / unit when re-enabling is not needed (remove on off;
+ * create default SKU on on).
+ */
+export function toggleStoreServiceInDraft(
+  skus: StoreServiceSku[],
+  serviceId: string
+): StoreServiceSku[] {
+  const id = String(serviceId ?? '').trim();
+  if (!id) return skus;
+  const exists = skus.some((s) => s.id === id);
+  if (exists) return skus.filter((s) => s.id !== id);
+  if (skus.length >= STORE_SERVICE_SKUS_MAX) return skus;
+  return [...skus, createStoreServiceSku(id)];
+}
+
+/** Patch floor price / unit for an existing SKU (no-op if missing). */
+export function updateStoreServiceSkuInDraft(
+  skus: StoreServiceSku[],
+  serviceId: string,
+  patch: Partial<Pick<StoreServiceSku, 'base_price' | 'unit' | 'name'>>
+): StoreServiceSku[] {
+  const id = String(serviceId ?? '').trim();
+  return skus.map((s) => {
+    if (s.id !== id) return s;
+    const next: StoreServiceSku = { ...s };
+    if (patch.name != null) {
+      next.name = String(patch.name).trim().slice(0, 80) || s.name;
+    }
+    if (patch.unit != null) {
+      next.unit = normalizeStoreServiceUnit(patch.unit);
+    }
+    if (patch.base_price != null) {
+      const price = Number(patch.base_price);
+      next.base_price =
+        Number.isFinite(price) && price >= 0 ? Math.floor(price) : 0;
+    }
+    return next;
+  });
+}
+
 export function normalizeServiceBundles(value: unknown): ServiceBundle[] {
   if (!Array.isArray(value)) return [];
   const out: ServiceBundle[] = [];
@@ -361,6 +525,10 @@ export function rowToStoreSupply(row: Record<string, unknown>): StoreSupply {
 export function rowToContractorStore(row: Record<string, unknown>): ContractorStore {
   const supported = normalizeRecurrenceList(row.supported_recurrence_types);
   const primary = normalizeRecurrenceType(row.recurrence_type);
+  const store_service_skus = resolveStoreServiceSkus({
+    skus: row.store_service_skus,
+    offeredServices: row.offered_services,
+  });
   return {
     id: String(row.id),
     owner_id: String(row.owner_id),
@@ -374,7 +542,8 @@ export function rowToContractorStore(row: Record<string, unknown>): ContractorSt
         : Number(row.office_lng),
     office_address: (row.office_address as string | null) ?? null,
     service_radius_polygon: normalizePolygon(row.service_radius_polygon),
-    offered_services: normalizeStringList(row.offered_services, 32),
+    offered_services: skuIds(store_service_skus),
+    store_service_skus,
     materials_and_chemicals: normalizeStringList(
       row.materials_and_chemicals,
       STORE_MATERIALS_MAX
@@ -393,13 +562,17 @@ export function rowToContractorStore(row: Record<string, unknown>): ContractorSt
 }
 
 export function storeToDraft(store: ContractorStore | null): ContractorStoreDraft {
-  if (!store) return { ...EMPTY_STORE_DRAFT, service_bundles: [] };
+  if (!store) {
+    return { ...EMPTY_STORE_DRAFT, service_bundles: [], store_service_skus: [] };
+  }
+  const skus = store.store_service_skus.map((s) => ({ ...s }));
   return {
     office_lat: store.office_lat,
     office_lng: store.office_lng,
     office_address: store.office_address ?? '',
     service_radius_polygon: store.service_radius_polygon,
-    offered_services: [...store.offered_services],
+    offered_services: skuIds(skus),
+    store_service_skus: skus,
     materials_and_chemicals: [...store.materials_and_chemicals],
     store_photos: [...store.store_photos],
     store_name: store.store_name ?? '',
@@ -475,13 +648,21 @@ export async function upsertContractorStore(
     ? draft.recurrence_type
     : supported.find((r) => r !== 'one_time') ?? supported[0];
 
+  // SKUs are authoritative; fall back to legacy offered_services chips if empty.
+  const store_service_skus = resolveStoreServiceSkus({
+    skus: draft.store_service_skus,
+    offeredServices: draft.offered_services,
+  });
+  const offered_services = skuIds(store_service_skus);
+
   const payload = {
     owner_id: ownerId,
     office_lat: draft.office_lat,
     office_lng: draft.office_lng,
     office_address: draft.office_address.trim() || null,
     service_radius_polygon: draft.service_radius_polygon,
-    offered_services: normalizeStringList(draft.offered_services, 32),
+    offered_services,
+    store_service_skus,
     materials_and_chemicals: normalizeStringList(
       draft.materials_and_chemicals,
       STORE_MATERIALS_MAX

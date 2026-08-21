@@ -12,7 +12,6 @@ import {
   type ContractorStore,
   type StoreSupply,
 } from '../src/lib/contractorStore';
-import { findServiceOption } from '../src/lib/serviceSectors';
 import {
   computeTrustBadges,
   fetchTrustBadgeContext,
@@ -22,6 +21,7 @@ import {
 import {
   StoreBundlesShowcase,
   StoreRecurrenceBadge,
+  StoreServiceSkusShowcase,
   StoreSuppliesShowcase,
 } from './StoreShowcaseSections';
 import StoreCoverageMap from './StoreCoverageMap';
@@ -218,26 +218,7 @@ const StorefrontPage: React.FC = () => {
               </section>
             )}
 
-            {store.offered_services.length > 0 && (
-              <section>
-                <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                  {t('storeServicesSection', { defaultValue: 'Services offered' })}
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {store.offered_services.map((sid) => {
-                    const opt = findServiceOption(sid);
-                    return (
-                      <span
-                        key={sid}
-                        className="rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-emerald-100"
-                      >
-                        {opt ? t(opt.labelKey) : sid}
-                      </span>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
+            <StoreServiceSkusShowcase skus={store.store_service_skus} />
 
             <StoreBundlesShowcase bundles={store.service_bundles} />
             <StoreSuppliesShowcase supplies={supplies} />
