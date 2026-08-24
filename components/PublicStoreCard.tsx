@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import {
   fetchContractorStore,
   fetchStoreSupplies,
+  resolveStoreMediaUrl,
   type ContractorStore,
   type StoreServiceSku,
   type StoreSupply,
@@ -232,7 +233,7 @@ const PublicStoreCard: React.FC<PublicStoreCardProps> = ({
             {store.store_photos.map((url) => (
               <img
                 key={url}
-                src={url}
+                src={resolveStoreMediaUrl(url)}
                 alt=""
                 className="h-28 w-full rounded-lg border border-white/10 object-cover"
               />

@@ -150,8 +150,9 @@ const KYCReviewDashboard: React.FC<KYCReviewDashboardProps> = ({ isAllowedAdmin 
             KYC Review Queue
           </h3>
           <p className="mt-1 text-xs text-slate-400">
-            Pending identity verification applications — documents stored in{' '}
-            <span className="font-mono text-cyan-400/80">kyc_documents</span>.
+            Pending identity verification — documents in Cloudflare R2 (
+            <span className="font-mono text-cyan-400/80">kyc/</span>
+            ), legacy Storage supported.
           </p>
         </div>
         <button

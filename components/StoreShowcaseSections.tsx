@@ -7,6 +7,7 @@ import { Package, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { findServiceOption } from '../src/lib/serviceSectors';
 import {
+  resolveStoreMediaUrl,
   type RecurrenceType,
   type ServiceBundle,
   type StoreServiceSku,
@@ -227,7 +228,7 @@ export const StoreSuppliesShowcase: React.FC<StoreSuppliesShowcaseProps> = ({
           >
             {item.image_url ? (
               <img
-                src={item.image_url}
+                src={resolveStoreMediaUrl(item.image_url)}
                 alt=""
                 className={`w-full object-cover ${compact ? 'h-20' : 'h-24'}`}
               />

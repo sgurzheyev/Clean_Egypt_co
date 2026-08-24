@@ -7,7 +7,10 @@ import React from 'react';
 import { MapPin, Store, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import type { ContractorStore } from '../src/lib/contractorStore';
+import {
+  resolveStoreMediaUrl,
+  type ContractorStore,
+} from '../src/lib/contractorStore';
 import { PROFILE_GLASS_PANEL } from '../constants';
 import { StoreServiceSkusShowcase } from './StoreShowcaseSections';
 
@@ -28,7 +31,8 @@ const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({
   const title =
     store.store_name?.trim() ||
     t('storeDefaultName', { defaultValue: 'Contractor store' });
-  const hero = store.store_photos[0] ?? null;
+  const heroRaw = store.store_photos[0] ?? null;
+  const hero = heroRaw ? resolveStoreMediaUrl(heroRaw) : null;
   const skus =
     store.store_service_skus.length > 0
       ? store.store_service_skus

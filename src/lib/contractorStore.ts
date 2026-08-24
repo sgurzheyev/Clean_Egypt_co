@@ -11,6 +11,7 @@ import { supabase } from '../../services/supabase';
 import type { ServiceType } from './serviceSectors';
 import { findServiceOption } from './serviceSectors';
 import { DEFAULT_STORE_COLOR, normalizeStoreColor } from './mapboxStandardTheme';
+import { resolveR2PublicUrl, uploadToR2 } from './r2Media';
 
 export { DEFAULT_STORE_COLOR, normalizeStoreColor };
 /** GeoJSON Polygon coordinates: outer ring first, then holes. */
@@ -817,34 +818,43 @@ export async function deleteStoreSupply(id: string): Promise<void> {
   if (error) throw error;
 }
 
-/** Upload a store gallery image under order-photos/stores/{userId}/… */
+/**
+ * Upload a store gallery image to Cloudflare R2 (`stores/`).
+ * Returns the object key (store in `contractor_stores.store_photos`).
+ * Use {@link resolveStoreMediaUrl} when rendering.
+ */
 export async function uploadStorePhoto(
-  userId: string,
+  _userId: string,
   file: File
 ): Promise<string> {
-  const path = `stores/${userId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-  const { error } = await supabase.storage
-    .from('order-photos')
-    .upload(path, file, { upsert: false, contentType: 'image/jpeg' });
-  if (error) throw error;
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from('order-photos').getPublicUrl(path);
-  return publicUrl;
+  const { objectKey } = await uploadToR2({
+    folder: 'stores',
+    file,
+    preferPublicUrl: false,
+  });
+  return objectKey;
 }
 
-/** Upload a supply product image under order-photos/stores/{userId}/supplies/… */
+/**
+ * Upload a supply product image to Cloudflare R2 (`stores/…/supplies`).
+ * Returns the object key (store in `store_supplies.image_url`).
+ */
 export async function uploadSupplyPhoto(
-  userId: string,
+  _userId: string,
   file: File
 ): Promise<string> {
-  const path = `stores/${userId}/supplies/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-  const { error } = await supabase.storage
-    .from('order-photos')
-    .upload(path, file, { upsert: false, contentType: 'image/jpeg' });
-  if (error) throw error;
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from('order-photos').getPublicUrl(path);
-  return publicUrl;
+  const { objectKey } = await uploadToR2({
+    folder: 'stores',
+    file,
+    subpath: 'supplies',
+    preferPublicUrl: false,
+  });
+  return objectKey;
+}
+
+/** Public R2 (or legacy absolute) URL for store / supply media. */
+export function resolveStoreMediaUrl(
+  stored: string | null | undefined
+): string {
+  return resolveR2PublicUrl(stored);
 }

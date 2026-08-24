@@ -46,6 +46,7 @@ import {
   storeToDraft,
   toggleStoreServiceInDraft,
   updateStoreServiceSkuInDraft,
+  resolveStoreMediaUrl,
   uploadStorePhoto,
   uploadSupplyPhoto,
   upsertContractorStore,
@@ -881,7 +882,11 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
                     key={url}
                     className="relative overflow-hidden rounded-lg border border-white/10 bg-slate-900"
                   >
-                    <img src={url} alt="" className="h-24 w-full object-cover" />
+                    <img
+                      src={resolveStoreMediaUrl(url)}
+                      alt=""
+                      className="h-24 w-full object-cover"
+                    />
                     {idx === 0 && (
                       <span className="absolute left-1 top-1 rounded bg-emerald-500/90 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-white">
                         {t('storeCoverBadge', { defaultValue: 'Cover' })}
@@ -1390,7 +1395,7 @@ const ContractorStorePanel: React.FC<ContractorStorePanelProps> = ({
                       >
                         {item.image_url ? (
                           <img
-                            src={item.image_url}
+                            src={resolveStoreMediaUrl(item.image_url)}
                             alt=""
                             className="h-10 w-10 rounded object-cover"
                           />

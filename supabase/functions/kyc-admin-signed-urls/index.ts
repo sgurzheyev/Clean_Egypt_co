@@ -1,4 +1,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
+import { GetObjectCommand } from 'npm:@aws-sdk/client-s3@3.699.0';
+import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3.699.0';
+import {
+  createR2Client,
+  isKycObjectKey,
+  R2_GET_TTL_SEC,
+  readR2Env,
+} from '../_shared/r2.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,9 +25,19 @@ function jsonError(message: string, status = 400) {
 }
 
 /**
- * Admin-only: mint signed URLs for private kyc_documents objects.
- * Uses service_role so Storage RLS (owner-only) does not block platform admins
- * who authenticate via is_platform_admin (email) rather than profiles.role.
+ * R2 media keys end with a UUID filename (`…/uuid.ext`).
+ * Legacy Supabase Storage KYC paths used `front_${ts}.jpg` / `liveness_${ts}.webm`.
+ */
+function isLikelyR2KycKey(path: string): boolean {
+  return /\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[a-z0-9]+$/i.test(
+    path
+  );
+}
+
+/**
+ * Admin-only: mint signed URLs for private KYC objects.
+ * Prefers Cloudflare R2 for new uploads; falls back to Supabase Storage
+ * for legacy `kyc_documents` objects (pre-R2 migration).
  */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -61,14 +79,11 @@ Deno.serve(async (req) => {
       return jsonError('Unauthorized', 401);
     }
 
-    // Prefer service-role admin check that does NOT short-circuit on JWT role.
-    // is_platform_admin returns true for any service_role JWT — so call with user JWT.
     const { data: isAdmin, error: adminErr } = await supabaseUser.rpc('is_platform_admin', {
       p_uid: user.id,
     });
     if (adminErr) {
       console.error('[kyc-admin-signed-urls] is_platform_admin failed', adminErr);
-      // Fallback: email / role via service role (mirrors is_platform_admin rules).
       const supabaseServiceProbe = createClient(supabaseUrl, serviceKey, {
         auth: { persistSession: false, autoRefreshToken: false },
       });
@@ -102,18 +117,49 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Service role bypasses Storage RLS for private bucket signed URLs.
     const supabaseService = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
+    const r2Env = readR2Env();
+    const r2Client = !('error' in r2Env) ? createR2Client(r2Env) : null;
+    const r2Bucket = !('error' in r2Env) ? r2Env.bucket : null;
+    if ('error' in r2Env) {
+      console.warn('[kyc-admin-signed-urls] R2 unavailable, Storage only:', r2Env.error);
+    }
+
     const urls: Record<string, string | null> = {};
     for (const path of paths) {
+      if (/^https?:\/\//i.test(path)) {
+        urls[path] = path;
+        continue;
+      }
+
+      const key = path.replace(/^\/+/, '');
+
+      // New uploads: Cloudflare R2 under kyc/{userId}/…/{uuid}.ext
+      if (r2Client && r2Bucket && isKycObjectKey(key) && isLikelyR2KycKey(key)) {
+        try {
+          const command = new GetObjectCommand({
+            Bucket: r2Bucket,
+            Key: key,
+          });
+          urls[path] = await getSignedUrl(r2Client, command, {
+            expiresIn: Math.min(SIGNED_TTL_SEC, R2_GET_TTL_SEC * 6),
+          });
+          continue;
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn('[kyc-admin-signed-urls] R2 sign failed', key, msg);
+        }
+      }
+
+      // Legacy: Supabase Storage bucket kyc_documents
       const { data, error } = await supabaseService.storage
         .from(KYC_BUCKET)
-        .createSignedUrl(path, SIGNED_TTL_SEC);
+        .createSignedUrl(key, SIGNED_TTL_SEC);
       if (error) {
-        console.error('[kyc-admin-signed-urls] createSignedUrl failed', path, error.message);
+        console.error('[kyc-admin-signed-urls] createSignedUrl failed', key, error.message);
         urls[path] = null;
       } else {
         urls[path] = data?.signedUrl ?? null;

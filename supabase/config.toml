@@ -51,3 +51,17 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/r2-sign-playback/deno.json"
 entrypoint = "./functions/r2-sign-playback/index.ts"
+
+# General authenticated media PUT to R2 (KYC, stores, avatars, mission photos, chat).
+[functions.r2-presign-media]
+enabled = true
+verify_jwt = true
+import_map = "./functions/r2-presign-media/deno.json"
+entrypoint = "./functions/r2-presign-media/index.ts"
+
+# Admin KYC review: signed GET for R2 kyc/ keys + legacy Storage kyc_documents.
+[functions.kyc-admin-signed-urls]
+enabled = true
+verify_jwt = true
+import_map = "./functions/kyc-admin-signed-urls/deno.json"
+entrypoint = "./functions/kyc-admin-signed-urls/index.ts"

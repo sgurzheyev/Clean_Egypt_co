@@ -6,10 +6,39 @@ export const KYC_DOCUMENTS_BUCKET = 'kyc_documents';
 
 const SIGNED_URL_TTL_SEC = 3600;
 
-/** Admin/user signed URL for a private object in kyc_documents (subject to Storage RLS). */
+/**
+ * Detect R2 KYC object keys (UUID leaf) vs legacy Supabase Storage paths
+ * (`front_${ts}.jpg` under the same `kyc/` prefix).
+ */
+export function isR2KycObjectKey(objectPath: string): boolean {
+  const path = String(objectPath ?? '')
+    .trim()
+    .replace(/^\/+/, '');
+  if (!path.startsWith('kyc/')) return false;
+  return /\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[a-z0-9]+$/i.test(
+    path
+  );
+}
+
+/**
+ * Signed URL for a private KYC object.
+ * Legacy Storage paths use client Storage API; R2 keys go through the admin Edge
+ * Function (service-side R2 GET). Prefer {@link createKycAdminSignedUrls} in admin UI.
+ */
 export async function createKycSignedUrl(objectPath: string | null | undefined): Promise<string | null> {
   const path = String(objectPath ?? '').trim();
   if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+
+  if (isR2KycObjectKey(path)) {
+    try {
+      const urls = await createKycAdminSignedUrls([path]);
+      return urls[path] ?? null;
+    } catch (e) {
+      console.error('createKycSignedUrl R2', path, e);
+      return null;
+    }
+  }
 
   const { data, error } = await supabase.storage
     .from(KYC_DOCUMENTS_BUCKET)
@@ -24,9 +53,10 @@ export async function createKycSignedUrl(objectPath: string | null | undefined):
 }
 
 /**
- * Admin-only: mint signed URLs via Edge Function + service_role.
+ * Admin-only: mint signed URLs via Edge Function + service_role / R2.
  * Needed because Storage RLS owner checks block platform admins who are not
  * the document owner (and may not have profiles.role = 'admin').
+ * Also signs Cloudflare R2 KYC keys after the Storage → R2 migration.
  */
 export async function createKycAdminSignedUrls(
   paths: Array<string | null | undefined>

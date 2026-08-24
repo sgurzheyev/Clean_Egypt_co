@@ -10,6 +10,7 @@ import { ArrowLeft, MapPin, Share2, Store } from 'lucide-react';
 import {
   fetchContractorStore,
   fetchStoreSupplies,
+  resolveStoreMediaUrl,
   type ContractorStore,
   type StoreServiceSku,
   type StoreSupply,
@@ -284,7 +285,7 @@ const StorefrontPage: React.FC = () => {
                   {store.store_photos.map((url) => (
                     <img
                       key={url}
-                      src={url}
+                      src={resolveStoreMediaUrl(url)}
                       alt=""
                       className="h-32 w-full rounded-xl border border-white/10 object-cover"
                     />

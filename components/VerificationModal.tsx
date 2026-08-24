@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabase';
 import { resolveAuthenticatedUserId } from '../src/lib/supabaseAuth';
+import { uploadToR2 } from '../src/lib/r2Media';
 
 type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected' | string;
 
@@ -422,53 +423,48 @@ export default function VerificationModal(props: VerificationModalProps) {
       const uid = await resolveAuthenticatedUserId(userIdProp ?? profileId);
       if (!uid) throw new Error(isRu ? 'Войдите в аккаунт.' : 'Not authenticated.');
 
-      const ts = Date.now();
-      const frontExt = extFromMime(photoFront.type);
-      const backExt = photoBack?.type ? extFromMime(photoBack.type) : 'jpg';
-
       const safeDocType = String(docTypeSlug || DOC_TYPES[0].slug).replace(/[^a-z0-9_-]/gi, '_');
 
-      const frontObjectName = `kyc/${uid}/docs/${safeDocType}/front_${ts}.${frontExt}`;
-      const backObjectName =
-        requiresBackSide && photoBack ? `kyc/${uid}/docs/${safeDocType}/back_${ts}.${backExt}` : null;
-      const liveExt = extFromMime(livenessMime || livenessBlob.type);
-      const livenessObjectName = `kyc/${uid}/liveness/liveness_${ts}.${liveExt}`;
+      // Cloudflare R2 (private `kyc/` folder) — store object keys in profiles.
+      const frontUpload = await uploadToR2({
+        folder: 'kyc',
+        file: photoFront,
+        subpath: `docs/${safeDocType}/front`,
+        preferPublicUrl: false,
+      });
+      const frontObjectName = frontUpload.objectKey;
 
-      const { error: frontUploadErr } = await supabase.storage
-        .from('kyc_documents')
-        .upload(frontObjectName, photoFront, {
-          upsert: false,
-          contentType: normalizeStorageContentType(photoFront.type, 'image'),
+      let backObjectName: string | null = null;
+      if (requiresBackSide && photoBack) {
+        const backUpload = await uploadToR2({
+          folder: 'kyc',
+          file: photoBack,
+          subpath: `docs/${safeDocType}/back`,
+          preferPublicUrl: false,
         });
-      if (frontUploadErr) {
-        console.error('[KYC submit] front upload failed', frontUploadErr);
-        throw new Error(frontUploadErr.message);
+        backObjectName = backUpload.objectKey;
       }
 
-      if (backObjectName && photoBack) {
-        const { error: backUploadErr } = await supabase.storage
-          .from('kyc_documents')
-          .upload(backObjectName, photoBack, {
-            upsert: false,
-            contentType: normalizeStorageContentType(photoBack.type, 'image'),
-          });
-        if (backUploadErr) {
-          console.error('[KYC submit] back upload failed', backUploadErr);
-          throw new Error(backUploadErr.message);
-        }
-      }
-
-      const videoContentType = normalizeStorageContentType(livenessMime || livenessBlob.type, 'video');
-      const { error: liveUploadErr } = await supabase.storage
-        .from('kyc_documents')
-        .upload(livenessObjectName, livenessBlob, {
-          upsert: false,
-          contentType: videoContentType,
-        });
-      if (liveUploadErr) {
-        console.error('[KYC submit] liveness upload failed', liveUploadErr);
-        throw new Error(liveUploadErr.message);
-      }
+      const livenessFile =
+        livenessBlob instanceof File
+          ? livenessBlob
+          : new File(
+              [livenessBlob],
+              `liveness.${extFromMime(livenessMime || livenessBlob.type)}`,
+              {
+                type: normalizeStorageContentType(
+                  livenessMime || livenessBlob.type,
+                  'video'
+                ),
+              }
+            );
+      const liveUpload = await uploadToR2({
+        folder: 'kyc',
+        file: livenessFile,
+        subpath: 'liveness',
+        preferPublicUrl: false,
+      });
+      const livenessObjectName = liveUpload.objectKey;
 
       const { error: rpcErr } = await supabase.rpc('submit_kyc_verification', {
         p_doc_type: safeDocType,
