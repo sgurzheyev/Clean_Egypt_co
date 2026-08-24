@@ -5,6 +5,7 @@ import { supabase } from '../../services/supabase';
 import { resolveAccessToken } from './supabaseAuth';
 import { throwIfInvokeFailed } from './supabaseFunctionError';
 
+/** Extract crowdfunding R2 key (`proofs/…`) from stored proof_video_url. */
 export function proofObjectKeyFromStored(raw: string | null | undefined): string | null {
   const s = String(raw || '').trim();
   if (!s) return null;
@@ -13,11 +14,14 @@ export function proofObjectKeyFromStored(raw: string | null | undefined): string
     const u = new URL(s);
     const path = u.pathname.replace(/^\/+/, '');
     const idx = path.indexOf('proofs/');
-    if (idx >= 0) return path.slice(idx);
+    if (idx >= 0) return path.slice(idx).split('?')[0];
   } catch {
     /* not a URL */
   }
-  return s.includes('proofs/') ? s : s;
+  const idx = s.indexOf('proofs/');
+  if (idx >= 0) return s.slice(idx).split('?')[0];
+  // P2P liveness keys (`mission-photos/…`) and legacy Storage URLs are not escrow proofs.
+  return null;
 }
 
 export async function fetchProofPlaybackUrl(input: {

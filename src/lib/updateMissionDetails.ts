@@ -5,6 +5,7 @@ import {
 } from './missionDescription';
 import { filterMissionDescription, validateMissionDescription } from './missionContentPolicy';
 import { compressMissionPhoto } from './missionPhotoCompression';
+import { uploadMissionPhotoToR2 } from './r2Media';
 
 export const EDITABLE_MISSION_STATUSES = new Set([
   'available',
@@ -51,17 +52,7 @@ export async function uploadMissionPhotoFiles(files: File[]): Promise<string[]> 
     }
 
     const fileToUpload = await compressMissionPhoto(file);
-
-    const safeFileName = `mission_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from('order-photos')
-      .upload(safeFileName, fileToUpload, { upsert: false, contentType: 'image/jpeg' });
-    if (uploadError) throw uploadError;
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from('order-photos').getPublicUrl(safeFileName);
-    uploaded.push(publicUrl);
+    uploaded.push(await uploadMissionPhotoToR2(fileToUpload, 'creator'));
   }
 
   return uploaded;

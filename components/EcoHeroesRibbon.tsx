@@ -8,6 +8,7 @@ import {
   fetchMissionEcoHeroes,
   type MissionEcoHero,
 } from '../src/lib/missionEcoHeroes';
+import { resolveAvatarUrl } from '../src/lib/r2Media';
 
 const MAX_VISIBLE = 8;
 
@@ -112,7 +113,7 @@ const EcoHeroesRibbon: React.FC<Props> = ({ missionId, refreshKey }) => {
               >
                 {hero.avatar_url ? (
                   <img
-                    src={hero.avatar_url}
+                    src={resolveAvatarUrl(hero.avatar_url)}
                     alt=""
                     draggable={false}
                     className="h-full w-full rounded-full object-cover"

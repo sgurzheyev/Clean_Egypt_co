@@ -12,7 +12,8 @@
  *   4. Remembers successfully loaded URLs in a module Set so virtualized
  *      remounts skip the skeleton (no flicker on scroll recycle).
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { resolveMissionPhotoUrl } from '../src/lib/r2Media';
 
 export type LazyMissionPhotoProps = {
   src: string;
@@ -56,10 +57,14 @@ const LazyMissionPhoto: React.FC<LazyMissionPhotoProps> = ({
   onLoad,
   draggable = false,
 }) => {
+  // R2 object keys → public CDN URL; legacy Supabase https URLs pass through.
+  const resolvedSrc = useMemo(() => resolveMissionPhotoUrl(src), [src]);
   const isValid =
-    typeof src === 'string' && src.length > 0 && !src.startsWith('censored://');
+    typeof resolvedSrc === 'string' &&
+    resolvedSrc.length > 0 &&
+    !src.startsWith('censored://');
 
-  const [loaded, setLoaded] = useState(() => isValid && isPhotoCached(src));
+  const [loaded, setLoaded] = useState(() => isValid && isPhotoCached(resolvedSrc));
   const [error, setError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
@@ -70,21 +75,21 @@ const LazyMissionPhoto: React.FC<LazyMissionPhotoProps> = ({
       setError(false);
       return;
     }
-    if (isPhotoCached(src)) {
+    if (isPhotoCached(resolvedSrc)) {
       setLoaded(true);
       setError(false);
       return;
     }
     const el = imgRef.current;
     if (el && el.complete && el.naturalWidth > 0) {
-      markPhotoLoaded(src);
+      markPhotoLoaded(resolvedSrc);
       setLoaded(true);
       setError(false);
       return;
     }
     setLoaded(false);
     setError(false);
-  }, [src, isValid]);
+  }, [resolvedSrc, isValid]);
 
   if (!isValid) {
     return (
@@ -107,10 +112,10 @@ const LazyMissionPhoto: React.FC<LazyMissionPhotoProps> = ({
     >
       <img
         ref={imgRef}
-        src={src}
+        src={resolvedSrc}
         alt={alt}
         draggable={draggable}
-        loading={isPhotoCached(src) ? 'eager' : loading}
+        loading={isPhotoCached(resolvedSrc) ? 'eager' : loading}
         decoding="async"
         className={imgClassName}
         style={{
@@ -119,7 +124,7 @@ const LazyMissionPhoto: React.FC<LazyMissionPhotoProps> = ({
           WebkitBackfaceVisibility: 'hidden',
         }}
         onLoad={() => {
-          markPhotoLoaded(src);
+          markPhotoLoaded(resolvedSrc);
           setLoaded(true);
           setError(false);
           onLoad?.();

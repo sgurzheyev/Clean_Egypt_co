@@ -20,6 +20,7 @@ import { ADMIN_FORCE_RELEASE_PAYMENT_BTN } from '../../constants';
 import { formatTokens } from '../lib/formatMoney';
 import ModeratedMissionPhoto from '../../components/ModeratedMissionPhoto';
 import ProfileCard from '../../components/ProfileCard';
+import { resolveAvatarUrl } from '../lib/r2Media';
 
 /** Supabase Postgrest errors are plain objects — String(e) becomes "[object Object]". */
 function formatUnknownError(e: unknown, fallback: string): string {
@@ -898,7 +899,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                         <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-cyan-500/30 bg-slate-950">
                           {p.avatar_url ? (
                             <img
-                              src={p.avatar_url}
+                              src={resolveAvatarUrl(p.avatar_url)}
                               alt=""
                               className="h-full w-full object-cover"
                             />

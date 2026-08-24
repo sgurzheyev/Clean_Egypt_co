@@ -46,6 +46,7 @@ import {
 import TrustBadgeRow from './TrustBadgeRow';
 import LazyMissionPhoto from './LazyMissionPhoto';
 import MissionFeedErrorBoundary from './MissionFeedErrorBoundary';
+import { resolveAvatarUrl } from '../src/lib/r2Media';
 
 /** Structural mission shape — both LiveMarketMission and Profile's Job satisfy it. */
 export type ImmersiveFeedMission = {
@@ -626,7 +627,7 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
               >
                 {current.creator?.avatar_url ? (
                   <img
-                    src={current.creator.avatar_url}
+                    src={resolveAvatarUrl(current.creator.avatar_url)}
                     alt=""
                     draggable={false}
                     className="h-full w-full object-cover"

@@ -147,3 +147,30 @@ export async function uploadToR2(opts: UploadToR2Options): Promise<{
 
   return { objectKey, publicUrl, displayUrl };
 }
+
+/** Store object key in DB; resolve with {@link resolveR2PublicUrl} when rendering. */
+export async function uploadAvatarToR2(file: File | Blob): Promise<string> {
+  const { objectKey } = await uploadToR2({
+    folder: 'avatars',
+    file,
+    preferPublicUrl: false,
+  });
+  return objectKey;
+}
+
+/** Mission before/after / creator photos → `mission-photos/`. Returns object key. */
+export async function uploadMissionPhotoToR2(
+  file: File | Blob,
+  subpath?: string
+): Promise<string> {
+  const { objectKey } = await uploadToR2({
+    folder: 'mission-photos',
+    file,
+    subpath,
+    preferPublicUrl: false,
+  });
+  return objectKey;
+}
+
+export const resolveAvatarUrl = resolveR2PublicUrl;
+export const resolveMissionPhotoUrl = resolveR2PublicUrl;

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import { createKycAdminSignedUrls, kycDocTypeLabel } from '../lib/kycDocuments';
+import { resolveAvatarUrl } from '../lib/r2Media';
 
 export type PendingKycProfile = {
   id: string;
@@ -195,7 +196,11 @@ const KYCReviewDashboard: React.FC<KYCReviewDashboardProps> = ({ isAllowedAdmin 
                   <div className="flex items-start gap-3 min-w-0">
                     <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border border-cyan-400/25 bg-slate-900">
                       {row.avatar_url ? (
-                        <img src={row.avatar_url} alt="" className="h-full w-full object-cover" />
+                        <img
+                          src={resolveAvatarUrl(row.avatar_url)}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-sm font-black text-cyan-300">
                           {name.charAt(0).toUpperCase()}

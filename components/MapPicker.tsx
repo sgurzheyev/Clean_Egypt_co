@@ -12,6 +12,7 @@ import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
 import { getWorkerGeolocation, submitMissionProof } from '../src/lib/submitMissionProof';
 import { uploadCrowdfundingProofToR2, type ProofUploadPhase } from '../src/lib/r2ProofUpload';
+import { resolveAvatarUrl, uploadMissionPhotoToR2 } from '../src/lib/r2Media';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import { resolveMissionCleanerId, submitReview } from '../src/lib/reviews';
 import { Navigation, Camera, Video, X, User, Plus, Minus, Crosshair, Loader2, TriangleAlert, Store } from 'lucide-react';
@@ -843,7 +844,11 @@ const DraftPinActionHub = React.memo(function DraftPinActionHub({
             aria-expanded={expanded}
           >
             {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+              <img
+                src={resolveAvatarUrl(avatarUrl)}
+                alt=""
+                className="h-full w-full object-cover"
+              />
             ) : avatarInitial ? (
               <span className="text-sm font-black text-emerald-300">{avatarInitial}</span>
             ) : (
@@ -1189,31 +1194,8 @@ function ProofUploadModal({
           // keep original when compression fails
         }
 
-        const fileName = `proof_${mission.id}_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-        let uploadError: Error | null = null;
-
-        const tryPrimary = await supabase.storage
-          .from('mission-proofs')
-          .upload(fileName, toUpload, { upsert: false, contentType: 'image/jpeg' });
-        if (tryPrimary.error) {
-          const tryFallback = await supabase.storage
-            .from('order-photos')
-            .upload(fileName, toUpload, { upsert: false, contentType: 'image/jpeg' });
-          if (tryFallback.error) uploadError = tryFallback.error;
-          else {
-            const {
-              data: { publicUrl },
-            } = supabase.storage.from('order-photos').getPublicUrl(fileName);
-            uploadedUrls.push(publicUrl);
-          }
-        } else {
-          const {
-            data: { publicUrl },
-          } = supabase.storage.from('mission-proofs').getPublicUrl(fileName);
-          uploadedUrls.push(publicUrl);
-        }
-
-        if (uploadError) throw uploadError;
+        const objectKey = await uploadMissionPhotoToR2(toUpload, 'after');
+        uploadedUrls.push(objectKey);
       }
 
       await submitMissionProof({
@@ -4126,17 +4108,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           }
         }
         for (const file of compressedFiles) {
-          const safeFileName = `mission_${Date.now()}_${Math.random().toString(36).substring(2)}.jpg`;
-          const { error: uploadError } = await supabase.storage
-            .from('order-photos')
-            .upload(safeFileName, file, { upsert: false, contentType: 'image/jpeg' });
-          if (uploadError) {
-            throw uploadError;
-          }
-          const { data: { publicUrl } } = supabase.storage
-            .from('order-photos')
-            .getPublicUrl(safeFileName);
-          uploaded.push(publicUrl);
+          const objectKey = await uploadMissionPhotoToR2(file, 'creator');
+          uploaded.push(objectKey);
         }
         creatorPhotoUrls = uploaded;
       }
@@ -5800,7 +5773,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           >
             {viewerProfile?.avatar_url ? (
               <img
-                src={viewerProfile.avatar_url}
+                src={resolveAvatarUrl(viewerProfile.avatar_url)}
                 alt=""
                 className="h-full w-full object-cover"
               />

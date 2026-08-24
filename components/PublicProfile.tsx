@@ -16,6 +16,7 @@ import {
   toWhatsAppHref,
 } from '../src/lib/missionContact';
 import PublicStoreCard from './PublicStoreCard';
+import { resolveAvatarUrl } from '../src/lib/r2Media';
 
 interface PublicProfileData {
   id: string;
@@ -156,7 +157,7 @@ const PublicProfile: React.FC = () => {
               <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-emerald-300/50 bg-slate-800">
                 {profile.avatar_url ? (
                   <img
-                    src={profile.avatar_url}
+                    src={resolveAvatarUrl(profile.avatar_url)}
                     alt=""
                     className="h-full w-full object-cover"
                     draggable={false}
@@ -313,7 +314,7 @@ const PublicProfile: React.FC = () => {
                           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-slate-800">
                             {r.reviewer_avatar ? (
                               <img
-                                src={r.reviewer_avatar}
+                                src={resolveAvatarUrl(r.reviewer_avatar)}
                                 alt=""
                                 className="h-full w-full object-cover"
                                 draggable={false}

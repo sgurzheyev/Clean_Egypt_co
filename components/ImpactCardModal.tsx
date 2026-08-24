@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { toPng } from 'html-to-image';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
 import { missionSector } from '../src/lib/serviceSectors';
+import { resolveMissionPhotoUrl } from '../src/lib/r2Media';
 
 export type ImpactCardMission = {
   id: string;
@@ -48,14 +49,14 @@ const ImpactCardModal: React.FC<Props> = ({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const beforeUrl = useMemo(
-    () => (mission.photo_urls || []).find(Boolean) || null,
-    [mission.photo_urls]
-  );
-  const afterUrl = useMemo(
-    () => (mission.after_photo_urls || []).find(Boolean) || null,
-    [mission.after_photo_urls]
-  );
+  const beforeUrl = useMemo(() => {
+    const raw = (mission.photo_urls || []).find(Boolean) || null;
+    return raw ? resolveMissionPhotoUrl(raw) : null;
+  }, [mission.photo_urls]);
+  const afterUrl = useMemo(() => {
+    const raw = (mission.after_photo_urls || []).find(Boolean) || null;
+    return raw ? resolveMissionPhotoUrl(raw) : null;
+  }, [mission.after_photo_urls]);
   const hasSplit = !!(beforeUrl && afterUrl);
   const heroUrl = afterUrl || beforeUrl;
   const isHome = missionSector(mission.service_type, mission.category) === 'home';

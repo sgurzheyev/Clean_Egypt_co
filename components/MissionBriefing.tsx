@@ -18,6 +18,7 @@ import {
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
+import { resolveAvatarUrl } from '../src/lib/r2Media';
 import { missionTokenBid, missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
 import {
@@ -899,7 +900,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                           <span className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-slate-800">
                             {creatorAvatarUrl ? (
                               <img
-                                src={creatorAvatarUrl}
+                                src={resolveAvatarUrl(creatorAvatarUrl)}
                                 alt=""
                                 draggable={false}
                                 className="h-full w-full object-cover"
@@ -1126,7 +1127,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 <ul className="max-h-72 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {missionBids.map((bid) => {
                     const displayName = bidWorkerDisplayName(bid);
-                    const avatarUrl = bid.cleaner?.avatar_url;
+                    const avatarUrl = resolveAvatarUrl(bid.cleaner?.avatar_url);
                     const rating = bid.cleaner?.rating;
                     const bidStatus = String(bid.status || '').toLowerCase();
                     const isAcceptedBid = bidStatus === 'accepted';
@@ -1511,7 +1512,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10">
                       {assignedWorker?.avatar_url ? (
                         <img
-                          src={assignedWorker.avatar_url}
+                          src={resolveAvatarUrl(assignedWorker.avatar_url)}
                           alt={assignedWorkerName}
                           className="h-full w-full object-cover"
                         />

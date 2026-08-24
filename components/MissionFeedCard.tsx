@@ -7,6 +7,7 @@ import {
   type MissionFeedPlaceholderVariant,
 } from '../src/lib/missionFeedVisuals';
 import LazyMissionPhoto from './LazyMissionPhoto';
+import { resolveAvatarUrl } from '../src/lib/r2Media';
 
 export type { MissionFeedPlaceholderVariant };
 
@@ -76,6 +77,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
   // Show the creator avatar whenever we have identity info — click is optional.
   const showCreator = !!(onCreatorClick || creatorAvatarUrl || creatorName);
   const creatorInitial = (creatorName || '?').trim().charAt(0).toUpperCase() || '?';
+  const resolvedCreatorAvatar = resolveAvatarUrl(creatorAvatarUrl);
 
   const handleLocate = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -191,9 +193,9 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
                 }`}
                 aria-label={creatorAriaLabel}
               >
-                {creatorAvatarUrl ? (
+                {resolvedCreatorAvatar ? (
                   <img
-                    src={creatorAvatarUrl}
+                    src={resolvedCreatorAvatar}
                     alt=""
                     loading="lazy"
                     className="h-full w-full object-cover"

@@ -101,9 +101,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    // KYC allows images + liveness video; other folders are images only for now.
-    if (folder !== 'kyc' && contentType.startsWith('video/')) {
-      return jsonError('Video uploads only allowed in kyc folder', 400);
+    // Video: KYC liveness + P2P mission proof liveness. Crowdfunding proof video
+    // uses r2-presign-proof (proofs/) separately.
+    if (
+      contentType.startsWith('video/') &&
+      folder !== 'kyc' &&
+      folder !== 'mission-photos'
+    ) {
+      return jsonError('Video uploads only allowed in kyc or mission-photos', 400);
     }
 
     const maxBytes = Number.parseInt(

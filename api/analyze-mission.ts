@@ -21,6 +21,19 @@ function extractJsonObject(text: string): string | null {
   return text.slice(start, end + 1);
 }
 
+function toPublicMediaUrl(stored: string): string {
+  const value = String(stored || '').trim();
+  if (!value) return value;
+  if (/^https?:\/\//i.test(value)) return value;
+  const base = String(
+    process.env.R2_PUBLIC_BASE_URL || process.env.VITE_R2_PUBLIC_BASE_URL || ''
+  )
+    .trim()
+    .replace(/\/$/, '');
+  if (!base) return value;
+  return `${base}/${value.replace(/^\/+/, '')}`;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -61,8 +74,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(404).json({ error: 'Mission not found' });
     }
 
-    const photo_urls = (mission.photo_urls || []) as string[];
-    const after_photo_urls = (mission.after_photo_urls || []) as string[];
+    const photo_urls = ((mission.photo_urls || []) as string[])
+      .map(toPublicMediaUrl)
+      .filter(Boolean);
+    const after_photo_urls = ((mission.after_photo_urls || []) as string[])
+      .map(toPublicMediaUrl)
+      .filter(Boolean);
     const mission_title = (mission.title || '') as string;
     const mission_description = (mission.description || '') as string;
 

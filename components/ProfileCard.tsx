@@ -6,6 +6,7 @@
  */
 import React from 'react';
 import { BadgeCheck, Star } from 'lucide-react';
+import { resolveAvatarUrl } from '../src/lib/r2Media';
 
 export type ProfileCardStat = {
   label: string;
@@ -82,13 +83,14 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
   const theme = ACCENT[accent];
   const initial = (name || '?').trim().charAt(0).toUpperCase() || '?';
   const hasRating = typeof rating === 'number' && rating > 0;
+  const resolvedAvatar = resolveAvatarUrl(avatarUrl);
 
   const AvatarInner = (
     <span
       className={`relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 ${theme.ring} bg-slate-900 shadow-[0_6px_20px_rgba(0,0,0,0.45)]`}
     >
-      {avatarUrl ? (
-        <img src={avatarUrl} alt="" draggable={false} className="h-full w-full object-cover" />
+      {resolvedAvatar ? (
+        <img src={resolvedAvatar} alt="" draggable={false} className="h-full w-full object-cover" />
       ) : (
         <span className={`text-2xl font-black ${theme.initial}`}>{initial}</span>
       )}

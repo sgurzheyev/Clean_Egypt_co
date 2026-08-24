@@ -9,6 +9,11 @@ import { supabase } from '../services/supabase';
 import { Pencil, Target, Globe, Building2, Clock, Info, Lock, Coins, Store, BadgeCheck, Sparkles, Trash2 } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { compressMissionPhoto } from '../src/lib/missionPhotoCompression';
+import {
+  resolveAvatarUrl,
+  uploadAvatarToR2,
+  uploadMissionPhotoToR2,
+} from '../src/lib/r2Media';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import AdminDashboard from '../src/components/AdminDashboard';
@@ -803,28 +808,18 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         return;
       }
       const userId = session.user.id;
-      const fileExt = 'jpg';
-      const filePath = `${userId}/${Date.now()}_${Math.random()
-        .toString(36)
-        .slice(2)}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, compressedAvatar, { upsert: false, contentType: 'image/jpeg' });
-      if (uploadError) throw uploadError;
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      // Cloudflare R2 — store object key in profiles.avatar_url
+      const objectKey = await uploadAvatarToR2(compressedAvatar);
 
       const { error: profileErr } = await supabase
         .from('profiles')
-        .update({ avatar_url: publicUrl })
+        .update({ avatar_url: objectKey })
         .eq('id', userId);
       if (profileErr) throw profileErr;
 
       setUserProfile((prev) =>
-        prev ? { ...prev, avatar_url: publicUrl } : prev
+        prev ? { ...prev, avatar_url: objectKey } : prev
       );
     } catch (err: any) {
       console.error('Avatar upload error:', err);
@@ -1382,17 +1377,11 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           return;
         }
         const fileToUpload = await compressMissionPhoto(file);
-
-        const fileExt = 'jpg';
-        const safeFileName = `mission_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
-          .from('order-photos')
-          .upload(safeFileName, fileToUpload, { upsert: false, contentType: 'image/jpeg' });
-        if (uploadError) throw uploadError;
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from('order-photos').getPublicUrl(safeFileName);
-        uploadedUrls.push(publicUrl);
+        const objectKey = await uploadMissionPhotoToR2(
+          fileToUpload,
+          proofPhase === 'before' ? 'before' : 'after'
+        );
+        uploadedUrls.push(objectKey);
       }
       setProofProcessingImage(false);
 
@@ -1484,18 +1473,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         if (livenessBlob) {
           const isWebm = (livenessMimeType || '').includes('webm');
           const ext = isWebm ? 'webm' : 'mp4';
-          const safeVideoName = `liveness_${proofJob.id}_${Date.now()}_${Math.random().toString(36).substring(2)}.${ext}`;
-          const { error: videoUploadErr } = await supabase.storage
-            .from('liveness-videos')
-            .upload(safeVideoName, livenessBlob, {
-              upsert: false,
-              contentType: livenessMimeType || 'video/webm',
-            });
-          if (videoUploadErr) throw videoUploadErr;
-          const {
-            data: { publicUrl: videoPublicUrl },
-          } = supabase.storage.from('liveness-videos').getPublicUrl(safeVideoName);
-          proofVideoUrl = videoPublicUrl;
+          const mime = livenessMimeType || (isWebm ? 'video/webm' : 'video/mp4');
+          const videoFile =
+            livenessBlob instanceof File
+              ? livenessBlob
+              : new File([livenessBlob], `liveness.${ext}`, { type: mime });
+          proofVideoUrl = await uploadMissionPhotoToR2(videoFile, 'liveness');
         }
 
         const effectiveLivenessLat = livenessLat ?? completionLat ?? antiFraudLat;
@@ -1788,7 +1771,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 <div className="h-6 w-6 border-2 border-emerald-400/40 border-t-emerald-400 rounded-full animate-spin" />
               ) : userProfile?.avatar_url ? (
                 <img
-                  src={userProfile.avatar_url}
+                  src={resolveAvatarUrl(userProfile.avatar_url)}
                   alt={profileDisplayName || 'Avatar'}
                   className="h-full w-full object-cover"
                 />
