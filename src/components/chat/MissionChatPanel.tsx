@@ -1,12 +1,13 @@
 /**
  * Phase 4 — mission-scoped P2P chat sheet (history + Realtime via useMissionChat).
- * Supports text + optional compressed photo attachments (chat-photos bucket).
+ * Supports text + optional compressed photo attachments (R2 `chat/`).
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ImagePlus, Loader2, Send, X } from 'lucide-react';
 import { useMissionChat } from '../../hooks/useMissionChat';
 import { uploadChatPhoto } from '../../lib/chatPhotoUpload';
+import { resolveChatPhotoUrl } from '../../lib/r2Media';
 import { isUploadNetworkFailure } from '../../lib/offlineUploadQueue';
 
 export type MissionChatPanelProps = {
@@ -221,7 +222,7 @@ const MissionChatPanel: React.FC<MissionChatPanelProps> = ({
           ) : (
             messages.map((m) => {
               const isMine = !!currentUserId && m.sender_id === currentUserId;
-              const img = String(m.image_url || '').trim();
+              const img = resolveChatPhotoUrl(m.image_url);
               const text = String(m.message || '').trim();
               return (
                 <div

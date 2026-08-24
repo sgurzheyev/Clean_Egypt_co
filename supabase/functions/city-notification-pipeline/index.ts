@@ -3,7 +3,7 @@
  *
  * Processes `city_notification_events` rows:
  *  1) Build a PDF (pdf-lib) — escalation or success report
- *  2) Upload to Storage bucket `city-notifications`
+ *  2) Upload to Cloudflare R2 (`city-pdfs/{missionId}/{eventId}.pdf`)
  *  3) Telegram sendDocument (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID / TELEGRAM_ADMIN_CHAT_ID)
  *  4) Email stub (Resend if RESEND_API_KEY + ADMIN_EMAIL set; otherwise log)
  *  5) Mark pdf_status = 'sent' (or 'generated' if dispatch skipped)
@@ -13,6 +13,8 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
 import { PDFDocument, StandardFonts, rgb } from 'https://esm.sh/pdf-lib@1.17.1';
+import { PutObjectCommand } from 'npm:@aws-sdk/client-s3@3.699.0';
+import { createR2Client, readR2Env } from '../_shared/r2.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -223,22 +225,43 @@ async function buildPdfBytes(opts: {
 }
 
 async function uploadPdf(
-  supabase: ReturnType<typeof createClient>,
   eventId: string,
   missionId: string,
   bytes: Uint8Array
 ): Promise<string | null> {
-  const path = `${missionId}/${eventId}.pdf`;
-  const { error } = await supabase.storage.from('city-notifications').upload(path, bytes, {
-    contentType: 'application/pdf',
-    upsert: true,
-  });
-  if (error) {
-    console.error('[city-notification-pipeline] storage upload failed', error.message);
+  const r2 = readR2Env();
+  if ('error' in r2) {
+    console.error('[city-notification-pipeline] R2 env missing', r2.error);
     return null;
   }
-  const { data } = supabase.storage.from('city-notifications').getPublicUrl(path);
-  return data?.publicUrl || path;
+
+  const objectKey = `city-pdfs/${missionId}/${eventId}.pdf`;
+  try {
+    const client = createR2Client(r2);
+    await client.send(
+      new PutObjectCommand({
+        Bucket: r2.bucket,
+        Key: objectKey,
+        Body: bytes,
+        ContentType: 'application/pdf',
+        Metadata: {
+          event_id: eventId,
+          mission_id: missionId,
+          folder: 'city-pdfs',
+        },
+      })
+    );
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[city-notification-pipeline] R2 upload failed', msg);
+    return null;
+  }
+
+  const publicBase = String(Deno.env.get('R2_PUBLIC_BASE_URL') || '')
+    .trim()
+    .replace(/\/$/, '');
+  // Prefer public URL for email/Telegram links; fall back to object key.
+  return publicBase ? `${publicBase}/${objectKey}` : objectKey;
 }
 
 async function sendTelegramPdf(opts: {
@@ -442,7 +465,7 @@ Deno.serve(async (req) => {
     .eq('id', row.id);
 
   const filename = `Garbagin_${eventType}_${row.mission_id.slice(0, 8)}.pdf`;
-  const pdfUrl = await uploadPdf(supabase, row.id, row.mission_id, pdfBytes);
+  const pdfUrl = await uploadPdf(row.id, row.mission_id, pdfBytes);
 
   if (pdfUrl) {
     await supabase

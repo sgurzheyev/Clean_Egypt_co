@@ -1,11 +1,9 @@
 /**
- * Compress + upload chat photos to the `chat-photos` Storage bucket.
- * Path: {missionId}/{userId}/{timestamp}_{rand}.jpg
+ * Compress + upload mission chat photos to Cloudflare R2 (`chat/`).
+ * Stores object key in `mission_chats.image_url`; resolve with resolveR2PublicUrl.
  */
-import { supabase } from '../../services/supabase';
 import { compressMissionPhoto } from './missionPhotoCompression';
-
-const CHAT_PHOTO_BUCKET = 'chat-photos';
+import { uploadToR2 } from './r2Media';
 
 export async function uploadChatPhoto(params: {
   file: File;
@@ -21,19 +19,14 @@ export async function uploadChatPhoto(params: {
   }
 
   const fileToUpload = await compressMissionPhoto(file);
+  const safeMissionId = String(missionId).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
 
-  const safeName = `chat_${Date.now()}_${Math.random().toString(36).slice(2, 10)}.jpg`;
-  const path = `${missionId}/${userId}/${safeName}`;
+  const { objectKey } = await uploadToR2({
+    folder: 'chat',
+    file: fileToUpload,
+    subpath: safeMissionId || 'mission',
+    preferPublicUrl: false,
+  });
 
-  const { error: uploadError } = await supabase.storage
-    .from(CHAT_PHOTO_BUCKET)
-    .upload(path, fileToUpload, { upsert: false, contentType: 'image/jpeg' });
-  if (uploadError) throw uploadError;
-
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from(CHAT_PHOTO_BUCKET).getPublicUrl(path);
-
-  if (!publicUrl) throw new Error('Failed to resolve chat photo URL');
-  return publicUrl;
+  return objectKey;
 }

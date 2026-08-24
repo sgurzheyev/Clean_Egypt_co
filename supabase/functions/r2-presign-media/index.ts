@@ -48,6 +48,8 @@ const PUBLIC_FOLDERS = new Set<R2MediaFolder>([
   'avatars',
   'mission-photos',
   'chat',
+  'reports',
+  'city-pdfs',
 ]);
 
 Deno.serve(async (req) => {
@@ -87,10 +89,23 @@ Deno.serve(async (req) => {
     const folderRaw = typeof body.folder === 'string' ? body.folder.trim().toLowerCase() : '';
     if (!isR2MediaFolder(folderRaw)) {
       return jsonError('Invalid folder', 400, {
-        allowed: ['kyc', 'stores', 'avatars', 'mission-photos', 'chat'],
+        allowed: [
+          'kyc',
+          'stores',
+          'avatars',
+          'mission-photos',
+          'chat',
+          'reports',
+          'city-pdfs',
+        ],
       });
     }
     const folder = folderRaw;
+
+    // city-pdfs are written by city-notification-pipeline (service PutObject), not browsers.
+    if (folder === 'city-pdfs') {
+      return jsonError('city-pdfs uploads are server-only', 403);
+    }
 
     const contentTypeRaw =
       typeof body.content_type === 'string' ? body.content_type.trim().toLowerCase() : '';
@@ -109,6 +124,11 @@ Deno.serve(async (req) => {
       folder !== 'mission-photos'
     ) {
       return jsonError('Video uploads only allowed in kyc or mission-photos', 400);
+    }
+
+    // PDF only for city pipeline (server); clients never need PDF via this endpoint.
+    if (contentType === 'application/pdf') {
+      return jsonError('PDF uploads are server-only (city-pdfs)', 403);
     }
 
     const maxBytes = Number.parseInt(

@@ -9,6 +9,7 @@ import {
   processMissionDescription,
 } from './missionDescription';
 import { isGarbageRemovalService } from './crowdfunding';
+import { uploadToR2 } from './r2Media';
 
 /** Free civic report photo cap (MissionBriefing carousel already supports multi-image). */
 export const MAX_GARBAGE_ZONE_REPORT_PHOTOS = 5;
@@ -38,15 +39,13 @@ async function uploadReportPhoto(file: File): Promise<string> {
   } catch (err) {
     console.warn('[garbageZoneReport] compression failed', err);
   }
-  const safeFileName = `report_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-  const { error } = await supabase.storage
-    .from('order-photos')
-    .upload(safeFileName, fileToUpload, { upsert: false, contentType: 'image/jpeg' });
-  if (error) throw error;
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from('order-photos').getPublicUrl(safeFileName);
-  return publicUrl;
+  // Cloudflare R2 — store object key in missions.photo_urls
+  const { objectKey } = await uploadToR2({
+    folder: 'reports',
+    file: fileToUpload,
+    preferPublicUrl: false,
+  });
+  return objectKey;
 }
 
 export async function createGarbageZoneReport(input: {

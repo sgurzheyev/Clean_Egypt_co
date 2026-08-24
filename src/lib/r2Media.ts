@@ -11,7 +11,9 @@ export type R2MediaFolder =
   | 'stores'
   | 'avatars'
   | 'mission-photos'
-  | 'chat';
+  | 'chat'
+  | 'reports'
+  | 'city-pdfs';
 
 export type R2PresignMediaResult = {
   upload_url: string;
@@ -65,6 +67,7 @@ function normalizeContentType(file: File | Blob, fallback = 'image/jpeg'): strin
     if (name.endsWith('.webm')) return 'video/webm';
     if (name.endsWith('.mov')) return 'video/quicktime';
     if (name.endsWith('.mp4') || name.endsWith('.m4v')) return 'video/mp4';
+    if (name.endsWith('.pdf')) return 'application/pdf';
   }
   return fallback;
 }
@@ -174,3 +177,5 @@ export async function uploadMissionPhotoToR2(
 
 export const resolveAvatarUrl = resolveR2PublicUrl;
 export const resolveMissionPhotoUrl = resolveR2PublicUrl;
+export const resolveChatPhotoUrl = resolveR2PublicUrl;
+export const resolveReportPhotoUrl = resolveR2PublicUrl;

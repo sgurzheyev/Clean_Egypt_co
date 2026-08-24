@@ -29,13 +29,15 @@ export function extForContentType(contentType: AllowedProofContentType): string 
   return 'mp4';
 }
 
-/** Authenticated media folders (images + KYC liveness video). */
+/** Authenticated media folders (images, KYC/video, civic reports, city PDFs). */
 export const R2_MEDIA_FOLDERS = [
   'kyc',
   'stores',
   'avatars',
   'mission-photos',
   'chat',
+  'reports',
+  'city-pdfs',
 ] as const;
 
 export type R2MediaFolder = (typeof R2_MEDIA_FOLDERS)[number];
@@ -54,6 +56,7 @@ export const ALLOWED_MEDIA_CONTENT_TYPES = [
   'video/webm',
   'video/mp4',
   'video/quicktime',
+  'application/pdf',
 ] as const;
 
 export type AllowedMediaContentType = (typeof ALLOWED_MEDIA_CONTENT_TYPES)[number];
@@ -71,6 +74,7 @@ export function extForMediaContentType(contentType: string): string {
   if (ct === 'video/webm') return 'webm';
   if (ct === 'video/quicktime') return 'mov';
   if (ct === 'video/mp4') return 'mp4';
+  if (ct === 'application/pdf') return 'pdf';
   return 'jpg';
 }
 
