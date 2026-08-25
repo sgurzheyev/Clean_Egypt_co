@@ -407,14 +407,26 @@ function missionEligibleForMapPin(job: JobOnMap): boolean {
   return false;
 }
 
-/** Keep locally injected missions when a refetch hasn't caught up with the DB yet. */
+/**
+ * Replace local mission list with the server fetch.
+ * IDs absent from `fetched` are dropped (fixes ghost pins after expire/complete).
+ * Keeps only recent `pending-*` optimistic placeholders the DB has not echoed yet.
+ */
 function mergeFetchedMissions(existing: JobOnMap[], fetched: JobOnMap[]): JobOnMap[] {
   const byId = new Map<string, JobOnMap>();
   for (const j of fetched) byId.set(String(j.id), j);
+
+  const now = Date.now();
   for (const j of existing) {
     const id = String(j.id);
-    if (!byId.has(id)) byId.set(id, j);
+    if (byId.has(id)) continue;
+    if (!id.startsWith('pending-')) continue;
+    const created = new Date(j.created_at ?? 0).getTime();
+    if (Number.isFinite(created) && now - created < 60_000) {
+      byId.set(id, j);
+    }
   }
+
   return Array.from(byId.values()).sort((a, b) => {
     const ta = new Date(a.created_at ?? 0).getTime();
     const tb = new Date(b.created_at ?? 0).getTime();
@@ -4472,10 +4484,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [activeWorkerMission]);
 
   const openLiveMarketMission = useCallback((mission: LiveMarketMission) => {
+    const safe = normalizeJobOnMap(mission) ?? (mission as JobOnMap);
     setShowLiveMarketFeed(false);
     setMapDraftPin(null);
-    setSelectedMission(mission as JobOnMap);
-    flyMapTo(mapRef.current?.getMap?.(), [mission.location_lng, mission.location_lat], {
+    setSelectedMission(safe);
+    flyMapTo(mapRef.current?.getMap?.(), [safe.location_lng, safe.location_lat], {
       ...MAP_QUICK_FLY,
     });
   }, []);

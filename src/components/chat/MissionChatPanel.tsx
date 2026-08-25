@@ -8,7 +8,15 @@ import { ImagePlus, Loader2, Send, X } from 'lucide-react';
 import { useMissionChat } from '../../hooks/useMissionChat';
 import { uploadChatPhoto } from '../../lib/chatPhotoUpload';
 import { resolveChatPhotoUrl } from '../../lib/r2Media';
-import { isUploadNetworkFailure } from '../../lib/offlineUploadQueue';
+import {
+  OFFLINE_UPLOAD_FLUSHED_EVENT,
+  enqueueOfflineUpload,
+  ensureOfflineUploadListeners,
+  flushOfflineUploadQueue,
+  isUploadNetworkFailure,
+  notifyWeakConnectionToast,
+  type OfflineUploadFlushedDetail,
+} from '../../lib/offlineUploadQueue';
 
 export type MissionChatPanelProps = {
   open: boolean;
@@ -61,6 +69,27 @@ const MissionChatPanel: React.FC<MissionChatPanelProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const busy = sending || uploadingPhoto;
+
+  useEffect(() => {
+    if (!open) return;
+    ensureOfflineUploadListeners();
+    if (currentUserId) void flushOfflineUploadQueue(currentUserId);
+  }, [open, currentUserId]);
+
+  useEffect(() => {
+    if (!open || !currentUserId) return;
+    const onFlushed = (ev: Event) => {
+      const detail = (ev as CustomEvent<OfflineUploadFlushedDetail>).detail;
+      if (!detail || detail.userId !== currentUserId) return;
+      if (detail.kind !== 'chat_photo') return;
+      if (detail.missionId && detail.missionId !== missionId) return;
+      if (detail.receiverId && detail.receiverId !== otherUserId) return;
+      // Message INSERT is done in the queue flush; Realtime appends it.
+      setAttachError(null);
+    };
+    window.addEventListener(OFFLINE_UPLOAD_FLUSHED_EVENT, onFlushed);
+    return () => window.removeEventListener(OFFLINE_UPLOAD_FLUSHED_EVENT, onFlushed);
+  }, [open, currentUserId, missionId, otherUserId]);
 
   useEffect(() => {
     if (!open) {
@@ -146,15 +175,42 @@ const MissionChatPanel: React.FC<MissionChatPanelProps> = ({
         });
       } catch (err) {
         console.error('[MissionChatPanel] photo upload failed', err);
-        setAttachError(
-          isUploadNetworkFailure(err)
-            ? t('weakConnectionQueuedUpload', {
+        if (isUploadNetworkFailure(err)) {
+          try {
+            ensureOfflineUploadListeners();
+            await enqueueOfflineUpload({
+              userId: currentUserId,
+              kind: 'chat_photo',
+              file: pendingFile,
+              fileName: pendingFile.name || `chat_${Date.now()}.jpg`,
+              missionId,
+              receiverId: otherUserId,
+              messageText: text,
+            });
+            notifyWeakConnectionToast();
+            setDraft('');
+            clearPendingPhoto();
+            setAttachError(
+              t('weakConnectionQueuedUpload', {
                 defaultValue:
                   'Weak connection. Saving data — it will send automatically when the network is back.',
               })
-            : t('missionChatUploadFailed', {
+            );
+          } catch (queueErr) {
+            console.error('[MissionChatPanel] offline enqueue failed', queueErr);
+            setAttachError(
+              t('missionChatUploadFailed', {
                 defaultValue: 'Could not upload photo. Try again.',
               })
+            );
+          }
+          setUploadingPhoto(false);
+          return;
+        }
+        setAttachError(
+          t('missionChatUploadFailed', {
+            defaultValue: 'Could not upload photo. Try again.',
+          })
         );
         setUploadingPhoto(false);
         return;

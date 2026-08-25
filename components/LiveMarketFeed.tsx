@@ -61,6 +61,8 @@ export interface LiveMarketMission {
   amount_target: number;
   expected_price?: number | null;
   current_funding?: number | null;
+  crowdfunding_mode?: boolean | null;
+  crowdfunding_expires_at?: string | null;
   is_report?: boolean | null;
   location_lat: number;
   location_lng: number;
@@ -276,6 +278,8 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
           amount_target,
           expected_price,
           current_funding,
+          crowdfunding_mode,
+          crowdfunding_expires_at,
           is_report,
           location_lat,
           location_lng,

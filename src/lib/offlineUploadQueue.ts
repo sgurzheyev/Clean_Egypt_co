@@ -1,10 +1,12 @@
 /**
- * Offline / weak-network upload queue for contractor store media.
- * Failed photo uploads are stored in IndexedDB and retried when the network returns.
+ * Offline / weak-network upload queue for contractor store media + chat photos.
+ * Failed uploads are stored in IndexedDB and retried when the network returns.
  */
 import { uploadStorePhoto, uploadSupplyPhoto } from './contractorStore';
+import { uploadChatPhoto } from './chatPhotoUpload';
+import { supabase } from '../../services/supabase';
 
-export type OfflineUploadKind = 'store_photo' | 'supply_photo';
+export type OfflineUploadKind = 'store_photo' | 'supply_photo' | 'chat_photo';
 
 export type OfflineUploadItem = {
   id: string;
@@ -13,6 +15,12 @@ export type OfflineUploadItem = {
   blob: Blob;
   fileName: string;
   createdAt: number;
+  /** chat_photo: mission thread id */
+  missionId?: string;
+  /** chat_photo: message receiver (creator or bidder) */
+  receiverId?: string;
+  /** chat_photo: optional caption queued with the photo */
+  messageText?: string;
 };
 
 const DB_NAME = 'garbagin-offline-uploads';
@@ -27,6 +35,9 @@ export type OfflineUploadFlushedDetail = {
   kind: OfflineUploadKind;
   url: string;
   queueId: string;
+  missionId?: string;
+  receiverId?: string;
+  messageId?: string;
 };
 
 export function isLikelyNetworkError(err: unknown): boolean {
@@ -51,12 +62,14 @@ export function isLikelyNetworkError(err: unknown): boolean {
   );
 }
 
-/** Narrower helper used by store panel — treat TypeError from fetch as network. */
+/** Narrower helper used by store panel / chat — treat TypeError from fetch as network. */
 export function isUploadNetworkFailure(err: unknown): boolean {
   if (isLikelyNetworkError(err)) return true;
   if (err instanceof TypeError) return true;
-  const status = Number((err as { status?: number; statusCode?: number })?.status
-    ?? (err as { statusCode?: number })?.statusCode);
+  const status = Number(
+    (err as { status?: number; statusCode?: number })?.status ??
+      (err as { statusCode?: number })?.statusCode
+  );
   return status === 0 || status === 408 || status === 429 || status >= 500;
 }
 
@@ -86,7 +99,16 @@ export async function enqueueOfflineUpload(params: {
   kind: OfflineUploadKind;
   file: Blob;
   fileName?: string;
+  missionId?: string;
+  receiverId?: string;
+  messageText?: string;
 }): Promise<string> {
+  if (params.kind === 'chat_photo') {
+    if (!params.missionId || !params.receiverId) {
+      throw new Error('chat_photo queue requires missionId and receiverId');
+    }
+  }
+
   const id =
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
@@ -98,6 +120,13 @@ export async function enqueueOfflineUpload(params: {
     blob: params.file,
     fileName: params.fileName || `offline_${Date.now()}.jpg`,
     createdAt: Date.now(),
+    ...(params.kind === 'chat_photo'
+      ? {
+          missionId: params.missionId,
+          receiverId: params.receiverId,
+          messageText: String(params.messageText || '').trim().slice(0, 4000),
+        }
+      : {}),
   };
   const db = await openDb();
   try {
@@ -130,6 +159,47 @@ async function removeQueued(id: string): Promise<void> {
   }
 }
 
+async function flushChatPhotoItem(item: OfflineUploadItem): Promise<{
+  url: string;
+  messageId?: string;
+}> {
+  const missionId = String(item.missionId || '').trim();
+  const receiverId = String(item.receiverId || '').trim();
+  if (!missionId || !receiverId) {
+    throw new Error('Queued chat photo missing missionId/receiverId');
+  }
+
+  const file = new File([item.blob], item.fileName, {
+    type: item.blob.type || 'image/jpeg',
+  });
+  const objectKey = await uploadChatPhoto({
+    file,
+    missionId,
+    userId: item.userId,
+  });
+
+  const body = String(item.messageText || '').trim().slice(0, 4000);
+  const payload: Record<string, unknown> = {
+    mission_id: missionId,
+    sender_id: item.userId,
+    receiver_id: receiverId,
+    message: body,
+    image_url: objectKey,
+  };
+
+  const { data, error } = await supabase
+    .from('mission_chats')
+    .insert(payload)
+    .select('id')
+    .single();
+  if (error) throw error;
+
+  return {
+    url: objectKey,
+    messageId: data?.id ? String(data.id) : undefined,
+  };
+}
+
 let flushing = false;
 
 /** Retry queued uploads; emits OFFLINE_UPLOAD_FLUSHED_EVENT per success. */
@@ -142,13 +212,23 @@ export async function flushOfflineUploadQueue(userId?: string): Promise<number> 
     const items = await listOfflineUploads(userId);
     for (const item of items) {
       try {
-        const file = new File([item.blob], item.fileName, {
-          type: item.blob.type || 'image/jpeg',
-        });
-        const url =
-          item.kind === 'supply_photo'
-            ? await uploadSupplyPhoto(item.userId, file)
-            : await uploadStorePhoto(item.userId, file);
+        let url = '';
+        let messageId: string | undefined;
+
+        if (item.kind === 'chat_photo') {
+          const result = await flushChatPhotoItem(item);
+          url = result.url;
+          messageId = result.messageId;
+        } else {
+          const file = new File([item.blob], item.fileName, {
+            type: item.blob.type || 'image/jpeg',
+          });
+          url =
+            item.kind === 'supply_photo'
+              ? await uploadSupplyPhoto(item.userId, file)
+              : await uploadStorePhoto(item.userId, file);
+        }
+
         await removeQueued(item.id);
         ok += 1;
         if (typeof window !== 'undefined') {
@@ -159,6 +239,9 @@ export async function flushOfflineUploadQueue(userId?: string): Promise<number> 
                 kind: item.kind,
                 url,
                 queueId: item.id,
+                missionId: item.missionId,
+                receiverId: item.receiverId,
+                messageId,
               },
             })
           );
