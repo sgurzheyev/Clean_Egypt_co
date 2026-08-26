@@ -12,7 +12,7 @@ import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
 import { getWorkerGeolocation, submitMissionProof } from '../src/lib/submitMissionProof';
 import { uploadCrowdfundingProofToR2, type ProofUploadPhase } from '../src/lib/r2ProofUpload';
-import { resolveAvatarUrl, uploadMissionPhotoToR2 } from '../src/lib/r2Media';
+import { coerceStoredMediaUrls, resolveAvatarUrl, uploadMissionPhotoToR2 } from '../src/lib/r2Media';
 import { uploadPinVideoProofToR2 } from '../src/lib/pinVideoProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import { resolveMissionCleanerId, submitReview } from '../src/lib/reviews';
@@ -97,7 +97,7 @@ import {
 } from '../src/lib/serviceSectors';
 import ReportGarbageZoneModal from './ReportGarbageZoneModal';
 import MissionBriefingErrorBoundary from './MissionBriefingErrorBoundary';
-import { isGarbageZoneReport } from '../src/lib/garbageZoneReport';
+import { isGarbageZoneReport, type CreatedGarbageZoneReport } from '../src/lib/garbageZoneReport';
 import {
   filterMissionsByFreeReports,
   readShowFreeReports,
@@ -421,8 +421,20 @@ function missionEligibleForMapPin(job: JobOnMap): boolean {
  * Keeps only recent `pending-*` optimistic placeholders the DB has not echoed yet.
  */
 function mergeFetchedMissions(existing: JobOnMap[], fetched: JobOnMap[]): JobOnMap[] {
+  const existingById = new Map((existing || []).map((j) => [String(j.id), j]));
   const byId = new Map<string, JobOnMap>();
-  for (const j of fetched) byId.set(String(j.id), j);
+  for (const j of fetched) {
+    const id = String(j.id);
+    const prev = existingById.get(id);
+    const photo_urls =
+      j.photo_urls && j.photo_urls.length > 0
+        ? j.photo_urls
+        : prev?.photo_urls && prev.photo_urls.length > 0
+          ? prev.photo_urls
+          : j.photo_urls;
+    const video_proof_url = j.video_proof_url || prev?.video_proof_url || null;
+    byId.set(id, { ...j, photo_urls, video_proof_url });
+  }
 
   const now = Date.now();
   for (const j of existing) {
@@ -469,12 +481,9 @@ function normalizeJobOnMap(row: any): JobOnMap | null {
   const status = String(row.status || 'available');
   const isReport =
     !!row.is_report || status.toLowerCase() === 'reported';
-  const photos = Array.isArray(row.photo_urls)
-    ? row.photo_urls.filter((u: unknown) => typeof u === 'string' && u.length > 0)
-    : [];
-  const afterPhotos = Array.isArray(row.after_photo_urls)
-    ? row.after_photo_urls.filter((u: unknown) => typeof u === 'string' && u.length > 0)
-    : null;
+  const photos = coerceStoredMediaUrls(row.photo_urls);
+  const afterPhotos =
+    row.after_photo_urls == null ? null : coerceStoredMediaUrls(row.after_photo_urls);
 
   return {
     id: String(row.id),
@@ -529,7 +538,8 @@ function buildOptimisticReportMission(
   photoUrls: string[],
   viewerProfile: any,
   country?: string | null,
-  city?: string | null
+  city?: string | null,
+  videoProofUrl?: string | null
 ): JobOnMap {
   return {
     id: String(missionId),
@@ -553,7 +563,7 @@ function buildOptimisticReportMission(
     photo_urls: photoUrls || [],
     after_photo_urls: null,
     proof_video_url: null,
-    video_proof_url: null,
+    video_proof_url: videoProofUrl ?? null,
     created_at: new Date().toISOString(),
     started_at: null,
     completion_lat: null,
@@ -2551,7 +2561,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setSelectedMission((prev) => {
       if (!prev?.id) return prev;
       const fresh = list.find((j) => j.id === prev.id);
-      return fresh ? { ...prev, ...fresh } : prev;
+      if (!fresh) return prev;
+      const photo_urls =
+        fresh.photo_urls && fresh.photo_urls.length > 0
+          ? fresh.photo_urls
+          : prev.photo_urls;
+      const video_proof_url = fresh.video_proof_url || prev.video_proof_url;
+      return { ...prev, ...fresh, photo_urls, video_proof_url };
     });
 
     // Fetch active bid counts (pending bids) for marker badges
@@ -4604,6 +4620,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
       if (!normalized) {
         throw new Error('Mission has invalid map coordinates');
       }
+      const existing = (jobsRef.current || []).find((j) => String(j.id) === String(missionId));
+      if (existing) {
+        if (!(normalized.photo_urls && normalized.photo_urls.length > 0) && existing.photo_urls?.length) {
+          normalized.photo_urls = existing.photo_urls;
+        }
+        if (!normalized.video_proof_url && existing.video_proof_url) {
+          normalized.video_proof_url = existing.video_proof_url;
+        }
+      }
       openMyOrderMission(normalized);
     } catch (err) {
       console.warn('openMissionById failed:', err);
@@ -5809,10 +5834,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
             // Keep report mode + pin so the user can reposition and reopen.
             setReportSheetOpen(false);
           }}
-          onCreated={async (missionId) => {
+          onCreated={async (created: CreatedGarbageZoneReport) => {
             try {
               const draft = reportPin;
               exitReportMode();
+              const missionId = created.id;
 
               const optimistic = buildOptimisticReportMission(
                 missionId,
@@ -5821,9 +5847,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   lng: Number(draft?.lng),
                 },
                 currentUserId,
-                null,
-                [],
-                viewerProfile
+                created.description ?? null,
+                created.photoUrls || [],
+                viewerProfile,
+                undefined,
+                undefined,
+                created.videoProofUrl
               );
 
               // Only inject when coordinates are valid — otherwise wait for refetch.

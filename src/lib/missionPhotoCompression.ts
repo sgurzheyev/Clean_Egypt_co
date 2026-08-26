@@ -4,6 +4,19 @@
  */
 import imageCompression from 'browser-image-compression';
 
+const IMAGE_FILENAME_RE = /\.(jpe?g|png|webp|gif|heic|heif|avif|bmp)$/i;
+
+/** True for image MIME types, or files whose name looks like an image (iOS often omits type). */
+export function isLikelyImageFile(file: Blob): boolean {
+  const type = String(file.type || '')
+    .toLowerCase()
+    .split(';')[0]
+    .trim();
+  if (type.startsWith('image/')) return true;
+  if (file instanceof File && IMAGE_FILENAME_RE.test(file.name)) return true;
+  return false;
+}
+
 export const MOBILE_PHOTO_COMPRESSION = {
   /** Hard cap at 700 KB */
   maxSizeMB: 0.7,
@@ -23,7 +36,7 @@ export const MOBILE_PHOTO_COMPRESSION = {
  * Falls back to the original file on any error.
  */
 export async function compressMissionPhoto(file: File): Promise<File> {
-  if (!file.type.startsWith('image/')) return file;
+  if (!isLikelyImageFile(file)) return file;
   try {
     const compressed = await imageCompression(file, MOBILE_PHOTO_COMPRESSION);
     return compressed as File;

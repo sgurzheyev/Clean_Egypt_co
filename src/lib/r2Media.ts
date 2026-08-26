@@ -53,6 +53,36 @@ export function resolveR2PublicUrl(stored: string | null | undefined): string {
   return `${base}/${key}`;
 }
 
+/**
+ * Coerce `missions.photo_urls` / `after_photo_urls` from PostgREST.
+ * Usually a string[]; older rows or RPC quirks can arrive as a JSON/PG array literal.
+ */
+export function coerceStoredMediaUrls(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter((item) => item.length > 0 && item !== 'null' && item !== 'undefined');
+  }
+  if (typeof value !== 'string') return [];
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith('[')) {
+    try {
+      return coerceStoredMediaUrls(JSON.parse(trimmed));
+    } catch {
+      /* fall through to PG literal / single key */
+    }
+  }
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    return trimmed
+      .slice(1, -1)
+      .split(',')
+      .map((part) => part.trim().replace(/^"(.*)"$/, '$1'))
+      .filter((part) => part.length > 0);
+  }
+  return [trimmed];
+}
+
 function normalizeContentType(file: File | Blob, fallback = 'image/jpeg'): string {
   const raw = String(file.type || '')
     .trim()

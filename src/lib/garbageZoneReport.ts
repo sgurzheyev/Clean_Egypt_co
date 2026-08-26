@@ -1,4 +1,3 @@
-import imageCompression from 'browser-image-compression';
 import { supabase } from '../../services/supabase';
 import {
   filterMissionDescription,
@@ -9,17 +8,18 @@ import {
   processMissionDescription,
 } from './missionDescription';
 import { isGarbageRemovalService } from './crowdfunding';
+import { compressMissionPhoto, isLikelyImageFile } from './missionPhotoCompression';
 import { uploadToR2 } from './r2Media';
 import { uploadPinVideoProofToR2 } from './pinVideoProof';
 
 /** Free civic report photo cap (MissionBriefing carousel already supports multi-image). */
 export const MAX_GARBAGE_ZONE_REPORT_PHOTOS = 5;
 
-const COMPRESSION = {
-  maxSizeMB: 0.4,
-  maxWidthOrHeight: 1280,
-  useWebWorker: true,
-  fileType: 'image/jpeg' as const,
+export type CreatedGarbageZoneReport = {
+  id: string;
+  description: string;
+  photoUrls: string[];
+  videoProofUrl: string | null;
 };
 
 export function isGarbageZoneReport(mission: {
@@ -31,21 +31,19 @@ export function isGarbageZoneReport(mission: {
 }
 
 async function uploadReportPhoto(file: File): Promise<string> {
-  if (!file.type || !file.type.startsWith('image/')) {
+  if (!isLikelyImageFile(file)) {
     throw new Error('Only images are allowed');
   }
-  let fileToUpload: File | Blob = file;
-  try {
-    fileToUpload = await imageCompression(file, COMPRESSION);
-  } catch (err) {
-    console.warn('[garbageZoneReport] compression failed', err);
-  }
+  const fileToUpload = await compressMissionPhoto(file);
   // Cloudflare R2 — store object key in missions.photo_urls
   const { objectKey } = await uploadToR2({
     folder: 'reports',
     file: fileToUpload,
     preferPublicUrl: false,
   });
+  if (!objectKey) {
+    throw new Error('Photo upload returned no object key');
+  }
   return objectKey;
 }
 
@@ -64,7 +62,7 @@ export async function createGarbageZoneReport(input: {
   country?: string | null;
   /** Mapbox reverse-geocode city / place display name. */
   city?: string | null;
-}): Promise<string> {
+}): Promise<CreatedGarbageZoneReport> {
   const raw = input.description.trim().slice(0, MISSION_SHORT_DESCRIPTION_MAX);
   if (raw.length > 0) {
     const policy = validateMissionDescription(raw);
@@ -81,13 +79,14 @@ export async function createGarbageZoneReport(input: {
     processMissionDescription(filteredText.trim() || raw || '#GarbageZone', serviceType) ||
     '#GarbageZone Needs attention';
 
+  // Snapshot the File list up-front so later UI resets cannot empty the upload batch.
   const files = (input.photoFiles?.length
     ? input.photoFiles
     : input.photoFile
       ? [input.photoFile]
       : []
   )
-    .filter((f) => f && f.type?.startsWith('image/'))
+    .filter((f) => f && isLikelyImageFile(f))
     .slice(0, MAX_GARBAGE_ZONE_REPORT_PHOTOS);
 
   if (files.length < 1) {
@@ -97,6 +96,9 @@ export async function createGarbageZoneReport(input: {
   const photoUrls: string[] = [];
   for (const file of files) {
     photoUrls.push(await uploadReportPhoto(file));
+  }
+  if (photoUrls.length < 1) {
+    throw new Error('At least one photo is required');
   }
 
   const country = String(input.country ?? '').trim() || null;
@@ -114,13 +116,18 @@ export async function createGarbageZoneReport(input: {
     p_service_type: serviceType,
     p_country: country,
     p_city: city,
-    ...(videoProofUrl ? { p_video_proof_url: videoProofUrl } : {}),
+    p_video_proof_url: videoProofUrl,
   });
 
   if (error) throw error;
   const id = Array.isArray(data) ? data[0] : data;
   if (!id) throw new Error('Report create returned no id');
-  return String(id);
+  return {
+    id: String(id),
+    description: body,
+    photoUrls,
+    videoProofUrl,
+  };
 }
 
 export type ConvertedMissionRow = {

@@ -8,7 +8,9 @@ import { MISSION_SHORT_DESCRIPTION_MAX } from '../src/lib/missionDescription';
 import {
   MAX_GARBAGE_ZONE_REPORT_PHOTOS,
   createGarbageZoneReport,
+  type CreatedGarbageZoneReport,
 } from '../src/lib/garbageZoneReport';
+import { isLikelyImageFile } from '../src/lib/missionPhotoCompression';
 import { reverseGeocodePinLocation } from '../src/lib/mapboxReverseGeocode';
 import {
   BOTTOM_SHEET_MAX_HEIGHT_STYLE,
@@ -31,7 +33,7 @@ type Props = {
   lat: number;
   lng: number;
   onClose: () => void;
-  onCreated: (missionId: string) => void | Promise<void>;
+  onCreated: (result: CreatedGarbageZoneReport) => void | Promise<void>;
 };
 
 const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCreated }) => {
@@ -80,7 +82,7 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
 
   const onPickPhotos = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
-    const incoming = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
+    const incoming = Array.from(fileList).filter((f) => isLikelyImageFile(f));
     if (incoming.length === 0) return;
 
     const room = Math.max(0, MAX_GARBAGE_ZONE_REPORT_PHOTOS - photos.length);
@@ -127,19 +129,21 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
     }
     setSubmitting(true);
     setError(null);
+    const photoFiles = photos.map((p) => p.file).slice(0, MAX_GARBAGE_ZONE_REPORT_PHOTOS);
+    const videoToUpload = videoFile;
     try {
       const geo = await reverseGeocodePinLocation(safeLat, safeLng, MAPBOX_TOKEN);
-      const id = await createGarbageZoneReport({
+      const created = await createGarbageZoneReport({
         lat: safeLat,
         lng: safeLng,
         description,
-        photoFiles: photos.map((p) => p.file).slice(0, MAX_GARBAGE_ZONE_REPORT_PHOTOS),
-        videoFile,
+        photoFiles,
+        videoFile: videoToUpload,
         country: geo?.country ?? null,
         city: geo?.city ?? null,
       });
+      await onCreated(created);
       resetLocal();
-      await onCreated(id);
     } catch (err: any) {
       setError(
         err?.message ||

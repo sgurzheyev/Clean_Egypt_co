@@ -18,7 +18,7 @@ import {
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
-import { resolveAvatarUrl, resolveR2PublicUrl } from '../src/lib/r2Media';
+import { coerceStoredMediaUrls, resolveAvatarUrl, resolveR2PublicUrl } from '../src/lib/r2Media';
 import { missionTokenBid, missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
 import {
@@ -53,6 +53,7 @@ import { CITY_MIN_PRICE, BOTTOM_SHEET_MAX_HEIGHT_STYLE } from '../constants';
 import MissionChatPanel from '../src/components/chat/MissionChatPanel';
 import EcoHeroesRibbon from './EcoHeroesRibbon';
 import ImpactCardModal from './ImpactCardModal';
+import LazyMissionPhoto from './LazyMissionPhoto';
 import DonorProofReview from './DonorProofReview';
 import { userIsMissionDonor } from '../src/lib/escrowProofVotes';
 import {
@@ -379,9 +380,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const missionRecurrence = normalizeRecurrenceType(mission.recurrence_type);
   const editFileInputRef = useRef<HTMLInputElement>(null);
   const editVideoInputRef = useRef<HTMLInputElement>(null);
-  const photos = (mission?.photo_urls ?? []).filter(
-    (u): u is string => typeof u === 'string' && u.length > 0
-  );
+  const photos = coerceStoredMediaUrls(mission?.photo_urls);
   const videoProofSrc = resolveR2PublicUrl(mission.video_proof_url);
   const remainingUsd = crowdfundingRemainingUsd(mission);
   const placeholderVariant = placeholderVariantFor(mission);
@@ -803,11 +802,13 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                           key={`${url}-${index}`}
                           className="relative h-full w-full shrink-0 snap-center snap-always overflow-hidden"
                         >
-                          <img
+                          <LazyMissionPhoto
                             src={url}
                             alt={`Mission photo ${index + 1}`}
+                            className="pointer-events-none absolute inset-0 h-full w-full"
+                            imgClassName="pointer-events-none absolute inset-0 h-full w-full select-none object-cover"
+                            loading={index === 0 ? 'eager' : 'lazy'}
                             draggable={false}
-                            className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover"
                           />
                         </div>
                       ))}
@@ -1890,7 +1891,14 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 key={url}
                 className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-white/15 bg-slate-900"
               >
-                <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
+                <LazyMissionPhoto
+                  src={url}
+                  alt=""
+                  className="h-full w-full"
+                  imgClassName="h-full w-full object-cover"
+                  loading="lazy"
+                  draggable={false}
+                />
               </div>
             ))}
             {editPreviews.map((url) => (

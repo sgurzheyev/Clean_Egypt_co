@@ -4,7 +4,7 @@ import {
   MISSION_SHORT_DESCRIPTION_MAX,
 } from './missionDescription';
 import { filterMissionDescription, validateMissionDescription } from './missionContentPolicy';
-import { compressMissionPhoto } from './missionPhotoCompression';
+import { compressMissionPhoto, isLikelyImageFile } from './missionPhotoCompression';
 import { uploadMissionPhotoToR2 } from './r2Media';
 import { uploadPinVideoProofToR2 } from './pinVideoProof';
 
@@ -48,7 +48,7 @@ export async function uploadMissionPhotoFiles(files: File[]): Promise<string[]> 
   const uploaded: string[] = [];
 
   for (const file of files) {
-    if (!file.type || !file.type.startsWith('image/')) {
+    if (!isLikelyImageFile(file)) {
       throw new Error('Only images are allowed');
     }
 
