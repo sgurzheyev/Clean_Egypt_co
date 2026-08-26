@@ -80,12 +80,14 @@ export function missionSector(
   return c === 'home' || c === 'office' ? 'home' : 'city';
 }
 
-/** Map pin + list icon: sponge = home/office, mop = street/city/beach, warning = report. */
+/** Map pin + list icon: sponge = home/office, mop = street/city/beach, warning = report, target = crowdfunding. */
 export function missionPinIcon(
   serviceType: string | null | undefined,
   category?: string | null,
-  isReport?: boolean | null
+  isReport?: boolean | null,
+  isCrowd?: boolean | null
 ): string {
+  if (isCrowd) return '🎯';
   if (isReport) return '⚠️';
   return missionSector(serviceType, category) === 'home' ? '🧽' : '🧹';
 }
@@ -94,12 +96,15 @@ export function missionPinIcon(
 export const PIN_ICON_IMAGE_SPONGE = 'pin-icon-sponge';
 export const PIN_ICON_IMAGE_MOP = 'pin-icon-mop';
 export const PIN_ICON_IMAGE_REPORT = 'pin-icon-report';
+export const PIN_ICON_IMAGE_TARGET = 'pin-icon-target';
 
 export function missionPinIconImage(
   serviceType: string | null | undefined,
   category?: string | null,
-  isReport?: boolean | null
+  isReport?: boolean | null,
+  isCrowd?: boolean | null
 ): string {
+  if (isCrowd) return PIN_ICON_IMAGE_TARGET;
   if (isReport) return PIN_ICON_IMAGE_REPORT;
   return missionSector(serviceType, category) === 'home'
     ? PIN_ICON_IMAGE_SPONGE

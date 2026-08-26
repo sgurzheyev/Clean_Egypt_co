@@ -41,6 +41,11 @@ type Props = {
   showDescription?: boolean;
   /** True while any photo is awaiting AI moderation (disables parent submit). */
   onModerationBusy?: (busy: boolean) => void;
+  videoPreviewUrl?: string | null;
+  videoBusy?: boolean;
+  disabled?: boolean;
+  onPickVideo?: (file: File | null) => void;
+  onClearVideo?: () => void;
 };
 
 const CreateMission: React.FC<Props> = ({
@@ -54,6 +59,11 @@ const CreateMission: React.FC<Props> = ({
   hasTextWarning = false,
   showDescription = true,
   onModerationBusy,
+  videoPreviewUrl = null,
+  videoBusy = false,
+  disabled = false,
+  onPickVideo = () => {},
+  onClearVideo = () => {},
 }) => {
   const { t, i18n } = useTranslation();
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
@@ -349,6 +359,54 @@ const CreateMission: React.FC<Props> = ({
               )}
             </div>
           )}
+
+          <div className="mt-4">
+            <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+              {t('uploadVideoProof')}
+            </label>
+            {videoPreviewUrl ? (
+              <div className="overflow-hidden rounded-2xl border border-violet-400/35 bg-black/40">
+                <video
+                  src={videoPreviewUrl}
+                  className="mx-auto max-h-48 w-full object-contain bg-black"
+                  controls
+                  playsInline
+                  muted
+                />
+                <div className="flex items-center justify-between gap-2 px-3 py-2">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-violet-200">
+                    {videoBusy ? t('videoProofProcessing') : t('videoProofSelected')}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onClearVideo}
+                    disabled={disabled}
+                    className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-300 hover:text-red-300 disabled:opacity-40"
+                  >
+                    {t('videoProofRemove')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <label className="flex min-h-[52px] cursor-pointer items-center justify-center rounded-2xl border border-dashed border-violet-400/40 bg-violet-500/10 px-2 text-center text-[11px] font-bold uppercase tracking-[0.14em] text-violet-200 transition-all hover:border-violet-300 hover:text-violet-100">
+                {t('uploadVideoProof')}
+                <input
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  disabled={disabled}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    e.target.value = '';
+                    onPickVideo(file);
+                  }}
+                />
+              </label>
+            )}
+            <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+              {t('uploadVideoProofHint')}
+            </p>
+          </div>
 
           {photoSlots.some((s) => s.status === 'checking') && (
             <p className="mt-2 text-[10px] text-cyan-300 animate-pulse">

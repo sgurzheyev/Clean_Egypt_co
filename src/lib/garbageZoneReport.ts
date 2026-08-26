@@ -10,6 +10,7 @@ import {
 } from './missionDescription';
 import { isGarbageRemovalService } from './crowdfunding';
 import { uploadToR2 } from './r2Media';
+import { uploadPinVideoProofToR2 } from './pinVideoProof';
 
 /** Free civic report photo cap (MissionBriefing carousel already supports multi-image). */
 export const MAX_GARBAGE_ZONE_REPORT_PHOTOS = 5;
@@ -56,6 +57,8 @@ export async function createGarbageZoneReport(input: {
   photoFiles?: File[];
   /** @deprecated Use photoFiles — kept for a single-file call site. */
   photoFile?: File;
+  /** Optional vertical pin evidence video. */
+  videoFile?: File | null;
   serviceType?: string;
   /** Mapbox reverse-geocode country display name. */
   country?: string | null;
@@ -98,6 +101,10 @@ export async function createGarbageZoneReport(input: {
 
   const country = String(input.country ?? '').trim() || null;
   const city = String(input.city ?? '').trim() || null;
+  let videoProofUrl: string | null = null;
+  if (input.videoFile) {
+    videoProofUrl = await uploadPinVideoProofToR2(input.videoFile, 'reports');
+  }
 
   const { data, error } = await supabase.rpc('create_garbage_zone_report', {
     p_location_lat: input.lat,
@@ -107,6 +114,7 @@ export async function createGarbageZoneReport(input: {
     p_service_type: serviceType,
     p_country: country,
     p_city: city,
+    ...(videoProofUrl ? { p_video_proof_url: videoProofUrl } : {}),
   });
 
   if (error) throw error;

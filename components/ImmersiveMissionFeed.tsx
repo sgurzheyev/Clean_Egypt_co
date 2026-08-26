@@ -39,6 +39,7 @@ import { missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
 import { missionFeedPlaceholderGradient } from '../src/lib/missionFeedVisuals';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
+import { crowdfundingRemainingUsd, isCrowdfundingPin } from '../src/lib/crowdfunding';
 import {
   fetchTrustBadgesForOwner,
   type TrustBadgeId,
@@ -56,6 +57,10 @@ export type ImmersiveFeedMission = {
   service_type?: string | null;
   expected_price?: number | null;
   amount_target?: number | null;
+  current_funding?: number | null;
+  crowdfunding_mode?: boolean | null;
+  cleaner_id?: string | null;
+  is_report?: boolean | null;
   location_lat?: number | null;
   location_lng?: number | null;
   country?: string | null;
@@ -190,6 +195,7 @@ const MissionSlide = React.memo(function MissionSlide({
   const placeLine = missionPlaceLine(mission);
   const tags = missionHashtags(mission.description);
   const shortDesc = extractMissionFeedDescription(mission.description);
+  const remainingUsd = crowdfundingRemainingUsd(mission);
 
   /**
    * Keep the pager aligned with this mission's remembered index. Covers the
@@ -234,7 +240,12 @@ const MissionSlide = React.memo(function MissionSlide({
       )}`}
     >
       <span className="text-6xl opacity-80" aria-hidden>
-        {missionPinIcon(mission.service_type, mission.category ?? undefined)}
+        {missionPinIcon(
+          mission.service_type,
+          mission.category ?? undefined,
+          !!mission.is_report,
+          isCrowdfundingPin(mission)
+        )}
       </span>
     </div>
   );
@@ -311,6 +322,14 @@ const MissionSlide = React.memo(function MissionSlide({
         <p className="text-3xl font-black leading-none tracking-tight text-orange-300 drop-shadow-[0_2px_14px_rgba(0,0,0,0.6)]">
           {budget}
         </p>
+        {remainingUsd != null && (
+          <p className="mt-2 inline-flex rounded-lg border border-violet-400/45 bg-violet-600/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white">
+            {t('feedNeedsMore', {
+              amount: remainingUsd,
+              defaultValue: 'Needs ${{amount}} more',
+            })}
+          </p>
+        )}
         {placeLine && (
           <p className="mt-2 truncate text-sm font-semibold text-slate-100/95">
             {placeLine}

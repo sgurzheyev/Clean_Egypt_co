@@ -25,6 +25,49 @@ export function isCrowdfundingMission(mission: {
   );
 }
 
+/** Map / feed: crowd campaign pin (mode flag or live funding status). */
+export function isCrowdfundingPin(mission: {
+  crowdfunding_mode?: boolean | null;
+  status?: string | null;
+}): boolean {
+  if (mission.crowdfunding_mode) return true;
+  return String(mission.status ?? '').toLowerCase() === 'funding';
+}
+
+/** USD still needed to hit the campaign goal. Null if not a live underfunded crowd pin. */
+export function crowdfundingRemainingUsd(mission: {
+  crowdfunding_mode?: boolean | null;
+  status?: string | null;
+  expected_price?: number | null;
+  amount_target?: number | null;
+  current_funding?: number | null;
+}): number | null {
+  if (!isCrowdfundingPin(mission)) return null;
+  if (String(mission.status ?? '').toLowerCase() !== 'funding') return null;
+  const target = Math.max(
+    0,
+    Math.floor(Number(mission.expected_price ?? mission.amount_target ?? 0))
+  );
+  const raised = Math.max(0, Math.floor(Number(mission.current_funding ?? 0)));
+  const remaining = Math.max(0, target - raised);
+  return remaining > 0 ? remaining : null;
+}
+
+/** Feed / profile callout: locked-cleaner copy vs generic “Needs $X more”. */
+export function crowdfundingFeedCallout(mission: {
+  crowdfunding_mode?: boolean | null;
+  status?: string | null;
+  expected_price?: number | null;
+  amount_target?: number | null;
+  current_funding?: number | null;
+  cleaner_id?: string | null;
+}): { kind: 'locked' | 'needs_more'; remaining: number } | null {
+  const remaining = crowdfundingRemainingUsd(mission);
+  if (remaining == null) return null;
+  if (mission.cleaner_id) return { kind: 'locked', remaining };
+  return { kind: 'needs_more', remaining };
+}
+
 /** True while the mission is still raising contributions (not yet open for bids). */
 export function isCrowdfundingOpen(mission: {
   crowdfunding_mode?: boolean | null;

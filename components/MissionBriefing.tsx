@@ -3,7 +3,7 @@
  * Mission detail panel — bids, crowdfunding progress + Stripe contribute.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, EyeOff, MapPin, Pencil, X } from 'lucide-react';
+import { Camera, EyeOff, MapPin, Pencil, Video, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import TranslatableMissionDescription from './TranslatableMissionDescription';
 import { useMissionTextTranslation } from '../src/hooks/useMissionTextTranslation';
@@ -18,7 +18,7 @@ import {
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
-import { resolveAvatarUrl } from '../src/lib/r2Media';
+import { resolveAvatarUrl, resolveR2PublicUrl } from '../src/lib/r2Media';
 import { missionTokenBid, missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
 import {
@@ -26,6 +26,8 @@ import {
   getCrowdfundingCountdownParts,
   getCrowdfundingExpiresAt,
   isCrowdfundingOpen,
+  crowdfundingRemainingUsd,
+  isCrowdfundingPin,
 } from '../src/lib/crowdfunding';
 import { type MissionBidRow, bidWorkerDisplayName } from '../src/lib/missionBids';
 import {
@@ -96,6 +98,7 @@ export type MissionBriefingMission = {
   photo_urls?: string[] | null;
   after_photo_urls?: string[] | null;
   proof_video_url?: string | null;
+  video_proof_url?: string | null;
   completion_distance_meters?: number | null;
   is_report?: boolean | null;
   recurrence_type?: RecurrenceType | string | null;
@@ -164,6 +167,7 @@ export type MissionBriefingProps = {
     id: string;
     description: string | null;
     photo_urls: string[] | null;
+    video_proof_url?: string | null;
   }) => void;
   /** After any user converts a free report pin into funding/available. */
   onReportConverted?: (patch: {
@@ -306,6 +310,8 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const [editBody, setEditBody] = useState('');
   const [editFiles, setEditFiles] = useState<File[]>([]);
   const [editPreviews, setEditPreviews] = useState<string[]>([]);
+  const [editVideoFile, setEditVideoFile] = useState<File | null>(null);
+  const [editVideoPreview, setEditVideoPreview] = useState<string | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [convertOpen, setConvertOpen] = useState(false);
@@ -372,15 +378,19 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
 
   const missionRecurrence = normalizeRecurrenceType(mission.recurrence_type);
   const editFileInputRef = useRef<HTMLInputElement>(null);
+  const editVideoInputRef = useRef<HTMLInputElement>(null);
   const photos = (mission?.photo_urls ?? []).filter(
     (u): u is string => typeof u === 'string' && u.length > 0
   );
+  const videoProofSrc = resolveR2PublicUrl(mission.video_proof_url);
+  const remainingUsd = crowdfundingRemainingUsd(mission);
   const placeholderVariant = placeholderVariantFor(mission);
   const isReportPin = isGarbageZoneReport(mission);
   const placeholderIcon = missionPinIcon(
     mission?.service_type,
     mission?.category,
-    isReportPin
+    isReportPin,
+    isCrowdfundingPin(mission)
   );
   const feedDescription = extractMissionFeedDescription(mission?.description);
   const canEditMission =
@@ -465,19 +475,25 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
 
   const closeEditModal = () => {
     editPreviews.forEach((url) => URL.revokeObjectURL(url));
+    if (editVideoPreview) URL.revokeObjectURL(editVideoPreview);
     setEditOpen(false);
     setEditBody('');
     setEditFiles([]);
     setEditPreviews([]);
+    setEditVideoFile(null);
+    setEditVideoPreview(null);
     setEditError(null);
     setEditSubmitting(false);
   };
 
   const openEditModal = () => {
     editPreviews.forEach((url) => URL.revokeObjectURL(url));
+    if (editVideoPreview) URL.revokeObjectURL(editVideoPreview);
     setEditBody(feedDescription || '');
     setEditFiles([]);
     setEditPreviews([]);
+    setEditVideoFile(null);
+    setEditVideoPreview(null);
     setEditError(null);
     setEditOpen(true);
   };
@@ -493,6 +509,15 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
     setEditError(null);
   };
 
+  const onPickEditVideo = (file: File | null) => {
+    setEditVideoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return file ? URL.createObjectURL(file) : null;
+    });
+    setEditVideoFile(file);
+    setEditError(null);
+  };
+
   const saveMissionEdits = async () => {
     if (editSubmitting) return;
     setEditSubmitting(true);
@@ -504,11 +529,13 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
         currentPhotoUrls: mission.photo_urls,
         nextBodyText: editBody,
         newPhotoFiles: editFiles,
+        newVideoFile: editVideoFile,
       });
       onMissionUpdated?.({
         id: mission.id,
         description: result.description,
         photo_urls: result.photo_urls,
+        video_proof_url: result.video_proof_url,
       });
       closeEditModal();
     } catch (err: any) {
@@ -765,7 +792,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
             {/* Immersive magazine hero — kept short on mobile so CTAs stay reachable */}
             <div className="relative w-full shrink-0 overflow-hidden bg-slate-900 min-h-[min(38svh,16rem)] sm:min-h-[22rem]">
               <div className="absolute inset-0">
-                {photos.length > 0 ? (
+                {photos.length > 0 || videoProofSrc ? (
                   <>
                     <div
                       className="flex h-full w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain overscroll-y-none touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
@@ -784,10 +811,21 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                           />
                         </div>
                       ))}
+                      {videoProofSrc ? (
+                        <div className="relative h-full w-full shrink-0 snap-center snap-always overflow-hidden bg-black">
+                          <video
+                            src={videoProofSrc}
+                            className="absolute inset-0 h-full w-full object-cover"
+                            controls
+                            playsInline
+                            preload="metadata"
+                          />
+                        </div>
+                      ) : null}
                     </div>
-                    {photos.length > 1 && (
+                    {(photos.length + (videoProofSrc ? 1 : 0)) > 1 && (
                       <p className="pointer-events-none absolute top-12 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/20 bg-black/45 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white/80 backdrop-blur-sm">
-                        {t('swipeForMorePhotos')} · {photos.length}
+                        {t('swipeForMorePhotos')} · {photos.length + (videoProofSrc ? 1 : 0)}
                       </p>
                     )}
                   </>
@@ -943,6 +981,14 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     {activeBidCount > 0 && (
                       <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 drop-shadow-sm">
                         {t('activeBidsOnMission')}
+                      </span>
+                    )}
+                    {remainingUsd != null && (
+                      <span className="rounded-full border border-violet-400/50 bg-violet-600/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-white backdrop-blur-sm">
+                        {t('feedNeedsMore', {
+                          amount: remainingUsd,
+                          defaultValue: 'Needs ${{amount}} more',
+                        })}
                       </span>
                     )}
                     {canEditMission && (
@@ -1872,6 +1918,59 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
               defaultValue: 'New photos are appended (max {{max}} total).',
               max: MAX_MISSION_PHOTOS,
             })}
+          </p>
+
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+            {t('uploadVideoProof')}
+          </p>
+          {editVideoPreview || videoProofSrc ? (
+            <div className="mb-3 overflow-hidden rounded-2xl border border-violet-400/35 bg-black/40">
+              <video
+                src={editVideoPreview || videoProofSrc}
+                className="mx-auto max-h-40 w-full object-contain bg-black"
+                controls
+                playsInline
+                muted
+              />
+              <div className="flex items-center justify-between gap-2 px-3 py-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-violet-200">
+                  {editSubmitting && editVideoFile
+                    ? t('videoProofProcessing')
+                    : t('videoProofSelected')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => editVideoInputRef.current?.click()}
+                  disabled={editSubmitting}
+                  className="text-[10px] font-bold uppercase tracking-[0.12em] text-violet-200 hover:text-white disabled:opacity-40"
+                >
+                  {t('uploadVideoProof')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => editVideoInputRef.current?.click()}
+              disabled={editSubmitting}
+              className="mb-3 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-violet-400/40 bg-violet-500/10 px-2 text-center text-[11px] font-bold uppercase tracking-[0.14em] text-violet-200 transition-all hover:border-violet-300 hover:text-violet-100 disabled:opacity-40"
+            >
+              <Video className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+              {t('uploadVideoProof')}
+            </button>
+          )}
+          <input
+            ref={editVideoInputRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={(e) => {
+              onPickEditVideo(e.target.files?.[0] || null);
+              e.target.value = '';
+            }}
+          />
+          <p className="mb-4 text-[11px] leading-relaxed text-slate-500">
+            {t('uploadVideoProofHint')}
           </p>
 
           {editError && (

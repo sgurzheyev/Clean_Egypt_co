@@ -11,6 +11,7 @@ import { supabase } from '../services/supabase';
 import { formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
+import { crowdfundingFeedCallout, isCrowdfundingPin } from '../src/lib/crowdfunding';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import {
   MARKETPLACE_ALL_CITIES_ID,
@@ -112,20 +113,17 @@ function isPublicMarketMission(mission: LiveMarketMission): boolean {
   return !mission.cleaner_id;
 }
 
-function fundingCleanerLockRemaining(mission: LiveMarketMission): number | null {
-  if (String(mission.status || '').toLowerCase() !== 'funding' || !mission.cleaner_id) {
-    return null;
-  }
-  const target = Math.max(
-    0,
-    Math.floor(Number(mission.expected_price ?? mission.amount_target ?? 0))
-  );
-  const raised = Math.max(0, Math.floor(Number(mission.current_funding ?? 0)));
-  return Math.max(0, target - raised);
+function fundingFeedCallout(mission: LiveMarketMission): {
+  kind: 'locked' | 'needs_more';
+  remaining: number;
+} | null {
+  return crowdfundingFeedCallout(mission);
 }
 
-const statusClass = (status: string) =>
-  status === 'in_progress'
+const statusClass = (status: string, isCrowd: boolean) =>
+  isCrowd || String(status || '').toLowerCase() === 'funding'
+    ? 'border-violet-400/55 bg-violet-500/25 text-violet-100'
+    : status === 'in_progress'
     ? 'border-cyan-400/55 bg-cyan-500/25 text-cyan-100'
     : 'border-emerald-400/55 bg-emerald-500/25 text-emerald-100';
 
@@ -424,7 +422,8 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                           !!currentUserId && mission.creator_id === currentUserId;
                         const isHome =
                           missionSector(mission.service_type, mission.category) === 'home';
-                        const remainingForStart = fundingCleanerLockRemaining(mission);
+                        const remainingCallout = fundingFeedCallout(mission);
+                        const isCrowd = isCrowdfundingPin(mission);
                         const statusLabel =
                           mission.status === 'in_progress' ? t('accepted') : mission.status;
 
@@ -440,7 +439,9 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                               placeholderVariant={isHome ? 'home' : 'city'}
                               placeholderIcon={missionPinIcon(
                                 mission.service_type,
-                                mission.category
+                                mission.category,
+                                !!mission.is_report,
+                                isCrowd
                               )}
                               budgetValue={formatWorkBudgetUsd(budget)}
                               locationLine={missionLocationLine(mission, t)}
@@ -476,6 +477,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                                   : undefined
                               }
                               highlighted={isOwnTask}
+                              accentCrowd={isCrowd}
                               topLeftBadge={
                                 isOwnTask ? (
                                   <span className="rounded-full border border-emerald-400/50 bg-emerald-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100 backdrop-blur-sm">
@@ -486,20 +488,26 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                               statusBadge={
                                 <span
                                   className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${statusClass(
-                                    mission.status
+                                    mission.status,
+                                    isCrowd
                                   )}`}
                                 >
                                   {t('status')}: {statusLabel}
                                 </span>
                               }
                               callout={
-                                remainingForStart != null ? (
+                                remainingCallout ? (
                                   <span className="inline-flex max-w-full rounded-lg border border-violet-400/45 bg-violet-600/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-[0_4px_14px_rgba(139,92,246,0.35)] backdrop-blur-sm">
-                                    {t('feedCleanerLockedNeedsMore', {
-                                      amount: remainingForStart,
-                                      defaultValue:
-                                        'Cleaner locked in! Needs ${{amount}} more to start',
-                                    })}
+                                    {remainingCallout.kind === 'locked'
+                                      ? t('feedCleanerLockedNeedsMore', {
+                                          amount: remainingCallout.remaining,
+                                          defaultValue:
+                                            'Cleaner locked in! Needs ${{amount}} more to start',
+                                        })
+                                      : t('feedNeedsMore', {
+                                          amount: remainingCallout.remaining,
+                                          defaultValue: 'Needs ${{amount}} more',
+                                        })}
                                   </span>
                                 ) : undefined
                               }

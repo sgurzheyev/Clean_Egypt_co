@@ -16,6 +16,7 @@ import {
   isAllowedMediaContentType,
   isR2MediaFolder,
   R2_MAX_MEDIA_BYTES_DEFAULT,
+  R2_MAX_PROOF_BYTES_DEFAULT,
   R2_PUT_TTL_SEC,
   readR2Env,
   type R2MediaFolder,
@@ -116,14 +117,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Video: KYC liveness + P2P mission proof liveness. Crowdfunding proof video
-    // uses r2-presign-proof (proofs/) separately.
+    // Video: KYC liveness, pin evidence (mission-photos / reports).
+    // Crowdfunding *worker* completion video uses r2-presign-proof (proofs/).
     if (
       contentType.startsWith('video/') &&
       folder !== 'kyc' &&
-      folder !== 'mission-photos'
+      folder !== 'mission-photos' &&
+      folder !== 'reports'
     ) {
-      return jsonError('Video uploads only allowed in kyc or mission-photos', 400);
+      return jsonError('Video uploads only allowed in kyc, mission-photos, or reports', 400);
     }
 
     // PDF only for city pipeline (server); clients never need PDF via this endpoint.
@@ -131,10 +133,16 @@ Deno.serve(async (req) => {
       return jsonError('PDF uploads are server-only (city-pdfs)', 403);
     }
 
-    const maxBytes = Number.parseInt(
-      String(Deno.env.get('R2_MAX_MEDIA_BYTES') || R2_MAX_MEDIA_BYTES_DEFAULT),
-      10
-    );
+    const maxBytesDefault = contentType.startsWith('video/')
+      ? Number.parseInt(
+          String(Deno.env.get('R2_MAX_PROOF_BYTES') || R2_MAX_PROOF_BYTES_DEFAULT),
+          10
+        )
+      : Number.parseInt(
+          String(Deno.env.get('R2_MAX_MEDIA_BYTES') || R2_MAX_MEDIA_BYTES_DEFAULT),
+          10
+        );
+    const maxBytes = Number.isFinite(maxBytesDefault) ? maxBytesDefault : R2_MAX_MEDIA_BYTES_DEFAULT;
     const byteSize =
       typeof body.byte_size === 'number'
         ? body.byte_size

@@ -83,6 +83,10 @@ import ImmersiveMissionFeed from './ImmersiveMissionFeed';
 import ContractorStorePanel from './ContractorStorePanel';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
 import { missionPinIcon } from '../src/lib/serviceSectors';
+import {
+  crowdfundingFeedCallout,
+  isCrowdfundingPin,
+} from '../src/lib/crowdfunding';
 import { fetchContractorStore } from '../src/lib/contractorStore';
 import { requestDeleteAccount } from '../src/lib/deleteAccount';
 import { isEdgeFunctionUnreachable } from '../src/lib/supabaseFunctionError';
@@ -90,10 +94,10 @@ import { isEdgeFunctionUnreachable } from '../src/lib/supabaseFunctionError';
 const MISSION_CREATOR_EMBED = 'creator:profiles!creator_id (full_name, avatar_url)';
 
 const MISSION_PROFILE_SELECT =
-  `id, creator_id, cleaner_id, category, amount_target, expected_price, current_funding, crowdfunding_mode, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, proof_video_url, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ai_confidence_score, ai_verdict, ${MISSION_CREATOR_EMBED}`;
+  `id, creator_id, cleaner_id, category, amount_target, expected_price, current_funding, crowdfunding_mode, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, proof_video_url, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ai_confidence_score, ai_verdict, is_report, ${MISSION_CREATOR_EMBED}`;
 
 const MISSION_ACTIVE_SELECT =
-  `id, creator_id, cleaner_id, category, amount_target, expected_price, current_funding, crowdfunding_mode, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, proof_video_url, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ${MISSION_CREATOR_EMBED}`;
+  `id, creator_id, cleaner_id, category, amount_target, expected_price, current_funding, crowdfunding_mode, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, proof_video_url, started_at, is_disputed, retry_count, rejection_reason, auto_approved, is_report, ${MISSION_CREATOR_EMBED}`;
 
 /** 📍 description line → city/country → coordinates — matches Market card place line. */
 function orderMissionLocationLine(job: {
@@ -2362,7 +2366,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                 ownedOpenMissions.map((job) => {
                   const isPhantomPayment = job.status === 'pending_payment';
                   const isHome = String(job.category || '').toLowerCase() === 'home';
-                  const icon = missionPinIcon(undefined, job.category);
+                  const icon = missionPinIcon(
+                    undefined,
+                    job.category,
+                    !!job.is_report,
+                    isCrowdfundingPin(job)
+                  );
                   const hasPhoto = Array.isArray(job.photo_urls) && !!job.photo_urls[0];
                   const statusKey = String(job.status || '').toLowerCase();
                   const openForBids =
@@ -2370,8 +2379,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       statusKey === 'available' ||
                       statusKey === 'funding') &&
                     !job.cleaner_id;
-                  const waitingSelectedCleaner =
-                    statusKey === 'funding' && !!job.cleaner_id;
                   const creatorAvatar =
                     job.creator?.avatar_url ?? userProfile?.avatar_url ?? null;
                   const creatorName =
@@ -2392,20 +2399,20 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   };
 
                   const fundingCallout = (() => {
-                    if (!waitingSelectedCleaner) return undefined;
-                    const target = Math.max(
-                      0,
-                      Math.floor(Number(job.expected_price ?? job.amount_target ?? 0))
-                    );
-                    const raised = Math.max(0, Math.floor(Number(job.current_funding ?? 0)));
-                    const remaining = Math.max(0, target - raised);
+                    const callout = crowdfundingFeedCallout(job);
+                    if (!callout) return undefined;
                     return (
                       <span className="inline-flex max-w-full rounded-lg border border-violet-400/45 bg-violet-600/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-[0_4px_14px_rgba(139,92,246,0.35)] backdrop-blur-sm">
-                        {t('feedCleanerLockedNeedsMore', {
-                          amount: remaining,
-                          defaultValue:
-                            'Cleaner locked in! Needs ${{amount}} more to start',
-                        })}
+                        {callout.kind === 'locked'
+                          ? t('feedCleanerLockedNeedsMore', {
+                              amount: callout.remaining,
+                              defaultValue:
+                                'Cleaner locked in! Needs ${{amount}} more to start',
+                            })
+                          : t('feedNeedsMore', {
+                              amount: callout.remaining,
+                              defaultValue: 'Needs ${{amount}} more',
+                            })}
                       </span>
                     );
                   })();
@@ -2632,6 +2639,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </span>
                       }
                       callout={fundingCallout}
+                      accentCrowd={isCrowdfundingPin(job)}
                       onPhotoClick={() => openImmersiveFeed(job.id, ownedOpenMissions)}
                       photoAriaLabel={t('immersiveOpenFeed', {
                         defaultValue: 'Open visual feed',
@@ -2672,7 +2680,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               ) : (
                 activeWorkJobs.map((job) => {
                   const isHome = String(job.category || '').toLowerCase() === 'home';
-                  const icon = missionPinIcon(undefined, job.category);
+                  const icon = missionPinIcon(
+                    undefined,
+                    job.category,
+                    !!job.is_report,
+                    isCrowdfundingPin(job)
+                  );
                   const hasPhoto = Array.isArray(job.photo_urls) && !!job.photo_urls[0];
                   const statusKey = String(job.status || '').toLowerCase();
 
@@ -2815,7 +2828,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             <div className="space-y-3 pointer-events-auto">
               {displayedMarketplaceJobs.map((job) => {
                   const isHome = job.category === 'home';
-                  const icon = isHome ? '🏠' : '🌆';
+                  const isCrowd = isCrowdfundingPin(job);
+                  const icon = missionPinIcon(
+                    undefined,
+                    job.category,
+                    !!job.is_report,
+                    isCrowd
+                  );
+                  const fundingCallout = crowdfundingFeedCallout(job);
 
                   return (
                   <MissionFeedCard
@@ -2837,10 +2857,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     metaLine={`#${shortId(job.id)} · ${new Date(job.created_at).toLocaleDateString()}`}
                     locationLine={orderMissionLocationLine(job)}
                     description={extractMissionFeedDescription(job.description)}
+                    accentCrowd={isCrowd}
                     statusBadge={
                       <span
                         className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${
-                          isHome
+                          isCrowd
+                            ? 'border-violet-400/50 bg-violet-500/25 text-violet-100'
+                            : isHome
                             ? 'border-amber-400/50 bg-amber-500/25 text-amber-100'
                             : 'border-emerald-400/50 bg-emerald-500/25 text-emerald-100'
                         }`}
@@ -2848,25 +2871,22 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         {(job.category || 'UNKNOWN').toUpperCase()}
                       </span>
                     }
-                    callout={(() => {
-                      const status = String(job.status || '').toLowerCase();
-                      if (status !== 'funding' || !job.cleaner_id) return undefined;
-                      const target = Math.max(
-                        0,
-                        Math.floor(Number(job.expected_price ?? job.amount_target ?? 0))
-                      );
-                      const raised = Math.max(0, Math.floor(Number(job.current_funding ?? 0)));
-                      const remaining = Math.max(0, target - raised);
-                      return (
+                    callout={
+                      fundingCallout ? (
                         <span className="inline-flex max-w-full rounded-lg border border-violet-400/45 bg-violet-600/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-[0_4px_14px_rgba(139,92,246,0.35)] backdrop-blur-sm">
-                          {t('feedCleanerLockedNeedsMore', {
-                            amount: remaining,
-                            defaultValue:
-                              'Cleaner locked in! Needs ${{amount}} more to start',
-                          })}
+                          {fundingCallout.kind === 'locked'
+                            ? t('feedCleanerLockedNeedsMore', {
+                                amount: fundingCallout.remaining,
+                                defaultValue:
+                                  'Cleaner locked in! Needs ${{amount}} more to start',
+                              })
+                            : t('feedNeedsMore', {
+                                amount: fundingCallout.remaining,
+                                defaultValue: 'Needs ${{amount}} more',
+                              })}
                         </span>
-                      );
-                    })()}
+                      ) : undefined
+                    }
                     onPhotoClick={() => openImmersiveFeed(job.id, displayedMarketplaceJobs)}
                     photoAriaLabel={t('immersiveOpenFeed', {
                       defaultValue: 'Open visual feed',

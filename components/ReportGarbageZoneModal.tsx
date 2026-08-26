@@ -2,7 +2,7 @@
  * Lightweight "Report Garbage Zone" sheet — up to 5 photos.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, Plus, X } from 'lucide-react';
+import { Camera, Plus, Video, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { MISSION_SHORT_DESCRIPTION_MAX } from '../src/lib/missionDescription';
 import {
@@ -37,8 +37,11 @@ type Props = {
 const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCreated }) => {
   const { t } = useTranslation();
   const fileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
   const [description, setDescription] = useState('');
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -60,7 +63,10 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
 
   const resetLocal = () => {
     photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    if (videoPreview) URL.revokeObjectURL(videoPreview);
     setPhotos([]);
+    setVideoFile(null);
+    setVideoPreview(null);
     setDescription('');
     setError(null);
     setSubmitting(false);
@@ -128,6 +134,7 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
         lng: safeLng,
         description,
         photoFiles: photos.map((p) => p.file).slice(0, MAX_GARBAGE_ZONE_REPORT_PHOTOS),
+        videoFile,
         country: geo?.country ?? null,
         city: geo?.city ?? null,
       });
@@ -282,6 +289,63 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
             {photos.length > 0
               ? ` · ${photos.length}/${MAX_GARBAGE_ZONE_REPORT_PHOTOS}`
               : ''}
+          </p>
+
+          {videoPreview ? (
+            <div className="mb-3 overflow-hidden rounded-2xl border border-violet-400/35 bg-black/40">
+              <video
+                src={videoPreview}
+                className="mx-auto max-h-40 w-full object-contain bg-black"
+                controls
+                playsInline
+                muted
+              />
+              <div className="flex items-center justify-between gap-2 px-3 py-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-violet-200">
+                  {submitting ? t('videoProofProcessing') : t('videoProofSelected')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (videoPreview) URL.revokeObjectURL(videoPreview);
+                    setVideoPreview(null);
+                    setVideoFile(null);
+                  }}
+                  disabled={submitting}
+                  className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-300 hover:text-red-300 disabled:opacity-40"
+                >
+                  {t('videoProofRemove')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => videoRef.current?.click()}
+              disabled={submitting}
+              className="mb-3 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-violet-400/40 bg-violet-500/10 px-2 text-[11px] font-bold uppercase tracking-[0.14em] text-violet-200 hover:border-violet-300 disabled:opacity-40"
+            >
+              <Video className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+              {t('uploadVideoProof')}
+            </button>
+          )}
+          <input
+            ref={videoRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              e.target.value = '';
+              setVideoPreview((prev) => {
+                if (prev) URL.revokeObjectURL(prev);
+                return file ? URL.createObjectURL(file) : null;
+              });
+              setVideoFile(file);
+            }}
+          />
+          <p className="mb-3 text-center text-[10px] font-medium text-slate-500">
+            {t('uploadVideoProofHint')}
           </p>
 
           <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">

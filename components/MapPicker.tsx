@@ -13,6 +13,7 @@ import { supabase } from '../services/supabase';
 import { getWorkerGeolocation, submitMissionProof } from '../src/lib/submitMissionProof';
 import { uploadCrowdfundingProofToR2, type ProofUploadPhase } from '../src/lib/r2ProofUpload';
 import { resolveAvatarUrl, uploadMissionPhotoToR2 } from '../src/lib/r2Media';
+import { uploadPinVideoProofToR2 } from '../src/lib/pinVideoProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import { resolveMissionCleanerId, submitReview } from '../src/lib/reviews';
 import { Navigation, Camera, Video, X, User, Plus, Minus, Crosshair, Loader2, TriangleAlert, Store } from 'lucide-react';
@@ -92,6 +93,7 @@ import {
   PIN_ICON_IMAGE_SPONGE,
   PIN_ICON_IMAGE_MOP,
   PIN_ICON_IMAGE_REPORT,
+  PIN_ICON_IMAGE_TARGET,
 } from '../src/lib/serviceSectors';
 import ReportGarbageZoneModal from './ReportGarbageZoneModal';
 import MissionBriefingErrorBoundary from './MissionBriefingErrorBoundary';
@@ -110,7 +112,9 @@ import {
   getCrowdfundingCountdownParts,
   getCrowdfundingExpiresAt,
   isCrowdfundingOpen,
+  isCrowdfundingPin,
   isGarbageRemovalService,
+  crowdfundingRemainingUsd,
 } from '../src/lib/crowdfunding';
 import {
   bindMapRenderBudget,
@@ -255,6 +259,8 @@ const MISSION_PIN_CATEGORY_FALLBACK: mapboxgl.Expression = [
 
 const MISSION_PIN_CORE_COLOR: mapboxgl.Expression = [
   'case',
+  ['==', ['get', 'is_crowd'], 1],
+  '#a855f7',
   ['==', ['get', 'is_report'], 1],
   '#ff2d55',
   [
@@ -347,6 +353,7 @@ function registerEmojiPinImages(map: any) {
   addEmojiImage(PIN_ICON_IMAGE_SPONGE, '🧽');
   addEmojiImage(PIN_ICON_IMAGE_MOP, '🧹');
   addEmojiImage(PIN_ICON_IMAGE_REPORT, '⚠️');
+  addEmojiImage(PIN_ICON_IMAGE_TARGET, '🎯');
 }
 
 type TaskType = 'city' | 'home';
@@ -373,6 +380,7 @@ interface JobOnMap {
   photo_urls?: string[] | null;
   after_photo_urls?: string[] | null;
   proof_video_url?: string | null;
+  video_proof_url?: string | null;
   created_at?: string | null;
   started_at?: string | null;
   completion_lat?: number | null;
@@ -495,6 +503,10 @@ function normalizeJobOnMap(row: any): JobOnMap | null {
       typeof row.proof_video_url === 'string' && row.proof_video_url.trim()
         ? String(row.proof_video_url).trim()
         : null,
+    video_proof_url:
+      typeof row.video_proof_url === 'string' && row.video_proof_url.trim()
+        ? String(row.video_proof_url).trim()
+        : null,
     created_at: row.created_at ?? null,
     started_at: row.started_at ?? null,
     completion_lat:
@@ -541,6 +553,7 @@ function buildOptimisticReportMission(
     photo_urls: photoUrls || [],
     after_photo_urls: null,
     proof_video_url: null,
+    video_proof_url: null,
     created_at: new Date().toISOString(),
     started_at: null,
     completion_lat: null,
@@ -569,7 +582,8 @@ function buildOptimisticLeadMission(
   crowdfundingMode = false,
   country?: string | null,
   city?: string | null,
-  recurrenceType: RecurrenceType = 'one_time'
+  recurrenceType: RecurrenceType = 'one_time',
+  videoProofUrl: string | null = null
 ): JobOnMap {
   const isCrowdfund =
     crowdfundingMode && isGarbageRemovalService(serviceType);
@@ -593,6 +607,7 @@ function buildOptimisticLeadMission(
     photo_urls: creatorPhotoUrls || [],
     after_photo_urls: null,
     proof_video_url: null,
+    video_proof_url: videoProofUrl,
     created_at: new Date().toISOString(),
     started_at: null,
     completion_lat: null,
@@ -980,7 +995,12 @@ function MyOrdersPanel({
                       key={mission.id}
                       photoUrl={mission.photo_urls?.[0] ?? null}
                       placeholderVariant={isHome ? 'home' : 'city'}
-                      placeholderIcon={missionPinIcon(mission.service_type, mission.category)}
+                      placeholderIcon={missionPinIcon(
+                        mission.service_type,
+                        mission.category,
+                        isGarbageZoneReport(mission),
+                        isCrowdfundingPin(mission)
+                      )}
                       budgetValue={formatWorkBudgetUsd(missionWorkBudgetUsd(mission))}
                       metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
                       submittedLabel={
@@ -993,6 +1013,7 @@ function MyOrdersPanel({
                       }
                       locationLine={orderLocationLine(mission)}
                       description={extractMissionFeedDescription(mission.description)}
+                      accentCrowd={isCrowdfundingPin(mission)}
                       topLeftBadge={
                         <span className="rounded-full border border-emerald-400/50 bg-emerald-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100 backdrop-blur-sm">
                           {t('yourTaskBadge')}
@@ -1003,6 +1024,18 @@ function MyOrdersPanel({
                           {t('status')}: {mission.status}
                         </span>
                       }
+                      callout={(() => {
+                        const callout = crowdfundingRemainingUsd(mission);
+                        if (callout == null) return undefined;
+                        return (
+                          <span className="inline-flex max-w-full rounded-lg border border-violet-400/45 bg-violet-600/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-[0_4px_14px_rgba(139,92,246,0.35)] backdrop-blur-sm">
+                            {t('feedNeedsMore', {
+                              amount: callout,
+                              defaultValue: 'Needs ${{amount}} more',
+                            })}
+                          </span>
+                        );
+                      })()}
                       onClick={() => onSelectMission(mission)}
                       onPhotoClick={() => setImmersiveStartId(mission.id)}
                       photoAriaLabel={t('immersiveOpenFeed', {
@@ -2027,6 +2060,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [workBudget, setWorkBudget] = useState<number | ''>('');
   const [orderDescription, setOrderDescription] = useState('');
   const [orderPhotos, setOrderPhotos] = useState<File[]>([]);
+  const [orderVideoFile, setOrderVideoFile] = useState<File | null>(null);
+  const [orderVideoPreview, setOrderVideoPreview] = useState<string | null>(null);
   const [descriptionPolicyError, setDescriptionPolicyError] = useState<string | null>(null);
   const [photoModerationBusy, setPhotoModerationBusy] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
@@ -2148,6 +2183,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setPinLocationLoading(false);
     setOrderDescription('');
     setOrderPhotos([]);
+    setOrderVideoFile(null);
+    setOrderVideoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
     if (!options?.keepLocation) {
       setSelectedLocation(null);
     }
@@ -2458,6 +2498,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         photo_urls,
         after_photo_urls,
         proof_video_url,
+        video_proof_url,
         created_at,
         started_at,
         completion_lat,
@@ -3388,16 +3429,35 @@ const MapPicker: React.FC<MapPickerProps> = ({
   );
 
   const handleMissionDetailsUpdated = useCallback(
-    (patch: { id: string; description: string | null; photo_urls: string[] | null }) => {
+    (patch: {
+      id: string;
+      description: string | null;
+      photo_urls: string[] | null;
+      video_proof_url?: string | null;
+    }) => {
       setSelectedMission((prev) =>
         prev && prev.id === patch.id
-          ? { ...prev, description: patch.description, photo_urls: patch.photo_urls }
+          ? {
+              ...prev,
+              description: patch.description,
+              photo_urls: patch.photo_urls,
+              ...(patch.video_proof_url !== undefined
+                ? { video_proof_url: patch.video_proof_url }
+                : {}),
+            }
           : prev
       );
       setJobs((prev) => {
         const next = (prev || []).map((job) =>
           job.id === patch.id
-            ? { ...job, description: patch.description, photo_urls: patch.photo_urls }
+            ? {
+                ...job,
+                description: patch.description,
+                photo_urls: patch.photo_urls,
+                ...(patch.video_proof_url !== undefined
+                  ? { video_proof_url: patch.video_proof_url }
+                  : {}),
+              }
             : job
         );
         jobsRef.current = next;
@@ -3735,7 +3795,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const { data: missionRow } = await supabase
           .from('missions')
           .select(
-            'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, is_report, location_lat, location_lng, country, city, status, cleaner_id, creator_id, description, photo_urls, created_at'
+            'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, is_report, location_lat, location_lng, country, city, status, cleaner_id, creator_id, description, photo_urls, video_proof_url, created_at'
           )
           .eq('id', result.mission_id)
           .maybeSingle();
@@ -4126,6 +4186,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
         creatorPhotoUrls = uploaded;
       }
 
+      let videoProofUrl: string | null = null;
+      if (orderVideoFile) {
+        setUploadingProof(true);
+        videoProofUrl = await uploadPinVideoProofToR2(orderVideoFile, 'mission-photos');
+      }
+
       // Create lead mission immediately — token-backed.
       const pendingMissionId =
         typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -4148,7 +4214,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         crowdfundingMode,
         pinCountry,
         pinCity,
-        recurrenceType
+        recurrenceType,
+        videoProofUrl
       );
 
       setJobs((prev) => {
@@ -4172,6 +4239,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         p_country: pinCountry,
         p_city: pinCity,
         p_recurrence_type: recurrenceType,
+        p_video_proof_url: videoProofUrl,
       });
       if (leadErr) {
         setJobs((prev) => {
@@ -4309,10 +4377,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
           service_type: serviceTypeForMission(j),
           category: j.category,
           is_report: isGarbageZoneReport(j) ? 1 : 0,
+          is_crowd: isCrowdfundingPin(j) ? 1 : 0,
+          remaining_usd: crowdfundingRemainingUsd(j) ?? 0,
           pin_icon_image: missionPinIconImage(
             serviceTypeForMission(j),
             j.category,
-            isGarbageZoneReport(j)
+            isGarbageZoneReport(j),
+            isCrowdfundingPin(j)
           ),
         },
       }));
@@ -4517,7 +4588,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const { data, error } = await supabase
         .from('missions')
         .select(
-          'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, is_report, location_lat, location_lng, country, city, status, building_id, cleaner_id, creator_id, description, photo_urls, after_photo_urls, proof_video_url, created_at, started_at, creator:profiles!creator_id (full_name, avatar_url, is_verified)'
+          'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, is_report, location_lat, location_lng, country, city, status, building_id, cleaner_id, creator_id, description, photo_urls, after_photo_urls, proof_video_url, video_proof_url, created_at, started_at, creator:profiles!creator_id (full_name, avatar_url, is_verified)'
         )
         .eq('id', missionId)
         .maybeSingle();
@@ -5175,6 +5246,36 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }}
             paint={{
               'icon-opacity': mapMarkerLayerSuppressed ? 0 : 1,
+            }}
+          />
+          <Layer
+            id="mission-pins-crowd-label"
+            type="symbol"
+            filter={[
+              'all',
+              ['!', ['has', 'point_count']],
+              ['==', ['get', 'is_crowd'], 1],
+              ['>', ['get', 'remaining_usd'], 0],
+            ]}
+            layout={{
+              'text-field': [
+                'concat',
+                'Needs $',
+                ['to-string', ['get', 'remaining_usd']],
+                ' more',
+              ],
+              'text-size': 10,
+              'text-offset': [0, 1.7],
+              'text-anchor': 'top',
+              'text-allow-overlap': true,
+              'text-ignore-placement': true,
+              'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+            }}
+            paint={{
+              'text-color': '#f5f3ff',
+              'text-halo-color': '#6d28d9',
+              'text-halo-width': 1.25,
+              'text-opacity': mapMarkerLayerSuppressed ? 0 : 1,
             }}
           />
         </Source>
@@ -6042,6 +6143,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 onTextWarning={(w) => setTextWarning(w ?? null)}
                 hasTextWarning={!!textWarning}
                 showDescription={false}
+                videoPreviewUrl={orderVideoPreview}
+                videoBusy={uploadingProof && !!orderVideoFile}
+                disabled={orderSubmitting || uploadingProof}
+                onPickVideo={(file) => {
+                  setOrderVideoPreview((prev) => {
+                    if (prev) URL.revokeObjectURL(prev);
+                    return file ? URL.createObjectURL(file) : null;
+                  });
+                  setOrderVideoFile(file);
+                }}
+                onClearVideo={() => {
+                  setOrderVideoPreview((prev) => {
+                    if (prev) URL.revokeObjectURL(prev);
+                    return null;
+                  });
+                  setOrderVideoFile(null);
+                }}
               />
 
               {(orderError || descriptionPolicyError) && (

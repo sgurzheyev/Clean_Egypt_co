@@ -29,6 +29,8 @@ export interface MissionFeedCardProps {
   submittedLabel?: string;
   footer?: React.ReactNode;
   highlighted?: boolean;
+  /** Violet ring for live crowdfunding campaigns. */
+  accentCrowd?: boolean;
   onClick?: () => void;
   /** Tap on the photo area itself (e.g. enter the Immersive Visual Feed). */
   onPhotoClick?: () => void;
@@ -61,6 +63,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
   submittedLabel,
   footer,
   highlighted = false,
+  accentCrowd = false,
   onClick,
   onPhotoClick,
   photoAriaLabel,
@@ -99,8 +102,16 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
 
   return (
     <article
-      className={`glass-panel w-full overflow-hidden rounded-xl border border-white/20 ${
-        highlighted ? 'ring-1 ring-emerald-400/45' : ''
+      className={`glass-panel w-full overflow-hidden rounded-xl border ${
+        accentCrowd
+          ? 'border-violet-400/45 shadow-[0_0_18px_rgba(139,92,246,0.22)]'
+          : 'border-white/20'
+      } ${
+        highlighted
+          ? 'ring-1 ring-emerald-400/45'
+          : accentCrowd
+            ? 'ring-1 ring-violet-400/40'
+            : ''
       }`}
       style={{
         transform: 'translateZ(0)',

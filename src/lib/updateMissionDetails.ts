@@ -6,6 +6,7 @@ import {
 import { filterMissionDescription, validateMissionDescription } from './missionContentPolicy';
 import { compressMissionPhoto } from './missionPhotoCompression';
 import { uploadMissionPhotoToR2 } from './r2Media';
+import { uploadPinVideoProofToR2 } from './pinVideoProof';
 
 export const EDITABLE_MISSION_STATUSES = new Set([
   'available',
@@ -64,11 +65,13 @@ export type UpdateMissionDetailsInput = {
   currentPhotoUrls: string[] | null | undefined;
   nextBodyText: string;
   newPhotoFiles: File[];
+  newVideoFile?: File | null;
 };
 
 export type UpdateMissionDetailsResult = {
   description: string | null;
   photo_urls: string[] | null;
+  video_proof_url?: string | null;
 };
 
 export async function updateMissionDetails(
@@ -91,11 +94,16 @@ export async function updateMissionDetails(
   const filesToUpload = input.newPhotoFiles.slice(0, slotsLeft);
   const uploaded = filesToUpload.length > 0 ? await uploadMissionPhotoFiles(filesToUpload) : [];
   const nextPhotos = [...existing, ...uploaded].slice(0, MAX_MISSION_PHOTOS);
+  let videoProofUrl: string | undefined;
+  if (input.newVideoFile) {
+    videoProofUrl = await uploadPinVideoProofToR2(input.newVideoFile, 'mission-photos');
+  }
 
   const { data, error } = await supabase.rpc('creator_update_mission_details', {
     p_mission_id: input.missionId,
     p_description: nextDescription,
     p_photo_urls: nextPhotos,
+    ...(videoProofUrl ? { p_video_proof_url: videoProofUrl } : {}),
   });
 
   if (error) throw error;
@@ -108,5 +116,7 @@ export async function updateMissionDetails(
       extractMissionFeedDescription(nextDescription) ??
       null,
     photo_urls: (row?.photo_urls as string[] | null | undefined) ?? nextPhotos,
+    video_proof_url:
+      (row?.video_proof_url as string | null | undefined) ?? videoProofUrl ?? null,
   };
 }
