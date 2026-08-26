@@ -73,7 +73,7 @@ export function rowToMissionBid(row: Record<string, unknown>): MissionBidRow {
   };
 }
 
-/** Place bid via RPC (optional tiered packages; 1-token stake on crowdfunding). */
+/** Place bid via RPC (optional tiered packages; 1 token on every new bid). */
 export async function placeMissionBid(
   missionId: string,
   bidAmountUsd: number,

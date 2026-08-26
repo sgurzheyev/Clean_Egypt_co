@@ -3845,7 +3845,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         toast.error(
           /insufficient tokens/i.test(msg)
             ? t('insufficientTokensForBid', {
-                defaultValue: 'Not enough tokens. Crowdfunding bids cost 1 Token.',
+                defaultValue: 'Insufficient tokens. 1 token required to place a bid.',
               })
             : msg || t('mapToastBidUnexpectedError')
         );
