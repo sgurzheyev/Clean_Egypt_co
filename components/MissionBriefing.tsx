@@ -1121,6 +1121,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       className="mt-4 flex gap-2"
                       onSubmit={(e) => {
                         e.preventDefault();
+                        if (contributeSubmitting) return;
                         const amount = parseIntegerUsdFromInput(bidInput);
                         if (amount <= 0) return;
                         onContribute(amount);
@@ -1240,8 +1241,12 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                             <div className="flex shrink-0 items-center gap-1.5">
                               <button
                                 type="button"
-                                onClick={() => onAcceptBid(bid)}
-                                className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/15 text-base transition-transform hover:bg-emerald-500/25 active:scale-95"
+                                disabled={bidSubmitting}
+                                onClick={() => {
+                                  if (bidSubmitting) return;
+                                  onAcceptBid(bid);
+                                }}
+                                className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/15 text-base transition-transform hover:bg-emerald-500/25 active:scale-95 disabled:opacity-50"
                                 aria-label={t('acceptBidAria')}
                               >
                                 ✅
@@ -1321,8 +1326,12 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                                   {canAcceptOrDecline && (
                                     <button
                                       type="button"
-                                      onClick={() => onAcceptBid(bid, pkg.id)}
-                                      className="mt-2 w-full rounded-full border border-emerald-400/45 bg-emerald-500/20 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-50"
+                                      disabled={bidSubmitting}
+                                      onClick={() => {
+                                        if (bidSubmitting) return;
+                                        onAcceptBid(bid, pkg.id);
+                                      }}
+                                      className="mt-2 w-full rounded-full border border-emerald-400/45 bg-emerald-500/20 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-50 disabled:opacity-50"
                                     >
                                       {t('acceptPackageOffer', {
                                         defaultValue: 'Accept this package',
@@ -1365,6 +1374,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     className="mt-4 space-y-3"
                     onSubmit={(e) => {
                       e.preventDefault();
+                      if (bidSubmitting) return;
                       if (useTieredOffers) {
                         const pkgs = offerPackages.filter(
                           (p) => p.title.trim() && p.price >= 1
@@ -1723,7 +1733,10 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                             <button
                               type="button"
                               disabled={isSubmittingReview}
-                              onClick={() => onSubmitReview(selectedRating, reviewComment)}
+                              onClick={() => {
+                                if (isSubmittingReview) return;
+                                onSubmitReview(selectedRating, reviewComment);
+                              }}
                               className="mt-2 w-full rounded-full bg-amber-500 py-2.5 text-[11px] font-black uppercase tracking-[0.18em] text-black hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60"
                             >
                               {isSubmittingReview ? t('submitting') : t('submitRating')}

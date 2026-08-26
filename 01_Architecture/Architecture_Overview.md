@@ -10,6 +10,7 @@
 - [[01_Architecture/Security_and_RPCs]] — `submit_mission_proof`, locked contribute RPC, EGP removal
 - [[01_Architecture/P2P_Deal_Flow]] — USD direct payment + dispute (no fiat escrow)
 - [[01_Architecture/Stripe_USD_Flow]] — Checkout crowdfunding, tokens, `crowdfunding_expires_at` timer
+- [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] — eco-ultimatum, Gov Notice, 7-day Garbage History, R2 archive
 - [[01_Architecture/Global_Location_Filtering]] — `location_catalog`, autofill trigger, multi-country filter + facets
 - Frontend map: [[02_Frontend/Frontend_Components]]
 - Field dashboard: [[04_Roadmap_Tasks/00_Dashboard]]
@@ -138,7 +139,7 @@ missions
 **Flows**
 
 1. **Standard ([[P2P_Deal_Flow]]):** `available` → bid → work → proof → confirm (no platform escrow)
-2. **Crowdfunding ([[Stripe_USD_Flow]]):** `funding` → Stripe contribute → target met → `available` → bid → complete; underfunded past `crowdfunding_expires_at` → `expired` + city queue
+2. **Crowdfunding ([[Stripe_USD_Flow]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]):** free pin 7d → first Stripe donate → `funding` + rolling +30d; target met → work; underfunded with money → eco-ultimatum (Gov Notice, n8n, 7-day history, R2 archive); $0 at 7d → hide/delete
 3. **KYC ([[KYC_Verification]]):** docs + liveness → `pending` → admin approve → home missions unlocked
 4. **AR:** GPS origin + mission lat/lng → local ENU → neon markers ([[../src/components/AROverlay.tsx]])
 5. **Location ([[Global_Location_Filtering]]):** pin → Mapbox reverse geocode → `country`/`city` (trigger fills gaps from `location_catalog`) → multi-country filter + facet counts

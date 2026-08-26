@@ -7,6 +7,7 @@
  * Rows are queued in `city_notification_events` (pdf_status = pending) by:
  *   • process_expired_crowdfunding_missions → event_type = crowdfunding_expired
  *   • trg_enqueue_crowdfunding_completion_notification → mission_completed
+ *     (crowdfunding status completed or approved)
  */
 export type CityNotificationPayload = {
   service_type?: string | null;

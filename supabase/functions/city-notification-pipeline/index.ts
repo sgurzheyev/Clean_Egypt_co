@@ -203,7 +203,7 @@ async function buildPdfBytes(opts: {
   } else {
     draw('Completion statement', 12, true, rgb(0.05, 0.4, 0.32));
     for (const line of wrapLines(
-      'The crowdfunding target was met and the cleanup mission was marked completed. ' +
+      'The crowdfunding target was met and the cleanup mission was marked complete (approved). ' +
         'This report certifies platform-recorded completion for municipal records and ' +
         'contributor transparency.',
       82

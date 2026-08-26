@@ -27,7 +27,7 @@ Webhook requires `STRIPE_WEBHOOK_SECRET` and `verify_jwt = false` (see `supabase
 - Cron / stub: [[../api/process-expired-crowdfunding.ts]], PDF helper [[../src/lib/cityNotification.ts]]
 - UI countdown: [[../components/MissionBriefing.tsx]] via [[../src/lib/crowdfunding.ts]]
 
-Funds on expiry are **not** card-refunded; municipal notification path ([[../.cursorrules]], [[P2P_Deal_Flow]] contrast).
+Funds on expiry are **not** card-refunded; municipal notification path ([[../.cursorrules]], [[P2P_Deal_Flow]] contrast). Full eco-ultimatum / Garbage History pipeline: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]].
 
 ## Tokens & subscriptions
 

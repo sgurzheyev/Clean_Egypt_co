@@ -36,6 +36,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[01_Architecture/P2P_Deal_Flow]]
 - [[01_Architecture/Stripe_USD_Flow]]
 - [[01_Architecture/Global_Location_Filtering]]
+- [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] — eco-ultimatum / Garbage History / Gov Notice
 
 ### App shell & config
 - [[App.tsx]]
@@ -250,6 +251,7 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 
 - [[04_Roadmap_Tasks/00_Dashboard]] — field / active-dev checklist
 - [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] — product roadmap to store release
+- [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] — crowdfunding eco-ultimatum, Gov Notice, 7-day Garbage History
 - [[05_Archive/Garbagin_Roadmap_Update]] — superseded status report
 - [[.cursorrules]] — product + UI rules of engagement
 
@@ -257,6 +259,7 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 | Feature | Note | Primary code |
 | --- | --- | --- |
 | Crowdfunding / Stripe USD | [[01_Architecture/Stripe_USD_Flow]] | [[src/lib/contributions.ts]], [[components/MissionBriefing.tsx]] |
+| Eco-ultimatum / Garbage History | [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] | [[src/lib/cityNotification.ts]], [[supabase/functions/city-notification-pipeline/index.ts]] |
 | P2P deals (no escrow) | [[01_Architecture/P2P_Deal_Flow]] | [[src/lib/submitMissionProof.ts]], [[src/lib/missionBids.ts]] |
 | Security / RPCs | [[01_Architecture/Security_and_RPCs]] | [[supabase/migrations/20260719_submit_mission_proof_rpc.sql]] |
 | KYC | [[01_Architecture/KYC_Verification]] | [[components/VerificationModal.tsx]], [[src/lib/kycDocuments.ts]] |

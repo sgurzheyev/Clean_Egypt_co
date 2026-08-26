@@ -2796,6 +2796,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [missionBidsLoading, setMissionBidsLoading] = useState(false);
   const [missionBidsError, setMissionBidsError] = useState<string | null>(null);
   const [briefingBidSubmitting, setBriefingBidSubmitting] = useState(false);
+  const briefingActionLockRef = useRef(false);
   const [assignedWorker, setAssignedWorker] = useState<AssignedWorkerProfile | null>(null);
   const [gpsDistanceMeters, setGpsDistanceMeters] = useState<number | null>(null);
   const [gpsDistanceError, setGpsDistanceError] = useState<string | null>(null);
@@ -3517,7 +3518,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleSubmitReview = useCallback(
     async (rating: number, comment: string) => {
-      if (!selectedMission) return;
+      if (!selectedMission || isSubmittingReview) return;
       if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
         toast.error(t('mapToastRatingRange'));
         return;
@@ -3577,7 +3578,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         setIsSubmittingReview(false);
       }
     },
-    [missionBids, onRequestAuth, selectedMission, t, toast]
+    [isSubmittingReview, missionBids, onRequestAuth, selectedMission, t, toast]
   );
 
   const placePendingBid = useCallback(
@@ -3614,7 +3615,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleBriefingAcceptBid = useCallback(
     async (bid: MissionBidRow, packageId?: string | null) => {
-      if (!selectedMission || briefingBidSubmitting) return;
+      if (!selectedMission || briefingActionLockRef.current) return;
       const packages = bid.offer_packages ?? [];
       const selectedPkg = packageId
         ? packages.find((p) => p.id === packageId)
@@ -3626,28 +3627,27 @@ const MapPicker: React.FC<MapPickerProps> = ({
       );
       if (!Number.isFinite(missionValue) || missionValue <= 0) return;
 
+      briefingActionLockRef.current = true;
       setBriefingBidSubmitting(true);
-      const { data: workerProf, error: workerProfErr } = await supabase
-        .from('profiles')
-        .select('is_verified')
-        .eq('id', bid.cleaner_id)
-        .maybeSingle();
-      if (workerProfErr) {
-        setBriefingBidSubmitting(false);
-        toast.error(workerProfErr.message || t('unexpectedErrorTryAgain'));
-        return;
-      }
-      const homeOk = checkHomeMissionWorkerVerification(
-        selectedMission.category,
-        workerProf?.is_verified
-      );
-      if (!homeOk.ok) {
-        setBriefingBidSubmitting(false);
-        setShowVerificationModal(true);
-        return;
-      }
-
       try {
+        const { data: workerProf, error: workerProfErr } = await supabase
+          .from('profiles')
+          .select('is_verified')
+          .eq('id', bid.cleaner_id)
+          .maybeSingle();
+        if (workerProfErr) {
+          toast.error(workerProfErr.message || t('unexpectedErrorTryAgain'));
+          return;
+        }
+        const homeOk = checkHomeMissionWorkerVerification(
+          selectedMission.category,
+          workerProf?.is_verified
+        );
+        if (!homeOk.ok) {
+          setShowVerificationModal(true);
+          return;
+        }
+
         await acceptMissionBid(bid.id, packageId ?? selectedPkg?.id ?? null);
 
         const budgetUsd = Math.max(1, Math.floor(missionValue));
@@ -3694,17 +3694,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
         console.error('handleBriefingAcceptBid', e);
         toast.error(e?.message || t('unexpectedErrorTryAgain'));
       } finally {
+        briefingActionLockRef.current = false;
         setBriefingBidSubmitting(false);
       }
     },
-    [
-      briefingBidSubmitting,
-      fetchMissions,
-      refreshMissionBids,
-      selectedMission,
-      t,
-      toast,
-    ]
+    [fetchMissions, refreshMissionBids, selectedMission, t, toast]
   );
 
   const handleBriefingDeclineBid = useCallback(
@@ -3724,7 +3718,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleBriefingContribute = useCallback(
     async (amountUsd: number) => {
-      if (!selectedMission) return;
+      if (!selectedMission || briefingActionLockRef.current) return;
       const target = Math.floor(Number(selectedMission.expected_price ?? 0));
       const funded = Math.floor(Number(selectedMission.current_funding ?? 0));
       const remaining = Math.max(0, target - funded);
@@ -3741,7 +3735,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
         );
         return;
       }
+      briefingActionLockRef.current = true;
       setBriefingBidSubmitting(true);
+      let navigatingAway = false;
       try {
         const {
           data: { session },
@@ -3757,6 +3753,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           successUrl: returnUrl,
           cancelUrl: returnUrl,
         });
+        navigatingAway = true;
         window.location.assign(url);
       } catch (e: any) {
         // Log the full trace so we can tell apart: (a) function not deployed /
@@ -3771,7 +3768,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
           : e?.message ||
             t('stripeTopUpError', { defaultValue: 'Could not start payment. Please try again.' });
         toast.error(message);
-        setBriefingBidSubmitting(false);
+      } finally {
+        if (!navigatingAway) {
+          briefingActionLockRef.current = false;
+          setBriefingBidSubmitting(false);
+        }
       }
     },
     [onRequestAuth, selectedMission, t, toast]
@@ -3860,7 +3861,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const handleBriefingPlaceBid = useCallback(
     async (amountUsd: number, offerPackages?: BidOfferPackage[] | null) => {
-      if (!selectedMission) return;
+      if (!selectedMission || briefingActionLockRef.current) return;
+      briefingActionLockRef.current = true;
       setBriefingBidSubmitting(true);
       try {
         const {
@@ -3910,6 +3912,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             : msg || t('mapToastBidUnexpectedError')
         );
       } finally {
+        briefingActionLockRef.current = false;
         setBriefingBidSubmitting(false);
       }
     },
