@@ -287,6 +287,16 @@ export const MAP_QUICK_FLY = {
   maxDuration: 1600,
 } as const;
 
+/** List hover/scroll preview — short ease so the globe tracks cards without cinematic hops. */
+export const MAP_LIST_PREVIEW_FLY = {
+  zoom: 15.4,
+  pitch: 52,
+  duration: 780,
+  essential: true,
+  maxDuration: 980,
+  ease: true,
+} as const;
+
 type FlyableMap = {
   flyTo?: (options: Record<string, unknown>) => void;
   easeTo?: (options: Record<string, unknown>) => void;

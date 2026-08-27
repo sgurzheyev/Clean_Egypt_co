@@ -2,7 +2,7 @@
  * [[Architecture_Overview.md]]
  * Live market feed of active missions (USD work budgets).
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Virtuoso } from 'react-virtuoso';
 import { useTranslation } from 'react-i18next';
@@ -44,6 +44,7 @@ import {
 } from '../src/lib/trustBadges';
 import TrustBadgeRow from './TrustBadgeRow';
 import MissionFeedErrorBoundary from './MissionFeedErrorBoundary';
+import { useListScrollMapPreview } from '../src/hooks/useListScrollMapPreview';
 
 /** Extra pixels kept mounted above/below the visible Service Market list. */
 const MARKET_LIST_OVERSCAN_PX = { top: 480, bottom: 720 } as const;
@@ -187,6 +188,8 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
   // Immersive Visual Feed: id of the mission whose photo was tapped (null = closed).
   const [immersiveStartId, setImmersiveStartId] = useState<string | null>(null);
+  const marketScrollerRef = useRef<HTMLElement | null>(null);
+  const [scrollerEpoch, setScrollerEpoch] = useState(0);
   const [creatorBadges, setCreatorBadges] = useState<
     Record<string, TrustBadgeId[]>
   >({});
@@ -203,6 +206,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   };
 
   useEffect(() => subscribeShowFreeReports(setShowFreeReports), []);
+  useListScrollMapPreview(open, marketScrollerRef, scrollerEpoch);
 
   // Closing the market panel always closes the immersive feed with it.
   useEffect(() => {
@@ -333,7 +337,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[140] bg-black/70 backdrop-blur-sm pointer-events-auto"
+          className="fixed inset-0 z-[140] pointer-events-none"
           onClick={onClose}
         >
           <motion.div
@@ -342,7 +346,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
             exit={{ y: 32, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 280, damping: 24 }}
             onClick={(e) => e.stopPropagation()}
-            className="ce-bottom-sheet glass-panel absolute inset-x-0 bottom-0 mx-auto flex h-[min(85svh,85dvh,85vh)] max-h-[min(85svh,85dvh,85vh)] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl"
+            className="ce-bottom-sheet live-map-glass pointer-events-auto absolute inset-x-0 bottom-0 mx-auto flex h-[min(85svh,85dvh,85vh)] max-h-[min(85svh,85dvh,85vh)] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl border-t border-cyan-400/20"
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -356,7 +360,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
               className="flex h-full min-h-0 w-full flex-1 flex-col"
               style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}
             >
-              <div className="relative shrink-0 border-b border-white/10 bg-white/[0.03] p-4">
+              <div className="relative shrink-0 border-b border-white/10 bg-white/[0.04] p-4 backdrop-blur-md">
                 <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-white/20" aria-hidden />
                 <button
                   type="button"
@@ -416,6 +420,13 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                       data={visibleMissions}
                       computeItemKey={(_index, mission) => String(mission.id)}
                       increaseViewportBy={MARKET_LIST_OVERSCAN_PX}
+                      scrollerRef={(ref) => {
+                        const node = (ref as HTMLElement | null) ?? null;
+                        if (marketScrollerRef.current !== node) {
+                          marketScrollerRef.current = node;
+                          setScrollerEpoch((n) => n + 1);
+                        }
+                      }}
                       itemContent={(_index, mission) => {
                         const budget = missionWorkBudgetUsd(mission);
                         const isOwnTask =
@@ -436,6 +447,9 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                           >
                             <MissionFeedCard
                               photoUrl={mission.photo_urls?.[0] ?? null}
+                              previewLat={mission.location_lat}
+                              previewLng={mission.location_lng}
+                              previewMissionId={mission.id}
                               placeholderVariant={isHome ? 'home' : 'city'}
                               placeholderIcon={missionPinIcon(
                                 mission.service_type,

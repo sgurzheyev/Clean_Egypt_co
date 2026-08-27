@@ -23,6 +23,12 @@ export const APP_EVENT_OPEN_MISSION = 'garbagin:open-mission';
  * { serviceType: string; expectedPrice?: number; storeOwnerId?: string; storeName?: string }
  */
 export const APP_EVENT_CREATE_MISSION = 'garbagin:create-mission';
+/**
+ * Hover/scroll preview from My Orders / Service Marketplace / History lists.
+ * MapPicker listens and easeTo's the live map under the glass overlay.
+ * detail: { lat: number; lng: number; missionId?: string }
+ */
+export const APP_EVENT_PREVIEW_MISSION_LOCATION = 'garbagin:preview-mission-location';
 
 /**
  * Absolute site origin for Stripe redirects, auth email links, and deep links.

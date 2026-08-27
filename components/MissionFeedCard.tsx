@@ -8,6 +8,10 @@ import {
 } from '../src/lib/missionFeedVisuals';
 import LazyMissionPhoto from './LazyMissionPhoto';
 import { resolveAvatarUrl } from '../src/lib/r2Media';
+import {
+  dispatchPreviewMissionLocation,
+  isPreviewableCoord,
+} from '../src/lib/listMapPreview';
 
 export type { MissionFeedPlaceholderVariant };
 
@@ -46,6 +50,10 @@ export interface MissionFeedCardProps {
   creatorAriaLabel?: string;
   /** Zero-KYC trust badges for the creator (when they have a contractor store). */
   trustBadges?: React.ReactNode;
+  /** Fly the live map under glass lists to this pin on hover / scroll. */
+  previewLat?: number | null;
+  previewLng?: number | null;
+  previewMissionId?: string | null;
 }
 
 const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
@@ -74,9 +82,17 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
   onCreatorClick,
   creatorAriaLabel = 'View creator profile',
   trustBadges,
+  previewLat,
+  previewLng,
+  previewMissionId,
 }) => {
   const locationTranslation = useMissionTextTranslation(locationLine);
   const showLocate = !!(onLocate || onClick);
+  const canPreviewMap = isPreviewableCoord(previewLat, previewLng);
+  const previewOnMap = () => {
+    if (!canPreviewMap) return;
+    dispatchPreviewMissionLocation(previewLat, previewLng, previewMissionId ?? undefined);
+  };
   // Show the creator avatar whenever we have identity info — click is optional.
   const showCreator = !!(onCreatorClick || creatorAvatarUrl || creatorName);
   const creatorInitial = (creatorName || '?').trim().charAt(0).toUpperCase() || '?';
@@ -113,6 +129,11 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
             ? 'ring-1 ring-violet-400/40'
             : ''
       }`}
+      data-map-preview-lat={canPreviewMap ? String(previewLat) : undefined}
+      data-map-preview-lng={canPreviewMap ? String(previewLng) : undefined}
+      data-map-preview-id={previewMissionId ? String(previewMissionId) : undefined}
+      onMouseEnter={canPreviewMap ? previewOnMap : undefined}
+      onFocusCapture={canPreviewMap ? previewOnMap : undefined}
       style={{
         transform: 'translateZ(0)',
         willChange: 'transform, opacity',

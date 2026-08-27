@@ -76,6 +76,21 @@ body,
   text-shadow: var(--glass-text-shadow);
 }
 
+/**
+ * Overlay sheets over the live map (My Orders / Marketplace / Profile).
+ * Dark frosted glass — map stays visible and animating underneath.
+ * Pair with a pointer-events-none full-screen host so empty chrome doesn't eat map clicks.
+ */
+.live-map-glass {
+  background: rgba(2, 6, 23, 0.42);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.28);
+  color: #f8fafc;
+  text-shadow: var(--glass-text-shadow);
+}
+
 .glass-text {
   color: #f1f5f9;
   text-shadow: var(--glass-text-shadow);
@@ -581,6 +596,16 @@ select,
   border-radius: 24px 24px 0 0;
   color: #f8fafc;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 0 12px rgba(0, 0, 0, 0.25);
+}
+
+/* After .ce-bottom-sheet so list overlays keep a dark frosted map window. */
+.live-map-glass,
+.ce-bottom-sheet.live-map-glass {
+  background: rgba(2, 6, 23, 0.52);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  border-color: rgba(148, 163, 184, 0.22);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.35);
 }
 
 .ce-bottom-sheet-body {

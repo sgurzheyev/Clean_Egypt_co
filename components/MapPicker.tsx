@@ -108,6 +108,7 @@ import {
   filterMissionsByMutedCreators,
 } from '../src/lib/mutedCreators';
 import { useMutedCreators } from '../src/hooks/useMutedCreators';
+import { useListScrollMapPreview } from '../src/hooks/useListScrollMapPreview';
 import {
   getCrowdfundingCountdownParts,
   getCrowdfundingExpiresAt,
@@ -122,6 +123,7 @@ import {
   MAP_BOOT_GPS_VIEW,
   MAP_CINEMATIC_FLY,
   MAP_INITIAL_VIEW,
+  MAP_LIST_PREVIEW_FLY,
   MAP_QUICK_FLY,
   type MetallicWaterController,
 } from '../src/lib/mapEgyptTheme';
@@ -162,6 +164,7 @@ import {
   formatPinLocationTag,
   reverseGeocodePinLocation,
 } from '../src/lib/mapboxReverseGeocode';
+import { subscribePreviewMissionLocation } from '../src/lib/listMapPreview';
 import {
   APP_EVENT_CREATE_MISSION,
   APP_EVENT_MISSION_COMPLETED,
@@ -921,6 +924,8 @@ function MyOrdersPanel({
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [immersiveStartId, setImmersiveStartId] = useState<string | null>(null);
+  const ordersScrollRef = useRef<HTMLDivElement>(null);
+  useListScrollMapPreview(open, ordersScrollRef);
 
   useEffect(() => {
     if (!open) setImmersiveStartId(null);
@@ -951,7 +956,7 @@ function MyOrdersPanel({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[135] bg-black/50 backdrop-blur-sm pointer-events-auto"
+          className="fixed inset-0 z-[135] pointer-events-none"
           onClick={onClose}
         >
           <motion.aside
@@ -960,7 +965,7 @@ function MyOrdersPanel({
             exit={{ x: '100%' }}
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
             onClick={(e) => e.stopPropagation()}
-            className={`absolute inset-y-0 right-0 flex w-full max-w-sm flex-col border-l border-cyan-500/25 bg-slate-950/95 p-4 shadow-[-8px_0_32px_rgba(8,145,178,0.15)] ${PROFILE_GLASS_PANEL} !rounded-none !border-l`}
+            className="live-map-glass pointer-events-auto absolute inset-y-0 right-0 flex w-full max-w-sm flex-col border-l border-cyan-500/20 p-4 shadow-[-12px_0_40px_rgba(0,0,0,0.35)]"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
@@ -979,7 +984,10 @@ function MyOrdersPanel({
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain pr-0.5">
+            <div
+              ref={ordersScrollRef}
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain scrollable-sheet-content pr-0.5"
+            >
               {!isLoggedIn && (
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
                   <p className="text-sm text-slate-300">{t('myOrdersLoginHint')}</p>
@@ -1004,6 +1012,9 @@ function MyOrdersPanel({
                     <MissionFeedCard
                       key={mission.id}
                       photoUrl={mission.photo_urls?.[0] ?? null}
+                      previewLat={mission.location_lat}
+                      previewLng={mission.location_lng}
+                      previewMissionId={mission.id}
                       placeholderVariant={isHome ? 'home' : 'city'}
                       placeholderIcon={missionPinIcon(
                         mission.service_type,
@@ -2977,6 +2988,38 @@ const MapPicker: React.FC<MapPickerProps> = ({
     },
     [missionHoverTitle]
   );
+
+  useEffect(() => {
+    const last = { lat: Number.NaN, lng: Number.NaN };
+    let timer = 0;
+    const unsub = subscribePreviewMissionLocation((detail) => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        timer = 0;
+        if (
+          Number.isFinite(last.lat) &&
+          Math.abs(last.lat - detail.lat) < 0.00022 &&
+          Math.abs(last.lng - detail.lng) < 0.00022
+        ) {
+          return;
+        }
+        last.lat = detail.lat;
+        last.lng = detail.lng;
+        const map = mapRef.current?.getMap?.() ?? mapInstanceRef.current;
+        flyMapTo(map, [detail.lng, detail.lat], { ...MAP_LIST_PREVIEW_FLY });
+        if (detail.missionId) {
+          const job = (jobsRef.current || []).find(
+            (j) => String(j.id) === String(detail.missionId)
+          );
+          if (job) applyMissionPinHover(job);
+        }
+      }, 180);
+    });
+    return () => {
+      unsub();
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [applyMissionPinHover]);
 
   const handleMarkerClick = useCallback((job: JobOnMap) => {
     clearMissionPinHover();

@@ -58,6 +58,7 @@ import {
 } from '../src/lib/showFreeReports';
 import { filterMissionsByMutedCreators } from '../src/lib/mutedCreators';
 import { useMutedCreators } from '../src/hooks/useMutedCreators';
+import { useListScrollMapPreview } from '../src/hooks/useListScrollMapPreview';
 import { checkHomeMissionWorkerVerification } from '../src/lib/homeMissionAccess';
 import { getMissionWorkerPhone, getOwnPrivateProfile } from '../src/lib/missionContact';
 import { creatorRejectProof, submitMissionProof } from '../src/lib/submitMissionProof';
@@ -79,6 +80,7 @@ import {
 } from '../src/lib/brand';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
 import MissionFeedCard from './MissionFeedCard';
+import MapPreviewRow from './MapPreviewRow';
 import ImmersiveMissionFeed from './ImmersiveMissionFeed';
 import ContractorStorePanel from './ContractorStorePanel';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
@@ -381,6 +383,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const lastMissionStatusActionAtRef = useRef<number>(0);
   const toastTimerRef = useRef<number | null>(null);
   const langMenuRef = useRef<HTMLDivElement>(null);
+  const profileScrollRef = useRef<HTMLDivElement>(null);
+  useListScrollMapPreview(isOpen, profileScrollRef);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [deleteAccountConfirm, setDeleteAccountConfirm] = useState('');
@@ -1701,7 +1705,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       {isOpen && (
     <motion.div
       key="profile-overlay"
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 isolate max-w-[100vw] overflow-hidden"
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 isolate max-w-[100vw] overflow-hidden pointer-events-none"
       aria-modal="true"
       role="dialog"
       initial={{ opacity: 0 }}
@@ -1709,9 +1713,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
     >
-      {/* Backdrop — dims map behind the floating card */}
+      {/* Light dim only — no full-screen blur, so the live map stays readable around the card. */}
       <motion.div
-        className="absolute inset-0 z-0 bg-black/65 backdrop-blur-[2px]"
+        className="pointer-events-auto absolute inset-0 z-0 bg-black/25"
         onClick={onClose}
         aria-hidden="true"
         initial={{ opacity: 0 }}
@@ -1721,7 +1725,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       />
       {/* Floating frosted card — blooms from the bottom-center Profile FAB */}
       <motion.div
-        className="relative z-10 flex h-full w-full min-w-0 max-w-lg min-h-0 flex-col overflow-hidden animated-border animated-border-profile"
+        className="live-map-glass pointer-events-auto relative z-10 flex h-full w-full min-w-0 max-w-lg min-h-0 flex-col overflow-hidden rounded-3xl"
         style={{
           maxHeight:
             'calc(100svh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
@@ -1733,9 +1737,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         exit={{ opacity: 0, scale: 0.8 }}
         transition={{ type: 'spring', damping: 26, stiffness: 320, mass: 0.85 }}
       >
-        <div className="animated-border-inner flex h-full min-h-0 w-full max-w-full flex-1 flex-col overflow-x-hidden">
+        <div className="flex h-full min-h-0 w-full max-w-full flex-1 flex-col overflow-x-hidden">
           {/* Header — sticky; frosted so content can scroll under */}
-          <div className="sticky top-0 z-50 flex flex-shrink-0 items-center justify-between border-b border-white/10 bg-[linear-gradient(135deg,rgba(50,50,55,0.82)_0%,rgba(40,40,45,0.9)_100%)] px-5 pb-4 pt-4 backdrop-blur-xl shadow-lg shadow-black/30">
+          <div className="sticky top-0 z-50 flex flex-shrink-0 items-center justify-between border-b border-white/10 bg-slate-950/35 px-5 pb-4 pt-4 backdrop-blur-xl shadow-lg shadow-black/20">
             <button
               type="button"
               onClick={onClose}
@@ -1761,7 +1765,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             )}
           </div>
           {/* Scrollable content — job cards and forms */}
-          <div className="flex max-w-full min-h-0 flex-1 flex-col gap-4 overflow-x-hidden scrollable-sheet-content p-4 pb-[max(9rem,calc(env(safe-area-inset-bottom,0px)+5rem))]">
+          <div
+            ref={profileScrollRef}
+            className="flex max-w-full min-h-0 flex-1 flex-col gap-4 overflow-x-hidden scrollable-sheet-content p-4 pb-[max(9rem,calc(env(safe-area-inset-bottom,0px)+5rem))]"
+          >
           <div className="w-full max-w-md mx-auto flex flex-col gap-3 min-w-0">
         {showAdmin ? (
           <AdminDashboard onBack={() => setShowAdmin(false)} />
@@ -2614,6 +2621,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       }
                       placeholderVariant={isHome ? 'home' : 'city'}
                       placeholderIcon={icon}
+                      previewLat={job.location_lat}
+                      previewLng={job.location_lng}
+                      previewMissionId={job.id}
                       budgetValue={formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
                       metaLine={`#${shortId(job.id)} · ${new Date(job.created_at).toLocaleDateString()}`}
                       locationLine={orderMissionLocationLine(job)}
@@ -2705,6 +2715,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       }
                       placeholderVariant={isHome ? 'home' : 'city'}
                       placeholderIcon={icon}
+                      previewLat={job.location_lat}
+                      previewLng={job.location_lng}
+                      previewMissionId={job.id}
                       budgetValue={formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
                       metaLine={`#${shortId(job.id)} · ${new Date(job.created_at).toLocaleDateString()}`}
                       locationLine={orderMissionLocationLine(job)}
@@ -2840,6 +2853,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   return (
                   <MissionFeedCard
                     key={job.id}
+                    previewLat={job.location_lat}
+                    previewLng={job.location_lng}
+                    previewMissionId={job.id}
                     photo={
                       Array.isArray(job.photo_urls) && job.photo_urls[0] ? (
                         <ModeratedMissionPhoto
@@ -2960,8 +2976,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   const icon = isHome ? '🏠' : '🌆';
                   const createdDate = new Date(job.created_at).toLocaleDateString();
                   return (
-                    <div
+                    <MapPreviewRow
                       key={job.id}
+                      lat={job.location_lat}
+                      lng={job.location_lng}
+                      missionId={job.id}
+                    >
+                    <div
                       className={`${PROFILE_GLASS_PANEL} p-4 opacity-90`}
                     >
                       <div className="flex justify-between items-center mb-2">
@@ -3020,6 +3041,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         );
                       })()}
                     </div>
+                    </MapPreviewRow>
                   );
                 });
               })()}
@@ -3066,6 +3088,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       }
                       placeholderVariant={isHome ? 'home' : 'city'}
                       placeholderIcon={icon}
+                      previewLat={job.location_lat}
+                      previewLng={job.location_lng}
+                      previewMissionId={job.id}
                       budgetValue={formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
                       metaLine={`#${shortId(job.id)} · ${new Date(job.created_at).toLocaleDateString()}`}
                       locationLine={displayTitle}
