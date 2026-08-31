@@ -803,64 +803,71 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           </div>
         ) : (
           <>
-            {/* Immersive magazine hero — kept short on mobile so CTAs stay reachable */}
-            <div className="relative w-full shrink-0 overflow-hidden bg-slate-900 min-h-[min(38svh,16rem)] sm:min-h-[22rem]">
-              <div className="absolute inset-0">
-                {photos.length > 0 || videoProofSrc ? (
-                  <>
-                    <div
-                      className="flex h-full w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain overscroll-y-none touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-                      style={{ WebkitOverflowScrolling: 'touch' }}
-                    >
-                      {photos.map((url, index) => (
+            {/* Immersive magazine hero — explicit height so absolute media cannot collapse */}
+            <div className="relative w-full shrink-0 overflow-hidden bg-slate-900 h-[min(38svh,16rem)] sm:h-[22rem]">
+              {photos.length > 0 || videoProofSrc ? (
+                <>
+                  <div
+                    className="relative z-0 flex h-full w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain overscroll-y-none touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                    style={{ WebkitOverflowScrolling: 'touch' }}
+                  >
+                    {photos.map((url, index) => {
+                      const src = resolveStoredMediaUrl(url);
+                      return (
                         <div
                           key={`${url}-${index}`}
-                          className="relative h-full w-full shrink-0 snap-center snap-always overflow-hidden"
+                          className="relative h-full w-full min-w-full flex-[0_0_100%] snap-center snap-always overflow-hidden"
                         >
-                          <LazyMissionPhoto
-                            src={url}
-                            alt={`Mission photo ${index + 1}`}
-                            className="pointer-events-none absolute inset-0 h-full w-full"
-                            imgClassName="pointer-events-none absolute inset-0 h-full w-full select-none object-cover"
-                            loading={index === 0 ? 'eager' : 'lazy'}
-                            draggable={false}
-                          />
+                          {src ? (
+                            <img
+                              src={src}
+                              alt={`Mission photo ${index + 1}`}
+                              className="block h-full w-full object-cover"
+                              loading={index === 0 ? 'eager' : 'lazy'}
+                              decoding="async"
+                              draggable={false}
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-slate-900 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                              Image unavailable
+                            </div>
+                          )}
                         </div>
-                      ))}
-                      {videoProofSrc ? (
-                        <div className="relative h-full w-full shrink-0 snap-center snap-always overflow-hidden bg-black">
-                          <video
-                            src={videoProofSrc}
-                            className="absolute inset-0 h-full w-full object-cover"
-                            controls
-                            playsInline
-                            preload="metadata"
-                          />
-                        </div>
-                      ) : null}
-                    </div>
-                    {(photos.length + (videoProofSrc ? 1 : 0)) > 1 && (
-                      <p className="pointer-events-none absolute top-12 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/20 bg-black/45 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white/80 backdrop-blur-sm">
-                        {t('swipeForMorePhotos')} · {photos.length + (videoProofSrc ? 1 : 0)}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <div
-                    className={`flex h-full w-full items-center justify-center ${missionFeedPlaceholderGradient(
-                      placeholderVariant
-                    )}`}
-                  >
-                    <span className="text-4xl opacity-90" aria-hidden>
-                      {placeholderIcon}
-                    </span>
+                      );
+                    })}
+                    {videoProofSrc ? (
+                      <div className="relative h-full w-full min-w-full flex-[0_0_100%] snap-center snap-always overflow-hidden bg-black">
+                        <video
+                          src={videoProofSrc}
+                          className="block h-full w-full object-cover"
+                          controls
+                          playsInline
+                          preload="metadata"
+                        />
+                      </div>
+                    ) : null}
                   </div>
-                )}
-              </div>
+                  {(photos.length + (videoProofSrc ? 1 : 0)) > 1 && (
+                    <p className="pointer-events-none absolute top-12 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/20 bg-black/45 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white/80 backdrop-blur-sm">
+                      {t('swipeForMorePhotos')} · {photos.length + (videoProofSrc ? 1 : 0)}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div
+                  className={`flex h-full w-full items-center justify-center ${missionFeedPlaceholderGradient(
+                    placeholderVariant
+                  )}`}
+                >
+                  <span className="text-4xl opacity-90" aria-hidden>
+                    {placeholderIcon}
+                  </span>
+                </div>
+              )}
 
-              {/* Seamless fade into drawer `bg-slate-950` (#020617) before Bids */}
+              {/* Bottom fade into the sheet only — do not paint over the photo */}
               <div
-                className="pointer-events-none absolute inset-0 z-[5] bg-gradient-to-t from-[#020617] via-[#020617]/90 from-0% via-35% to-transparent to-75%"
+                className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-24 bg-gradient-to-t from-[#020617] to-transparent"
                 aria-hidden
               />
 
@@ -903,8 +910,8 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 )}
               </div>
 
-              {/* Editorial stack over the fade — price overlays preserved; status + copy sit on top */}
-              <div className="pointer-events-none relative z-10 flex min-h-[min(38vh,16rem)] flex-col justify-end sm:min-h-[22rem]">
+              {/* Editorial stack over the photo — price overlays preserved; status + copy sit on top */}
+              <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-end">
                 <div className="relative px-4 pb-3 pt-24">
                   <div
                     className={
