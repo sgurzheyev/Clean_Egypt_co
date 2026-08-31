@@ -13,6 +13,7 @@ import {
   coerceMissionGalleryUrls,
   coerceStoredMediaUrls,
   resolveAvatarUrl,
+  resolveStoredMediaUrl,
   uploadAvatarToR2,
   uploadMissionPhotoToR2,
 } from '../src/lib/r2Media';
@@ -200,7 +201,7 @@ function normalizeJobMedia<T extends Pick<Job, 'photo_urls' | 'after_photo_urls'
 }
 
 function jobCoverPhotoUrl(job: { photo_urls?: unknown; photos?: unknown }): string | null {
-  return coerceMissionGalleryUrls(job)[0] ?? null;
+  return resolveStoredMediaUrl(coerceMissionGalleryUrls(job)[0]) || null;
 }
 
 type AfterBurstPackage = {

@@ -47,7 +47,7 @@ import {
 import TrustBadgeRow from './TrustBadgeRow';
 import LazyMissionPhoto from './LazyMissionPhoto';
 import MissionFeedErrorBoundary from './MissionFeedErrorBoundary';
-import { coerceMissionGalleryUrls, resolveAvatarUrl, resolveStoredMediaUrl } from '../src/lib/r2Media';
+import { resolveAvatarUrl, resolveMissionGalleryUrls, resolveStoredMediaUrl } from '../src/lib/r2Media';
 
 /** Structural mission shape — both LiveMarketMission and Profile's Job satisfy it. */
 export type ImmersiveFeedMission = {
@@ -117,7 +117,7 @@ const SLIDE_GPU_STYLE: React.CSSProperties = {
 };
 
 function missionPhotos(mission: ImmersiveFeedMission): string[] {
-  return coerceMissionGalleryUrls(mission).slice(0, MAX_PHOTOS);
+  return resolveMissionGalleryUrls(mission).slice(0, MAX_PHOTOS);
 }
 
 function missionVideoSrc(mission: ImmersiveFeedMission): string {

@@ -7,7 +7,7 @@ import {
   type MissionFeedPlaceholderVariant,
 } from '../src/lib/missionFeedVisuals';
 import LazyMissionPhoto from './LazyMissionPhoto';
-import { firstStoredMediaUrl, resolveAvatarUrl, resolveStoredMediaUrl } from '../src/lib/r2Media';
+import { resolveAvatarUrl, resolveStoredMediaUrl } from '../src/lib/r2Media';
 import {
   dispatchPreviewMissionLocation,
   isPreviewableCoord,
@@ -90,7 +90,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
   previewLng,
   previewMissionId,
 }) => {
-  const coverUrl = firstStoredMediaUrl(photoUrl);
+  const coverUrl = resolveStoredMediaUrl(photoUrl);
   const coverVideoUrl = resolveStoredMediaUrl(videoUrl);
   const locationTranslation = useMissionTextTranslation(locationLine);
   const showLocate = !!(onLocate || onClick);

@@ -26,20 +26,41 @@ export type R2PresignMediaResult = {
   public_url?: string | null;
 };
 
-/** Public custom domain for R2 (no trailing slash). Falls back empty → keys only. */
+/**
+ * Public R2 CDN origin (no trailing slash).
+ * Prefer `VITE_R2_PUBLIC_BASE_URL`; fall back to the live public bucket so
+ * object keys never leak into <img src> as relative paths.
+ */
+const FALLBACK_R2_PUBLIC_BASE_URL = 'https://pub-4d5f00c87939461f956b9c06db1a6de7.r2.dev';
+
+function normalizePublicBaseUrl(raw: string): string {
+  let value = String(raw ?? '').trim();
+  if (!value) return '';
+  if (value.startsWith('//')) value = `https:${value}`;
+  if (!/^https?:\/\//i.test(value)) value = `https://${value.replace(/^\/+/, '')}`;
+  return value.replace(/\/$/, '');
+}
+
+export function isAbsoluteMediaUrl(value: string): boolean {
+  return (
+    /^https?:\/\//i.test(value) || value.startsWith('data:') || value.startsWith('blob:')
+  );
+}
+
 export function getR2PublicBaseUrl(): string {
   const raw =
     typeof import.meta !== 'undefined' &&
     typeof import.meta.env?.VITE_R2_PUBLIC_BASE_URL === 'string'
       ? String(import.meta.env.VITE_R2_PUBLIC_BASE_URL).trim()
       : '';
-  return raw.replace(/\/$/, '');
+  return normalizePublicBaseUrl(raw) || FALLBACK_R2_PUBLIC_BASE_URL;
 }
 
 /**
  * Resolve a stored media value for <img src>.
- * - Absolute http(s) URLs (legacy Supabase Storage) pass through.
- * - Object keys → `{VITE_R2_PUBLIC_BASE_URL}/{key}` when configured.
+ * - Absolute http(s) / data / blob URLs (legacy Supabase Storage, previews) pass through.
+ * - Object keys such as `mission-photos/...` → `{publicBase}/{key}`.
+ * Never returns a relative key — missing/unresolvable values become ''.
  */
 export function resolveR2PublicUrl(stored: string | null | undefined): string {
   let value = String(stored ?? '').trim();
@@ -51,18 +72,23 @@ export function resolveR2PublicUrl(stored: string | null | undefined): string {
     value = value.slice(1, -1).trim();
   }
   if (!value) return '';
-  if (/^https?:\/\//i.test(value) || value.startsWith('data:') || value.startsWith('blob:')) {
-    return value;
+  if (isAbsoluteMediaUrl(value)) return value;
+  if (value.startsWith('//')) {
+    const withScheme = `https:${value}`;
+    return isAbsoluteMediaUrl(withScheme) ? withScheme : '';
   }
   const base = getR2PublicBaseUrl();
-  if (!base) return value;
   const key = value.replace(/^\/+/, '');
-  // Already a CDN path without scheme, or accidentally prefixed twice.
-  if (key.startsWith(`${base.replace(/^https?:\/\//i, '')}/`)) {
-    return `${base.split('://')[0]}://${key}`;
+  if (!key) return '';
+  const baseHost = base.replace(/^https?:\/\//i, '');
+  const scheme = base.split('://')[0] || 'https';
+  // Host-prefixed CDN path without scheme: `pub-….r2.dev/mission-photos/…`
+  if (key === baseHost || key.startsWith(`${baseHost}/`)) {
+    return `${scheme}://${key}`;
   }
   if (value === base || value.startsWith(`${base}/`)) return value;
-  return `${base}/${key}`;
+  const resolved = `${base}/${key}`;
+  return isAbsoluteMediaUrl(resolved) ? resolved : '';
 }
 
 const MEDIA_OBJECT_KEYS = [
@@ -211,12 +237,23 @@ export function coerceMissionGalleryUrls(source: {
 export function resolveMissionPhotoUrls(value: unknown): string[] {
   return coerceStoredMediaUrls(value)
     .map((key) => resolveR2PublicUrl(key))
-    .filter((url) => url.length > 0);
+    .filter((url) => isAbsoluteMediaUrl(url));
+}
+
+/** Gallery for <img src>: coerce photo_urls/photos, then absolute https CDN URLs. */
+export function resolveMissionGalleryUrls(source: {
+  photo_urls?: unknown;
+  photos?: unknown;
+} | null | undefined): string[] {
+  return coerceMissionGalleryUrls(source)
+    .map((key) => resolveR2PublicUrl(key))
+    .filter((url) => isAbsoluteMediaUrl(url));
 }
 
 /** Single stored photo/video field → playable/display URL, or ''. */
 export function resolveStoredMediaUrl(value: unknown): string {
-  return resolveR2PublicUrl(firstStoredMediaUrl(value));
+  const resolved = resolveR2PublicUrl(firstStoredMediaUrl(value));
+  return isAbsoluteMediaUrl(resolved) ? resolved : '';
 }
 
 function normalizeContentType(file: File | Blob, fallback = 'image/jpeg'): string {

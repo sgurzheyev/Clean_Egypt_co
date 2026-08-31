@@ -21,6 +21,7 @@ import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import {
   coerceMissionGalleryUrls,
   resolveAvatarUrl,
+  resolveMissionGalleryUrls,
   resolveStoredMediaUrl,
 } from '../src/lib/r2Media';
 import { missionTokenBid, missionWorkBudgetUsd } from '../src/lib/missionBudget';
@@ -388,7 +389,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const missionRecurrence = normalizeRecurrenceType(mission.recurrence_type);
   const editFileInputRef = useRef<HTMLInputElement>(null);
   const editVideoInputRef = useRef<HTMLInputElement>(null);
-  const photos = coerceMissionGalleryUrls(mission);
+  const photos = resolveMissionGalleryUrls(mission);
   const videoProofSrc = resolveStoredMediaUrl(mission.video_proof_url);
   const remainingUsd = crowdfundingRemainingUsd(mission);
   const placeholderVariant = placeholderVariantFor(mission);
@@ -811,30 +812,21 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     className="relative z-0 flex h-full w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain overscroll-y-none touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
                     style={{ WebkitOverflowScrolling: 'touch' }}
                   >
-                    {photos.map((url, index) => {
-                      const src = resolveStoredMediaUrl(url);
-                      return (
-                        <div
-                          key={`${url}-${index}`}
-                          className="relative h-full w-full min-w-full flex-[0_0_100%] snap-center snap-always overflow-hidden"
-                        >
-                          {src ? (
-                            <img
-                              src={src}
-                              alt={`Mission photo ${index + 1}`}
-                              className="block h-full w-full object-cover"
-                              loading={index === 0 ? 'eager' : 'lazy'}
-                              decoding="async"
-                              draggable={false}
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-slate-900 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
-                              Image unavailable
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {photos.map((url, index) => (
+                      <div
+                        key={`${url}-${index}`}
+                        className="relative h-full w-full min-w-full flex-[0_0_100%] snap-center snap-always overflow-hidden"
+                      >
+                        <img
+                          src={url}
+                          alt={`Mission photo ${index + 1}`}
+                          className="block h-full w-full object-cover"
+                          loading={index === 0 ? 'eager' : 'lazy'}
+                          decoding="async"
+                          draggable={false}
+                        />
+                      </div>
+                    ))}
                     {videoProofSrc ? (
                       <div className="relative h-full w-full min-w-full flex-[0_0_100%] snap-center snap-always overflow-hidden bg-black">
                         <video

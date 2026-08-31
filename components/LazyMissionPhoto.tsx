@@ -13,7 +13,7 @@
  *      remounts skip the skeleton (no flicker on scroll recycle).
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { resolveMissionPhotoUrl } from '../src/lib/r2Media';
+import { isAbsoluteMediaUrl, resolveMissionPhotoUrl } from '../src/lib/r2Media';
 
 export type LazyMissionPhotoProps = {
   src: string;
@@ -65,7 +65,7 @@ const LazyMissionPhoto: React.FC<LazyMissionPhotoProps> = ({
   const rawSrc = typeof src === 'string' ? src : '';
   const isValid =
     typeof resolvedSrc === 'string' &&
-    resolvedSrc.length > 0 &&
+    isAbsoluteMediaUrl(resolvedSrc) &&
     !rawSrc.startsWith('censored://');
 
   const [loaded, setLoaded] = useState(() => isValid && isPhotoCached(resolvedSrc));
