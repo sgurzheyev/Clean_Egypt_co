@@ -7,7 +7,7 @@ import {
   type MissionFeedPlaceholderVariant,
 } from '../src/lib/missionFeedVisuals';
 import LazyMissionPhoto from './LazyMissionPhoto';
-import { resolveAvatarUrl } from '../src/lib/r2Media';
+import { firstStoredMediaUrl, resolveAvatarUrl } from '../src/lib/r2Media';
 import {
   dispatchPreviewMissionLocation,
   isPreviewableCoord,
@@ -17,7 +17,8 @@ export type { MissionFeedPlaceholderVariant };
 
 export interface MissionFeedCardProps {
   photo?: React.ReactNode;
-  photoUrl?: string | null;
+  /** Stored key, https URL, JSON object, or the whole `photo_urls` array. */
+  photoUrl?: unknown;
   placeholderVariant?: MissionFeedPlaceholderVariant;
   placeholderIcon?: string;
   budgetValue: string;
@@ -86,6 +87,7 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
   previewLng,
   previewMissionId,
 }) => {
+  const coverUrl = firstStoredMediaUrl(photoUrl);
   const locationTranslation = useMissionTextTranslation(locationLine);
   const showLocate = !!(onLocate || onClick);
   const canPreviewMap = isPreviewableCoord(previewLat, previewLng);
@@ -165,9 +167,9 @@ const MissionFeedCard: React.FC<MissionFeedCardProps> = ({
             <div className="pointer-events-none absolute inset-0 select-none [&_img]:h-full [&_img]:w-full [&_img]:object-cover">
               {photo}
             </div>
-          ) : photoUrl ? (
+          ) : coverUrl ? (
             <LazyMissionPhoto
-              src={photoUrl}
+              src={coverUrl}
               alt=""
               className="pointer-events-none absolute inset-0 h-full w-full"
               imgClassName="h-full w-full select-none object-cover"

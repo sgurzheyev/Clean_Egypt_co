@@ -10,6 +10,8 @@ import { Pencil, Target, Globe, Building2, Clock, Info, Lock, Coins, Store, Badg
 import imageCompression from 'browser-image-compression';
 import { compressMissionPhoto } from '../src/lib/missionPhotoCompression';
 import {
+  coerceMissionGalleryUrls,
+  coerceStoredMediaUrls,
   resolveAvatarUrl,
   uploadAvatarToR2,
   uploadMissionPhotoToR2,
@@ -165,6 +167,7 @@ interface Job {
   created_at: string;
   started_at?: string | null;
   photo_urls?: string[] | null;
+  photos?: unknown;
   after_photo_urls?: string[] | null;
   proof_video_url?: string | null;
   is_disputed?: boolean | null;
@@ -182,6 +185,21 @@ interface Job {
     full_name?: string | null;
     avatar_url?: string | null;
   } | null;
+}
+
+function normalizeJobMedia<T extends Pick<Job, 'photo_urls' | 'after_photo_urls'> & { photos?: unknown }>(
+  job: T
+): T {
+  const photos = coerceMissionGalleryUrls(job).slice(0, 9);
+  return {
+    ...job,
+    photo_urls: photos,
+    after_photo_urls: coerceStoredMediaUrls(job.after_photo_urls).slice(0, 9),
+  };
+}
+
+function jobCoverPhotoUrl(job: { photo_urls?: unknown; photos?: unknown }): string | null {
+  return coerceMissionGalleryUrls(job)[0] ?? null;
 }
 
 type AfterBurstPackage = {
@@ -1008,7 +1026,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         .eq('creator_id', userId)
         .eq('category', 'home')
         .order('created_at', { ascending: false });
-      setMyHomeJobs((homeJobsData || []) as unknown as Job[]);
+      setMyHomeJobs(((homeJobsData || []) as unknown as Job[]).map(normalizeJobMedia));
 
       const { data: cityJobsData } = await supabase
         .from('missions')
@@ -1016,7 +1034,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         .eq('creator_id', userId)
         .eq('category', 'public')
         .order('created_at', { ascending: false });
-      setMyCityJobs((cityJobsData || []) as unknown as Job[]);
+      setMyCityJobs(((cityJobsData || []) as unknown as Job[]).map(normalizeJobMedia));
 
       const { data: activeJobsData } = await supabase
         .from('missions')
@@ -1024,13 +1042,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         .eq('cleaner_id', userId)
         .in('status', ['in_progress', 'review', 'pending_approval', 'awaiting_approval', 'completed', 'finished'])
         .order('created_at', { ascending: false });
-      setMyActiveJobs(
-        ((activeJobsData || []) as unknown as Job[]).map((job) => ({
-          ...job,
-          photo_urls: Array.isArray(job.photo_urls) ? job.photo_urls.slice(0, 9) : job.photo_urls,
-          after_photo_urls: Array.isArray(job.after_photo_urls) ? job.after_photo_urls.slice(0, 9) : job.after_photo_urls,
-        }))
-      );
+      setMyActiveJobs(((activeJobsData || []) as unknown as Job[]).map(normalizeJobMedia));
 
       const { data: historyData } = await supabase
         .from('missions')
@@ -1063,7 +1075,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         .or(`creator_id.eq.${userId},cleaner_id.eq.${userId}`)
         .order('created_at', { ascending: false })
         .limit(100);
-      setMissionHistory((historyData || []) as unknown as Job[]);
+      setMissionHistory(((historyData || []) as unknown as Job[]).map(normalizeJobMedia));
 
       const pendingJobIds = [
         ...(((homeJobsData || []) as unknown as Job[])
@@ -1150,7 +1162,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         throw error;
       }
 
-      setMarketplaceJobs((data || []) as Job[]);
+      setMarketplaceJobs(((data || []) as Job[]).map(normalizeJobMedia));
     } catch (err) {
       console.error('Error fetching marketplace jobs:', err);
       setMarketplaceError('Failed to load marketplace. Please refresh.');
@@ -1259,11 +1271,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   };
 
   const openProofModal = (job: Job, phase: 'before' | 'after') => {
-    setProofJob({
-      ...job,
-      photo_urls: Array.isArray(job.photo_urls) ? job.photo_urls.slice(0, 9) : job.photo_urls,
-      after_photo_urls: Array.isArray(job.after_photo_urls) ? job.after_photo_urls.slice(0, 9) : job.after_photo_urls,
-    });
+    setProofJob(normalizeJobMedia({ ...job }));
     setProofPhase(phase);
     setProofFiles([]);
     setLivenessBlob(null);
@@ -2379,7 +2387,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     !!job.is_report,
                     isCrowdfundingPin(job)
                   );
-                  const hasPhoto = Array.isArray(job.photo_urls) && !!job.photo_urls[0];
+                  const coverPhoto = jobCoverPhotoUrl(job);
                   const statusKey = String(job.status || '').toLowerCase();
                   const openForBids =
                     (statusKey === 'pending' ||
@@ -2608,17 +2616,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   return (
                     <MissionFeedCard
                       key={job.id}
-                      photo={
-                        hasPhoto ? (
-                          <ModeratedMissionPhoto
-                            url={job.photo_urls![0]}
-                            alt=""
-                            showSafeBadge={false}
-                            className="h-full w-full"
-                            imgClassName="h-full w-full object-cover"
-                          />
-                        ) : undefined
-                      }
+                      photoUrl={coverPhoto}
                       placeholderVariant={isHome ? 'home' : 'city'}
                       placeholderIcon={icon}
                       previewLat={job.location_lat}
@@ -2696,23 +2694,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     !!job.is_report,
                     isCrowdfundingPin(job)
                   );
-                  const hasPhoto = Array.isArray(job.photo_urls) && !!job.photo_urls[0];
+                  const coverPhoto = jobCoverPhotoUrl(job);
                   const statusKey = String(job.status || '').toLowerCase();
 
                   return (
                     <MissionFeedCard
                       key={job.id}
-                      photo={
-                        hasPhoto ? (
-                          <ModeratedMissionPhoto
-                            url={job.photo_urls![0]}
-                            alt=""
-                            showSafeBadge={false}
-                            className="h-full w-full"
-                            imgClassName="h-full w-full object-cover"
-                          />
-                        ) : undefined
-                      }
+                      photoUrl={coverPhoto}
                       placeholderVariant={isHome ? 'home' : 'city'}
                       placeholderIcon={icon}
                       previewLat={job.location_lat}
@@ -2856,17 +2844,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     previewLat={job.location_lat}
                     previewLng={job.location_lng}
                     previewMissionId={job.id}
-                    photo={
-                      Array.isArray(job.photo_urls) && job.photo_urls[0] ? (
-                        <ModeratedMissionPhoto
-                          url={job.photo_urls[0]}
-                          alt=""
-                          showSafeBadge={false}
-                          className="h-full w-full"
-                          imgClassName="h-full w-full object-cover"
-                        />
-                      ) : undefined
-                    }
+                    photoUrl={jobCoverPhotoUrl(job)}
                     placeholderVariant={isHome ? 'home' : 'city'}
                     placeholderIcon={icon}
                     budgetValue={formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
@@ -3070,22 +3048,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         : t('cityMission');
                   const cleanerName = job.cleaner?.full_name || t('newHero');
                   const cleanerHandle = '';
-                  const hasPhoto = Array.isArray(job.photo_urls) && !!job.photo_urls[0];
+                  const coverPhoto = jobCoverPhotoUrl(job);
 
                   return (
                     <MissionFeedCard
                       key={job.id}
-                      photo={
-                        hasPhoto ? (
-                          <ModeratedMissionPhoto
-                            url={job.photo_urls![0]}
-                            alt=""
-                            showSafeBadge={false}
-                            className="h-full w-full"
-                            imgClassName="h-full w-full object-cover"
-                          />
-                        ) : undefined
-                      }
+                      photoUrl={coverPhoto}
                       placeholderVariant={isHome ? 'home' : 'city'}
                       placeholderIcon={icon}
                       previewLat={job.location_lat}
@@ -3442,12 +3410,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                   {t('reviewMissionProofTitle')}
                 </p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {(!reviewJob.after_photo_urls || reviewJob.after_photo_urls.length === 0) && (
+                  {coerceStoredMediaUrls(reviewJob.after_photo_urls).length === 0 && (
                     <p className="col-span-full text-xs italic text-slate-500">
                       Worker did not upload after photos yet.
                     </p>
                   )}
-                  {(reviewJob.after_photo_urls || []).map((url, idx) => (
+                  {coerceStoredMediaUrls(reviewJob.after_photo_urls).map((url, idx) => (
                     <div
                       key={`after-${idx}-${url.slice(0, 32)}`}
                       className={`relative overflow-hidden ${PROFILE_GLASS_PANEL} !rounded-xl`}

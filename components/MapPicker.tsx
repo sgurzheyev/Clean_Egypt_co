@@ -12,7 +12,7 @@ import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
 import { getWorkerGeolocation, submitMissionProof } from '../src/lib/submitMissionProof';
 import { uploadCrowdfundingProofToR2, type ProofUploadPhase } from '../src/lib/r2ProofUpload';
-import { coerceStoredMediaUrls, resolveAvatarUrl, uploadMissionPhotoToR2 } from '../src/lib/r2Media';
+import { coerceMissionGalleryUrls, coerceStoredMediaUrls, resolveAvatarUrl, resolveR2PublicUrl, uploadMissionPhotoToR2 } from '../src/lib/r2Media';
 import { uploadPinVideoProofToR2 } from '../src/lib/pinVideoProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import { resolveMissionCleanerId, submitReview } from '../src/lib/reviews';
@@ -484,7 +484,7 @@ function normalizeJobOnMap(row: any): JobOnMap | null {
   const status = String(row.status || 'available');
   const isReport =
     !!row.is_report || status.toLowerCase() === 'reported';
-  const photos = coerceStoredMediaUrls(row.photo_urls);
+  const photos = coerceMissionGalleryUrls(row);
   const afterPhotos =
     row.after_photo_urls == null ? null : coerceStoredMediaUrls(row.after_photo_urls);
 
@@ -676,8 +676,8 @@ function footprintCylinderRing(
 function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
   const { t } = useTranslation();
   const [value, setValue] = useState(50);
-  const beforePhotos = mission.photo_urls || [];
-  const afterPhotos = mission.after_photo_urls || [];
+  const beforePhotos = coerceStoredMediaUrls(mission.photo_urls);
+  const afterPhotos = coerceStoredMediaUrls(mission.after_photo_urls);
   if (beforePhotos.length === 0 && afterPhotos.length === 0) {
     return (
       <p className="mt-4 text-xs text-slate-400">
@@ -685,8 +685,8 @@ function HallOfFameSlider({ mission }: { mission: JobOnMap }) {
       </p>
     );
   }
-  const before = beforePhotos[0] || afterPhotos[0];
-  const after = afterPhotos[0] || beforePhotos[0];
+  const before = resolveR2PublicUrl(beforePhotos[0] || afterPhotos[0]);
+  const after = resolveR2PublicUrl(afterPhotos[0] || beforePhotos[0]);
 
   return (
     <div className="mt-5">
@@ -1011,7 +1011,7 @@ function MyOrdersPanel({
                   return (
                     <MissionFeedCard
                       key={mission.id}
-                      photoUrl={mission.photo_urls?.[0] ?? null}
+                      photoUrl={mission.photo_urls}
                       previewLat={mission.location_lat}
                       previewLng={mission.location_lng}
                       previewMissionId={mission.id}

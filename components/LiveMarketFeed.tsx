@@ -75,6 +75,7 @@ export interface LiveMarketMission {
   creator_id?: string | null;
   description?: string | null;
   photo_urls?: string[] | null;
+  photos?: unknown;
   created_at?: string | null;
   creator?: {
     full_name?: string | null;
@@ -446,7 +447,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                             style={CARD_GPU_STYLE}
                           >
                             <MissionFeedCard
-                              photoUrl={mission.photo_urls?.[0] ?? null}
+                              photoUrl={mission.photo_urls ?? mission.photos}
                               previewLat={mission.location_lat}
                               previewLng={mission.location_lng}
                               previewMissionId={mission.id}

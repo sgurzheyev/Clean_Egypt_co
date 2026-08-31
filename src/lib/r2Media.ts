@@ -53,19 +53,94 @@ export function resolveR2PublicUrl(stored: string | null | undefined): string {
   return `${base}/${key}`;
 }
 
+const MEDIA_OBJECT_KEYS = [
+  'url',
+  'public_url',
+  'publicUrl',
+  'src',
+  'href',
+  'displayUrl',
+  'display_url',
+  'object_key',
+  'objectKey',
+  'key',
+  'path',
+  'photo_url',
+  'photoUrl',
+] as const;
+
+function looksLikeMediaPath(value: string): boolean {
+  return /^(https?:\/\/|data:|blob:|[a-z0-9_./-]+)/i.test(value);
+}
+
 /**
- * Coerce `missions.photo_urls` / `after_photo_urls` from PostgREST.
- * Usually a string[]; older rows or RPC quirks can arrive as a JSON/PG array literal.
+ * Pull a single stored key/URL out of a string, JSON object, or nested wrapper.
+ */
+function extractStoredMediaUrl(item: unknown, depth = 0): string {
+  if (item == null || depth > 6) return '';
+  if (typeof item === 'string') {
+    const trimmed = item.trim();
+    if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return '';
+    const looksJson =
+      trimmed.startsWith('[') || (trimmed.startsWith('{') && trimmed.includes(':'));
+    if (looksJson) {
+      try {
+        const nested = extractStoredMediaUrl(JSON.parse(trimmed), depth + 1);
+        if (nested) return nested;
+      } catch {
+        /* not JSON — keep as a path/key */
+      }
+    }
+    return trimmed;
+  }
+  if (Array.isArray(item)) {
+    for (const entry of item) {
+      const found = extractStoredMediaUrl(entry, depth + 1);
+      if (found) return found;
+    }
+    return '';
+  }
+  if (typeof item === 'object') {
+    const rec = item as Record<string, unknown>;
+    for (const key of MEDIA_OBJECT_KEYS) {
+      if (key in rec) {
+        const found = extractStoredMediaUrl(rec[key], depth + 1);
+        if (found) return found;
+      }
+    }
+    for (const value of Object.values(rec)) {
+      if (typeof value === 'string' && looksLikeMediaPath(value.trim())) {
+        const found = extractStoredMediaUrl(value, depth + 1);
+        if (found) return found;
+      }
+    }
+  }
+  return '';
+}
+
+/**
+ * Coerce `missions.photo_urls` / `after_photo_urls` / `photos` from PostgREST.
+ * Handles string[], JSON strings, Postgres `{a,b}` literals, and `{url}` / `{object_key}` objects.
  */
 export function coerceStoredMediaUrls(value: unknown): string[] {
+  if (value == null || value === '') return [];
   if (Array.isArray(value)) {
-    return value
-      .map((item) => (typeof item === 'string' ? item.trim() : ''))
-      .filter((item) => item.length > 0 && item !== 'null' && item !== 'undefined');
+    return value.flatMap((item) => coerceStoredMediaUrls(item));
+  }
+  if (typeof value === 'object') {
+    const rec = value as Record<string, unknown>;
+    const numericKeys = Object.keys(rec)
+      .filter((key) => /^\d+$/.test(key))
+      .sort((a, b) => Number(a) - Number(b));
+    if (numericKeys.length > 0) {
+      return coerceStoredMediaUrls(numericKeys.map((key) => rec[key]));
+    }
+    const url = extractStoredMediaUrl(value);
+    return url ? [url] : [];
   }
   if (typeof value !== 'string') return [];
   const trimmed = value.trim();
-  if (!trimmed) return [];
+  if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return [];
   if (trimmed.startsWith('[')) {
     try {
       return coerceStoredMediaUrls(JSON.parse(trimmed));
@@ -74,13 +149,57 @@ export function coerceStoredMediaUrls(value: unknown): string[] {
     }
   }
   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    if (trimmed.includes(':')) {
+      try {
+        return coerceStoredMediaUrls(JSON.parse(trimmed));
+      } catch {
+        /* Postgres text[] literal */
+      }
+    }
     return trimmed
       .slice(1, -1)
       .split(',')
-      .map((part) => part.trim().replace(/^"(.*)"$/, '$1'))
+      .map((part) => extractStoredMediaUrl(part.trim().replace(/^"(.*)"$/, '$1')))
       .filter((part) => part.length > 0);
   }
-  return [trimmed];
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    try {
+      const inner = JSON.parse(trimmed.startsWith("'") ? `"${trimmed.slice(1, -1)}"` : trimmed);
+      if (typeof inner === 'string') return coerceStoredMediaUrls(inner);
+    } catch {
+      /* keep as a single key */
+    }
+  }
+  const extracted = extractStoredMediaUrl(trimmed);
+  return extracted ? [extracted] : [];
+}
+
+/** First usable stored key/URL, or null when the field is empty / unparsable. */
+export function firstStoredMediaUrl(value: unknown): string | null {
+  return coerceStoredMediaUrls(value)[0] ?? null;
+}
+
+/**
+ * Gallery URLs for a mission card. Prefer `photo_urls`; fall back to `photos`
+ * so a single stored link still appears in the slider/grid.
+ */
+export function coerceMissionGalleryUrls(source: {
+  photo_urls?: unknown;
+  photos?: unknown;
+} | null | undefined): string[] {
+  const fromPhotoUrls = coerceStoredMediaUrls(source?.photo_urls);
+  if (fromPhotoUrls.length > 0) return fromPhotoUrls;
+  return coerceStoredMediaUrls(source?.photos);
+}
+
+/** Coerce then resolve each key through the public R2 CDN (https URLs pass through). */
+export function resolveMissionPhotoUrls(value: unknown): string[] {
+  return coerceStoredMediaUrls(value)
+    .map((key) => resolveR2PublicUrl(key))
+    .filter((url) => url.length > 0);
 }
 
 function normalizeContentType(file: File | Blob, fallback = 'image/jpeg'): string {

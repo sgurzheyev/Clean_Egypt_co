@@ -18,7 +18,11 @@ import {
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
-import { coerceStoredMediaUrls, resolveAvatarUrl, resolveR2PublicUrl } from '../src/lib/r2Media';
+import {
+  coerceMissionGalleryUrls,
+  resolveAvatarUrl,
+  resolveR2PublicUrl,
+} from '../src/lib/r2Media';
 import { missionTokenBid, missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
 import {
@@ -97,6 +101,8 @@ export type MissionBriefingMission = {
   creator_id?: string | null;
   description?: string | null;
   photo_urls?: string[] | null;
+  /** Legacy / RPC alias for `photo_urls`. */
+  photos?: unknown;
   after_photo_urls?: string[] | null;
   proof_video_url?: string | null;
   video_proof_url?: string | null;
@@ -380,7 +386,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const missionRecurrence = normalizeRecurrenceType(mission.recurrence_type);
   const editFileInputRef = useRef<HTMLInputElement>(null);
   const editVideoInputRef = useRef<HTMLInputElement>(null);
-  const photos = coerceStoredMediaUrls(mission?.photo_urls);
+  const photos = coerceMissionGalleryUrls(mission);
   const videoProofSrc = resolveR2PublicUrl(mission.video_proof_url);
   const remainingUsd = crowdfundingRemainingUsd(mission);
   const placeholderVariant = placeholderVariantFor(mission);

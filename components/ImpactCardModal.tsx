@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { toPng } from 'html-to-image';
 import { extractMissionFeedDescription } from '../src/lib/missionDescription';
 import { missionSector } from '../src/lib/serviceSectors';
-import { resolveMissionPhotoUrl } from '../src/lib/r2Media';
+import { firstStoredMediaUrl, resolveMissionPhotoUrl } from '../src/lib/r2Media';
 
 export type ImpactCardMission = {
   id: string;
@@ -50,11 +50,11 @@ const ImpactCardModal: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
 
   const beforeUrl = useMemo(() => {
-    const raw = (mission.photo_urls || []).find(Boolean) || null;
+    const raw = firstStoredMediaUrl(mission.photo_urls);
     return raw ? resolveMissionPhotoUrl(raw) : null;
   }, [mission.photo_urls]);
   const afterUrl = useMemo(() => {
-    const raw = (mission.after_photo_urls || []).find(Boolean) || null;
+    const raw = firstStoredMediaUrl(mission.after_photo_urls);
     return raw ? resolveMissionPhotoUrl(raw) : null;
   }, [mission.after_photo_urls]);
   const hasSplit = !!(beforeUrl && afterUrl);
