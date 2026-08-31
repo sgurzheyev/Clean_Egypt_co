@@ -42,7 +42,14 @@ export function getR2PublicBaseUrl(): string {
  * - Object keys → `{VITE_R2_PUBLIC_BASE_URL}/{key}` when configured.
  */
 export function resolveR2PublicUrl(stored: string | null | undefined): string {
-  const value = String(stored ?? '').trim();
+  let value = String(stored ?? '').trim();
+  if (!value || value === 'null' || value === 'undefined') return '';
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1).trim();
+  }
   if (!value) return '';
   if (/^https?:\/\//i.test(value) || value.startsWith('data:') || value.startsWith('blob:')) {
     return value;
@@ -50,6 +57,11 @@ export function resolveR2PublicUrl(stored: string | null | undefined): string {
   const base = getR2PublicBaseUrl();
   if (!base) return value;
   const key = value.replace(/^\/+/, '');
+  // Already a CDN path without scheme, or accidentally prefixed twice.
+  if (key.startsWith(`${base.replace(/^https?:\/\//i, '')}/`)) {
+    return `${base.split('://')[0]}://${key}`;
+  }
+  if (value === base || value.startsWith(`${base}/`)) return value;
   return `${base}/${key}`;
 }
 
@@ -200,6 +212,11 @@ export function resolveMissionPhotoUrls(value: unknown): string[] {
   return coerceStoredMediaUrls(value)
     .map((key) => resolveR2PublicUrl(key))
     .filter((url) => url.length > 0);
+}
+
+/** Single stored photo/video field → playable/display URL, or ''. */
+export function resolveStoredMediaUrl(value: unknown): string {
+  return resolveR2PublicUrl(firstStoredMediaUrl(value));
 }
 
 function normalizeContentType(file: File | Blob, fallback = 'image/jpeg'): string {

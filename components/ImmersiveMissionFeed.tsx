@@ -47,7 +47,7 @@ import {
 import TrustBadgeRow from './TrustBadgeRow';
 import LazyMissionPhoto from './LazyMissionPhoto';
 import MissionFeedErrorBoundary from './MissionFeedErrorBoundary';
-import { coerceMissionGalleryUrls, resolveAvatarUrl } from '../src/lib/r2Media';
+import { coerceMissionGalleryUrls, resolveAvatarUrl, resolveStoredMediaUrl } from '../src/lib/r2Media';
 
 /** Structural mission shape — both LiveMarketMission and Profile's Job satisfy it. */
 export type ImmersiveFeedMission = {
@@ -68,6 +68,7 @@ export type ImmersiveFeedMission = {
   description?: string | null;
   photo_urls?: string[] | null;
   photos?: unknown;
+  video_proof_url?: string | null;
   creator_id?: string | null;
   creator?: {
     full_name?: string | null;
@@ -117,6 +118,10 @@ const SLIDE_GPU_STYLE: React.CSSProperties = {
 
 function missionPhotos(mission: ImmersiveFeedMission): string[] {
   return coerceMissionGalleryUrls(mission).slice(0, MAX_PHOTOS);
+}
+
+function missionVideoSrc(mission: ImmersiveFeedMission): string {
+  return resolveStoredMediaUrl(mission.video_proof_url);
 }
 
 function missionHashtags(description: string | null | undefined): string[] {
@@ -188,6 +193,8 @@ const MissionSlide = React.memo(function MissionSlide({
   );
 
   const photos = useMemo(() => missionPhotos(mission), [mission]);
+  const videoSrc = useMemo(() => missionVideoSrc(mission), [mission]);
+  const mediaCount = photos.length + (videoSrc ? 1 : 0);
   const isHome =
     missionSector(mission.service_type, mission.category ?? undefined) === 'home';
   const budget = formatWorkBudgetUsd(missionWorkBudgetUsd(mission));
@@ -224,13 +231,13 @@ const MissionSlide = React.memo(function MissionSlide({
     const el = pagerRef.current;
     if (!el || settlingRef.current !== null) return;
     const next = Math.min(
-      Math.max(0, photos.length - 1),
+      Math.max(0, mediaCount - 1),
       Math.max(0, Math.round(el.scrollLeft / Math.max(1, el.clientWidth)))
     );
     if (next === photoIndexRef.current) return;
     photoIndexRef.current = next;
     onPhotoIndexChange(mission.id, next);
-  }, [mission.id, onPhotoIndexChange, photos.length]);
+  }, [mission.id, onPhotoIndexChange, mediaCount]);
 
   const placeholder = (
     <div
@@ -265,7 +272,7 @@ const MissionSlide = React.memo(function MissionSlide({
           `overflow-y-hidden` lets vertical gestures fall through to the feed
           scroller, so sideways paging never blocks the next mission.
           Forced LTR: scrollLeft maths must not flip under the Arabic locale. */}
-      {photos.length > 0 && nearActive ? (
+      {mediaCount > 0 && nearActive ? (
         <div
           ref={pagerRef}
           onScroll={handlePagerScroll}
@@ -288,6 +295,21 @@ const MissionSlide = React.memo(function MissionSlide({
               />
             </div>
           ))}
+          {videoSrc ? (
+            <div
+              key={`${mission.id}-video`}
+              className="relative h-full w-full shrink-0 snap-center snap-always bg-black"
+              style={SLIDE_GPU_STYLE}
+            >
+              <video
+                src={videoSrc}
+                className="absolute inset-0 h-full w-full object-cover"
+                controls
+                playsInline
+                preload="metadata"
+              />
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="absolute inset-0">{placeholder}</div>
@@ -306,9 +328,9 @@ const MissionSlide = React.memo(function MissionSlide({
       {/* Metadata overlay — clears the sidebar (right) and bottom nav.
           Click-through so a swipe started over the text still pages photos. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-4 pb-[calc(5.5rem+max(0.75rem,env(safe-area-inset-bottom)))] pr-[4.75rem]">
-        {photos.length > 1 && (
+        {mediaCount > 1 && (
           <div className="mb-3 flex items-center gap-1.5" aria-hidden>
-            {photos.map((_, p) => (
+            {Array.from({ length: mediaCount }, (_, p) => (
               <span
                 key={`${mission.id}-dot-${p}`}
                 className={`h-1 rounded-full transition-all duration-200 ${
@@ -461,7 +483,9 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
   }, [open, missionIdsKey]);
 
   const current = missions[Math.min(index, Math.max(0, missions.length - 1))];
-  const currentPhotoCount = current ? missionPhotos(current).length : 0;
+  const currentPhotoCount = current
+    ? missionPhotos(current).length + (missionVideoSrc(current) ? 1 : 0)
+    : 0;
   const currentPhotoIndex = current ? (photoIndexByMission[current.id] ?? 0) : 0;
 
   const setMissionPhotoIndex = useCallback((missionId: string, next: number) => {

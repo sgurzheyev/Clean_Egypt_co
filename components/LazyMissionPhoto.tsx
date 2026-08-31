@@ -58,11 +58,15 @@ const LazyMissionPhoto: React.FC<LazyMissionPhotoProps> = ({
   draggable = false,
 }) => {
   // R2 object keys → public CDN URL; legacy Supabase https URLs pass through.
-  const resolvedSrc = useMemo(() => resolveMissionPhotoUrl(src), [src]);
+  const resolvedSrc = useMemo(
+    () => resolveMissionPhotoUrl(typeof src === 'string' ? src : String(src ?? '')),
+    [src]
+  );
+  const rawSrc = typeof src === 'string' ? src : '';
   const isValid =
     typeof resolvedSrc === 'string' &&
     resolvedSrc.length > 0 &&
-    !src.startsWith('censored://');
+    !rawSrc.startsWith('censored://');
 
   const [loaded, setLoaded] = useState(() => isValid && isPhotoCached(resolvedSrc));
   const [error, setError] = useState(false);

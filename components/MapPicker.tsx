@@ -12,7 +12,7 @@ import SunCalc from 'suncalc';
 import { supabase } from '../services/supabase';
 import { getWorkerGeolocation, submitMissionProof } from '../src/lib/submitMissionProof';
 import { uploadCrowdfundingProofToR2, type ProofUploadPhase } from '../src/lib/r2ProofUpload';
-import { coerceMissionGalleryUrls, coerceStoredMediaUrls, resolveAvatarUrl, resolveR2PublicUrl, uploadMissionPhotoToR2 } from '../src/lib/r2Media';
+import { coerceMissionGalleryUrls, coerceStoredMediaUrls, firstStoredMediaUrl, resolveAvatarUrl, resolveR2PublicUrl, uploadMissionPhotoToR2 } from '../src/lib/r2Media';
 import { uploadPinVideoProofToR2 } from '../src/lib/pinVideoProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import { resolveMissionCleanerId, submitReview } from '../src/lib/reviews';
@@ -515,10 +515,7 @@ function normalizeJobOnMap(row: any): JobOnMap | null {
       typeof row.proof_video_url === 'string' && row.proof_video_url.trim()
         ? String(row.proof_video_url).trim()
         : null,
-    video_proof_url:
-      typeof row.video_proof_url === 'string' && row.video_proof_url.trim()
-        ? String(row.video_proof_url).trim()
-        : null,
+    video_proof_url: firstStoredMediaUrl(row.video_proof_url),
     created_at: row.created_at ?? null,
     started_at: row.started_at ?? null,
     completion_lat:
@@ -1012,6 +1009,7 @@ function MyOrdersPanel({
                     <MissionFeedCard
                       key={mission.id}
                       photoUrl={mission.photo_urls}
+                      videoUrl={mission.video_proof_url}
                       previewLat={mission.location_lat}
                       previewLng={mission.location_lng}
                       previewMissionId={mission.id}

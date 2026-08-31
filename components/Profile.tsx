@@ -98,10 +98,10 @@ import { isEdgeFunctionUnreachable } from '../src/lib/supabaseFunctionError';
 const MISSION_CREATOR_EMBED = 'creator:profiles!creator_id (full_name, avatar_url)';
 
 const MISSION_PROFILE_SELECT =
-  `id, creator_id, cleaner_id, category, amount_target, expected_price, current_funding, crowdfunding_mode, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, proof_video_url, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ai_confidence_score, ai_verdict, is_report, ${MISSION_CREATOR_EMBED}`;
+  `id, creator_id, cleaner_id, category, amount_target, expected_price, current_funding, crowdfunding_mode, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, proof_video_url, video_proof_url, started_at, is_disputed, retry_count, rejection_reason, auto_approved, ai_confidence_score, ai_verdict, is_report, ${MISSION_CREATOR_EMBED}`;
 
 const MISSION_ACTIVE_SELECT =
-  `id, creator_id, cleaner_id, category, amount_target, expected_price, current_funding, crowdfunding_mode, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, proof_video_url, started_at, is_disputed, retry_count, rejection_reason, auto_approved, is_report, ${MISSION_CREATOR_EMBED}`;
+  `id, creator_id, cleaner_id, category, amount_target, expected_price, current_funding, crowdfunding_mode, location_lat, location_lng, country, city, status, title, description, created_at, photo_urls, after_photo_urls, proof_video_url, video_proof_url, started_at, is_disputed, retry_count, rejection_reason, auto_approved, is_report, ${MISSION_CREATOR_EMBED}`;
 
 /** 📍 description line → city/country → coordinates — matches Market card place line. */
 function orderMissionLocationLine(job: {
@@ -170,6 +170,7 @@ interface Job {
   photos?: unknown;
   after_photo_urls?: string[] | null;
   proof_video_url?: string | null;
+  video_proof_url?: string | null;
   is_disputed?: boolean | null;
   retry_count?: number | null;
   rejection_reason?: string | null;
@@ -1064,6 +1065,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           created_at,
           photo_urls,
           after_photo_urls,
+          video_proof_url,
           started_at,
           is_disputed,
           cleaner:profiles!missions_cleaner_id_fkey (
@@ -1148,6 +1150,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           description,
           created_at,
           photo_urls,
+          video_proof_url,
           creator:profiles!creator_id (
             full_name,
             avatar_url
@@ -2617,6 +2620,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     <MissionFeedCard
                       key={job.id}
                       photoUrl={coverPhoto}
+                      videoUrl={job.video_proof_url}
                       placeholderVariant={isHome ? 'home' : 'city'}
                       placeholderIcon={icon}
                       previewLat={job.location_lat}
@@ -2701,6 +2705,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     <MissionFeedCard
                       key={job.id}
                       photoUrl={coverPhoto}
+                      videoUrl={job.video_proof_url}
                       placeholderVariant={isHome ? 'home' : 'city'}
                       placeholderIcon={icon}
                       previewLat={job.location_lat}
@@ -2845,6 +2850,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     previewLng={job.location_lng}
                     previewMissionId={job.id}
                     photoUrl={jobCoverPhotoUrl(job)}
+                    videoUrl={job.video_proof_url}
                     placeholderVariant={isHome ? 'home' : 'city'}
                     placeholderIcon={icon}
                     budgetValue={formatWorkBudgetUsd(missionWorkBudgetUsd(job))}
@@ -3054,6 +3060,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                     <MissionFeedCard
                       key={job.id}
                       photoUrl={coverPhoto}
+                      videoUrl={job.video_proof_url}
                       placeholderVariant={isHome ? 'home' : 'city'}
                       placeholderIcon={icon}
                       previewLat={job.location_lat}

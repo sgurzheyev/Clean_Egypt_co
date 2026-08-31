@@ -5,7 +5,7 @@ import {
 } from './missionDescription';
 import { filterMissionDescription, validateMissionDescription } from './missionContentPolicy';
 import { compressMissionPhoto, isLikelyImageFile } from './missionPhotoCompression';
-import { uploadMissionPhotoToR2 } from './r2Media';
+import { coerceStoredMediaUrls, uploadMissionPhotoToR2 } from './r2Media';
 import { uploadPinVideoProofToR2 } from './pinVideoProof';
 
 export const EDITABLE_MISSION_STATUSES = new Set([
@@ -62,7 +62,8 @@ export async function uploadMissionPhotoFiles(files: File[]): Promise<string[]> 
 export type UpdateMissionDetailsInput = {
   missionId: string;
   currentDescription: string | null | undefined;
-  currentPhotoUrls: string[] | null | undefined;
+  /** Raw `photo_urls` from the row or already-coerced keys. */
+  currentPhotoUrls: unknown;
   nextBodyText: string;
   newPhotoFiles: File[];
   newVideoFile?: File | null;
@@ -89,7 +90,7 @@ export async function updateMissionDetails(
   const bodyText = filteredText.trim() || rawBody;
   const nextDescription = replaceMissionFeedDescription(input.currentDescription, bodyText);
 
-  const existing = (input.currentPhotoUrls || []).filter(Boolean);
+  const existing = coerceStoredMediaUrls(input.currentPhotoUrls);
   const slotsLeft = Math.max(0, MAX_MISSION_PHOTOS - existing.length);
   const filesToUpload = input.newPhotoFiles.slice(0, slotsLeft);
   const uploaded = filesToUpload.length > 0 ? await uploadMissionPhotoFiles(filesToUpload) : [];
@@ -99,10 +100,12 @@ export async function updateMissionDetails(
     videoProofUrl = await uploadPinVideoProofToR2(input.newVideoFile, 'mission-photos');
   }
 
+  // RPC replaces photo_urls whenever p_photo_urls is non-null. Sending [] would
+  // wipe stored media if the client failed to parse existing R2 keys.
   const { data, error } = await supabase.rpc('creator_update_mission_details', {
     p_mission_id: input.missionId,
     p_description: nextDescription,
-    p_photo_urls: nextPhotos,
+    p_photo_urls: nextPhotos.length > 0 ? nextPhotos : null,
     ...(videoProofUrl ? { p_video_proof_url: videoProofUrl } : {}),
   });
 
@@ -115,8 +118,8 @@ export async function updateMissionDetails(
       nextDescription ??
       extractMissionFeedDescription(nextDescription) ??
       null,
-    photo_urls: (row?.photo_urls as string[] | null | undefined) ?? nextPhotos,
+    photo_urls: coerceStoredMediaUrls(row?.photo_urls ?? nextPhotos),
     video_proof_url:
-      (row?.video_proof_url as string | null | undefined) ?? videoProofUrl ?? null,
+      coerceStoredMediaUrls(row?.video_proof_url)[0] ?? videoProofUrl ?? null,
   };
 }

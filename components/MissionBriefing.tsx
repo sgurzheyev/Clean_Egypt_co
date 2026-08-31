@@ -21,7 +21,7 @@ import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import {
   coerceMissionGalleryUrls,
   resolveAvatarUrl,
-  resolveR2PublicUrl,
+  resolveStoredMediaUrl,
 } from '../src/lib/r2Media';
 import { missionTokenBid, missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
@@ -317,6 +317,8 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const [editBody, setEditBody] = useState('');
   const [editFiles, setEditFiles] = useState<File[]>([]);
   const [editPreviews, setEditPreviews] = useState<string[]>([]);
+  const [editExistingPhotos, setEditExistingPhotos] = useState<string[]>([]);
+  const [editExistingVideo, setEditExistingVideo] = useState<string | null>(null);
   const [editVideoFile, setEditVideoFile] = useState<File | null>(null);
   const [editVideoPreview, setEditVideoPreview] = useState<string | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
@@ -387,7 +389,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const editFileInputRef = useRef<HTMLInputElement>(null);
   const editVideoInputRef = useRef<HTMLInputElement>(null);
   const photos = coerceMissionGalleryUrls(mission);
-  const videoProofSrc = resolveR2PublicUrl(mission.video_proof_url);
+  const videoProofSrc = resolveStoredMediaUrl(mission.video_proof_url);
   const remainingUsd = crowdfundingRemainingUsd(mission);
   const placeholderVariant = placeholderVariantFor(mission);
   const isReportPin = isGarbageZoneReport(mission);
@@ -403,7 +405,10 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
     !!currentUserId &&
     currentUserId === mission.creator_id &&
     isMissionEditableStatus(mission.status);
-  const photoSlotsLeft = Math.max(0, MAX_MISSION_PHOTOS - photos.length - editFiles.length);
+  const photoSlotsLeft = Math.max(
+    0,
+    MAX_MISSION_PHOTOS - (editOpen ? editExistingPhotos.length : photos.length) - editFiles.length
+  );
   const locationSource = missionLocationLine(mission, t);
   const locationTranslation = useMissionTextTranslation(locationSource);
   const budgetValue = formatWorkBudgetUsd(missionWorkBudgetUsd(mission));
@@ -485,6 +490,8 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
     setEditBody('');
     setEditFiles([]);
     setEditPreviews([]);
+    setEditExistingPhotos([]);
+    setEditExistingVideo(null);
     setEditVideoFile(null);
     setEditVideoPreview(null);
     setEditError(null);
@@ -497,6 +504,8 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
     setEditBody(feedDescription || '');
     setEditFiles([]);
     setEditPreviews([]);
+    setEditExistingPhotos(coerceMissionGalleryUrls(mission));
+    setEditExistingVideo(resolveStoredMediaUrl(mission.video_proof_url) || null);
     setEditVideoFile(null);
     setEditVideoPreview(null);
     setEditError(null);
@@ -506,7 +515,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const onPickEditPhotos = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     const incoming = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
-    const room = Math.max(0, MAX_MISSION_PHOTOS - photos.length - editFiles.length);
+    const room = Math.max(0, MAX_MISSION_PHOTOS - editExistingPhotos.length - editFiles.length);
     const nextFiles = [...editFiles, ...incoming.slice(0, room)];
     editPreviews.forEach((url) => URL.revokeObjectURL(url));
     setEditFiles(nextFiles);
@@ -531,7 +540,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
       const result = await updateMissionDetails({
         missionId: mission.id,
         currentDescription: mission.description,
-        currentPhotoUrls: mission.photo_urls,
+        currentPhotoUrls: editExistingPhotos,
         nextBodyText: editBody,
         newPhotoFiles: editFiles,
         newVideoFile: editVideoFile,
@@ -1892,7 +1901,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
             {t('editMissionPhotos', { defaultValue: 'Photos' })}
           </p>
           <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {photos.map((url) => (
+            {editExistingPhotos.map((url) => (
               <div
                 key={url}
                 className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-white/15 bg-slate-900"
@@ -1950,10 +1959,10 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
             {t('uploadVideoProof')}
           </p>
-          {editVideoPreview || videoProofSrc ? (
+          {editVideoPreview || editExistingVideo ? (
             <div className="mb-3 overflow-hidden rounded-2xl border border-violet-400/35 bg-black/40">
               <video
-                src={editVideoPreview || videoProofSrc}
+                src={editVideoPreview || editExistingVideo || undefined}
                 className="mx-auto max-h-40 w-full object-contain bg-black"
                 controls
                 playsInline
