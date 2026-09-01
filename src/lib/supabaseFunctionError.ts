@@ -16,6 +16,52 @@ export function isEdgeFunctionUnreachable(error: unknown): boolean {
   );
 }
 
+export type InvokeFailure = Error & { code?: string };
+
+function throwInvokeError(message: string, code?: string): never {
+  throw Object.assign(new Error(message), { code }) as InvokeFailure;
+}
+
+function errorFromPayload(payload: unknown): { message: string; code?: string } | null {
+  if (!payload) return null;
+  if (typeof payload === 'string' && payload.trim()) {
+    try {
+      const parsed = JSON.parse(payload) as {
+        error?: unknown;
+        message?: unknown;
+        code?: unknown;
+      };
+      const message =
+        parsed?.error != null
+          ? String(parsed.error)
+          : parsed?.message != null
+            ? String(parsed.message)
+            : '';
+      if (message) {
+        return {
+          message,
+          code: parsed?.code != null ? String(parsed.code) : undefined,
+        };
+      }
+    } catch {
+      return { message: payload };
+    }
+    return { message: payload };
+  }
+  if (typeof payload === 'object' && payload !== null) {
+    const obj = payload as { error?: unknown; message?: unknown; code?: unknown };
+    const message =
+      obj.error != null ? String(obj.error) : obj.message != null ? String(obj.message) : '';
+    if (message) {
+      return {
+        message,
+        code: obj.code != null ? String(obj.code) : undefined,
+      };
+    }
+  }
+  return null;
+}
+
 /**
  * Supabase `functions.invoke` often sets a generic message on non-2xx responses.
  * Parse JSON body (and `data.error`) so users see the real Edge Function message.
@@ -37,7 +83,8 @@ export async function throwIfInvokeFailed(
   console.error(`[${label}] edge function invoke`, { data, error });
 
   if (hasDataError) {
-    throw new Error(String(dataError));
+    const parsed = errorFromPayload(data);
+    throwInvokeError(String(dataError), parsed?.code);
   }
 
   const anyErr = error as { message?: string; context?: unknown } | null;
@@ -47,40 +94,20 @@ export async function throwIfInvokeFailed(
     console.error(`[${label}] error.context`, ctx);
   }
 
-  const messageFromPayload = (payload: unknown): string | null => {
-    if (!payload) return null;
-    if (typeof payload === 'string' && payload.trim()) {
-      try {
-        const parsed = JSON.parse(payload) as { error?: unknown; message?: unknown };
-        if (parsed?.error != null) return String(parsed.error);
-        if (parsed?.message != null) return String(parsed.message);
-      } catch {
-        return payload;
-      }
-      return payload;
-    }
-    if (typeof payload === 'object' && payload !== null) {
-      const obj = payload as { error?: unknown; message?: unknown };
-      if (obj.error != null) return String(obj.error);
-      if (obj.message != null) return String(obj.message);
-    }
-    return null;
-  };
-
   // Newer supabase-js: context is a Fetch Response.
   if (ctx && typeof ctx === 'object' && typeof (ctx as Response).text === 'function') {
     try {
       const text = await (ctx as Response).clone().text();
-      const msg = messageFromPayload(text);
-      if (msg) throw new Error(msg);
+      const parsed = errorFromPayload(text);
+      if (parsed) throwInvokeError(parsed.message, parsed.code);
     } catch (e) {
       if (e instanceof Error && e.message !== anyErr?.message) throw e;
     }
   }
 
   if (typeof ctx === 'object' && ctx !== null && 'body' in ctx) {
-    const msg = messageFromPayload((ctx as { body?: unknown }).body);
-    if (msg) throw new Error(msg);
+    const parsed = errorFromPayload((ctx as { body?: unknown }).body);
+    if (parsed) throwInvokeError(parsed.message, parsed.code);
   }
 
   if (error instanceof Error) throw error;

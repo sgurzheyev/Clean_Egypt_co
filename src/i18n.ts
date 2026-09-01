@@ -677,6 +677,12 @@ const resources = {
       signInToContribute: 'Sign in to contribute to this campaign.',
       signInToPay: 'Sign in to complete payment.',
       payEnterCard: 'Enter your card details to complete payment.',
+      stripeSecretNotConfigured:
+        'Card payments are not configured on the server. Set STRIPE_SECRET_KEY in Supabase secrets so it matches this site’s publishable key (same Stripe account, live vs test).',
+      stripeKeyModeMismatch:
+        'Stripe live/test keys do not match. Update STRIPE_SECRET_KEY and VITE_STRIPE_PUBLISHABLE_KEY to the same Stripe account and mode.',
+      stripeProfileMissing:
+        'Your account profile is missing. Sign out, sign in again, then retry payment.',
       crowdfundingOwnerWait: 'Waiting for community contributions. Bidding opens when the target is reached.',
       contributionThanks: 'Thank you for your contribution!',
       crowdfundingTargetReached: 'Target reached — this job is now open for bidding.',
@@ -2007,6 +2013,12 @@ const resources = {
       signInToContribute: 'Войдите, чтобы поддержать кампанию.',
       signInToPay: 'Войдите, чтобы завершить оплату.',
       payEnterCard: 'Введите данные карты, чтобы завершить оплату.',
+      stripeSecretNotConfigured:
+        'Оплата картой не настроена на сервере. Задайте STRIPE_SECRET_KEY в секретах Supabase — тот же аккаунт Stripe и тот же режим (live/test), что и VITE_STRIPE_PUBLISHABLE_KEY.',
+      stripeKeyModeMismatch:
+        'Ключи Stripe live/test не совпадают. Обновите STRIPE_SECRET_KEY и VITE_STRIPE_PUBLISHABLE_KEY на один аккаунт и один режим.',
+      stripeProfileMissing:
+        'Профиль аккаунта не найден. Выйдите, войдите снова и повторите оплату.',
       crowdfundingOwnerWait: 'Ждём взносы сообщества. Ставки откроются после достижения цели.',
       contributionThanks: 'Спасибо за вклад!',
       crowdfundingTargetReached: 'Цель достигнута — заказ открыт для ставок.',

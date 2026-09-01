@@ -1,93 +1,65 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
-import Stripe from 'https://esm.sh/stripe@14.16.0?target=deno';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import {
+  createStripeClient,
+  handlePayError,
+  jsonResponse,
+  mapStripeError,
+  optionsResponse,
+  PayHttpError,
+  readJsonBody,
+  readStripeSecretKey,
+  requireAuthedUser,
+  requireSupabaseEnv,
+} from '../_shared/stripePay.ts';
 
 /**
  * After Stripe confirmation, credit tokens idempotently using:
  * `credit_tokens_from_payment_service_role(user_id, payment_intent_id, tokens)`.
  */
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return optionsResponse();
+  if (req.method !== 'POST') {
+    return jsonResponse({ error: 'Method not allowed', code: 'method_not_allowed' }, 405);
   }
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing Authorization' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const { user } = await requireAuthedUser(req);
+    const { url, serviceKey } = requireSupabaseEnv();
+    const { key } = readStripeSecretKey();
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
-    if (!supabaseUrl || !anonKey || !serviceKey || !stripeKey) {
-      throw new Error('Missing Supabase or Stripe env');
-    }
-
-    const supabaseUser = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
-    if (userErr || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const body = (await req.json()) as { payment_intent_id?: unknown };
+    const body = await readJsonBody<{ payment_intent_id?: unknown }>(req);
     const paymentIntentId =
       typeof body.payment_intent_id === 'string' ? body.payment_intent_id.trim() : '';
     if (!paymentIntentId) {
-      return new Response(JSON.stringify({ error: 'Missing payment_intent_id' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      throw new PayHttpError('Missing payment_intent_id', 400, 'missing_payment');
     }
 
-    const stripe = new Stripe(stripeKey, {
-      apiVersion: '2023-10-16',
-      httpClient: Stripe.createFetchHttpClient(),
-    });
-    const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+    const stripe = createStripeClient(key);
+    let pi;
+    try {
+      pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+    } catch (err) {
+      throw mapStripeError(err, 'paymentIntents.retrieve');
+    }
+
     if (pi.status !== 'succeeded') {
-      return new Response(JSON.stringify({ error: 'Payment not succeeded' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      throw new PayHttpError('Payment not succeeded', 400, 'payment_not_succeeded');
     }
 
     const metaUser = pi.metadata?.user_id;
     if (!metaUser || metaUser !== user.id) {
-      return new Response(JSON.stringify({ error: 'Payment not for this user' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      throw new PayHttpError('Payment not for this user', 403, 'user_mismatch');
     }
     if (pi.metadata?.purpose !== 'token_pack') {
-      return new Response(JSON.stringify({ error: 'Invalid payment purpose' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      throw new PayHttpError('Invalid payment purpose', 400, 'invalid_purpose');
     }
 
     const tokens = Math.floor(Number(pi.metadata?.tokens ?? 0));
     if (!Number.isFinite(tokens) || tokens <= 0 || tokens > 100000) {
-      return new Response(JSON.stringify({ error: 'Invalid tokens metadata' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      throw new PayHttpError('Invalid tokens metadata', 400, 'invalid_tokens');
     }
 
-    const supabaseService = createClient(supabaseUrl, serviceKey);
+    const supabaseService = createClient(url, serviceKey);
     const { data: nextBal, error: rpcErr } = await supabaseService.rpc(
       'credit_tokens_from_payment_service_role',
       {
@@ -98,22 +70,19 @@ Deno.serve(async (req) => {
     );
     if (rpcErr) {
       console.error('credit_tokens_from_payment_service_role', rpcErr);
-      return new Response(JSON.stringify({ error: rpcErr.message }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      const msg = String(rpcErr.message || '');
+      if (/profile not found/i.test(msg)) {
+        throw new PayHttpError(
+          'Your account profile is missing. Sign out, sign in again, or complete registration.',
+          409,
+          'profile_missing'
+        );
+      }
+      throw new PayHttpError(msg || 'Could not credit tokens', 400, 'credit_failed');
     }
 
-    return new Response(JSON.stringify({ token_balance: nextBal }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  } catch (error: any) {
-    console.error('stripe-token-credit error:', error?.message || error);
-    return new Response(JSON.stringify({ error: String(error?.message || 'Unknown error') }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ token_balance: nextBal });
+  } catch (error) {
+    return handlePayError(error, 'stripe-token-credit');
   }
 });
-

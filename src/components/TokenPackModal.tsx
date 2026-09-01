@@ -14,7 +14,11 @@ import {
   resolveAccessToken,
   resolveAuthenticatedUserId,
 } from '../lib/supabaseAuth';
-import { getStripePromise, getStripePublishableKey } from '../lib/stripeClient';
+import {
+  getStripePromise,
+  getStripePublishableKey,
+  getStripePublishableKeyMode,
+} from '../lib/stripeClient';
 import {
   TOKEN_TOPUP_TIERS,
   YEARLY_SUBSCRIPTION,
@@ -61,6 +65,64 @@ type PendingIntent = {
   sliderStep: number;
 };
 
+function invokeErrorCode(err: unknown): string {
+  if (err && typeof err === 'object' && 'code' in err) {
+    return String((err as { code?: unknown }).code || '');
+  }
+  return '';
+}
+
+function checkoutErrorMessage(
+  err: unknown,
+  t: (key: string, opts?: { defaultValue?: string }) => string
+): string {
+  const code = invokeErrorCode(err);
+  const message = err instanceof Error ? err.message : '';
+  if (
+    code === 'missing_auth' ||
+    code === 'session_expired' ||
+    code === 'user_mismatch' ||
+    /not authenticated|sign in again|session expired/i.test(message)
+  ) {
+    return t('signInToPay', { defaultValue: 'Sign in to complete payment.' });
+  }
+  if (code === 'profile_missing' || code === 'profile_lookup_failed') {
+    return t('stripeProfileMissing', {
+      defaultValue:
+        'Your account profile is missing. Sign out, sign in again, then retry payment.',
+    });
+  }
+  if (
+    code === 'stripe_not_configured' ||
+    code === 'stripe_key_invalid' ||
+    code === 'supabase_env_missing'
+  ) {
+    return t('stripeSecretNotConfigured', {
+      defaultValue:
+        'Card payments are not configured on the server. Set STRIPE_SECRET_KEY in Supabase secrets so it matches this site’s publishable key.',
+    });
+  }
+  if (code === 'stripe_mode_mismatch') {
+    return t('stripeKeyModeMismatch', {
+      defaultValue:
+        'Stripe live/test keys do not match. Update STRIPE_SECRET_KEY and VITE_STRIPE_PUBLISHABLE_KEY to the same Stripe account and mode.',
+    });
+  }
+  if (message.trim()) return message;
+  return t('unexpectedErrorTryAgain');
+}
+
+function assertClientSecretMatchesPublishableKey(livemode: boolean | undefined): void {
+  const pkMode = getStripePublishableKeyMode();
+  if (typeof livemode !== 'boolean' || !pkMode) return;
+  const piMode = livemode ? 'live' : 'test';
+  if (pkMode !== piMode) {
+    throw Object.assign(new Error('Stripe key mode mismatch'), {
+      code: 'stripe_mode_mismatch',
+    });
+  }
+}
+
 async function createCheckoutIntent(input: {
   userId: string;
   mode: CheckoutMode;
@@ -69,8 +131,20 @@ async function createCheckoutIntent(input: {
   const payerId = await resolveAuthenticatedUserId(input.userId);
   const accessToken = await resolveAccessToken();
   if (!payerId || !accessToken) {
-    throw new Error('Not authenticated');
+    throw Object.assign(new Error('Not authenticated'), { code: 'missing_auth' });
   }
+
+  const parseSecret = (data: unknown): string => {
+    const payload = (data || {}) as { clientSecret?: unknown; livemode?: unknown };
+    const clientSecret = String(payload.clientSecret || '').trim();
+    if (!clientSecret.startsWith('pi_') || !clientSecret.includes('_secret_')) {
+      throw new Error('Missing client secret');
+    }
+    const livemode =
+      typeof payload.livemode === 'boolean' ? payload.livemode : undefined;
+    assertClientSecretMatchesPublishableKey(livemode);
+    return clientSecret;
+  };
 
   if (input.mode === 'subscription') {
     const intentRes = await invokeAuthenticatedFunction('stripe-subscription-intent', {
@@ -81,9 +155,7 @@ async function createCheckoutIntent(input: {
       plan_tier: YEARLY_SUBSCRIPTION.planTier,
     });
     await throwIfInvokeFailed('stripe-subscription-intent', intentRes);
-    const clientSecret = (intentRes.data as { clientSecret?: string })?.clientSecret;
-    if (!clientSecret) throw new Error('Missing client secret');
-    return clientSecret;
+    return parseSecret(intentRes.data);
   }
 
   const tokenTier = TOKEN_TOPUP_TIERS[input.sliderStep];
@@ -93,9 +165,7 @@ async function createCheckoutIntent(input: {
     pack_usd_cents: tokenTier.cents,
   });
   await throwIfInvokeFailed('stripe-token-intent', intentRes);
-  const clientSecret = (intentRes.data as { clientSecret?: string })?.clientSecret;
-  if (!clientSecret) throw new Error('Missing client secret');
-  return clientSecret;
+  return parseSecret(intentRes.data);
 }
 
 function CardFields({
@@ -242,9 +312,7 @@ export default function TokenPackModal({
           setIntent({ clientSecret, mode: checkoutMode, sliderStep });
         } catch (err: unknown) {
           if (cancelled) return;
-          const message =
-            err instanceof Error ? err.message : t('unexpectedErrorTryAgain');
-          setIntentError(message);
+          setIntentError(checkoutErrorMessage(err, t));
           console.error('[SaasPaymentModal] intent error', err);
         } finally {
           if (!cancelled) setIntentLoading(false);
@@ -312,7 +380,7 @@ export default function TokenPackModal({
       onClose();
     } catch (err: unknown) {
       console.error('[SaasPaymentModal] confirm error', err);
-      alert(err instanceof Error ? err.message : t('unexpectedErrorTryAgain'));
+      alert(checkoutErrorMessage(err, t));
     } finally {
       setConfirming(false);
     }
@@ -460,7 +528,6 @@ export default function TokenPackModal({
                     key={intent.clientSecret}
                     stripe={getStripePromise()}
                     options={{
-                      clientSecret: intent.clientSecret,
                       appearance: STRIPE_ELEMENTS_APPEARANCE,
                     }}
                   >

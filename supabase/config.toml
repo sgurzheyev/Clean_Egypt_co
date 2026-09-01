@@ -65,3 +65,29 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/kyc-admin-signed-urls/deno.json"
 entrypoint = "./functions/kyc-admin-signed-urls/index.ts"
+
+# Stripe PaymentIntents — user JWT required (gateway + in-function getUser).
+[functions.stripe-token-intent]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/stripe-token-intent/index.ts"
+
+[functions.stripe-subscription-intent]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/stripe-subscription-intent/index.ts"
+
+[functions.stripe-intent]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/stripe-intent/index.ts"
+
+[functions.stripe-token-credit]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/stripe-token-credit/index.ts"
+
+[functions.stripe-subscription-activate]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/stripe-subscription-activate/index.ts"

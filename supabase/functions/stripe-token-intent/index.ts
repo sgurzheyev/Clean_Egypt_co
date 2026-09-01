@@ -1,11 +1,13 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
-import Stripe from 'https://esm.sh/stripe@14.16.0?target=deno';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+import {
+  assertProfileExists,
+  createCardPaymentIntent,
+  handlePayError,
+  jsonResponse,
+  optionsResponse,
+  PayHttpError,
+  readJsonBody,
+  requireAuthedUser,
+} from '../_shared/stripePay.ts';
 
 /** SaaS token top-up tiers — keep in sync with `src/lib/tokenPricing.ts`. */
 const ALLOWED_PACKS: { cents: number; tokens: number }[] = [
@@ -21,41 +23,29 @@ function isAllowedPack(cents: number, tokens: number): boolean {
 
 /**
  * Stripe PaymentIntent for token top-up purchase (tiered SaaS packs).
+ * Requires Authorization: Bearer <user JWT>. Never calls Stripe with an empty/malformed secret.
  */
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return optionsResponse();
+  if (req.method !== 'POST') {
+    return jsonResponse({ error: 'Method not allowed', code: 'method_not_allowed' }, 405);
   }
 
   try {
-    const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
-    if (!stripeKey) throw new Error('Missing STRIPE_SECRET_KEY');
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-    if (!supabaseUrl || !anonKey) throw new Error('Missing SUPABASE_URL / SUPABASE_ANON_KEY');
-
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing Authorization' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const body = (await req.json()) as {
+    const body = await readJsonBody<{
       user_id?: unknown;
       pack_tokens?: unknown;
       pack_usd?: unknown;
       pack_usd_cents?: unknown;
-    };
+    }>(req);
+
     const userId = typeof body.user_id === 'string' ? body.user_id.trim() : '';
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Missing user_id' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      throw new PayHttpError('Missing user_id', 400, 'missing_user');
     }
+
+    const { user } = await requireAuthedUser(req, userId);
+    await assertProfileExists(user.id);
 
     const packTokens = Math.floor(Number(body.pack_tokens));
     let packCents = Math.floor(Number(body.pack_usd_cents));
@@ -65,48 +55,24 @@ Deno.serve(async (req) => {
     }
 
     if (!isAllowedPack(packCents, packTokens)) {
-      return new Response(JSON.stringify({ error: 'Invalid pack' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      throw new PayHttpError('Invalid pack', 400, 'invalid_pack');
     }
 
-    const supabaseUser = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
-    if (userErr || !user || user.id !== userId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string, {
-      apiVersion: '2023-10-16',
-      httpClient: Stripe.createFetchHttpClient(),
-    });
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: packCents,
-      currency: 'usd',
+    const intent = await createCardPaymentIntent({
+      amountCents: packCents,
       metadata: {
-        user_id: userId,
+        user_id: user.id,
         purpose: 'token_pack',
         tokens: String(packTokens),
         pack_usd_cents: String(packCents),
       },
-      automatic_payment_methods: { enabled: true },
     });
 
-    return new Response(JSON.stringify({ clientSecret: paymentIntent.client_secret }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
+    return jsonResponse({
+      clientSecret: intent.clientSecret,
+      livemode: intent.livemode,
     });
-  } catch (error: any) {
-    console.error('stripe-token-intent error:', error?.message || error);
-    return new Response(JSON.stringify({ error: String(error?.message || 'Unknown error') }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
-    });
+  } catch (error) {
+    return handlePayError(error, 'stripe-token-intent');
   }
 });
