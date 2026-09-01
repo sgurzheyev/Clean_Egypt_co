@@ -501,17 +501,8 @@ export function ensureMetallicWaterEffect(map: WaterFlickerMap): MetallicWaterCo
     console.warn('[ensureMetallicWaterEffect] addImage failed', e);
   }
 
-  // Bathymetry source — true ocean depth (available ~z0–7).
-  try {
-    if (!map.getSource?.(WATER_BATHYMETRY_SOURCE_ID)) {
-      map.addSource?.(WATER_BATHYMETRY_SOURCE_ID, {
-        type: 'vector',
-        url: 'mapbox://mapbox.mapbox-bathymetry-v2',
-      });
-    }
-  } catch (e) {
-    console.warn('[ensureMetallicWaterEffect] bathymetry source failed', e);
-  }
+  // Standard's composite already includes bathymetry. Do not add
+  // `mapbox://mapbox.mapbox-bathymetry-v2` as a separate v4 vector source.
 
   const beforeWater = map.getLayer?.('water') ? 'water' : undefined;
   const beforeId = map.getLayer?.('place_label') ? 'place_label' : undefined;

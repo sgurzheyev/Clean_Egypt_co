@@ -5052,55 +5052,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
               /* ignore */
             }
 
-            // Optional DEM hillshade — Standard already ships 3D buildings/trees.
-            try {
-              const m = readyMap as any;
-              if (!m.getSource?.('mapbox-dem')) {
-                m.addSource('mapbox-dem', {
-                  type: 'raster-dem',
-                  url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-                  tileSize: 512,
-                  maxzoom: 14,
-                });
-              }
-              m.setTerrain?.({
-                source: 'mapbox-dem',
-                exaggeration: [
-                  'interpolate',
-                  ['linear'],
-                  ['zoom'],
-                  10,
-                  2.0,
-                  14,
-                  1.3,
-                  16,
-                  1.0,
-                ],
-              });
-              if (!m.getLayer?.('terrain-hillshade')) {
-                m.addLayer({
-                  id: 'terrain-hillshade',
-                  type: 'hillshade',
-                  source: 'mapbox-dem',
-                  paint: {
-                    'hillshade-shadow-color': '#0c0c10',
-                    'hillshade-highlight-color': '#6E737C',
-                    'hillshade-accent-color': '#2A2A30',
-                    'hillshade-exaggeration': [
-                      'interpolate',
-                      ['linear'],
-                      ['zoom'],
-                      8,
-                      0.25,
-                      14,
-                      0.65,
-                    ],
-                  },
-                });
-              }
-            } catch {
-              // Fail gracefully if the style/runtime doesn't support terrain.
-            }
+            // Standard already ships Terrain-DEM (`basemap:mapbox-dem` / `other:mapbox-dem`).
+            // Do not add `mapbox://mapbox.mapbox-terrain-dem-v1` again — that classic v4
+            // tileset 403/404s and duplicates the imported source.
 
             try {
               updateAtmosphere();

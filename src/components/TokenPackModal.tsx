@@ -37,34 +37,80 @@ const CARD_STYLE = {
   },
 };
 
-/** Card number only — disable Link so Stripe.js does not hit wallet-config (Apple/Google Pay). */
 const CARD_NUMBER_ELEMENT_OPTIONS = {
   ...CARD_STYLE,
   disableLink: true,
 };
 
+const STRIPE_ELEMENTS_APPEARANCE = {
+  theme: 'night' as const,
+  variables: {
+    colorPrimary: '#84cc16',
+    colorBackground: '#0f172a',
+    colorText: '#f8fafc',
+    colorDanger: '#f87171',
+    borderRadius: '8px',
+  },
+};
+
 type CheckoutMode = 'subscription' | 'tokens';
 
-function SaasPaymentForm({
-  userId,
-  onClose,
-  onSuccess,
-  onSubmittingChange,
-  initialMode = 'subscription',
-}: {
+type PendingIntent = {
+  clientSecret: string;
+  mode: CheckoutMode;
+};
+
+async function createCheckoutIntent(input: {
   userId: string;
+  mode: CheckoutMode;
+  sliderStep: number;
+}): Promise<string> {
+  const payerId = await resolveAuthenticatedUserId(input.userId);
+  const accessToken = await resolveAccessToken();
+  if (!payerId || !accessToken) {
+    throw new Error('Not authenticated');
+  }
+
+  if (input.mode === 'subscription') {
+    const intentRes = await invokeAuthenticatedFunction('stripe-subscription-intent', {
+      user_id: payerId,
+      plan_usd_cents: YEARLY_SUBSCRIPTION.cents,
+      plan_months: YEARLY_SUBSCRIPTION.months,
+      bonus_tokens: YEARLY_SUBSCRIPTION.bonusTokens,
+      plan_tier: YEARLY_SUBSCRIPTION.planTier,
+    });
+    await throwIfInvokeFailed('stripe-subscription-intent', intentRes);
+    const clientSecret = (intentRes.data as { clientSecret?: string })?.clientSecret;
+    if (!clientSecret) throw new Error('Missing client secret');
+    return clientSecret;
+  }
+
+  const tokenTier = TOKEN_TOPUP_TIERS[input.sliderStep];
+  const intentRes = await invokeAuthenticatedFunction('stripe-token-intent', {
+    user_id: payerId,
+    pack_tokens: tokenTier.tokens,
+    pack_usd_cents: tokenTier.cents,
+  });
+  await throwIfInvokeFailed('stripe-token-intent', intentRes);
+  const clientSecret = (intentRes.data as { clientSecret?: string })?.clientSecret;
+  if (!clientSecret) throw new Error('Missing client secret');
+  return clientSecret;
+}
+
+function PackChooser({
+  initialMode,
+  submitting,
+  onClose,
+  onContinue,
+}: {
+  initialMode: CheckoutMode;
+  submitting: boolean;
   onClose: () => void;
-  onSuccess: () => void;
-  onSubmittingChange?: (busy: boolean) => void;
-  initialMode?: CheckoutMode;
+  onContinue: (mode: CheckoutMode, sliderStep: number) => void;
 }) {
   const { t } = useTranslation();
-  const stripe = useStripe();
-  const elements = useElements();
-  const [submitting, setSubmitting] = useState(false);
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>(initialMode);
   const [sliderStep, setSliderStep] = useState(0);
-
   const tokenTier = TOKEN_TOPUP_TIERS[sliderStep];
 
   const checkoutSummary = useMemo(() => {
@@ -82,85 +128,15 @@ function SaasPaymentForm({
     };
   }, [checkoutMode, t, tokenTier.tokens, tokenTier.usd]);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!stripe || !elements) return;
-    setSubmitting(true);
-    onSubmittingChange?.(true);
-    try {
-      const payerId = await resolveAuthenticatedUserId(userId);
-      const accessToken = await resolveAccessToken();
-      if (!payerId || !accessToken) {
-        throw new Error(
-          t('signInToPay', { defaultValue: 'Sign in to complete payment.' })
-        );
-      }
-
-      let clientSecret: string | undefined;
-
-      if (checkoutMode === 'subscription') {
-        const intentRes = await invokeAuthenticatedFunction('stripe-subscription-intent', {
-          user_id: payerId,
-          plan_usd_cents: YEARLY_SUBSCRIPTION.cents,
-          plan_months: YEARLY_SUBSCRIPTION.months,
-          bonus_tokens: YEARLY_SUBSCRIPTION.bonusTokens,
-          plan_tier: YEARLY_SUBSCRIPTION.planTier,
-        });
-        await throwIfInvokeFailed('stripe-subscription-intent', intentRes);
-        clientSecret = (intentRes.data as { clientSecret?: string })?.clientSecret;
-      } else {
-        const intentRes = await invokeAuthenticatedFunction('stripe-token-intent', {
-          user_id: payerId,
-          pack_tokens: tokenTier.tokens,
-          pack_usd_cents: tokenTier.cents,
-        });
-        await throwIfInvokeFailed('stripe-token-intent', intentRes);
-        clientSecret = (intentRes.data as { clientSecret?: string })?.clientSecret;
-      }
-
-      if (!clientSecret) throw new Error('Missing client secret');
-
-      const card = elements.getElement(CardNumberElement);
-      if (!card) throw new Error('Card element missing');
-
-      const { error: stripeErr, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: { card },
-      });
-      if (stripeErr) throw stripeErr;
-      if (paymentIntent?.status !== 'succeeded') throw new Error('Payment did not succeed');
-
-      if (checkoutMode === 'subscription') {
-        const actRes = await invokeAuthenticatedFunction('stripe-subscription-activate', {
-          payment_intent_id: paymentIntent.id,
-        });
-        await throwIfInvokeFailed('stripe-subscription-activate', actRes);
-      } else {
-        const creditRes = await invokeAuthenticatedFunction('stripe-token-credit', {
-          payment_intent_id: paymentIntent.id,
-        });
-        await throwIfInvokeFailed('stripe-token-credit', creditRes);
-      }
-
-      onSuccess();
-      onClose();
-    } catch (err: any) {
-      console.error('[SaasPaymentModal] payment flow error', err);
-      alert(err?.message || t('unexpectedErrorTryAgain'));
-    } finally {
-      setSubmitting(false);
-      onSubmittingChange?.(false);
-    }
-  };
-
-  const requestClose = () => {
-    if (submitting) return;
-    onClose();
-  };
-
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form
+      className="space-y-5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onContinue(checkoutMode, sliderStep);
+      }}
+    >
       <p className="text-xs leading-relaxed text-slate-400">{t('topUpProcessingDisclaimer')}</p>
-      {/* Yearly subscription card */}
       <button
         type="button"
         onClick={() => setCheckoutMode('subscription')}
@@ -186,7 +162,6 @@ function SaasPaymentForm({
         </ul>
       </button>
 
-      {/* Token top-up slider */}
       <div
         className={`rounded-2xl border px-4 py-4 transition-all ${
           checkoutMode === 'tokens'
@@ -194,11 +169,7 @@ function SaasPaymentForm({
             : 'border-white/10 bg-black/30'
         }`}
       >
-        <button
-          type="button"
-          onClick={() => setCheckoutMode('tokens')}
-          className="w-full text-left"
-        >
+        <button type="button" onClick={() => setCheckoutMode('tokens')} className="w-full text-left">
           <p className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-400">
             {t('saasBuyExtraTokens')}
           </p>
@@ -229,9 +200,7 @@ function SaasPaymentForm({
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
             {t('saasPriceLabel')}
           </p>
-          <p className="mt-1 text-3xl font-black text-white">
-            {formatUsdPrice(tokenTier.usd)}
-          </p>
+          <p className="mt-1 text-3xl font-black text-white">{formatUsdPrice(tokenTier.usd)}</p>
           <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
             {t('saasYouGetTokens')}
           </p>
@@ -241,7 +210,6 @@ function SaasPaymentForm({
         </div>
       </div>
 
-      {/* Checkout summary */}
       <div className="rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-center">
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
           {t('saasCheckoutTotal')}
@@ -250,6 +218,93 @@ function SaasPaymentForm({
         <p className="mt-1 text-xs text-slate-400">{checkoutSummary.detail}</p>
       </div>
 
+      <div className="flex gap-2 pt-2">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={submitting}
+          className="flex-1 py-3 rounded-full text-sm font-bold uppercase tracking-[0.2em] border border-white/15 text-slate-300 hover:bg-white/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {t('cancel')}
+        </button>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="flex-1 py-3 rounded-full text-sm font-black uppercase tracking-[0.2em] bg-lime-500 text-black hover:bg-lime-400 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+        >
+          {submitting
+            ? t('processing')
+            : checkoutMode === 'subscription'
+              ? t('saasPaySubscription')
+              : t('saasPayForTokens')}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function CardConfirmForm({
+  intent,
+  onClose,
+  onSuccess,
+  onBack,
+  onSubmittingChange,
+}: {
+  intent: PendingIntent;
+  onClose: () => void;
+  onSuccess: () => void;
+  onBack: () => void;
+  onSubmittingChange?: (busy: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const stripe = useStripe();
+  const elements = useElements();
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setSubmitting(true);
+    onSubmittingChange?.(true);
+    try {
+      const card = elements.getElement(CardNumberElement);
+      if (!card) throw new Error('Card element missing');
+
+      const { error: stripeErr, paymentIntent } = await stripe.confirmCardPayment(
+        intent.clientSecret,
+        { payment_method: { card } }
+      );
+      if (stripeErr) throw stripeErr;
+      if (paymentIntent?.status !== 'succeeded') throw new Error('Payment did not succeed');
+
+      if (intent.mode === 'subscription') {
+        const actRes = await invokeAuthenticatedFunction('stripe-subscription-activate', {
+          payment_intent_id: paymentIntent.id,
+        });
+        await throwIfInvokeFailed('stripe-subscription-activate', actRes);
+      } else {
+        const creditRes = await invokeAuthenticatedFunction('stripe-token-credit', {
+          payment_intent_id: paymentIntent.id,
+        });
+        await throwIfInvokeFailed('stripe-token-credit', creditRes);
+      }
+
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      console.error('[SaasPaymentModal] confirm error', err);
+      alert(err?.message || t('unexpectedErrorTryAgain'));
+    } finally {
+      setSubmitting(false);
+      onSubmittingChange?.(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-5">
+      <p className="text-xs leading-relaxed text-slate-400">
+        {t('payEnterCard', { defaultValue: 'Enter your card details to complete payment.' })}
+      </p>
       <div className="space-y-3">
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
@@ -282,11 +337,11 @@ function SaasPaymentForm({
       <div className="flex gap-2 pt-2">
         <button
           type="button"
-          onClick={requestClose}
+          onClick={onBack}
           disabled={submitting}
           className="flex-1 py-3 rounded-full text-sm font-bold uppercase tracking-[0.2em] border border-white/15 text-slate-300 hover:bg-white/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {t('cancel')}
+          {t('back', { defaultValue: 'Back' })}
         </button>
         <button
           type="submit"
@@ -295,7 +350,7 @@ function SaasPaymentForm({
         >
           {submitting
             ? t('processing')
-            : checkoutMode === 'subscription'
+            : intent.mode === 'subscription'
               ? t('saasPaySubscription')
               : t('saasPayForTokens')}
         </button>
@@ -321,12 +376,15 @@ export default function TokenPackModal({
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [payerId, setPayerId] = useState<string | null>(null);
+  const [intent, setIntent] = useState<PendingIntent | null>(null);
   const publishableKey = getStripePublishableKey();
 
   useEffect(() => {
     if (!open) {
       setAuthReady(false);
       setPayerId(null);
+      setIntent(null);
+      setPaymentBusy(false);
       return;
     }
     let cancelled = false;
@@ -350,7 +408,24 @@ export default function TokenPackModal({
   };
 
   const stripeReady = Boolean(publishableKey);
-  const canMountElements = authReady && Boolean(payerId) && stripeReady;
+
+  const startCheckout = async (mode: CheckoutMode, sliderStep: number) => {
+    if (!payerId) return;
+    setPaymentBusy(true);
+    try {
+      const clientSecret = await createCheckoutIntent({
+        userId: payerId,
+        mode,
+        sliderStep,
+      });
+      setIntent({ clientSecret, mode });
+    } catch (err: any) {
+      console.error('[SaasPaymentModal] intent error', err);
+      alert(err?.message || t('unexpectedErrorTryAgain'));
+    } finally {
+      setPaymentBusy(false);
+    }
+  };
 
   return (
     <div
@@ -395,17 +470,34 @@ export default function TokenPackModal({
             <p className="py-8 text-center text-sm text-slate-300">
               {t('edgeFunctionUnreachable')}
             </p>
-          ) : canMountElements ? (
-            <Elements stripe={getStripePromise()}>
-              <SaasPaymentForm
-                userId={payerId}
+          ) : intent ? (
+            <Elements
+              key={intent.clientSecret}
+              stripe={getStripePromise()}
+              options={{
+                clientSecret: intent.clientSecret,
+                appearance: STRIPE_ELEMENTS_APPEARANCE,
+              }}
+            >
+              <CardConfirmForm
+                intent={intent}
                 onClose={requestClose}
                 onSuccess={onSuccess}
+                onBack={() => {
+                  if (paymentBusy) return;
+                  setIntent(null);
+                }}
                 onSubmittingChange={setPaymentBusy}
-                initialMode={initialMode}
               />
             </Elements>
-          ) : null}
+          ) : (
+            <PackChooser
+              initialMode={initialMode}
+              submitting={paymentBusy}
+              onClose={requestClose}
+              onContinue={startCheckout}
+            />
+          )}
         </div>
       </div>
     </div>
