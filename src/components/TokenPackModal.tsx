@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Elements,
   CardNumberElement,
@@ -64,6 +65,40 @@ type PendingIntent = {
   mode: CheckoutMode;
   sliderStep: number;
 };
+
+const CHECKOUT_LOCK_ATTR = 'data-checkout-open';
+
+/** Nested TokenPackModal instances (map + profile) share one shell lock. */
+let checkoutLayerLocks = 0;
+
+/**
+ * Freeze the app shell (`#root`) so map/profile overlays cannot steal touches
+ * while checkout is portaled onto `document.body`. html/body already use
+ * `overflow: hidden` in index.css — we do not rewrite those, so close cannot
+ * leave the WebView stuck with a leftover inline overflow/pointer-events lock.
+ */
+function acquireCheckoutLayerLock(): () => void {
+  if (typeof document === 'undefined') return () => undefined;
+  const root = document.getElementById('root');
+  const body = document.body;
+  checkoutLayerLocks += 1;
+  if (checkoutLayerLocks === 1) {
+    body.setAttribute(CHECKOUT_LOCK_ATTR, 'true');
+    if (root) {
+      root.setAttribute('inert', '');
+      root.style.setProperty('pointer-events', 'none');
+    }
+  }
+  return () => {
+    checkoutLayerLocks = Math.max(0, checkoutLayerLocks - 1);
+    if (checkoutLayerLocks > 0) return;
+    body.removeAttribute(CHECKOUT_LOCK_ATTR);
+    if (root) {
+      root.removeAttribute('inert');
+      root.style.removeProperty('pointer-events');
+    }
+  };
+}
 
 function invokeErrorCode(err: unknown): string {
   if (err && typeof err === 'object' && 'code' in err) {
@@ -263,9 +298,31 @@ export default function TokenPackModal({
   const [intentError, setIntentError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const confirmRef = useRef<(() => Promise<string>) | null>(null);
+  const confirmingRef = useRef(false);
   const [cardReady, setCardReady] = useState(false);
   const publishableKey = getStripePublishableKey();
   const tokenTier = TOKEN_TOPUP_TIERS[sliderStep];
+  confirmingRef.current = confirming;
+
+  const requestClose = useCallback(() => {
+    if (confirmingRef.current) return;
+    onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const release = acquireCheckoutLayerLock();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      requestClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      release();
+    };
+  }, [open, requestClose]);
 
   useEffect(() => {
     if (!open) {
@@ -353,11 +410,6 @@ export default function TokenPackModal({
   const payDisabled =
     confirming || intentLoading || !sessionReady || !cardReady || !payerId || !publishableKey;
 
-  const requestClose = () => {
-    if (confirming) return;
-    onClose();
-  };
-
   const handlePay = async () => {
     if (payDisabled) return;
     const confirmPayment = confirmRef.current;
@@ -386,37 +438,47 @@ export default function TokenPackModal({
     }
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[10050] flex items-center justify-center overflow-y-auto bg-black/80 p-4 pb-safe-sm backdrop-blur-md pt-[max(1rem,env(safe-area-inset-top))]"
-      onClick={requestClose}
+      className="pointer-events-auto fixed inset-0 z-[10100] isolate flex items-end justify-center overflow-hidden overscroll-none sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="saas-payment-modal-title"
     >
+      <button
+        type="button"
+        className="absolute inset-0 z-0 touch-none bg-black/80 backdrop-blur-md"
+        aria-label={t('close')}
+        disabled={confirming}
+        onClick={requestClose}
+      />
       <div
-        className="my-auto w-full max-w-md rounded-3xl border border-lime-500/20 bg-slate-950/80 p-6 shadow-2xl backdrop-blur-xl"
+        className="ce-bottom-sheet pointer-events-auto relative z-[1] w-full max-w-md rounded-t-3xl border border-lime-500/20 bg-slate-950/90 shadow-2xl sm:rounded-3xl"
+        style={{
+          maxHeight:
+            'min(85svh, 85dvh, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1rem))',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          className="overflow-y-auto overscroll-contain pb-[calc(1rem+env(safe-area-inset-bottom))] [-webkit-overflow-scrolling:touch]"
-          style={{
-            maxHeight:
-              'min(85dvh, 85svh, calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 4rem))',
-          }}
-        >
-          <div className="flex items-start justify-between mb-4">
-            <h3 className="text-sm font-black uppercase tracking-[0.22em] text-white">
-              {t('saasPaymentModalTitle')}
-            </h3>
-            <button
-              type="button"
-              onClick={requestClose}
-              disabled={confirming}
-              className="text-slate-400 hover:text-white text-lg font-bold disabled:opacity-40 disabled:cursor-not-allowed"
-              aria-label={t('close')}
-            >
-              ✕
-            </button>
-          </div>
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-6 pb-3 pt-4">
+          <h3
+            id="saas-payment-modal-title"
+            className="text-sm font-black uppercase tracking-[0.22em] text-white"
+          >
+            {t('saasPaymentModalTitle')}
+          </h3>
+          <button
+            type="button"
+            onClick={requestClose}
+            disabled={confirming}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-white/10 hover:text-white text-lg font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-label={t('close')}
+          >
+            ✕
+          </button>
+        </div>
 
+        <div className="ce-bottom-sheet-body scrollable-sheet-content px-6 pt-4">
           {!payerId ? (
             <p className="mb-4 text-sm text-slate-300">
               {t('signInToPay', { defaultValue: 'Sign in to complete payment.' })}
@@ -473,7 +535,7 @@ export default function TokenPackModal({
                   {t('saasBuyExtraTokens')}
                 </p>
               </button>
-              <div className="mt-4">
+              <div className="relative z-[1] mt-4 touch-pan-x">
                 <input
                   type="range"
                   min={0}
@@ -485,7 +547,7 @@ export default function TokenPackModal({
                     setSliderStep(Number(e.target.value));
                     setCheckoutMode('tokens');
                   }}
-                  className="w-full h-2 rounded-full appearance-none bg-slate-700 accent-cyan-400 cursor-pointer"
+                  className="w-full h-2 rounded-full appearance-none bg-slate-700 accent-cyan-400 cursor-pointer touch-pan-x"
                   aria-label={t('saasBuyExtraTokens')}
                 />
                 <div className="mt-1 flex justify-between text-[9px] font-bold uppercase tracking-wider text-slate-500">
@@ -552,31 +614,33 @@ export default function TokenPackModal({
               {intentError ? (
                 <p className="mt-3 text-xs text-rose-300">{intentError}</p>
               ) : null}
-
-              <button
-                type="button"
-                onClick={() => void handlePay()}
-                disabled={payDisabled}
-                className="mt-4 flex w-full items-center justify-center gap-2 py-3 rounded-full text-sm font-black uppercase tracking-[0.2em] bg-lime-500 text-black hover:bg-lime-400 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
-              >
-                {intentLoading || confirming ? (
-                  <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-black/25 border-t-black" />
-                ) : null}
-                <span>{confirming ? t('processing') : payLabel}</span>
-              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={requestClose}
-              disabled={confirming}
-              className="w-full py-3 rounded-full text-sm font-bold uppercase tracking-[0.2em] border border-white/15 text-slate-300 hover:bg-white/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {t('cancel')}
-            </button>
           </div>
         </div>
+
+        <div className="ce-bottom-sheet-footer space-y-2 border-t border-white/10 bg-slate-950/95 px-6 pt-3">
+          <button
+            type="button"
+            onClick={() => void handlePay()}
+            disabled={payDisabled}
+            className="flex w-full items-center justify-center gap-2 py-3 rounded-full text-sm font-black uppercase tracking-[0.2em] bg-lime-500 text-black hover:bg-lime-400 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+          >
+            {intentLoading || confirming ? (
+              <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-black/25 border-t-black" />
+            ) : null}
+            <span>{confirming ? t('processing') : payLabel}</span>
+          </button>
+          <button
+            type="button"
+            onClick={requestClose}
+            disabled={confirming}
+            className="w-full py-3 rounded-full text-sm font-bold uppercase tracking-[0.2em] border border-white/15 text-slate-300 hover:bg-white/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {t('cancel')}
+          </button>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
