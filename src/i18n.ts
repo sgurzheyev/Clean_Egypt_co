@@ -675,6 +675,7 @@ const resources = {
       ecoHeroToast:
         '{{name}} · contributed {{amount}} ({{count}}×) — a true Eco Hero!',
       signInToContribute: 'Sign in to contribute to this campaign.',
+      signInToPay: 'Sign in to complete payment.',
       crowdfundingOwnerWait: 'Waiting for community contributions. Bidding opens when the target is reached.',
       contributionThanks: 'Thank you for your contribution!',
       crowdfundingTargetReached: 'Target reached — this job is now open for bidding.',
@@ -2002,6 +2003,7 @@ const resources = {
       ecoHeroToast:
         '{{name}} · внёс вклад {{amount}} ({{count}}×) — настоящий Эко-Герой!',
       signInToContribute: 'Войдите, чтобы поддержать кампанию.',
+      signInToPay: 'Войдите, чтобы завершить оплату.',
       crowdfundingOwnerWait: 'Ждём взносы сообщества. Ставки откроются после достижения цели.',
       contributionThanks: 'Спасибо за вклад!',
       crowdfundingTargetReached: 'Цель достигнута — заказ открыт для ставок.',

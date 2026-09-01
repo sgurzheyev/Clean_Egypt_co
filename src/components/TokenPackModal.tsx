@@ -1,5 +1,4 @@
-import React, { useMemo, useState } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Elements,
   CardNumberElement,
@@ -9,21 +8,20 @@ import {
   useElements,
 } from '@stripe/react-stripe-js';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../services/supabase';
 import { throwIfInvokeFailed } from '../lib/supabaseFunctionError';
+import {
+  invokeAuthenticatedFunction,
+  resolveAccessToken,
+  resolveAuthenticatedUserId,
+} from '../lib/supabaseAuth';
+import { getStripePromise, getStripePublishableKey } from '../lib/stripeClient';
 import {
   TOKEN_TOPUP_TIERS,
   YEARLY_SUBSCRIPTION,
   formatUsdPrice,
 } from '../lib/tokenPricing';
 
-const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
-if (!STRIPE_PUBLISHABLE_KEY) {
-  console.error('Missing VITE_STRIPE_PUBLISHABLE_KEY');
-}
-const stripePromise = STRIPE_PUBLISHABLE_KEY ? loadStripe(STRIPE_PUBLISHABLE_KEY) : Promise.resolve(null);
-
-const CARD_ELEMENT_OPTIONS = {
+const CARD_STYLE = {
   style: {
     base: {
       color: '#f8fafc',
@@ -39,6 +37,12 @@ const CARD_ELEMENT_OPTIONS = {
   },
 };
 
+/** Card number only — disable Link so Stripe.js does not hit wallet-config (Apple/Google Pay). */
+const CARD_NUMBER_ELEMENT_OPTIONS = {
+  ...CARD_STYLE,
+  disableLink: true,
+};
+
 type CheckoutMode = 'subscription' | 'tokens';
 
 function SaasPaymentForm({
@@ -48,7 +52,7 @@ function SaasPaymentForm({
   onSubmittingChange,
   initialMode = 'subscription',
 }: {
-  userId: string | null;
+  userId: string;
   onClose: () => void;
   onSuccess: () => void;
   onSubmittingChange?: (busy: boolean) => void;
@@ -80,31 +84,35 @@ function SaasPaymentForm({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!stripe || !elements || !userId) return;
+    if (!stripe || !elements) return;
     setSubmitting(true);
     onSubmittingChange?.(true);
     try {
+      const payerId = await resolveAuthenticatedUserId(userId);
+      const accessToken = await resolveAccessToken();
+      if (!payerId || !accessToken) {
+        throw new Error(
+          t('signInToPay', { defaultValue: 'Sign in to complete payment.' })
+        );
+      }
+
       let clientSecret: string | undefined;
 
       if (checkoutMode === 'subscription') {
-        const intentRes = await supabase.functions.invoke('stripe-subscription-intent', {
-          body: {
-            user_id: userId,
-            plan_usd_cents: YEARLY_SUBSCRIPTION.cents,
-            plan_months: YEARLY_SUBSCRIPTION.months,
-            bonus_tokens: YEARLY_SUBSCRIPTION.bonusTokens,
-            plan_tier: YEARLY_SUBSCRIPTION.planTier,
-          },
+        const intentRes = await invokeAuthenticatedFunction('stripe-subscription-intent', {
+          user_id: payerId,
+          plan_usd_cents: YEARLY_SUBSCRIPTION.cents,
+          plan_months: YEARLY_SUBSCRIPTION.months,
+          bonus_tokens: YEARLY_SUBSCRIPTION.bonusTokens,
+          plan_tier: YEARLY_SUBSCRIPTION.planTier,
         });
         await throwIfInvokeFailed('stripe-subscription-intent', intentRes);
         clientSecret = (intentRes.data as { clientSecret?: string })?.clientSecret;
       } else {
-        const intentRes = await supabase.functions.invoke('stripe-token-intent', {
-          body: {
-            user_id: userId,
-            pack_tokens: tokenTier.tokens,
-            pack_usd_cents: tokenTier.cents,
-          },
+        const intentRes = await invokeAuthenticatedFunction('stripe-token-intent', {
+          user_id: payerId,
+          pack_tokens: tokenTier.tokens,
+          pack_usd_cents: tokenTier.cents,
         });
         await throwIfInvokeFailed('stripe-token-intent', intentRes);
         clientSecret = (intentRes.data as { clientSecret?: string })?.clientSecret;
@@ -122,13 +130,13 @@ function SaasPaymentForm({
       if (paymentIntent?.status !== 'succeeded') throw new Error('Payment did not succeed');
 
       if (checkoutMode === 'subscription') {
-        const actRes = await supabase.functions.invoke('stripe-subscription-activate', {
-          body: { payment_intent_id: paymentIntent.id },
+        const actRes = await invokeAuthenticatedFunction('stripe-subscription-activate', {
+          payment_intent_id: paymentIntent.id,
         });
         await throwIfInvokeFailed('stripe-subscription-activate', actRes);
       } else {
-        const creditRes = await supabase.functions.invoke('stripe-token-credit', {
-          body: { payment_intent_id: paymentIntent.id },
+        const creditRes = await invokeAuthenticatedFunction('stripe-token-credit', {
+          payment_intent_id: paymentIntent.id,
         });
         await throwIfInvokeFailed('stripe-token-credit', creditRes);
       }
@@ -248,7 +256,7 @@ function SaasPaymentForm({
             {t('cardNumber')}
           </label>
           <div className="rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-lime-400 focus-within:ring-2 focus-within:ring-lime-500/20 transition-all">
-            <CardNumberElement options={CARD_ELEMENT_OPTIONS} />
+            <CardNumberElement options={CARD_NUMBER_ELEMENT_OPTIONS} />
           </div>
         </div>
         <div className="flex gap-3">
@@ -257,7 +265,7 @@ function SaasPaymentForm({
               {t('expiry')}
             </label>
             <div className="rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-lime-400 focus-within:ring-2 focus-within:ring-lime-500/20 transition-all">
-              <CardExpiryElement options={CARD_ELEMENT_OPTIONS} />
+              <CardExpiryElement options={CARD_STYLE} />
             </div>
           </div>
           <div className="flex-1 min-w-0">
@@ -265,7 +273,7 @@ function SaasPaymentForm({
               {t('cvc')}
             </label>
             <div className="rounded-lg bg-slate-900 border border-slate-600 p-3 focus-within:border-lime-400 focus-within:ring-2 focus-within:ring-lime-500/20 transition-all">
-              <CardCvcElement options={CARD_ELEMENT_OPTIONS} />
+              <CardCvcElement options={CARD_STYLE} />
             </div>
           </div>
         </div>
@@ -282,7 +290,7 @@ function SaasPaymentForm({
         </button>
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || !stripe || !elements}
           className="flex-1 py-3 rounded-full text-sm font-black uppercase tracking-[0.2em] bg-lime-500 text-black hover:bg-lime-400 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
         >
           {submitting
@@ -311,12 +319,38 @@ export default function TokenPackModal({
 }) {
   const { t } = useTranslation();
   const [paymentBusy, setPaymentBusy] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [payerId, setPayerId] = useState<string | null>(null);
+  const publishableKey = getStripePublishableKey();
+
+  useEffect(() => {
+    if (!open) {
+      setAuthReady(false);
+      setPayerId(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const id = await resolveAuthenticatedUserId(userId);
+      const token = await resolveAccessToken();
+      if (cancelled) return;
+      setPayerId(id && token ? id : null);
+      setAuthReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, userId]);
+
   if (!open) return null;
 
   const requestClose = () => {
     if (paymentBusy) return;
     onClose();
   };
+
+  const stripeReady = Boolean(publishableKey);
+  const canMountElements = authReady && Boolean(payerId) && stripeReady;
 
   return (
     <div
@@ -349,15 +383,29 @@ export default function TokenPackModal({
             </button>
           </div>
 
-          <Elements stripe={stripePromise}>
-            <SaasPaymentForm
-              userId={userId}
-              onClose={requestClose}
-              onSuccess={onSuccess}
-              onSubmittingChange={setPaymentBusy}
-              initialMode={initialMode}
-            />
-          </Elements>
+          {!authReady ? (
+            <p className="py-8 text-center text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+              {t('loading')}
+            </p>
+          ) : !payerId ? (
+            <p className="py-8 text-center text-sm text-slate-300">
+              {t('signInToPay', { defaultValue: 'Sign in to complete payment.' })}
+            </p>
+          ) : !stripeReady ? (
+            <p className="py-8 text-center text-sm text-slate-300">
+              {t('edgeFunctionUnreachable')}
+            </p>
+          ) : canMountElements ? (
+            <Elements stripe={getStripePromise()}>
+              <SaasPaymentForm
+                userId={payerId}
+                onClose={requestClose}
+                onSuccess={onSuccess}
+                onSubmittingChange={setPaymentBusy}
+                initialMode={initialMode}
+              />
+            </Elements>
+          ) : null}
         </div>
       </div>
     </div>
