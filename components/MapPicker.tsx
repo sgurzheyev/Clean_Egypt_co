@@ -133,7 +133,6 @@ import MapBootSplash from './MapBootSplash';import {
   isMapStyleReady,
   MAPBOX_STANDARD_STYLE_WITH_CONFIG,
   normalizeStoreColor,
-  resolveMapboxLightPreset,
   DEFAULT_STORE_COLOR,
   STORE_COVERAGE_FILL_OPACITY,
   STORE_COVERAGE_STROKE_WIDTH,
@@ -1463,7 +1462,7 @@ interface MapPickerProps {
   profileOverlayOpen?: boolean;
 }
 
-/** Legacy custom vector style retired — basemap is Mapbox Standard night + default theme. */
+/** Legacy custom vector style retired — basemap is Mapbox Standard night (locked 24h). */
 const MapPicker: React.FC<MapPickerProps> = ({
   onLocationSelect,
   selectedCoords = null,
@@ -1664,7 +1663,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         ? ([moonAziDeg, moonSkyPolarDeg] as [number, number])
         : ([sunAziDeg, sunSkyPolarDeg] as [number, number]);
 
-    /** Civil twilight (−6…0) + golden hour (0…10) → warm dawn/dusk fog & lightPreset. */
+    /** Civil twilight (−6…0) + golden hour (0…10) → warm sky/fog; land stays night. */
     const golden = sunAltDeg >= -6 && sunAltDeg <= 10;
 
     /** Moonlit night: sharp, cool micro-glow toward zenith only (high-color), keep horizon band dark. */
@@ -1738,8 +1737,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const skySunIntensity = isNight
       ? nightSkyIntensityUse
       : golden
-        ? Math.max(4, Math.min(12, 6 + Math.max(0, sunAltDeg) * 0.4))
-        : Math.max(0, Math.min(15, (Math.max(0, sunAltDeg) / 45) * 15));
+        ? Math.max(4, Math.min(9, 5 + Math.max(0, sunAltDeg) * 0.3))
+        : Math.max(3, Math.min(8, 3 + (Math.max(0, sunAltDeg) / 45) * 5));
 
     /** Sample zoom curve when runtime rejects star-intensity expressions. */
     const starIntensitySampleAtZoom = (z: number, s: number) => {
@@ -1768,21 +1767,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
         'star-intensity': starIntensityExpr,
       };
     } else if (golden) {
-      // Dawn: cooler peach / rose; dusk: classic warm orange twilight.
+      // Warm horizon tint only — keep land-covering fog in dark slate, not peach/white.
       fogPack = isMorning
         ? {
             range: [0.8, 8],
-            color: '#ffb4a2',
-            'high-color': '#ff8a6a',
-            'horizon-blend': 0.2,
-            'space-color': '#1a0a12',
+            color: '#121018',
+            'high-color': '#2a1c24',
+            'horizon-blend': 0.08,
+            'space-color': '#0b0610',
             'star-intensity': sunAltDeg < 0 ? 0.35 : 0.12,
           }
         : {
             range: [0.8, 8],
-            color: '#ff9e64',
-            'high-color': '#ff7a3d',
-            'horizon-blend': 0.22,
+            color: '#100e14',
+            'high-color': '#2a1a16',
+            'horizon-blend': 0.09,
             'space-color': '#0a0610',
             'star-intensity': sunAltDeg < 0 ? 0.4 : 0.15,
           };
@@ -1791,8 +1790,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         range: [0.8, 8],
         color: '#0b0e14',
         'high-color': '#1e293b',
-        'horizon-blend': 0.12,
-        'space-color': '#000000',
+        'horizon-blend': 0.08,
+        'space-color': '#020617',
         'star-intensity': 0.15,
       };
     }
@@ -1829,13 +1828,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
             map.setPaintProperty(
               'sky',
               'sky-atmosphere-halo-color',
-              isMorning ? 'rgba(255,180,150,0.6)' : 'rgba(255,140,70,0.65)'
+              isMorning ? 'rgba(255,180,150,0.28)' : 'rgba(255,140,70,0.3)'
             );
           } else {
             map.setPaintProperty(
               'sky',
               'sky-atmosphere-halo-color',
-              'rgba(255,220,180,0.35)'
+              'rgba(255,210,160,0.18)'
             );
           }
         } catch {
@@ -1866,15 +1865,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
 
     try {
-      // Dynamic Standard light (dawn / day / dusk / night) — night unlocks glowing facades.
-      applyMapboxStandardBasemapConfig(map, {
-        lightPreset: resolveMapboxLightPreset({
-          isNight,
-          golden,
-          isMorning,
-          sunAltDeg,
-        }),
-      });
+      // Land cover stays Mapbox Standard night 24h (no day/dawn white theme).
+      applyMapboxStandardBasemapConfig(map);
     } catch {
       /* Custom vector style may not expose Standard basemap config */
     }
@@ -1887,7 +1879,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             ? `rgb(${Math.round(30 + (220 - 30) * t)}, ${Math.round(41 + (245 - 41) * t)}, ${Math.round(59 + (255 - 59) * t)})`
             : isNight
               ? '#1e293b'
-              : '#ff9e64';
+              : '#1e293b';
         map.setPaintProperty('terrain-hillshade', 'hillshade-highlight-color', hillNight);
         if (isNight && t > 0.08) {
           map.setPaintProperty(
@@ -1903,13 +1895,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
       // ignore
     }
 
-    // Legacy map.setLight() is deprecated under Mapbox Standard — lighting comes from
-    // basemap lightPreset / theme (see applyMapboxStandardBasemapConfig).
+    // Legacy map.setLight() is deprecated under Mapbox Standard — land lighting
+    // stays night; sun/moon vectors drive sky + fog only.
   }, []);
 
   useEffect(() => {
     updateAtmosphere();
-    // ~1 min keeps dawn/dusk transitions smooth without thrashing setConfigProperty.
+    // ~1 min keeps sun/moon/star lighting in sync without restyling the land cover.
     const id = window.setInterval(updateAtmosphere, 60 * 1000);
     const onVis = () => {
       if (document.visibilityState === 'visible') updateAtmosphere();

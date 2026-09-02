@@ -47,32 +47,21 @@ export function normalizeStoreColor(value: unknown): string {
 export type MapboxLightPreset = 'dusk' | 'dawn' | 'day' | 'night';
 
 /**
- * Clock-band fallback when sun position is not yet available
- * (first paint / embedded maps without atmosphere).
- * Bands: night 21–6, dawn 6–8, day 8–18, dusk 18–21 (local time).
- *
- * NOTE: With monochrome theme this is only used for first-paint before
- * updateAtmosphere fires and corrects it with real sun position.
- * Always returns 'night' as a safe dark fallback outside day hours.
+ * Clock-band helper kept for callers that still ask “what time of day is it”.
+ * The live map never uses this to switch Standard to `day` / `dawn` —
+ * those presets paint white roads and a light land cover.
  */
 export function resolveMapboxLightPresetByClock(
-  date: Date = new Date()
+  _date: Date = new Date()
 ): MapboxLightPreset {
-  const h = date.getHours() + date.getMinutes() / 60;
-  if (h >= 21 || h < 6) return 'night';
-  if (h < 8) return 'dawn';
-  if (h < 18) return 'day';
-  return 'dusk';
+  return 'night';
 }
 
 /**
- * Sun-driven Standard light — night unlocks glowing facade windows;
- * low sun / civil twilight → dawn (morning) or dusk (evening); midday → day.
- *
- * Prefer `sunAltDeg` when available. Civil twilight (−6°…0°) and golden hour
- * (0°…10°) map to warm dawn/dusk presets so sky + 3D buildings tint correctly.
+ * Sun-driven sky / fog still use altitude in MapPicker. The Standard *basemap*
+ * stays night so land, roads, and water never flip to the daytime white theme.
  */
-export function resolveMapboxLightPreset(opts: {
+export function resolveMapboxLightPreset(_opts: {
   isNight?: boolean;
   golden?: boolean;
   /** True before local solar noon (sunrise side → dawn). */
@@ -80,27 +69,14 @@ export function resolveMapboxLightPreset(opts: {
   /** Solar altitude in degrees (−90…90). */
   sunAltDeg?: number;
 }): MapboxLightPreset {
-  const morning = opts.isMorning === true;
-  const alt = opts.sunAltDeg;
-
-  if (typeof alt === 'number' && Number.isFinite(alt)) {
-    if (alt < -6) return 'night';
-    if (alt < 0) return morning ? 'dawn' : 'dusk';
-    if (alt <= 10) return morning ? 'dawn' : 'dusk';
-    return 'day';
-  }
-
-  if (opts.isNight) return 'night';
-  if (opts.golden) return morning ? 'dawn' : 'dusk';
-  return 'day';
+  return 'night';
 }
 
 /**
  * Standard Style configuration for GarbaGin.
  * - `theme: 'default'` keeps textured 3D facades (photoreal).
- * - `lightPreset: 'night'` ensures a dark basemap on first paint — prevents
- *   white roads/tiles flashing before `updateAtmosphere` fires with real SunCalc.
- *   MapPicker overrides dynamically via setConfigProperty each minute.
+ * - `lightPreset: 'night'` is locked 24h — `day` / `dawn` paint a white land
+ *   cover. Sun / moon / stars still drive sky + fog in MapPicker.
  * - 3D objects/buildings/facades stay ON (built into Standard).
  */
 export const MAPBOX_STANDARD_BASEMAP_CONFIG = {
@@ -217,13 +193,13 @@ export function removeLegacy3dBuildingsLayer(
 }
 
 /**
- * Apply Standard basemap config (default theme + night fallback + 3D facades).
- * Pass `lightPreset` for sun-driven dawn/day/dusk/night; otherwise uses local clock.
+ * Apply Standard basemap config (photoreal night land + 3D facades).
+ * `lightPreset` is always night — sun-driven lighting lives on the sky/fog layers.
  * Returns false if the style is not ready yet (caller should retry via whenMapStyleReady).
  */
 export function applyMapboxStandardBasemapConfig(
   map: MapboxStyleReadyMap | null | undefined,
-  overrides?: { lightPreset?: MapboxLightPreset }
+  _overrides?: { lightPreset?: MapboxLightPreset }
 ): boolean {
   if (!map?.setConfigProperty) return false;
   if (!isMapStyleReady(map)) return false;
@@ -232,7 +208,7 @@ export function applyMapboxStandardBasemapConfig(
 
   const config = {
     ...MAPBOX_STANDARD_BASEMAP_CONFIG,
-    lightPreset: overrides?.lightPreset ?? 'night',
+    lightPreset: 'night' as MapboxLightPreset,
   };
 
   for (const [key, value] of Object.entries(config)) {
@@ -247,7 +223,6 @@ export function applyMapboxStandardBasemapConfig(
 
 /**
  * Bake night lightPreset into the style import for first paint (dark by default).
- * MapPicker atmosphere then smoothly retunes via setConfigProperty each minute.
  */
 export const MAPBOX_STANDARD_STYLE_WITH_CONFIG = {
   version: 8 as const,

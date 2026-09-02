@@ -1,7 +1,7 @@
 /**
  * Compact store preview card shown when a map store pin is selected.
  * Photo fills the top half; body sits on dense dark glass so white copy
- * stays readable on Mapbox Standard daytime / dawn skies.
+ * stays readable on Mapbox Standard night land.
  */
 import React from 'react';
 import { MapPin, Store, X } from 'lucide-react';
