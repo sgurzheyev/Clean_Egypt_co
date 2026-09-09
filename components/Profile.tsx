@@ -455,7 +455,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
   const openMarketplaceJobs = useMemo(
     () =>
-      (marketplaceJobs || []).filter((job) => {
+      (Array.isArray(marketplaceJobs) ? marketplaceJobs : []).filter((job) => {
         const status = String(job.status || '').toLowerCase();
         if (status === 'reported' || job.is_report) return true;
         // Crowdfunding campaigns stay public until fully funded → in_progress,
@@ -603,13 +603,14 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   // The catalog also pulls DB-wide facets so populated countries stay selectable.
   const { catalog: locationCatalog } = useLocationCatalog(openMarketplaceJobs);
 
-  const displayedMarketplaceJobs = useMemo(
-    () =>
-      sortMissions(
+  const displayedMarketplaceJobs = useMemo(() => {
+    try {
+      const source = Array.isArray(openMarketplaceJobs) ? openMarketplaceJobs : [];
+      return sortMissions(
         filterMissionsByMutedCreators(
           filterMissionsByFreeReports(
             filterMissionsByCountriesCity(
-              filterMissionsByTags(openMarketplaceJobs, marketSelectedTags),
+              filterMissionsByTags(source, marketSelectedTags),
               marketCountryIds,
               marketCityId,
               locationCatalog
@@ -619,8 +620,12 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           mutedIds
         ),
         marketSortMode
-      ),
-    [
+      );
+    } catch (err) {
+      console.error('[Profile] marketplace filter/sort failed:', err);
+      return [];
+    }
+  }, [
       openMarketplaceJobs,
       marketSelectedTags,
       marketCountryIds,
@@ -1166,7 +1171,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         throw error;
       }
 
-      setMarketplaceJobs(((data || []) as Job[]).map(normalizeJobMedia));
+      const rows = Array.isArray(data) ? data : [];
+      setMarketplaceJobs(
+        rows.flatMap((row) => {
+          try {
+            return [normalizeJobMedia(row as Job)];
+          } catch (err) {
+            console.warn('[Profile] skip malformed marketplace job:', err);
+            return [];
+          }
+        })
+      );
     } catch (err) {
       console.error('Error fetching marketplace jobs:', err);
       setMarketplaceError('Failed to load marketplace. Please refresh.');

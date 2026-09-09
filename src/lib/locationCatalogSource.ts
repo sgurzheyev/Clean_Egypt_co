@@ -40,7 +40,7 @@ async function loadCatalogRows(): Promise<LocationCatalogRow[]> {
 
       if (error) throw error;
 
-      const rows: LocationCatalogRow[] = (data ?? [])
+      const rows: LocationCatalogRow[] = (Array.isArray(data) ? data : [])
         .map((row: Record<string, unknown>) => ({
           country: String(row.country ?? '').trim(),
           countryCode: row.country_code ? String(row.country_code) : null,
@@ -77,7 +77,7 @@ async function loadFacets(): Promise<LocationFacet[]> {
       const { data, error } = await supabase.rpc('list_mission_location_facets');
       if (error) throw error;
 
-      const rows: LocationFacet[] = (data ?? [])
+      const rows: LocationFacet[] = (Array.isArray(data) ? data : [])
         .map((row: Record<string, unknown>) => ({
           country: String(row.country ?? '').trim(),
           city: String(row.city ?? '').trim(),

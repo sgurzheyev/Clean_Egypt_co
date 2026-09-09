@@ -2,7 +2,7 @@
  * [[Architecture_Overview.md]]
  * Live market feed of active missions (USD work budgets).
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Virtuoso } from 'react-virtuoso';
 import { useTranslation } from 'react-i18next';
@@ -106,6 +106,63 @@ const ACTIVE_MARKET_STATUSES = [
   'reported',
 ] as const;
 
+/** Mobile WebView: drop a hung PostgREST call so Retry is never stuck. */
+const MARKET_FETCH_TIMEOUT_MS = 15_000;
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value.filter(Boolean) as T[]) : [];
+}
+
+function isAbortOrTimeout(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const name = 'name' in err ? String((err as { name?: unknown }).name) : '';
+  const message = 'message' in err ? String((err as { message?: unknown }).message) : '';
+  return (
+    name === 'AbortError' ||
+    name === 'TimeoutError' ||
+    /abort|timeout/i.test(message)
+  );
+}
+
+function normalizeCreator(
+  raw: unknown
+): LiveMarketMission['creator'] {
+  const row = Array.isArray(raw) ? raw[0] : raw;
+  if (!row || typeof row !== 'object') return null;
+  const rec = row as { full_name?: string | null; avatar_url?: string | null };
+  return {
+    full_name: rec.full_name ?? null,
+    avatar_url: rec.avatar_url ?? null,
+  };
+}
+
+/** Coerce PostgREST `data` (null / object / sparse rows) into a render-safe list. */
+function asLiveMarketMissions(data: unknown): LiveMarketMission[] {
+  const out: LiveMarketMission[] = [];
+  for (const raw of asArray<Record<string, unknown>>(data)) {
+    if (!raw || typeof raw !== 'object') continue;
+    const id = raw.id == null ? '' : String(raw.id).trim();
+    if (!id) continue;
+    const lat = Number(raw.location_lat);
+    const lng = Number(raw.location_lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const mission: LiveMarketMission = {
+      ...(raw as unknown as LiveMarketMission),
+      id,
+      location_lat: lat,
+      location_lng: lng,
+      creator: normalizeCreator(raw.creator),
+    };
+    try {
+      if (!isPublicMarketMission(mission)) continue;
+    } catch {
+      continue;
+    }
+    out.push(mission);
+  }
+  return out;
+}
+
 /** Crowdfunding stays listed while funding — even with a pre-locked cleaner. */
 function isPublicMarketMission(mission: LiveMarketMission): boolean {
   const status = String(mission.status || '').toLowerCase() as (typeof ACTIVE_MARKET_STATUSES)[number];
@@ -183,6 +240,8 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   const [missions, setMissions] = useState<LiveMarketMission[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** Bump to abort an in-flight request and refetch (Retry must never stick). */
+  const [fetchEpoch, setFetchEpoch] = useState(0);
   const [sortMode, setSortMode] = useState<MissionSortMode>(DEFAULT_MISSION_SORT);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [marketCountryIds, setMarketCountryIds] = useState<string[]>([]);
@@ -217,15 +276,22 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
 
   // DB catalog + DB-wide facets keep every populated region selectable, even
   // when its missions fall outside this panel's page window.
-  const { catalog: locationCatalog } = useLocationCatalog(missions, open);
+  const missionList = Array.isArray(missions) ? missions : [];
+  const { catalog: locationCatalog } = useLocationCatalog(missionList, open);
 
-  const visibleMissions = useMemo(
-    () =>
-      sortMissions(
+  const reloadMarket = useCallback(() => {
+    setLoadError(null);
+    setFetchEpoch((n) => n + 1);
+  }, []);
+
+  const visibleMissions = useMemo(() => {
+    try {
+      const source = Array.isArray(missions) ? missions : [];
+      return sortMissions(
         filterMissionsByMutedCreators(
           filterMissionsByFreeReports(
             filterMissionsByCountriesCity(
-              filterMissionsByTags(missions, selectedTags),
+              filterMissionsByTags(source, selectedTags),
               marketCountryIds,
               marketCityId,
               locationCatalog
@@ -235,47 +301,57 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
           mutedIds
         ),
         sortMode
-      ),
-    [
-      missions,
-      selectedTags,
-      marketCountryIds,
-      marketCityId,
-      locationCatalog,
-      showFreeReports,
-      mutedIds,
-      sortMode,
-    ]
-  );
+      );
+    } catch (err) {
+      console.error('[LiveMarketFeed] filter/sort failed:', err);
+      return [] as LiveMarketMission[];
+    }
+  }, [
+    missions,
+    selectedTags,
+    marketCountryIds,
+    marketCityId,
+    locationCatalog,
+    showFreeReports,
+    mutedIds,
+    sortMode,
+  ]);
 
   useEffect(() => {
-    if (!open || missions.length === 0) return;
+    if (!open || missionList.length === 0) return;
     let cancelled = false;
     const ids = [
       ...new Set(
-        missions
-          .map((m) => m.creator_id)
+        missionList
+          .map((m) => m?.creator_id)
           .filter((id): id is string => !!id)
       ),
     ].slice(0, 24);
     if (ids.length === 0) return;
-    void fetchTrustBadgesForOwners(ids).then((map) => {
-      if (!cancelled) setCreatorBadges(map);
-    });
+    void fetchTrustBadgesForOwners(ids)
+      .then((map) => {
+        if (!cancelled) setCreatorBadges(map);
+      })
+      .catch((err) => {
+        console.warn('[LiveMarketFeed] trust badges failed:', err);
+      });
     return () => {
       cancelled = true;
     };
-  }, [open, missions]);
+  }, [open, missionList]);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    const ac = new AbortController();
+    const timer = window.setTimeout(() => ac.abort(), MARKET_FETCH_TIMEOUT_MS);
+
     setLoading(true);
     setLoadError(null);
-    (async () => {
-      const { data, error } = await supabase
-        .from('missions')
-        .select(`
+
+    const request = supabase
+      .from('missions')
+      .select(`
           id,
           category,
           service_type,
@@ -301,31 +377,59 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
             avatar_url
           )
         `)
-        .in('status', [...ACTIVE_MARKET_STATUSES])
-        .order('amount_target', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(200);
+      .in('status', [...ACTIVE_MARKET_STATUSES])
+      .order('amount_target', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(200);
 
-      if (cancelled) return;
-      if (error) {
-        setLoadError(error.message || t('liveMarketLoadFailed'));
-        setMissions([]);
-      } else {
-        setMissions(
-          ((data || []) as LiveMarketMission[]).filter(
-            (mission) =>
-              Number.isFinite(mission.location_lat) &&
-              Number.isFinite(mission.location_lng) &&
-              isPublicMarketMission(mission)
-          )
-        );
+    const requestPromise = Promise.resolve(request);
+    // Swallow a late rejection if the timeout wins the race (mobile WebView hang).
+    void requestPromise.catch(() => {});
+
+    const timeoutError = new DOMException('Request timed out', 'TimeoutError');
+    const timeoutGate = new Promise<never>((_, reject) => {
+      const fail = () => reject(timeoutError);
+      if (ac.signal.aborted) {
+        fail();
+        return;
       }
-      setLoading(false);
+      ac.signal.addEventListener('abort', fail, { once: true });
+    });
+
+    void (async () => {
+      try {
+        const { data, error } = await Promise.race([requestPromise, timeoutGate]);
+        if (cancelled) return;
+        if (error) {
+          setLoadError(error.message || t('liveMarketLoadFailed'));
+          setMissions([]);
+          return;
+        }
+        setMissions(asLiveMarketMissions(data));
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[LiveMarketFeed] load failed:', err);
+        setMissions([]);
+        setLoadError(
+          isAbortOrTimeout(err)
+            ? t('liveMarketLoadTimeout', {
+                defaultValue: 'Request timed out. Try again.',
+              })
+            : err instanceof Error
+              ? err.message
+              : t('liveMarketLoadFailed')
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
+
     return () => {
       cancelled = true;
+      ac.abort();
+      window.clearTimeout(timer);
     };
-  }, [open, t]);
+  }, [open, fetchEpoch, t]);
 
   return (
     <>
@@ -333,6 +437,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
       variant="sheet"
       resetKeys={[open]}
       onClose={onClose}
+      onReset={reloadMarket}
     >
     <AnimatePresence>
       {open && (
@@ -403,15 +508,33 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                 style={{ flex: '1 1 0%', minHeight: 0 }}
               >
                 {loading && (
-                  <p className="py-4 text-center text-xs text-slate-400">{t('loading')}</p>
+                  <div className="flex flex-col items-center gap-3 px-4 py-6">
+                    <p className="text-center text-xs text-slate-400">{t('loading')}</p>
+                    <button
+                      type="button"
+                      onClick={reloadMarket}
+                      className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-300 transition-colors hover:bg-white/10"
+                    >
+                      {t('feedDisplayErrorRetry', { defaultValue: 'Try again' })}
+                    </button>
+                  </div>
                 )}
                 {!loading && loadError && (
-                  <p className="py-4 text-center text-xs text-red-300">{loadError}</p>
+                  <div className="flex flex-col items-center gap-3 px-4 py-6">
+                    <p className="text-center text-xs text-red-300">{loadError}</p>
+                    <button
+                      type="button"
+                      onClick={reloadMarket}
+                      className="rounded-full border border-cyan-400/40 bg-cyan-500/15 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100"
+                    >
+                      {t('feedDisplayErrorRetry', { defaultValue: 'Try again' })}
+                    </button>
+                  </div>
                 )}
-                {!loading && !loadError && missions.length === 0 && (
+                {!loading && !loadError && missionList.length === 0 && (
                   <p className="py-4 text-center text-xs text-slate-400">{t('noLiveMissions')}</p>
                 )}
-                {!loading && !loadError && missions.length > 0 && visibleMissions.length === 0 && (
+                {!loading && !loadError && missionList.length > 0 && visibleMissions.length === 0 && (
                   <p className="py-4 text-center text-xs text-slate-400">
                     {t('noMissionsMatchFilters')}
                   </p>
@@ -419,9 +542,10 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                 {!loading && !loadError && visibleMissions.length > 0 && (
                   <div className="absolute inset-0 min-h-0" style={{ height: '100%', minHeight: 0 }}>
                     <Virtuoso
+                      key={fetchEpoch}
                       style={{ height: '100%', width: '100%' }}
-                      data={visibleMissions}
-                      computeItemKey={(_index, mission) => String(mission.id)}
+                      data={Array.isArray(visibleMissions) ? visibleMissions : []}
+                      computeItemKey={(_index, mission) => String(mission?.id ?? _index)}
                       increaseViewportBy={MARKET_LIST_OVERSCAN_PX}
                       scrollerRef={(ref) => {
                         const node = (ref as HTMLElement | null) ?? null;
@@ -431,6 +555,8 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                         }
                       }}
                       itemContent={(_index, mission) => {
+                        if (!mission || typeof mission !== 'object') return null;
+                        try {
                         const budget = missionWorkBudgetUsd(mission);
                         const isOwnTask =
                           !!currentUserId && mission.creator_id === currentUserId;
@@ -440,11 +566,12 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                         const isCrowd = isCrowdfundingPin(mission);
                         const statusLabel =
                           mission.status === 'in_progress' ? t('accepted') : mission.status;
+                        const missionId = String(mission.id ?? '');
 
                         return (
                           <div
-                            key={mission.id}
-                            data-mission-id={mission.id}
+                            key={missionId}
+                            data-mission-id={missionId}
                             className="px-3 pb-3"
                             style={CARD_GPU_STYLE}
                           >
@@ -453,7 +580,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                               videoUrl={mission.video_proof_url}
                               previewLat={mission.location_lat}
                               previewLng={mission.location_lng}
-                              previewMissionId={mission.id}
+                              previewMissionId={missionId}
                               placeholderVariant={isHome ? 'home' : 'city'}
                               placeholderIcon={missionPinIcon(
                                 mission.service_type,
@@ -464,7 +591,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                               budgetValue={formatWorkBudgetUsd(budget)}
                               locationLine={missionLocationLine(mission, t)}
                               description={extractMissionFeedDescription(mission.description)}
-                              metaLine={`${t('orderNumber')} ${mission.id.slice(0, 8)}`}
+                              metaLine={`${t('orderNumber')} ${missionId.slice(0, 8)}`}
                               submittedLabel={
                                 mission.created_at
                                   ? `${t('submittedLabel')}: ${formatSubmittedRelative(
@@ -539,6 +666,16 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                             />
                           </div>
                         );
+                        } catch (err) {
+                          console.error('[LiveMarketFeed] card render failed:', err);
+                          return (
+                            <div className="px-3 pb-3 text-[10px] text-slate-500">
+                              {t('feedDisplayError', {
+                                defaultValue: 'Feed display error. Try reloading the page.',
+                              })}
+                            </div>
+                          );
+                        }
                       }}
                       components={{
                         Footer: () => (
@@ -564,7 +701,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
         blank the market sheet or the map. */}
     <ImmersiveMissionFeed
       open={open && !!immersiveStartId}
-      missions={visibleMissions}
+      missions={Array.isArray(visibleMissions) ? visibleMissions : []}
       startMissionId={immersiveStartId}
       creatorTrustBadges={creatorBadges}
       onClose={() => setImmersiveStartId(null)}

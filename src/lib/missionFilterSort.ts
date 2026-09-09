@@ -109,6 +109,7 @@ export function filterMissionsByTags<T extends TaggableMission>(
   missions: T[],
   selectedTags: string[]
 ): T[] {
+  if (!Array.isArray(missions)) return [];
   if (!selectedTags || selectedTags.length === 0) return missions;
   const wanted = new Set(selectedTags.map((t) => t.toLowerCase()));
   const wantsReports = [...wanted].some((t) => REPORT_FILTER_TAG_IDS.has(t));
@@ -128,6 +129,7 @@ export function sortMissions<T extends SortableMission>(
   missions: T[],
   mode: MissionSortMode
 ): T[] {
+  if (!Array.isArray(missions)) return [];
   const copy = [...missions];
   copy.sort((a, b) => {
     switch (mode) {

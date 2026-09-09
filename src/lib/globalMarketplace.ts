@@ -280,8 +280,9 @@ export function buildLocationCatalog(
   missions: readonly MissionGeoFields[],
   options: BuildLocationCatalogOptions = {}
 ): LocationCatalog {
-  const catalogRows = options.catalogRows ?? [];
-  const facets = options.facets ?? [];
+  const catalogRows = Array.isArray(options.catalogRows) ? options.catalogRows : [];
+  const facets = Array.isArray(options.facets) ? options.facets : [];
+  const missionList = Array.isArray(missions) ? missions : [];
 
   const countrySet = new Set<string>();
   const quickSet = new Set<string>();
@@ -391,7 +392,7 @@ export function buildLocationCatalog(
     revision: ++catalogRevision,
   };
 
-  for (const mission of missions) {
+  for (const mission of missionList) {
     const { country, city } = resolveMissionRegion(mission, partial);
     if (!country) continue;
     addCountry(country);
@@ -460,14 +461,18 @@ export function citiesForCountrySelection(
 ): string[] {
   if (!catalog) return [];
   if (isAllWorldSelection(countryIds)) {
-    return catalog.citiesByCountry[ALL_CITIES_KEY] ?? [];
+    const all = catalog.citiesByCountry?.[ALL_CITIES_KEY];
+    return Array.isArray(all) ? all : [];
   }
   const seen = new Set<string>();
-  for (const country of countryIds) {
-    const match = Object.keys(catalog.citiesByCountry).find(
+  const byCountry = catalog.citiesByCountry ?? {};
+  const countryKeys = Object.keys(byCountry);
+  for (const country of Array.isArray(countryIds) ? countryIds : []) {
+    const match = countryKeys.find(
       (key) => key !== ALL_CITIES_KEY && key.toLowerCase() === country.toLowerCase()
     );
-    for (const city of (match ? catalog.citiesByCountry[match] : undefined) ?? []) {
+    const cities = match ? byCountry[match] : undefined;
+    for (const city of Array.isArray(cities) ? cities : []) {
       seen.add(city);
     }
   }
@@ -484,6 +489,7 @@ export function filterMissionsByCountriesCity<T extends MissionGeoFields>(
   cityId: string | null | undefined,
   catalog?: LocationCatalog | null
 ): T[] {
+  if (!Array.isArray(missions)) return [];
   const selection = toCountrySelection(countryIds);
   const allWorld = selection.length === 0;
   const cityFilter = normLabel(cityId);

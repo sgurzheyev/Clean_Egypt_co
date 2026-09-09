@@ -15,14 +15,18 @@ export type MissionFeedErrorBoundaryProps = {
   onClose?: () => void;
   /** compact = inline sheet; fullscreen = covers viewport (immersive). */
   variant?: 'fullscreen' | 'sheet';
+  /** Refetch / remount the feed when the user taps Try again. */
+  onReset?: () => void;
 };
 
 function MissionFeedCrashFallback({
   reset,
   onClose,
+  onReset,
   variant,
 }: ErrorBoundaryFallbackProps & {
   onClose?: () => void;
+  onReset?: () => void;
   variant: 'fullscreen' | 'sheet';
 }) {
   const { t } = useTranslation();
@@ -74,7 +78,10 @@ function MissionFeedCrashFallback({
           </button>
           <button
             type="button"
-            onClick={reset}
+            onClick={() => {
+              onReset?.();
+              reset();
+            }}
             className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-[11px] font-black uppercase tracking-[0.16em] text-slate-300 transition-colors hover:bg-white/10"
           >
             {t('feedDisplayErrorRetry', { defaultValue: 'Try again' })}
@@ -102,6 +109,7 @@ const MissionFeedErrorBoundary: React.FC<MissionFeedErrorBoundaryProps> = ({
   children,
   resetKeys,
   onClose,
+  onReset,
   variant = 'fullscreen',
 }) => (
   <ErrorBoundary
@@ -113,6 +121,7 @@ const MissionFeedErrorBoundary: React.FC<MissionFeedErrorBoundaryProps> = ({
       <MissionFeedCrashFallback
         error={error}
         reset={reset}
+        onReset={onReset}
         onClose={onClose}
         variant={variant}
       />

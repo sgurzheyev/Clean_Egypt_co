@@ -390,7 +390,7 @@ const MissionSlide = React.memo(function MissionSlide({
 
 const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
   open,
-  missions,
+  missions: missionsProp,
   startMissionId,
   onClose,
   onOpenCreator,
@@ -402,6 +402,9 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
   creatorTrustBadges,
 }) => {
   const { t } = useTranslation();
+  const missions = Array.isArray(missionsProp)
+    ? missionsProp.filter((m): m is ImmersiveFeedMission => !!m && typeof m === 'object' && !!m.id)
+    : [];
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const indexRef = useRef(0);
   const [index, setIndex] = useState(0);
@@ -780,7 +783,11 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
 const ImmersiveMissionFeed: React.FC<ImmersiveMissionFeedProps> = (props) => (
   <MissionFeedErrorBoundary
     variant="fullscreen"
-    resetKeys={[props.open, props.startMissionId, props.missions.length]}
+    resetKeys={[
+      props.open,
+      props.startMissionId,
+      Array.isArray(props.missions) ? props.missions.length : 0,
+    ]}
     onClose={props.onClose}
   >
     <ImmersiveMissionFeedInner {...props} />

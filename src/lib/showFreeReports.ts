@@ -55,6 +55,7 @@ export function subscribeShowFreeReports(listener: (show: boolean) => void): () 
 export function filterMissionsByFreeReports<
   T extends { is_report?: boolean | null; status?: string | null; category?: string | null },
 >(missions: T[], show: boolean): T[] {
+  if (!Array.isArray(missions)) return [];
   if (show) return missions;
   return missions.filter((m) => {
     if (isGarbageZoneReport(m)) return false;

@@ -46,9 +46,9 @@ export function useLocationCatalog(
 
   const catalog = useMemo(
     () =>
-      buildLocationCatalog(missions ?? [], {
-        catalogRows: sources.catalogRows,
-        facets: sources.facets,
+      buildLocationCatalog(Array.isArray(missions) ? missions : [], {
+        catalogRows: Array.isArray(sources.catalogRows) ? sources.catalogRows : [],
+        facets: Array.isArray(sources.facets) ? sources.facets : [],
       }),
     [missions, sources]
   );

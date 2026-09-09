@@ -145,16 +145,23 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
     return parts.join(' · ');
   }, [showLocationFilter, selectedCountries, cityValue, t]);
 
-  const countries = locationCatalog?.countries ?? [...QUICK_REGION_COUNTRIES];
-  const citiesForCountry = useMemo(
-    () => citiesForCountrySelection(locationCatalog, selectedCountries),
-    [locationCatalog, selectedCountries]
-  );
+  const countries = Array.isArray(locationCatalog?.countries)
+    ? locationCatalog.countries
+    : [...QUICK_REGION_COUNTRIES];
+  const citiesForCountry = useMemo(() => {
+    try {
+      const cities = citiesForCountrySelection(locationCatalog, selectedCountries);
+      return Array.isArray(cities) ? cities : [];
+    } catch {
+      return [] as string[];
+    }
+  }, [locationCatalog, selectedCountries]);
 
   const quickCountries = useMemo(() => {
-    const preferred = locationCatalog?.quickCountries?.length
-      ? locationCatalog.quickCountries
-      : [...QUICK_REGION_COUNTRIES];
+    const preferred =
+      Array.isArray(locationCatalog?.quickCountries) && locationCatalog.quickCountries.length
+        ? locationCatalog.quickCountries
+        : [...QUICK_REGION_COUNTRIES];
     // Always include what the user already picked, even outside the quick set.
     const extras = selectedCountries.filter(
       (c) => !preferred.some((q) => q.toLowerCase() === c.toLowerCase())

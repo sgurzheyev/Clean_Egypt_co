@@ -79,6 +79,7 @@ export function clearMuted(): string[] {
 export function filterMissionsByMutedCreators<
   T extends { creator_id?: string | null },
 >(missions: T[], mutedIds: string[]): T[] {
+  if (!Array.isArray(missions)) return [];
   if (!mutedIds || mutedIds.length === 0) return missions;
   const muted = new Set(mutedIds);
   return missions.filter((m) => {
