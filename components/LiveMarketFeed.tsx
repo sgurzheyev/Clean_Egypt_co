@@ -255,6 +255,17 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
     Record<string, TrustBadgeId[]>
   >({});
   const { mutedIds } = useMutedCreators();
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  // Stable callback: an inline scrollerRef makes Virtuoso call null→node every
+  // parent render, which used to bump epoch → #185 max update depth.
+  const handleMarketScrollerRef = useCallback((ref: HTMLElement | Window | null) => {
+    const node = ref instanceof HTMLElement ? ref : null;
+    if (!node || marketScrollerRef.current === node) return;
+    marketScrollerRef.current = node;
+    setScrollerEpoch((n) => n + 1);
+  }, []);
 
   const toggleTag = (tag: string) =>
     setSelectedTags((prev) =>
@@ -317,17 +328,23 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
     sortMode,
   ]);
 
-  useEffect(() => {
-    if (!open || missionList.length === 0) return;
-    let cancelled = false;
-    const ids = [
+  const creatorIdsKey = useMemo(() => {
+    if (!Array.isArray(missionList) || missionList.length === 0) return '';
+    return [
       ...new Set(
         missionList
           .map((m) => m?.creator_id)
           .filter((id): id is string => !!id)
       ),
-    ].slice(0, 24);
-    if (ids.length === 0) return;
+    ]
+      .slice(0, 24)
+      .join('|');
+  }, [missionList]);
+
+  useEffect(() => {
+    if (!open || !creatorIdsKey) return;
+    let cancelled = false;
+    const ids = creatorIdsKey.split('|').filter(Boolean);
     void fetchTrustBadgesForOwners(ids)
       .then((map) => {
         if (!cancelled) setCreatorBadges(map);
@@ -338,7 +355,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [open, missionList]);
+  }, [open, creatorIdsKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -349,6 +366,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
     setLoading(true);
     setLoadError(null);
 
+    const translate = tRef.current;
     const request = supabase
       .from('missions')
       .select(`
@@ -401,7 +419,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
         const { data, error } = await Promise.race([requestPromise, timeoutGate]);
         if (cancelled) return;
         if (error) {
-          setLoadError(error.message || t('liveMarketLoadFailed'));
+          setLoadError(error.message || translate('liveMarketLoadFailed'));
           setMissions([]);
           return;
         }
@@ -412,12 +430,12 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
         setMissions([]);
         setLoadError(
           isAbortOrTimeout(err)
-            ? t('liveMarketLoadTimeout', {
+            ? translate('liveMarketLoadTimeout', {
                 defaultValue: 'Request timed out. Try again.',
               })
             : err instanceof Error
               ? err.message
-              : t('liveMarketLoadFailed')
+              : translate('liveMarketLoadFailed')
         );
       } finally {
         if (!cancelled) setLoading(false);
@@ -429,7 +447,8 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
       ac.abort();
       window.clearTimeout(timer);
     };
-  }, [open, fetchEpoch, t]);
+    // `t` is read via tRef so a new i18n identity cannot retrigger fetch / #185.
+  }, [open, fetchEpoch]);
 
   return (
     <>
@@ -547,13 +566,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                       data={Array.isArray(visibleMissions) ? visibleMissions : []}
                       computeItemKey={(_index, mission) => String(mission?.id ?? _index)}
                       increaseViewportBy={MARKET_LIST_OVERSCAN_PX}
-                      scrollerRef={(ref) => {
-                        const node = (ref as HTMLElement | null) ?? null;
-                        if (marketScrollerRef.current !== node) {
-                          marketScrollerRef.current = node;
-                          setScrollerEpoch((n) => n + 1);
-                        }
-                      }}
+                      scrollerRef={handleMarketScrollerRef}
                       itemContent={(_index, mission) => {
                         if (!mission || typeof mission !== 'object') return null;
                         try {

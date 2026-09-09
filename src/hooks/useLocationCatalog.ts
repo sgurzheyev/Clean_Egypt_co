@@ -31,14 +31,24 @@ export function useLocationCatalog(
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
-    void fetchLocationCatalogSources().then((next) => {
-      if (cancelled) return;
-      setSources(next);
-      setLoading(false);
-    });
+    void fetchLocationCatalogSources()
+      .then((next) => {
+        if (cancelled) return;
+        setSources(next);
+      })
+      .catch((err) => {
+        console.warn('[useLocationCatalog] failed:', err);
+        if (!cancelled) setSources(EMPTY_SOURCES);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
       cancelled = true;
     };

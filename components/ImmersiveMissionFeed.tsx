@@ -402,9 +402,12 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
   creatorTrustBadges,
 }) => {
   const { t } = useTranslation();
-  const missions = Array.isArray(missionsProp)
-    ? missionsProp.filter((m): m is ImmersiveFeedMission => !!m && typeof m === 'object' && !!m.id)
-    : [];
+  const missions = useMemo(() => {
+    const list = Array.isArray(missionsProp) ? missionsProp : [];
+    return list.filter(
+      (m): m is ImmersiveFeedMission => !!m && typeof m === 'object' && !!m.id
+    );
+  }, [missionsProp]);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const indexRef = useRef(0);
   const [index, setIndex] = useState(0);
@@ -527,11 +530,12 @@ const ImmersiveMissionFeedInner: React.FC<ImmersiveMissionFeedProps> = ({
 
   useEffect(() => {
     if (!open || !currentCreatorId) {
-      setLiveBadges([]);
+      setLiveBadges((prev) => (prev.length === 0 ? prev : []));
       return;
     }
-    if (creatorTrustBadges?.[currentCreatorId]) {
-      setLiveBadges(creatorTrustBadges[currentCreatorId]);
+    const cached = creatorTrustBadges?.[currentCreatorId];
+    if (cached) {
+      setLiveBadges((prev) => (prev === cached ? prev : cached));
       return;
     }
     let cancelled = false;
