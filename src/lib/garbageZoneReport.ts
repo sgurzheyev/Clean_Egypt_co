@@ -1,4 +1,5 @@
 import { supabase } from '../../services/supabase';
+import { CITY_MIN_PRICE } from '../../constants';
 import {
   filterMissionDescription,
   validateMissionDescription,
@@ -147,7 +148,9 @@ export async function convertReportToMission(input: {
   crowdfundingMode?: boolean;
 }): Promise<ConvertedMissionRow> {
   const price = Math.floor(Number(input.expectedPriceUsd) || 0);
-  if (price < 5) throw new Error('Target budget must be at least $5');
+  if (price < CITY_MIN_PRICE) {
+    throw new Error(`Target budget must be at least $${CITY_MIN_PRICE}`);
+  }
 
   const { data, error } = await supabase.rpc('convert_report_to_mission', {
     p_mission_id: input.missionId,

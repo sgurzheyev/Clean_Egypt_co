@@ -1,16 +1,22 @@
 /**
- * Client-side pin evidence video: 9:16 crop, 30–60s window, WebM/MP4.
+ * Client-side pin evidence video: 9:16 crop, 5–55s window, WebM/MP4.
  */
 
-export const PIN_VIDEO_MIN_SEC = 30;
-export const PIN_VIDEO_IDEAL_MIN_SEC = 30;
-export const PIN_VIDEO_MAX_SEC = 60;
+export const PIN_VIDEO_MIN_SEC = 5;
+export const PIN_VIDEO_IDEAL_MIN_SEC = PIN_VIDEO_MIN_SEC;
+export const PIN_VIDEO_MAX_SEC = 55;
 export const PIN_VIDEO_MAX_BYTES = 80 * 1024 * 1024;
 
 const TARGET_W = 720;
 const TARGET_H = 1280;
 const FPS = 30;
 const BITRATE = 1_200_000;
+
+function pinVideoRangeError(): Error {
+  return new Error(
+    `Video must be ${PIN_VIDEO_MIN_SEC}–${PIN_VIDEO_MAX_SEC} seconds. Trim it and try again.`
+  );
+}
 
 function loadVideo(file: File): Promise<HTMLVideoElement> {
   return new Promise((resolve, reject) => {
@@ -66,7 +72,7 @@ function coverCrop(
 }
 
 /**
- * Trim to ≤60s, crop to vertical 9:16, encode. Falls back to the original
+ * Trim to ≤55s, crop to vertical 9:16, encode. Falls back to the original
  * file when MediaRecorder/canvas capture is unavailable.
  */
 export async function compressPinVideoProof(file: File): Promise<File> {
@@ -79,11 +85,13 @@ export async function compressPinVideoProof(file: File): Promise<File> {
 
   const video = await loadVideo(file);
   const duration = Number(video.duration);
-  if (!Number.isFinite(duration) || duration < PIN_VIDEO_MIN_SEC) {
+  if (
+    !Number.isFinite(duration) ||
+    duration < PIN_VIDEO_MIN_SEC ||
+    duration > PIN_VIDEO_MAX_SEC + 1
+  ) {
     URL.revokeObjectURL(video.src);
-    throw new Error(
-      `Video must be at least ${PIN_VIDEO_IDEAL_MIN_SEC} seconds (30–60s vertical).`
-    );
+    throw pinVideoRangeError();
   }
 
   const clipSec = Math.min(duration, PIN_VIDEO_MAX_SEC);
@@ -95,7 +103,7 @@ export async function compressPinVideoProof(file: File): Promise<File> {
   if (!ctx || !mime || typeof canvas.captureStream !== 'function') {
     URL.revokeObjectURL(video.src);
     if (duration > PIN_VIDEO_MAX_SEC + 1) {
-      throw new Error('Video must be 30–60 seconds. Trim it and try again.');
+      throw pinVideoRangeError();
     }
     return file;
   }
@@ -166,7 +174,7 @@ export async function compressPinVideoProof(file: File): Promise<File> {
 
   if (blob.size < 1024) {
     if (duration > PIN_VIDEO_MAX_SEC + 1) {
-      throw new Error('Video must be 30–60 seconds. Trim it and try again.');
+      throw pinVideoRangeError();
     }
     return file;
   }

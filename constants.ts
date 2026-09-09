@@ -95,10 +95,10 @@ export const SMALL_CARDING_USD_MAX = 100;
 export const DISPLAY_CURRENCY_SUFFIX = 'USD';
 
 /** Min/max mission work budgets in USD. */
-export const HOME_MIN_PRICE = 5;
+export const HOME_MIN_PRICE = 2;
 export const HOME_MAX_PRICE = 25000;
 /** Minimum work budget / crowdfunding goal for city missions (USD). */
-export const CITY_MIN_PRICE = 5;
+export const CITY_MIN_PRICE = 2;
 export const CITY_MAX_PRICE = 5000;
 
 export const MIN_SIZE = 10;
