@@ -31,7 +31,9 @@ import {
   formatCrowdfundingCountdownCompact,
   getCrowdfundingCountdownParts,
   getCrowdfundingExpiresAt,
+  getHistoryPublicUntil,
   isCrowdfundingOpen,
+  isPublicGarbageHistory,
   isReportFirstDonateOpen,
   crowdfundingRemainingUsd,
   isCrowdfundingPin,
@@ -95,6 +97,8 @@ export type MissionBriefingMission = {
   current_funding?: number | null;
   crowdfunding_mode?: boolean | null;
   crowdfunding_expires_at?: string | null;
+  history_public_until?: string | null;
+  media_purged_at?: string | null;
   created_at?: string | null;
   location_lat: number;
   location_lng: number;
@@ -240,6 +244,9 @@ function placeholderVariantFor(mission: MissionBriefingMission): MissionFeedPlac
 }
 
 function statusBadgeClass(status: string): string {
+  if (status === 'expired') {
+    return 'border-amber-400/55 bg-amber-500/25 text-amber-100';
+  }
   if (status === 'in_progress') {
     return 'border-cyan-400/55 bg-cyan-500/25 text-cyan-100';
   }
@@ -430,7 +437,12 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   );
   const hasPreselectedCleanerDuringFunding =
     isFundingStatus && (!!mission.cleaner_id || !!acceptedFundingBid);
+  const isGarbageHistory = isPublicGarbageHistory(mission);
+  const historyUntil = isGarbageHistory ? getHistoryPublicUntil(mission) : null;
+  const historyCountdownParts = getCrowdfundingCountdownParts(historyUntil);
+  const historyCountdownLabel = formatCrowdfundingCountdownCompact(historyCountdownParts);
   const showBidsSection =
+    !isGarbageHistory &&
     !isReportPin &&
     !isInProgress &&
     !isAwaitingApproval &&
@@ -470,6 +482,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
         ['pending', 'active'].includes(String(b.status || '').toLowerCase())
     );
   const canWorkerChat =
+    !isGarbageHistory &&
     !!currentUserId &&
     !!mission.creator_id &&
     mission.creator_id !== currentUserId &&
@@ -699,12 +712,16 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   ]);
 
   const isOwnActive = isInProgress && mission.cleaner_id === currentUserId;
-  const statusLabel = isReportPin
-    ? t('reportZoneBadge', { defaultValue: 'Reported Zone' })
-    : String(mission?.status || '').replace(/_/g, ' ');
-  const statusBadgeTone = isReportPin
-    ? 'border-rose-400/55 bg-rose-500/25 text-rose-100'
-    : statusBadgeClass(String(mission?.status || ''));
+  const statusLabel = isGarbageHistory
+    ? t('garbageHistoryBadge', { defaultValue: 'Garbage History' })
+    : isReportPin
+      ? t('reportZoneBadge', { defaultValue: 'Reported Zone' })
+      : String(mission?.status || '').replace(/_/g, ' ');
+  const statusBadgeTone = isGarbageHistory
+    ? 'border-amber-400/55 bg-amber-500/25 text-amber-100'
+    : isReportPin
+      ? 'border-rose-400/55 bg-rose-500/25 text-rose-100'
+      : statusBadgeClass(String(mission?.status || ''));
 
   const workerContactPanel =
     showWorkerContactPanel ? (
@@ -1205,6 +1222,37 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       })}
                     </button>
                   ) : null}
+                </section>
+              )}
+
+              {isGarbageHistory && (
+                <section className="border-t border-white/5 pt-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400/90">
+                      {t('garbageHistoryTitle', { defaultValue: 'Garbage History' })}
+                    </h3>
+                    {historyCountdownParts && (
+                      <p className="shrink-0 text-[10px] font-black uppercase tracking-[0.12em] tabular-nums text-amber-200/90">
+                        {historyCountdownParts.expired
+                          ? t('garbageHistoryClosing', { defaultValue: 'Archiving' })
+                          : t('garbageHistoryTimeLeft', {
+                              time: historyCountdownLabel,
+                              defaultValue: 'Public {{time}}',
+                            })}
+                      </p>
+                    )}
+                  </div>
+                  <p className="mt-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold leading-relaxed text-amber-100/95">
+                    {t('govNoticeSentBadge', { defaultValue: 'Gov Notice sent' })}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+                    {t('garbageHistoryHint', {
+                      raised: formatWorkBudgetUsd(fundedUsd),
+                      target: formatWorkBudgetUsd(targetUsd),
+                      defaultValue:
+                        'Campaign window closed with {{raised}} of {{target}}. Funds retained as processing fee — no card refunds. This pin stays public for 7 days, then media is archived.',
+                    })}
+                  </p>
                 </section>
               )}
 

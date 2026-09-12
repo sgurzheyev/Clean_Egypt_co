@@ -5,7 +5,7 @@ aliases: [Stripe USD Flow, Crowdfunding money]
 
 # Stripe USD Flow
 
-> All fiat rails are **USD** (cents on Stripe, whole dollars in Postgres). Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/KYC_Verification]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
+> All fiat rails are **USD** (cents on Stripe, whole dollars in Postgres). Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/KYC_Verification]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
 
 ## Crowdfunding contributions
 
@@ -29,7 +29,7 @@ Webhook requires `STRIPE_WEBHOOK_SECRET` and `verify_jwt = false` (see `supabase
 ## Expiry (street / garbage campaigns)
 
 - Column: `missions.crowdfunding_expires_at` (set on create, default **7 days**)
-- Sweep: `process_expired_crowdfunding_missions()` (P0-1): `$0` → `hidden` (no city event); `0 < raised < target` → `status = expired` + `city_notification_events`
+- Sweep: `process_expired_crowdfunding_missions()` (P0-1): `$0` → `hidden` (no city event); `0 < raised < target` → `status = expired` + `history_public_until` + `city_notification_events` (Wave D)
 - Cron / stub: [[../api/process-expired-crowdfunding.ts]], PDF helper [[../src/lib/cityNotification.ts]]
 - UI countdown: [[../components/MissionBriefing.tsx]] via [[../src/lib/crowdfunding.ts]]
 
@@ -53,4 +53,4 @@ Confirm failures return `{ error }` JSON; client parses via [[../src/lib/supabas
 
 Campaign USD is `expected_price` / `current_funding`. `amount_target` is token listing rank and must not store dollars ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]).
 
-[[01_Architecture/Architecture_Overview]] · [[04_Roadmap_Tasks/00_Dashboard]] · [[01_Architecture/Security_and_RPCs]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[🗺️ GARBAGIN Master Index]]
+[[01_Architecture/Architecture_Overview]] · [[04_Roadmap_Tasks/00_Dashboard]] · [[01_Architecture/Security_and_RPCs]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[🗺️ GARBAGIN Master Index]]

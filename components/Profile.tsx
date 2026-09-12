@@ -98,6 +98,7 @@ import { missionPinIcon } from '../src/lib/serviceSectors';
 import {
   crowdfundingFeedCallout,
   isCrowdfundingPin,
+  isPublicGarbageHistory,
 } from '../src/lib/crowdfunding';
 import { fetchContractorStore } from '../src/lib/contractorStore';
 import { requestDeleteAccount } from '../src/lib/deleteAccount';
@@ -164,6 +165,8 @@ interface Job {
   expected_price?: number | null;
   current_funding?: number | null;
   crowdfunding_mode?: boolean | null;
+  history_public_until?: string | null;
+  media_purged_at?: string | null;
   is_report?: boolean | null;
   location_lat?: number | null;
   location_lng?: number | null;
@@ -465,6 +468,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
       (Array.isArray(marketplaceJobs) ? marketplaceJobs : []).filter((job) => {
         const status = String(job.status || '').toLowerCase();
         if (status === 'hidden' || status === 'archived') return false;
+        if (status === 'expired') return isPublicGarbageHistory(job);
         if (status === 'reported' || job.is_report) return true;
         // Crowdfunding campaigns stay public until fully funded → in_progress,
         // even when a cleaner is pre-locked during funding.
@@ -1154,6 +1158,8 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           expected_price,
           current_funding,
           crowdfunding_mode,
+          history_public_until,
+          media_purged_at,
           is_report,
           location_lat,
           location_lng,
@@ -1171,7 +1177,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           )
         `
         )
-        .in('status', ['available', 'funding', 'pending', 'reported'])
+        .in('status', ['available', 'funding', 'pending', 'reported', 'expired'])
         .order('created_at', { ascending: false })
         .limit(100);
 

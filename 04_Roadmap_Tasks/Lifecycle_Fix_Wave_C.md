@@ -10,7 +10,7 @@ aliases: [Wave C, amount_target rank, Profile approved, Funded delete lock, P2-3
 # Lifecycle Fix — Wave C (token rank ≠ USD + Profile `approved` + funded DELETE lock)
 
 > Product close of **P2-3**, **P2-4**, and **P3-4** from the lifecycle audit.  
-> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
+> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
 
 **Code PR:** [Clean_Egypt_co#6](https://github.com/sgurzheyev/Clean_Egypt_co/pull/6) stacked on [Clean_Egypt_co#5](https://github.com/sgurzheyev/Clean_Egypt_co/pull/5) (Wave B). Retarget to `main` after P0 / Wave A / Wave B merge.
 
@@ -130,12 +130,11 @@ Stripe session idempotency · `FOR UPDATE SKIP LOCKED` on expiry · Hungry-Games
 
 ---
 
-## Still open (Wave D — not this PR)
+## Still open (not Wave C)
 
 From [[docs/GARBAGIN_LIFECYCLE_AUDIT]] / [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] §8:
 
-- P2-1 / P2-2 `history_public_until`, n8n, R2 purge
-- Feed/map: show `expired` only until history window
+- ~~P2-1 / P2-2 `history_public_until`, n8n, R2 purge~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
 - Explicit crowd re-tender if a locked cleaner ghosts a full pot (notify donors — do not revive silent abandon)
 
 ---
@@ -145,6 +144,7 @@ From [[docs/GARBAGIN_LIFECYCLE_AUDIT]] / [[04_Roadmap_Tasks/Garbage_History_Life
 - [[🗺️ GARBAGIN Master Index]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]
 - [[04_Roadmap_Tasks/00_Dashboard]]
 - [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]]

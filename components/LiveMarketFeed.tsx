@@ -11,7 +11,11 @@ import { supabase } from '../services/supabase';
 import { formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
-import { crowdfundingFeedCallout, isCrowdfundingPin } from '../src/lib/crowdfunding';
+import {
+  crowdfundingFeedCallout,
+  isCrowdfundingPin,
+  isPublicGarbageHistory,
+} from '../src/lib/crowdfunding';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import {
   MARKETPLACE_ALL_CITIES_ID,
@@ -65,6 +69,8 @@ export interface LiveMarketMission {
   current_funding?: number | null;
   crowdfunding_mode?: boolean | null;
   crowdfunding_expires_at?: string | null;
+  history_public_until?: string | null;
+  media_purged_at?: string | null;
   is_report?: boolean | null;
   location_lat: number;
   location_lng: number;
@@ -104,6 +110,7 @@ const ACTIVE_MARKET_STATUSES = [
   'funding',
   'in_progress',
   'reported',
+  'expired',
 ] as const;
 
 /** Mobile WebView: drop a hung PostgREST call so Retry is never stuck. */
@@ -168,6 +175,7 @@ function isPublicMarketMission(mission: LiveMarketMission): boolean {
   const status = String(mission.status || '').toLowerCase() as (typeof ACTIVE_MARKET_STATUSES)[number];
   if (!ACTIVE_MARKET_STATUSES.includes(status)) return false;
   if (status === 'hidden' || status === 'archived') return false;
+  if (status === 'expired') return isPublicGarbageHistory(mission);
   if (status === 'reported' || mission.is_report) return true;
   if (status === 'funding') return true;
   if (status === 'in_progress') return true;
@@ -182,7 +190,9 @@ function fundingFeedCallout(mission: LiveMarketMission): {
 }
 
 const statusClass = (status: string, isCrowd: boolean) =>
-  isCrowd || String(status || '').toLowerCase() === 'funding'
+  String(status || '').toLowerCase() === 'expired'
+    ? 'border-amber-400/55 bg-amber-500/25 text-amber-100'
+    : isCrowd || String(status || '').toLowerCase() === 'funding'
     ? 'border-violet-400/55 bg-violet-500/25 text-violet-100'
     : status === 'in_progress'
     ? 'border-cyan-400/55 bg-cyan-500/25 text-cyan-100'
@@ -379,6 +389,8 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
           current_funding,
           crowdfunding_mode,
           crowdfunding_expires_at,
+          history_public_until,
+          media_purged_at,
           is_report,
           location_lat,
           location_lng,
@@ -578,8 +590,12 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                           missionSector(mission.service_type, mission.category) === 'home';
                         const remainingCallout = fundingFeedCallout(mission);
                         const isCrowd = isCrowdfundingPin(mission);
-                        const statusLabel =
-                          mission.status === 'in_progress' ? t('accepted') : mission.status;
+                        const isHistory = isPublicGarbageHistory(mission);
+                        const statusLabel = isHistory
+                          ? t('garbageHistoryBadge', { defaultValue: 'Garbage History' })
+                          : mission.status === 'in_progress'
+                            ? t('accepted')
+                            : mission.status;
                         const missionId = String(mission.id ?? '');
 
                         return (
@@ -667,6 +683,12 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                                           amount: remainingCallout.remaining,
                                           defaultValue: 'Needs ${{amount}} more',
                                         })}
+                                  </span>
+                                ) : isHistory ? (
+                                  <span className="inline-flex max-w-full rounded-lg border border-amber-400/45 bg-amber-600/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-[0_4px_14px_rgba(245,158,11,0.35)] backdrop-blur-sm">
+                                    {t('govNoticeSentBadge', {
+                                      defaultValue: 'Gov Notice sent',
+                                    })}
                                   </span>
                                 ) : undefined
                               }

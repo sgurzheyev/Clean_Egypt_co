@@ -18,6 +18,53 @@ export function isQuietHideStatus(status: string | null | undefined): boolean {
   return value === 'hidden' || value === 'archived';
 }
 
+const HISTORY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type GarbageHistoryMission = {
+  status?: string | null;
+  current_funding?: number | null;
+  history_public_until?: string | null;
+  media_purged_at?: string | null;
+  crowdfunding_expires_at?: string | null;
+  created_at?: string | null;
+  crowdfunding_mode?: boolean | null;
+};
+
+/** Public end of the 7-day Garbage History window (Gov Notice / expiry + 7d). */
+export function getHistoryPublicUntil(
+  mission: GarbageHistoryMission,
+  nowMs: number = Date.now()
+): Date | null {
+  const raw = mission.history_public_until;
+  if (raw) {
+    const d = new Date(raw);
+    if (Number.isFinite(d.getTime())) return d;
+  }
+  // Pre-migration fallback: expiry (or created_at) + 7d for funded expired pins.
+  if (String(mission.status || '').toLowerCase() !== 'expired') return null;
+  if (Math.max(0, Math.floor(Number(mission.current_funding ?? 0))) <= 0) return null;
+  const base = getCrowdfundingExpiresAt(mission);
+  if (!base) return new Date(nowMs + HISTORY_WINDOW_MS);
+  return new Date(base.getTime() + HISTORY_WINDOW_MS);
+}
+
+/**
+ * Eco-ultimatum pin still in the public 7-day Garbage History window.
+ * $0 / hidden / archived / purged never qualify.
+ */
+export function isPublicGarbageHistory(
+  mission: GarbageHistoryMission,
+  nowMs: number = Date.now()
+): boolean {
+  if (isQuietHideStatus(mission.status)) return false;
+  if (String(mission.status || '').toLowerCase() !== 'expired') return false;
+  if (mission.media_purged_at) return false;
+  if (Math.max(0, Math.floor(Number(mission.current_funding ?? 0))) <= 0) return false;
+  const until = getHistoryPublicUntil(mission, nowMs);
+  if (!until || !Number.isFinite(until.getTime())) return false;
+  return until.getTime() > nowMs;
+}
+
 /** Free civic pin that can take a first Stripe dollar (not a live campaign yet). */
 export function isReportFirstDonateOpen(mission: {
   is_report?: boolean | null;

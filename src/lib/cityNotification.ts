@@ -6,9 +6,16 @@
  *
  * Rows are queued in `city_notification_events` (pdf_status = pending) by:
  *   • process_expired_crowdfunding_missions → event_type = crowdfunding_expired
- *     ONLY when 0 < raised < target (never for $0-raised hide)
+ *     ONLY when 0 < raised < target (never for $0-raised hide). Sets
+ *     missions.history_public_until = now()+7d (Wave D).
  *   • trg_enqueue_crowdfunding_completion_notification → mission_completed
  *     (crowdfunding status completed or approved)
+ *
+ * After pdf_status becomes sent/generated on crowdfunding_expired:
+ *   • SQL trigger bumps history_public_until
+ *   • Edge city-notification-pipeline POSTs n8n (env-gated, fail-soft)
+ * After history_public_until: process_garbage_history_archives → archived,
+ * then Edge garbage-history-purge deletes R2 keys.
  */
 export type CityNotificationPayload = {
   service_type?: string | null;

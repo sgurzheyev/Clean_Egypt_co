@@ -14,6 +14,7 @@
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] — P0-3 overfund refund + P1-4 reporter-only convert
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] — P1-1 donor-reject retry + P1-2 crowd abandon exclude + P3-3 confirm RPC
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] — P2-3 token rank ≠ USD + P2-4 Profile `approved` + P3-4 funded DELETE
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] — P2-1 7-day Garbage History + R2 purge + n8n
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — lifecycle audit scorecard
 - [[01_Architecture/Global_Location_Filtering]] — `location_catalog`, autofill trigger, multi-country filter + facets
 - Frontend map: [[02_Frontend/Frontend_Components]]
@@ -138,11 +139,13 @@ Manual Storage policies (hosted): [[../supabase/manual/kyc_documents_storage_pol
 missions
   ├── location_lat / location_lng   → Map pins + AR markers
   ├── country / city                → Global filter + location badges (autofilled by trigger)
-  ├── status                        → funding | available | in_progress | review | completed | expired
+  ├── status                        → funding | available | in_progress | review | completed | expired | hidden | archived
   ├── expected_price                → USD work budget / crowdfund target
   ├── current_funding               → USD raised (crowdfunding)
   ├── crowdfunding_expires_at       → funding window (default 7d)
-  ├── amount_target                 → platform token bid
+  ├── history_public_until          → 7-day Garbage History end (eco-ultimatum)
+  ├── media_purged_at               → R2 heavy media cleared after history window
+  ├── amount_target                 → platform token bid (rank, not USD)
   └── crowdfunding_mode             → Garbage Removal campaigns
 ```
 
@@ -157,5 +160,5 @@ missions
 ## Graph convention
 
 - Central hub: [[🗺️ GARBAGIN Master Index]]; also open [[04_Roadmap_Tasks/00_Dashboard]]
-- Prefer folder wiki links: `[[01_Architecture/KYC_Verification]]`, `[[01_Architecture/Security_and_RPCs]]`, `[[01_Architecture/P2P_Deal_Flow]]`, `[[01_Architecture/Stripe_USD_Flow]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]`, `[[docs/GARBAGIN_LIFECYCLE_AUDIT]]`
+- Prefer folder wiki links: `[[01_Architecture/KYC_Verification]]`, `[[01_Architecture/Security_and_RPCs]]`, `[[01_Architecture/P2P_Deal_Flow]]`, `[[01_Architecture/Stripe_USD_Flow]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]`, `[[docs/GARBAGIN_LIFECYCLE_AUDIT]]`
 - Source paths relative to vault root folders (e.g. `[[../src/components/AROverlay.tsx]]` from `01_Architecture/`)

@@ -178,3 +178,82 @@ export function isKycObjectKey(objectKey: string): boolean {
   const key = objectKey.replace(/^\/+/, '');
   return key.startsWith('kyc/') && !key.includes('..') && key.length < 512;
 }
+
+/** Heavy public objects the Garbage History purge may delete. Never kyc/avatars/chat/stores. */
+export const R2_HISTORY_PURGE_PREFIXES = [
+  'reports/',
+  'mission-photos/',
+  'proofs/',
+  'city-pdfs/',
+] as const;
+
+export function isPurgeableHistoryObjectKey(objectKey: string): boolean {
+  const key = objectKey.replace(/^\/+/, '');
+  if (!key || key.includes('..') || key.includes('\\') || key.length > 512) return false;
+  return R2_HISTORY_PURGE_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
+
+/**
+ * Turn a stored photo/PDF value (object key, JSON wrapper, or public CDN URL)
+ * into an R2 object key. Returns null when the value is not a purgeable key.
+ */
+export function objectKeyFromStoredMedia(
+  stored: string | null | undefined,
+  publicBaseUrl?: string | null
+): string | null {
+  let value = String(stored ?? '').trim();
+  if (!value || value === 'null' || value === 'undefined') return null;
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1).trim();
+  }
+  if (!value) return null;
+
+  if (value.startsWith('{') || value.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (typeof parsed === 'string') {
+        return objectKeyFromStoredMedia(parsed, publicBaseUrl);
+      }
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const rec = parsed as Record<string, unknown>;
+        for (const k of ['object_key', 'objectKey', 'key', 'path', 'url', 'public_url', 'src']) {
+          if (typeof rec[k] === 'string') {
+            const inner = objectKeyFromStoredMedia(rec[k], publicBaseUrl);
+            if (inner) return inner;
+          }
+        }
+      }
+    } catch {
+      // treat as a raw path
+    }
+  }
+
+  try {
+    if (/^https?:\/\//i.test(value) || value.startsWith('//')) {
+      const url = new URL(value.startsWith('//') ? `https:${value}` : value);
+      value = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+    }
+  } catch {
+    return null;
+  }
+
+  const base = String(publicBaseUrl || '').trim().replace(/^https?:\/\//i, '').replace(/\/$/, '');
+  if (base && (value === base || value.startsWith(`${base}/`))) {
+    value = value.slice(base.length).replace(/^\/+/, '');
+  }
+
+  const key = value.replace(/^\/+/, '');
+  return isPurgeableHistoryObjectKey(key) ? key : null;
+}
+
+export function collectPurgeableHistoryKeys(values: Array<string | null | undefined>, publicBaseUrl?: string | null): string[] {
+  const out = new Set<string>();
+  for (const value of values) {
+    const key = objectKeyFromStoredMedia(value, publicBaseUrl);
+    if (key) out.add(key);
+  }
+  return [...out];
+}

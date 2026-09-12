@@ -37,7 +37,7 @@ Legacy aliases still seen in UI/data: `pending` ≈ available, `pending_approval
 
 ## vs Crowdfunding
 
-Garbage Removal campaigns use Stripe contributions while `status = funding`, then open for bidding when target met — [[Stripe_USD_Flow]]. Expired underfunded campaigns with money → eco-ultimatum (Gov Notice, n8n, 7-day Garbage History) — [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]. $0 after 7 days → pin hidden (no refund path). A Checkout the pot **never accepted** (overfund race) **is** card-refunded — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. Unpaid convert of a civic pin is the **reporter only**. Donor reject on a funded video retries the cleaner — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]. Token rank vs USD, Profile `approved`, funded DELETE lock — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]].
+Garbage Removal campaigns use Stripe contributions while `status = funding`, then open for bidding when target met — [[Stripe_USD_Flow]]. Expired underfunded campaigns with money → eco-ultimatum (Gov Notice, n8n, 7-day Garbage History, then R2 archive) — [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]. $0 after 7 days → pin hidden (no refund path). A Checkout the pot **never accepted** (overfund race) **is** card-refunded — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. Unpaid convert of a civic pin is the **reporter only**. Donor reject on a funded video retries the cleaner — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]. Token rank vs USD, Profile `approved`, funded DELETE lock — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]].
 
 ## Related RPCs
 

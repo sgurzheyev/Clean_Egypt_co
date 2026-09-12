@@ -9,7 +9,7 @@ tags: [garbagin, crowdfunding, eco-ultimatum, city-notice, r2, n8n]
 # Garbage History — сквозной пайплайн краудфандинга и эко-ультиматума
 
 > Каноническая логика **бесплатного civic-пина → Stripe-кампания → rolling timer → Gov Notice / медиа → публичная «История мусора» → архив**.  
-> Хаб: [[🗺️ GARBAGIN Master Index]] · деньги: [[01_Architecture/Stripe_USD_Flow]] · P2P (другой мир): [[01_Architecture/P2P_Deal_Flow]] · карта: [[../.cursorrules]] · аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
+> Хаб: [[🗺️ GARBAGIN Master Index]] · деньги: [[01_Architecture/Stripe_USD_Flow]] · P2P (другой мир): [[01_Architecture/P2P_Deal_Flow]] · карта: [[../.cursorrules]] · аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
 
 Этот документ описывает **целевой** сквозной пайплайн. Блок «Реализация vs канон» в конце явно отделяет уже живущий SQL/Edge от шагов, которые ещё нужно дописать.
 
@@ -188,7 +188,7 @@ crowdfunding_expires_at < now()
 
 После успешной генерации Gov Notice (или сразу после INSERT события, если PDF ещё в очереди — идемпотентный retry) платформа POST-ит webhook n8n.
 
-**Конфиг (ещё не в коде):** `private.app_config.n8n_eco_ultimatum_webhook_url` + optional `n8n_eco_ultimatum_secret`.
+**Конфиг (Wave D):** Edge secrets `N8N_ECO_ULTIMATUM_WEBHOOK_URL` + optional `N8N_ECO_ULTIMATUM_SECRET`, иначе `private.app_config.n8n_eco_ultimatum_webhook_url` / `_secret`. URL не задан → skip (fail-soft).
 
 Пример тела:
 
@@ -248,7 +248,7 @@ Cron после `history_public_until < now()`:
 | --- | --- | --- |
 | Создан бесплатный пин | +7d | `crowdfunding_expires_at` или `created_at + 7d` |
 | Первый и каждый следующий Stripe-донат | rolling +30d | `GREATEST(expires, now()+30d)` в `apply_stripe_contribution` |
-| Эко-ультиматум: публичная история | +7d от отправки Gov Notice | канон: `history_public_until` (колонка ещё не заведена) |
+| Эко-ультиматум: публичная история | +7d от expiry; bump от отправки Gov Notice | `history_public_until` (Wave D) |
 | P2P abandoned `in_progress` | 24h | **другой** cron (`process_abandoned_missions`) — **только P2P** (P1-2). Crowd funded lock не снимается |
 | P2P stuck `review` | 3d | не этот пайплайн |
 
@@ -267,15 +267,15 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 | $0 hide sweep | **Есть (P0-1):** `process_expired_crowdfunding_missions` → `hidden`, без `city_notification_events` |
 | Underfunded sweep | `process_expired_crowdfunding_missions` · 0 < raised < target → `expired` + Gov Notice |
 | Gov Notice | INSERT `city_notification_events` → pg_net → `city-notification-pipeline` |
-| n8n | **нужен** trigger после `pdf_status = sent` |
-| History 7d + R2 purge | **нужен** cron `process_garbage_history_archives` |
-| Feed visibility | [[../components/LiveMarketFeed.tsx]] — `funding` всегда; `expired` history — добавить; `archived`/`hidden` — нет |
+| n8n | **Есть (P2-1c):** `city-notification-pipeline` после `sent`/`generated`; fail-soft если URL не задан |
+| History 7d + R2 purge | **Есть (P2-1 / P2-1b):** `process_garbage_history_archives` + Edge `garbage-history-purge` |
+| Feed visibility | [[../components/LiveMarketFeed.tsx]] — `funding` всегда; `expired` до `history_public_until`; `archived`/`hidden` — нет |
 
 ---
 
 ## 8. Реализация vs канон (снимок 2026-09-12)
 
-Аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]]. Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]. Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]. Снимок 2026-08-26 ниже **устарел** по строкам P0 / convert / success-PDF / `failed` / abandon / `amount_target`.
+Аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]]. Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]. Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]. Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]. Снимок 2026-08-26 ниже **устарел** по строкам P0 / convert / success-PDF / `failed` / abandon / `amount_target` / history window.
 
 | Правило | Сейчас в коде | Разрыв |
 | --- | --- | --- |
@@ -289,9 +289,9 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 | P2P confirm RPC | `confirm_mission_work_done` в active tree (P3-3) | OK для greenfield |
 | Expiry без рефанда (есть сбор) | Да — 0 < raised < target → `expired` + city queue | OK vs оферта. Не путать с P0-3 |
 | Gov Notice PDF + Telegram | Да, `city-notification-pipeline` → R2 `city-pdfs/` | Назвать/обогатить фото+видео в PDF; официальный канал муниципалитета |
-| n8n соцкампания | Нет | Нужен webhook + secrets |
-| История 7 дней | `expired` пины живут бессрочно | Нужны `history_public_until`, публичный фильтр, затем purge |
-| Purge R2 | Нет | Нужен cron удаления ключей `reports/` / `mission-photos/` / proof / public PDF |
+| n8n соцкампания | **Есть (P2-1c):** webhook после PDF `sent`/`generated`; skip если URL не задан | Сам n8n workflow — ops, не этот репозиторий |
+| История 7 дней | `history_public_until`; feed/map до окна; затем `archived` (P2-1 / P2-2) | OK |
+| Purge R2 | Edge `garbage-history-purge` + `media_purged_at` (P2-1b) | Нужны R2 secrets + configure script; без Edge пин уже скрыт |
 | Success PDF | Триггер на `completed` **или** `approved` (`20260826_status_changed_at_approved_reviews.sql`) | OK — строка 2026-08-26 была stale |
 | `amount_target` = token rank | Convert / accept больше не пишут USD (P2-3). Backfill: rank == USD budget → 1 | OK. First-donate wake оставляет 0 на free pin |
 | Profile `approved` / `failed` | Worker active + History включают crowd close (P2-4) | OK |
@@ -307,10 +307,10 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 2. ~~Первый Checkout / атомарный convert внутри `apply_stripe_contribution`.~~ **P0-2 shipped.**
 3. ~~Overfund auto-refund + convert только автор.~~ **Wave A / P0-3 + P1-4** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]].
 4. ~~`failed` retry + crowd abandon exclude + P2P confirm RPC.~~ **Wave B / P1-1 + P1-2 + P3-3** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]].
-5. Колонки `history_public_until`, `media_purged_at`; n8n после `pdf_status = sent`. — Wave D
-6. Cron архива + R2 delete. — Wave D
-7. Feed/map: показывать `expired` только до `history_public_until`. — Wave D
-8. ~~Wave C: `amount_target` не писать USD; Profile `approved`; funded DELETE lock.~~ **Wave C / P2-3 + P2-4 + P3-4** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]].
+5. ~~Колонки `history_public_until`, `media_purged_at`; n8n после `pdf_status = sent`.~~ **Wave D / P2-1 + P2-1c** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
+6. ~~Cron архива + R2 delete.~~ **Wave D / P2-1b**
+7. ~~Feed/map: показывать `expired` только до `history_public_until`.~~ **Wave D / P2-2**
+8. ~~Wave C: `amount_target` не писать USD; Profile `approved`; funded DELETE lock.~~ **Wave C / P2-3 + P2-4 + P3-4** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 
 ---
 
@@ -324,6 +324,7 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] — P0-3 / P1-4
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] — P1-1 / P1-2 / P3-3
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] — P2-3 / P2-4 / P3-4
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] — P2-1 / P2-1b / P2-1c / P2-2
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]
 - [[../supabase/migrations/20260720_crowdfunding_expiry_cron.sql]]
 - [[../supabase/migrations/20260722_city_notification_pipeline.sql]]
@@ -333,5 +334,8 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 - [[../supabase/migrations/20260912_overfund_refund_and_creator_convert.sql]]
 - [[../supabase/migrations/20260912_wave_b_failed_recovery_abandon_confirm.sql]]
 - [[../supabase/migrations/20260912_wave_c_amount_target_profile_delete.sql]]
+- [[../supabase/migrations/20260912_wave_d_garbage_history_window.sql]]
 - [[../src/lib/cityNotification.ts]]
+- [[../src/lib/crowdfunding.ts]]
 - [[../supabase/functions/city-notification-pipeline/index.ts]]
+- [[../supabase/functions/garbage-history-purge/index.ts]]

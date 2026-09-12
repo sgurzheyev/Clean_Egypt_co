@@ -359,6 +359,13 @@ const resources = {
       feedCleanerLockedNeedsMore:
         'Cleaner locked in! Needs ${{amount}} more to start',
       feedNeedsMore: 'Needs ${{amount}} more',
+      garbageHistoryBadge: 'Garbage History',
+      garbageHistoryTitle: 'Garbage History',
+      garbageHistoryHint:
+        'Campaign window closed with {{raised}} of {{target}}. Funds retained as processing fee — no card refunds. This pin stays public for 7 days, then media is archived.',
+      garbageHistoryTimeLeft: 'Public {{time}}',
+      garbageHistoryClosing: 'Archiving',
+      govNoticeSentBadge: 'Gov Notice sent',
       subscriptionRequired: 'Subscription required to unlock leads.',
       availableLeads: 'Available Leads',
       activeServiceRequests: 'Active Service Requests',
@@ -1172,6 +1179,13 @@ const resources = {
       feedCleanerLockedNeedsMore:
         'تم تأمين المنفذ! تحتاج ${{amount}} إضافية للبدء',
       feedNeedsMore: 'يحتاج ${{amount}} إضافية',
+      garbageHistoryBadge: 'تاريخ القمامة',
+      garbageHistoryTitle: 'تاريخ القمامة',
+      garbageHistoryHint:
+        'أُغلق جمع التبرعات عند {{raised}} من {{target}}. تُحتجز الأموال كرسوم معالجة — دون استرداد للبطاقة. يبقى هذا الدبوس عاماً 7 أيام ثم تُؤرشف الوسائط.',
+      garbageHistoryTimeLeft: 'عام {{time}}',
+      garbageHistoryClosing: 'جارٍ الأرشفة',
+      govNoticeSentBadge: 'أُرسل إشعار البلدية',
       subscriptionRequired: 'الاشتراك مطلوب لفتح العملاء المحتملين.',
       availableLeads: 'عملاء محتملون متاحون',
       activeServiceRequests: 'طلبات خدمة نشطة',
@@ -1715,6 +1729,13 @@ const resources = {
       feedCleanerLockedNeedsMore:
         'Исполнитель найден! Осталось добрать ${{amount}} для старта',
       feedNeedsMore: 'Нужно ещё ${{amount}}',
+      garbageHistoryBadge: 'История мусора',
+      garbageHistoryTitle: 'История мусора',
+      garbageHistoryHint:
+        'Сбор закрыт: {{raised}} из {{target}}. Средства удержаны как processing fee — без возврата на карту. Пин публичен 7 дней, затем медиа архивируется.',
+      garbageHistoryTimeLeft: 'Публично {{time}}',
+      garbageHistoryClosing: 'В архив',
+      govNoticeSentBadge: 'Gov Notice отправлен',
       subscriptionRequired: 'Нужна подписка, чтобы открывать лиды.',
       availableLeads: 'Доступные лиды',
       activeServiceRequests: 'Активные заявки',
@@ -2538,6 +2559,13 @@ const resources = {
       feedNeedsMore: 'Noch ${{amount}} nötig',
       feedCleanerLockedNeedsMore:
         'Reiniger gesichert! Noch ${{amount}} bis zum Start',
+      garbageHistoryBadge: 'Müll-Historie',
+      garbageHistoryTitle: 'Müll-Historie',
+      garbageHistoryHint:
+        'Kampagne geschlossen mit {{raised}} von {{target}}. Betrag bleibt als Gebühr — keine Kartenerstattung. Der Pin bleibt 7 Tage öffentlich, dann wird das Medium archiviert.',
+      garbageHistoryTimeLeft: 'Öffentlich {{time}}',
+      garbageHistoryClosing: 'Archivierung',
+      govNoticeSentBadge: 'Gov Notice gesendet',
       liveMarketLoadFailed: 'Live-Markt konnte nicht geladen werden.',
       subscribeToUnlock: 'Abonnieren zum Freischalten',
       subscriptionGateTitle: 'Kundenkontakte freischalten',
@@ -2906,6 +2934,13 @@ const resources = {
       feedNeedsMore: 'Servono ancora ${{amount}}',
       feedCleanerLockedNeedsMore:
         'Operatore bloccato! Servono ancora ${{amount}} per iniziare',
+      garbageHistoryBadge: 'Cronologia rifiuti',
+      garbageHistoryTitle: 'Cronologia rifiuti',
+      garbageHistoryHint:
+        'Campagna chiusa con {{raised}} su {{target}}. Fondi trattenuti come commissione — nessun rimborso carta. Il pin resta pubblico 7 giorni, poi i media vengono archiviati.',
+      garbageHistoryTimeLeft: 'Pubblico {{time}}',
+      garbageHistoryClosing: 'Archiviazione',
+      govNoticeSentBadge: 'Gov Notice inviato',
       liveMarketLoadFailed: 'Impossibile caricare il mercato live.',
       subscribeToUnlock: 'Abbonati per sbloccare',
       subscriptionGateTitle: 'Sblocca i contatti clienti',
@@ -3274,6 +3309,13 @@ const resources = {
       feedNeedsMore: 'Faltan ${{amount}}',
       feedCleanerLockedNeedsMore:
         '¡Limpiador asegurado! Faltan ${{amount}} para empezar',
+      garbageHistoryBadge: 'Historial de basura',
+      garbageHistoryTitle: 'Historial de basura',
+      garbageHistoryHint:
+        'Campaña cerrada con {{raised}} de {{target}}. Fondos retenidos como comisión — sin reembolso a la tarjeta. El pin sigue público 7 días y luego se archiva el media.',
+      garbageHistoryTimeLeft: 'Público {{time}}',
+      garbageHistoryClosing: 'Archivando',
+      govNoticeSentBadge: 'Aviso municipal enviado',
       liveMarketLoadFailed: 'No se pudo cargar el mercado en vivo.',
       subscribeToUnlock: 'Suscríbete para desbloquear',
       subscriptionGateTitle: 'Desbloquear contactos de clientes',

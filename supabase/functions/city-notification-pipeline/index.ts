@@ -7,6 +7,8 @@
  *  3) Telegram sendDocument (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID / TELEGRAM_ADMIN_CHAT_ID)
  *  4) Email stub (Resend if RESEND_API_KEY + ADMIN_EMAIL set; otherwise log)
  *  5) Mark pdf_status = 'sent' (or 'generated' if dispatch skipped)
+ *  6) Eco-ultimatum only: bump 7-day Garbage History window + n8n webhook
+ *     (fail-soft if N8N_ECO_ULTIMATUM_WEBHOOK_URL / app_config unset)
  *
  * Invoked by Database Webhook on INSERT, or manually:
  *   POST { "event_id": "<uuid>" }
@@ -15,6 +17,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
 import { PDFDocument, StandardFonts, rgb } from 'https://esm.sh/pdf-lib@1.17.1';
 import { PutObjectCommand } from 'npm:@aws-sdk/client-s3@3.699.0';
 import { createR2Client, readR2Env } from '../_shared/r2.ts';
+import {
+  dispatchEcoUltimatumN8n,
+  readN8nEcoUltimatumConfig,
+} from '../_shared/n8nEcoUltimatum.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,6 +36,8 @@ type EventRow = {
   payload: Record<string, unknown> | null;
   pdf_status: string;
   created_at: string;
+  pdf_url?: string | null;
+  n8n_dispatched_at?: string | null;
 };
 
 type MissionRow = {
@@ -45,9 +53,14 @@ type MissionRow = {
   status?: string | null;
   crowdfunding_mode?: boolean | null;
   crowdfunding_expires_at?: string | null;
+  history_public_until?: string | null;
   photo_urls?: string[] | null;
+  proof_video_url?: string | null;
+  video_proof_url?: string | null;
   created_at?: string | null;
 };
+
+type ServiceClient = ReturnType<typeof createClient>;
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -362,6 +375,119 @@ async function sendAdminEmailStub(opts: {
   return 'sent';
 }
 
+function publicMediaUrl(stored: string | null | undefined): string | null {
+  const value = String(stored ?? '').trim();
+  if (!value) return null;
+  if (/^https?:\/\//i.test(value)) return value;
+  const publicBase = String(Deno.env.get('R2_PUBLIC_BASE_URL') || '')
+    .trim()
+    .replace(/\/$/, '');
+  if (!publicBase) return value;
+  return `${publicBase}/${value.replace(/^\/+/, '')}`;
+}
+
+function appOrigin(): string {
+  return (
+    String(Deno.env.get('PUBLIC_APP_ORIGIN') || Deno.env.get('VITE_APP_ORIGIN') || '')
+      .trim()
+      .replace(/\/$/, '') || 'https://garbagin.com'
+  );
+}
+
+async function lookupAppConfig(supabase: ServiceClient, key: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase
+      .schema('private')
+      .from('app_config')
+      .select('value')
+      .eq('key', key)
+      .maybeSingle();
+    if (error || !data || typeof (data as { value?: unknown }).value !== 'string') {
+      return null;
+    }
+    return String((data as { value: string }).value).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+async function notifyEcoUltimatumN8n(opts: {
+  supabase: ServiceClient;
+  event: EventRow;
+  mission: MissionRow | null;
+  pdfUrl: string | null;
+}): Promise<{ skipped: boolean; ok: boolean; error?: string }> {
+  if (str(opts.event.event_type) !== 'crowdfunding_expired') {
+    return { skipped: true, ok: true };
+  }
+  if (opts.event.n8n_dispatched_at) {
+    return { skipped: true, ok: true };
+  }
+
+  // Window bump is SQL-triggered on pdf_status sent/generated — do not
+  // re-call bump here or retries would keep extending the 7-day window.
+  const config = await readN8nEcoUltimatumConfig({
+    lookupAppConfig: (key) => lookupAppConfig(opts.supabase, key),
+  });
+  if (!config) {
+    console.info('[city-notification-pipeline] n8n webhook unset; skip (fail-soft)', {
+      event_id: opts.event.id,
+    });
+    return { skipped: true, ok: true };
+  }
+
+  const photos = Array.isArray(opts.mission?.photo_urls)
+    ? opts.mission.photo_urls.map((p) => publicMediaUrl(p)).filter((v): v is string => !!v)
+    : [];
+  const videos = [opts.mission?.proof_video_url, opts.mission?.video_proof_url]
+    .map((v) => publicMediaUrl(v))
+    .filter((v): v is string => !!v);
+  const payload = (opts.event.payload || {}) as Record<string, unknown>;
+  const { data: untilRow } = await opts.supabase
+    .from('missions')
+    .select('history_public_until')
+    .eq('id', opts.event.mission_id)
+    .maybeSingle();
+  const historyUntil =
+    (untilRow && typeof (untilRow as { history_public_until?: unknown }).history_public_until === 'string'
+      ? (untilRow as { history_public_until: string }).history_public_until
+      : null) ||
+    opts.mission?.history_public_until ||
+    null;
+
+  const result = await dispatchEcoUltimatumN8n(config, {
+    event: 'eco_ultimatum',
+    mission_id: opts.event.mission_id,
+    event_id: opts.event.id,
+    city: str(opts.mission?.city),
+    country: str(opts.mission?.country),
+    lat: num(payload.location_lat ?? opts.mission?.location_lat, NaN),
+    lng: num(payload.location_lng ?? opts.mission?.location_lng, NaN),
+    raised_usd: num(payload.raised ?? opts.mission?.current_funding, 0),
+    target_usd: num(payload.target_budget ?? opts.mission?.expected_price, 0),
+    expired_at: str(payload.expired_at, opts.event.created_at),
+    gov_notice_pdf_url: opts.pdfUrl || str(opts.event.pdf_url),
+    media: { photos, videos },
+    public_history_url: `${appOrigin()}/?mission=${opts.event.mission_id}&history=1`,
+    history_public_until: historyUntil,
+  });
+
+  if (!result.ok) {
+    await opts.supabase
+      .from('city_notification_events')
+      .update({ n8n_last_error: result.error.slice(0, 500) })
+      .eq('id', opts.event.id);
+    console.error('[city-notification-pipeline] n8n failed (soft)', result.error);
+    return { skipped: false, ok: false, error: result.error };
+  }
+
+  await opts.supabase
+    .from('city_notification_events')
+    .update({ n8n_dispatched_at: new Date().toISOString(), n8n_last_error: null })
+    .eq('id', opts.event.id);
+  return { skipped: false, ok: true };
+}
+
 function extractEventId(body: Record<string, unknown>): string | null {
   if (typeof body.event_id === 'string' && body.event_id.trim()) return body.event_id.trim();
   if (typeof body.id === 'string' && body.id.trim()) return body.id.trim();
@@ -418,7 +544,7 @@ Deno.serve(async (req) => {
 
   const { data: event, error: eventErr } = await supabase
     .from('city_notification_events')
-    .select('id, mission_id, event_type, payload, pdf_status, created_at')
+    .select('id, mission_id, event_type, payload, pdf_status, created_at, pdf_url, n8n_dispatched_at')
     .eq('id', eventId)
     .maybeSingle();
 
@@ -427,17 +553,29 @@ Deno.serve(async (req) => {
   }
 
   const row = event as EventRow;
-  if (row.pdf_status === 'sent') {
-    return json({ ok: true, idempotent: true, event_id: row.id, pdf_status: 'sent' });
-  }
-
   const { data: mission } = await supabase
     .from('missions')
     .select(
-      'id, service_type, description, location_lat, location_lng, country, city, expected_price, current_funding, status, crowdfunding_mode, crowdfunding_expires_at, photo_urls, created_at'
+      'id, service_type, description, location_lat, location_lng, country, city, expected_price, current_funding, status, crowdfunding_mode, crowdfunding_expires_at, history_public_until, photo_urls, proof_video_url, video_proof_url, created_at'
     )
     .eq('id', row.mission_id)
     .maybeSingle();
+
+  if (row.pdf_status === 'sent') {
+    const n8n = await notifyEcoUltimatumN8n({
+      supabase,
+      event: row,
+      mission: (mission || null) as MissionRow | null,
+      pdfUrl: row.pdf_url || null,
+    });
+    return json({
+      ok: true,
+      idempotent: true,
+      event_id: row.id,
+      pdf_status: 'sent',
+      n8n,
+    });
+  }
 
   const eventType = str(row.event_type, 'crowdfunding_expired');
   let pdfBytes: Uint8Array;
@@ -506,6 +644,13 @@ Deno.serve(async (req) => {
     })
     .eq('id', row.id);
 
+  const n8n = await notifyEcoUltimatumN8n({
+    supabase,
+    event: { ...row, pdf_status: finalStatus, pdf_url: pdfUrl },
+    mission: (mission || null) as MissionRow | null,
+    pdfUrl,
+  });
+
   return json({
     ok: true,
     event_id: row.id,
@@ -514,5 +659,6 @@ Deno.serve(async (req) => {
     pdf_url: pdfUrl,
     telegram: telegramOk,
     email: emailStatus,
+    n8n,
   });
 });

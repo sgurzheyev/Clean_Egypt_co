@@ -114,6 +114,7 @@ import {
   getCrowdfundingExpiresAt,
   isCrowdfundingOpen,
   isCrowdfundingPin,
+  isPublicGarbageHistory,
   isReportFirstDonateOpen,
   resolveCampaignTargetUsd,
   isGarbageRemovalService,
@@ -372,6 +373,8 @@ interface JobOnMap {
   current_funding?: number | null;
   crowdfunding_mode?: boolean | null;
   crowdfunding_expires_at?: string | null;
+  history_public_until?: string | null;
+  media_purged_at?: string | null;
   is_report?: boolean | null;
   location_lat: number;
   location_lng: number;
@@ -405,6 +408,7 @@ function missionEligibleForMapPin(job: JobOnMap): boolean {
   if (job.status === 'pending_payment') return false;
   const statusKey = String(job.status || '').toLowerCase();
   if (statusKey === 'hidden' || statusKey === 'archived') return false;
+  if (statusKey === 'expired') return isPublicGarbageHistory(job);
   if (job.status === 'reported' || job.is_report) return true;
   if (job.status === 'pending') return true;
   if (job.status === 'available') return true;
@@ -503,6 +507,8 @@ function normalizeJobOnMap(row: any): JobOnMap | null {
       : 0,
     crowdfunding_mode: !!row.crowdfunding_mode,
     crowdfunding_expires_at: row.crowdfunding_expires_at ?? null,
+    history_public_until: row.history_public_until ?? null,
+    media_purged_at: row.media_purged_at ?? null,
     is_report: isReport,
     location_lat: lat,
     location_lng: lng,
@@ -2510,6 +2516,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         current_funding,
         crowdfunding_mode,
         crowdfunding_expires_at,
+        history_public_until,
+        media_purged_at,
         is_report,
         location_lat,
         location_lng,
@@ -2545,6 +2553,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         'pending_approval',
         'awaiting_approval',
         'reported',
+        'expired',
       ])
       .not('status', 'eq', 'pending_payment')
       // Ranking pivot: token promotion (amount_target) first, newest as tiebreaker.
@@ -4680,7 +4689,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const { data, error } = await supabase
         .from('missions')
         .select(
-          'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, is_report, location_lat, location_lng, country, city, status, building_id, cleaner_id, creator_id, description, photo_urls, after_photo_urls, proof_video_url, video_proof_url, created_at, started_at, creator:profiles!creator_id (full_name, avatar_url, is_verified)'
+          'id, category, service_type, amount_target, expected_price, current_funding, crowdfunding_mode, crowdfunding_expires_at, history_public_until, media_purged_at, is_report, location_lat, location_lng, country, city, status, building_id, cleaner_id, creator_id, description, photo_urls, after_photo_urls, proof_video_url, video_proof_url, created_at, started_at, creator:profiles!creator_id (full_name, avatar_url, is_verified)'
         )
         .eq('id', missionId)
         .maybeSingle();

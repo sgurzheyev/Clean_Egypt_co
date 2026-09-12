@@ -23,6 +23,8 @@ aliases: [Backend Edge and API]
 ## KYC / city / push
 - [[supabase/functions/kyc-admin-signed-urls/index.ts]]
 - [[supabase/functions/city-notification-pipeline/index.ts]]
+- [[supabase/functions/garbage-history-purge/index.ts]] — Wave D R2 purge after history window
+- [[supabase/functions/_shared/n8nEcoUltimatum.ts]] — Wave D n8n (env-gated)
 - [[supabase/functions/send-push-notification/index.ts]]
 
 ## Vercel API routes
@@ -49,5 +51,6 @@ aliases: [Backend Edge and API]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]
 - [[🗺️ GARBAGIN Master Index]]

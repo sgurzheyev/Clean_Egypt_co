@@ -5,7 +5,7 @@ aliases: [Security and RPCs, RPC lock]
 
 # Security and RPCs
 
-> Hardened server paths: no client escrow mutation, USD-only money columns, service-role Stripe apply. Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/KYC_Verification]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
+> Hardened server paths: no client escrow mutation, USD-only money columns, service-role Stripe apply. Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/KYC_Verification]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
 
 ## Principles
 
@@ -30,7 +30,10 @@ aliases: [Security and RPCs, RPC lock]
 | `convert_report_to_mission` | **Creator only** | Unpaid launch; neighbors use first Stripe dollar (P1-4). USD → `expected_price`; `amount_target` = 1 (P2-3) |
 | `submit_kyc_verification` | Worker | After Storage upload ([[KYC_Verification]]) |
 | `moderate_kyc_verification` | Admin | Approve / reject |
-| `process_expired_crowdfunding_missions` | Cron / service_role | `$0` → `hidden`; `0 < raised < target` → `expired` + city queue (P0-1) |
+| `process_expired_crowdfunding_missions` | Cron / service_role | `$0` → `hidden`; `0 < raised < target` → `expired` + `history_public_until` + city queue (P0-1 / P2-1) |
+| `process_garbage_history_archives` | Cron / service_role | expired past `history_public_until` → `archived` (P2-1) |
+| `claim_garbage_history_purge_batch` / `mark_garbage_history_media_purged` | **service_role only** | R2 purge claim + clear media (P2-1b) |
+| `bump_garbage_history_public_until` | **service_role only** | GREATEST(window, now()+7d) when Gov Notice PDF is sent |
 | `accept_mission_bid` | Creator | `available` / `pending` / `open` / **`funding`** (lock cleaner while still raising). USD → `expected_price` only; token rank untouched (P2-3) |
 | `creator_delete_mission` | Creator | `$0` / unfunded pins only. Funded pot → reject (P3-4) |
 | `mission_has_retained_funds` | Shared | `current_funding > 0` or any `contributions` row |
@@ -57,4 +60,4 @@ Supervisor / admin dispute path is P2P-aligned (no escrow reverse): [[../supabas
 ## Graph
 
 - Rules: [[../.cursorrules]]
-- Vault: [[🗺️ GARBAGIN Master Index]], [[04_Roadmap_Tasks/00_Dashboard]], [[01_Architecture/Architecture_Overview]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
+- Vault: [[🗺️ GARBAGIN Master Index]], [[04_Roadmap_Tasks/00_Dashboard]], [[01_Architecture/Architecture_Overview]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]

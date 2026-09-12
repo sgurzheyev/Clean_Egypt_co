@@ -132,6 +132,7 @@ funding ──(target met)──► available ──(accept bid)──► in_pro
 - Configure URL/keys via `private.app_config` (no `ALTER DATABASE`): `supabase/manual/configure_city_notification_webhook.sql`.
 - Deploy with `verify_jwt=false`; set secrets; run migration `20260723_…_app_config` + configure script (paste service role key).
 - Keep expiry sweep cron (`process_expired_crowdfunding_missions`) so rows are inserted.
+- Wave D: 7-day Garbage History + archive cron + optional n8n / R2 purge — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]].
 
 ### Exit criteria
 - [ ] Expired underfunded mission produces a downloadable PDF in Storage within N minutes (after deploy + secrets).
