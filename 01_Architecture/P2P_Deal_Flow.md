@@ -37,7 +37,7 @@ Legacy aliases still seen in UI/data: `pending` ≈ available, `pending_approval
 
 ## vs Crowdfunding
 
-Garbage Removal campaigns use Stripe contributions while `status = funding`, then open for bidding when target met — [[Stripe_USD_Flow]]. Expired underfunded campaigns with money → eco-ultimatum (Gov Notice, n8n, 7-day Garbage History) — [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]. $0 after 7 days → pin hidden (no refund path).
+Garbage Removal campaigns use Stripe contributions while `status = funding` (or on the first dollar of a `reported` pin) — [[Stripe_USD_Flow]], [[P0_Split_Expiry_First_Donate]]. Expired underfunded campaigns with money → eco-ultimatum (Gov Notice, n8n, 7-day Garbage History) — [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]. $0 after 7 days → pin `hidden` (no Gov Notice, no refund path).
 
 ## Related RPCs
 

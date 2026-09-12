@@ -5,7 +5,7 @@ aliases: [Backend Edge and API]
 
 # Backend — Edge Functions & API
 
-> ← [[🗺️ GARBAGIN Master Index]] · Migrations: [[03_Backend_SQL/SQL_Migrations_Index]] · Security: [[01_Architecture/Security_and_RPCs]] · Stripe: [[01_Architecture/Stripe_USD_Flow]]
+> ← [[🗺️ GARBAGIN Master Index]] · Migrations: [[03_Backend_SQL/SQL_Migrations_Index]] · Security: [[01_Architecture/Security_and_RPCs]] · Stripe: [[01_Architecture/Stripe_USD_Flow]] · P0: [[01_Architecture/P0_Split_Expiry_First_Donate]]
 
 ## Stripe / payments
 - [[supabase/functions/stripe-contribution-checkout/index.ts]]

@@ -18,11 +18,11 @@
 | `confirm_mission_*` / client confirm | Creator | P2P “work done” — see [[P2P_Deal_Flow]] |
 | `process_abandoned_missions` | Cron / service_role | `in_progress` idle >24h → `available` (clears `cleaner_id`) |
 | `process_stuck_reviews` | Cron / service_role | `review` idle >3d → `completed` + `auto_approved` |
-| `apply_stripe_contribution` | **service_role only** | Idempotent on `stripe_checkout_session_id`; writes `amount_usd` only |
+| `apply_stripe_contribution` | **service_role only** | Idempotent on `stripe_checkout_session_id`; writes `amount_usd` only; optional `p_target_usd` wakes `reported` ([[P0_Split_Expiry_First_Donate]]) |
 | `contribute_to_mission` | Locked | Revoked from `authenticated` — Stripe path only ([[../supabase/migrations/20260719_lock_crowdfunding_and_accept_bids.sql]]) |
 | `submit_kyc_verification` | Worker | After Storage upload ([[KYC_Verification]]) |
 | `moderate_kyc_verification` | Admin | Approve / reject |
-| `process_expired_crowdfunding_missions` | Cron / service_role | `funding` → `expired` + city notification queue |
+| `process_expired_crowdfunding_missions` | Cron / service_role | `$0` → `hidden` (no city event); `0 < raised < target` → `expired` + Gov Notice ([[P0_Split_Expiry_First_Donate]]) |
 | `accept_mission_bid` | Creator | Only `available` / `pending` |
 | `admin_delete_mission` | Admin | Content moderation only |
 | `is_platform_admin` | Shared | Email / role / telegram gates |

@@ -35,6 +35,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[01_Architecture/Security_and_RPCs]]
 - [[01_Architecture/P2P_Deal_Flow]]
 - [[01_Architecture/Stripe_USD_Flow]]
+- [[01_Architecture/P0_Split_Expiry_First_Donate]] — P0-1 quiet $0 hide + P0-2 first-donate wake
 - [[01_Architecture/Global_Location_Filtering]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] — eco-ultimatum / Garbage History / Gov Notice
 
@@ -201,6 +202,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[supabase/manual/kyc_documents_storage_policies.sql]]
 - [[supabase/manual/configure_city_notification_webhook.sql]]
 - [[supabase/manual/configure_push_webhook.sql]]
+- [[supabase/manual/20260912_p0_expiry_first_donate_verify.sql]]
 - [[supabase/manual/RESET_TEST_DATA.sql]]
 - [[supabase/manual/AUDIT_phone_missions_access]]
 
@@ -242,6 +244,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[supabase/migrations/20260725_mission_country_city.sql]]
 - [[supabase/migrations/20260726_global_location_catalog.sql]]
 - [[supabase/migrations/20260726_fix_location_trigger_border.sql]]
+- [[supabase/migrations/20260912_split_expiry_and_first_donate_wake.sql]]
 
 Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 
@@ -259,6 +262,7 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 | Feature | Note | Primary code |
 | --- | --- | --- |
 | Crowdfunding / Stripe USD | [[01_Architecture/Stripe_USD_Flow]] | [[src/lib/contributions.ts]], [[components/MissionBriefing.tsx]] |
+| P0 split expiry / first-donate wake | [[01_Architecture/P0_Split_Expiry_First_Donate]] | [[supabase/migrations/20260912_split_expiry_and_first_donate_wake.sql]] |
 | Eco-ultimatum / Garbage History | [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] | [[src/lib/cityNotification.ts]], [[supabase/functions/city-notification-pipeline/index.ts]] |
 | P2P deals (no escrow) | [[01_Architecture/P2P_Deal_Flow]] | [[src/lib/submitMissionProof.ts]], [[src/lib/missionBids.ts]] |
 | Security / RPCs | [[01_Architecture/Security_and_RPCs]] | [[supabase/migrations/20260719_submit_mission_proof_rpc.sql]] |

@@ -2,16 +2,16 @@
 title: Garbage History Lifecycle
 type: architecture
 status: canonical
-updated: 2026-08-26
+updated: 2026-09-12
 tags: [garbagin, crowdfunding, eco-ultimatum, city-notice, r2, n8n]
 ---
 
 # Garbage History — сквозной пайплайн краудфандинга и эко-ультиматума
 
 > Каноническая логика **бесплатного civic-пина → Stripe-кампания → rolling timer → Gov Notice / медиа → публичная «История мусора» → архив**.  
-> Хаб: [[🗺️ GARBAGIN Master Index]] · деньги: [[01_Architecture/Stripe_USD_Flow]] · P2P (другой мир): [[01_Architecture/P2P_Deal_Flow]] · карта: [[../.cursorrules]]
+> Хаб: [[🗺️ GARBAGIN Master Index]] · деньги: [[01_Architecture/Stripe_USD_Flow]] · P0 shipped: [[01_Architecture/P0_Split_Expiry_First_Donate]] · P2P (другой мир): [[01_Architecture/P2P_Deal_Flow]] · карта: [[../.cursorrules]]
 
-Этот документ описывает **целевой** сквозной пайплайн. Блок «Реализация vs канон» в конце явно отделяет уже живущий SQL/Edge от шагов, которые ещё нужно дописать.
+Этот документ описывает **целевой** сквозной пайплайн. Блок «Реализация vs канон» в конце явно отделяет уже живущий SQL/Edge от шагов, которые ещё нужно дописать. **P0-1 + P0-2 shipped 2026-09-12** — see [[01_Architecture/P0_Split_Expiry_First_Donate]].
 
 ---
 
@@ -99,7 +99,7 @@ Cron / RPC (канон): выбрать `is_report = true AND status = 'reported
 - `is_report = false`
 - `crowdfunding_mode = true`
 - `status = 'funding'`
-- `expected_price` = зафиксированная цель USD (минимум $5, как в `convert_report_to_mission`)
+- `expected_price` = зафиксированная цель USD (минимум **$2**, как в `convert_report_to_mission` / `20260909_min_work_budget_2_usd.sql`)
 - `current_funding` += сумма доната
 - `crowdfunding_expires_at = GREATEST(crowdfunding_expires_at, now() + 30 days)`
 
@@ -260,11 +260,11 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 | Шаг | Где |
 | --- | --- |
 | Free pin create | `create_garbage_zone_report` · [[../src/lib/garbageZoneReport.ts]] · [[../components/MapPicker.tsx]] |
-| Convert / first-donate activate | сегодня ручной `convert_report_to_mission`; канон — внутри `apply_stripe_contribution` на первом платеже |
-| Contribute | checkout / confirm / webhook → `apply_stripe_contribution` |
+| Convert / first-donate activate | **Shipped P0-2:** first Stripe dollar inside `apply_stripe_contribution` ([[01_Architecture/P0_Split_Expiry_First_Donate]]). Unpaid `convert_report_to_mission` remains secondary and cannot arm Gov Notice at $0. |
+| Contribute | checkout / confirm / webhook → `apply_stripe_contribution` (also accepts `reported`) |
 | Bid / accept during funding | `place_mission_bid` / `accept_mission_bid` |
-| $0 hide sweep | **нужен** новый cron (сейчас expiry не различает $0 и частичный сбор) |
-| Underfunded sweep | `process_expired_crowdfunding_missions` · [[../supabase/migrations/20260722_stabilize_crowdfunding_proof_concurrency.sql]] |
+| $0 hide sweep | **Shipped P0-1:** same cron, quiet `hidden`, no city event |
+| Underfunded sweep | `process_expired_crowdfunding_missions` · [[../supabase/migrations/20260912_split_expiry_and_first_donate_wake.sql]] (was [[../supabase/migrations/20260722_stabilize_crowdfunding_proof_concurrency.sql]]) |
 | Gov Notice | INSERT `city_notification_events` → pg_net → `city-notification-pipeline` |
 | n8n | **нужен** trigger после `pdf_status = sent` |
 | History 7d + R2 purge | **нужен** cron `process_garbage_history_archives` |
@@ -272,20 +272,22 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 
 ---
 
-## 8. Реализация vs канон (снимок 2026-08-26)
+## 8. Реализация vs канон (снимок 2026-09-12)
+
+P0-1 + P0-2 are **shipped** — [[01_Architecture/P0_Split_Expiry_First_Donate]] · [[../supabase/migrations/20260912_split_expiry_and_first_donate_wake.sql]]. The 2026-08-26 rows below that those two items closed are marked **OK**. Later waves (history / n8n / purge) are still open.
 
 | Правило | Сейчас в коде | Разрыв |
 | --- | --- | --- |
-| Free pin 7d | `create_garbage_zone_report` → `reported`, **без** авто-expiry | Нет sweep hide/delete при $0 |
-| Первый донат включает crowd | Ручной `convert_report_to_mission` (любой auth user, цель ≥ $5, сразу `funding` + 7d) **до** денег | Stripe не принимает донат на `reported`; пин не «оживает» от первого доллара |
+| Free pin 7d | `create_garbage_zone_report` stamps `crowdfunding_expires_at = now()+7d`; sweep hides `$0` `reported` | **OK (P0-1).** Optional immediate R2 purge of `reports/` still open. |
+| Первый донат включает crowd | Checkout on `reported` + `apply_stripe_contribution(..., p_target_usd)` freezes target (≥ $2), credits, +30d | **OK (P0-2).** Unpaid convert still exists; it no longer arms Gov Notice at $0. |
 | Rolling +30d | Да, `apply_stripe_contribution` | OK |
 | Цель собрана → work | Да, `available` / `in_progress` если cleaner locked | OK |
-| Expiry без рефанда | Да | Sweep срабатывает и при **$0** и ставит `expired` + city queue — канон: $0 = hide, без Gov Notice |
+| Expiry без рефанда | Да | **OK (P0-1):** `$0` → `hidden` (no city event); `0 < raised < target` → `expired` + Gov Notice |
 | Gov Notice PDF + Telegram | Да, `city-notification-pipeline` → R2 `city-pdfs/` | Назвать/обогатить фото+видео в PDF; официальный канал муниципалитета |
 | n8n соцкампания | Нет | Нужен webhook + secrets |
 | История 7 дней | `expired` пины живут бессрочно | Нужны `history_public_until`, публичный фильтр, затем purge |
 | Purge R2 | Нет | Нужен cron удаления ключей `reports/` / `mission-photos/` / proof / public PDF |
-| Success PDF | Триггер на `completed` | Крауд proof заканчивается в `approved` — PDF успеха может не стрельнуть |
+| Success PDF | Триггер на `completed` **or** `approved` ([[../supabase/migrations/20260826_status_changed_at_approved_reviews.sql]]) | **OK** (2026-08-26 row was stale) |
 
 Не ломать: идемпотентность Stripe session, `FOR UPDATE SKIP LOCKED` на expiry, Hungry-Games phone lock на crowd, 1 token / bid.
 
@@ -293,9 +295,9 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 
 ## 9. Порядок работ (если закрывать разрыв)
 
-1. Split expiry: `$0` → `hidden` + optional immediate R2 delete; `raised > 0` → eco-ultimatum.
-2. Разрешить первый Checkout на `reported` **или** атомарно конвертить report→funding внутри `apply_stripe_contribution`.
-3. Колонки `history_public_until`, `media_purged_at`, статус `hidden` / `archived`.
+1. ~~Split expiry: `$0` → `hidden`; `raised > 0` → eco-ultimatum.~~ **Done P0-1** (optional immediate R2 delete still open).
+2. ~~First Checkout on `reported` / atomic wake inside `apply_stripe_contribution`.~~ **Done P0-2.**
+3. Колонки `history_public_until`, `media_purged_at`; `archived` (status `hidden` now exists).
 4. n8n webhook после `pdf_status = sent`.
 5. Cron архива + R2 delete.
 6. Feed/map: показывать `expired` только до `history_public_until`.
@@ -304,11 +306,13 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 
 ## Связанные ноты и исходники
 
-- [[01_Architecture/Stripe_USD_Flow]] — Checkout, +30d, expiry queue
+- [[01_Architecture/P0_Split_Expiry_First_Donate]] — shipped P0-1 / P0-2
+- [[01_Architecture/Stripe_USD_Flow]] — Checkout, +30d, split expiry
 - [[01_Architecture/Architecture_Overview]] — модель `missions`
 - [[01_Architecture/Security_and_RPCs]]
 - [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] — Phase 1 timers, Phase 2 PDF
 - [[04_Roadmap_Tasks/00_Dashboard]]
+- [[../supabase/migrations/20260912_split_expiry_and_first_donate_wake.sql]]
 - [[../supabase/migrations/20260720_crowdfunding_expiry_cron.sql]]
 - [[../supabase/migrations/20260722_city_notification_pipeline.sql]]
 - [[../supabase/migrations/20260724_restore_crowdfunding_contribution_timer_bump.sql]]

@@ -10,6 +10,7 @@
 - [[01_Architecture/Security_and_RPCs]] — `submit_mission_proof`, locked contribute RPC, EGP removal
 - [[01_Architecture/P2P_Deal_Flow]] — USD direct payment + dispute (no fiat escrow)
 - [[01_Architecture/Stripe_USD_Flow]] — Checkout crowdfunding, tokens, `crowdfunding_expires_at` timer
+- [[01_Architecture/P0_Split_Expiry_First_Donate]] — P0: `$0` quiet hide + first Stripe dollar wakes `reported`
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] — eco-ultimatum, Gov Notice, 7-day Garbage History, R2 archive
 - [[01_Architecture/Global_Location_Filtering]] — `location_catalog`, autofill trigger, multi-country filter + facets
 - Frontend map: [[02_Frontend/Frontend_Components]]
@@ -101,6 +102,7 @@ Active folder: [[../supabase/migrations]]
 | KYC admin | [[../supabase/migrations/20260720_kyc_admin_moderation.sql]] |
 | Drop `amount_egp` | [[../supabase/migrations/20260720_drop_contributions_amount_egp.sql]] |
 | Crowdfunding 7d expiry + cron | [[../supabase/migrations/20260720_crowdfunding_expiry_cron.sql]] |
+| P0 split expiry + first-donate wake | [[../supabase/migrations/20260912_split_expiry_and_first_donate_wake.sql]] · [[P0_Split_Expiry_First_Donate]] |
 | Mission `country` / `city` columns | [[../supabase/migrations/20260725_mission_country_city.sql]] |
 | Location catalog + autofill trigger + facets | [[../supabase/migrations/20260726_global_location_catalog.sql]] |
 | Trigger border fix | [[../supabase/migrations/20260726_fix_location_trigger_border.sql]] |
