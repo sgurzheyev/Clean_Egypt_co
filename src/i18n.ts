@@ -662,11 +662,16 @@ const resources = {
         'Red pin placed — tap the map to move it, tap the pin to add photos & publish.',
       reportZoneBadge: 'Reported Zone',
       reportZoneBridgeHint:
-        'Civic report — free. Launch crowdfunding or set a bounty so cleaners can take it on.',
-      reportZoneConvertCta: '🚀 Launch Crowdfunding / Set bounty',
+        'Civic report — free. The first Stripe dollar starts the campaign. No donation in 7 days quietly hides the pin (no city notice).',
+      reportZoneHideIn: 'Hides in: {{time}}',
+      reportZoneExpiredQuiet: 'Hiding soon',
+      reportZoneWakeTargetLabel: 'Campaign target (USD)',
+      reportZoneCreatorWait:
+        'Creators cannot fund their own pin. Neighbors start the campaign with the first Stripe dollar.',
+      reportZoneConvertCta: 'Set bounty / launch without paying',
       reportZoneConvertTitle: 'Launch paid cleanup',
       reportZoneConvertHint:
-        'Set a target bounty. Crowdfunding collects community funds; direct mode opens the pin for bids immediately.',
+        'Optional unpaid launch. Crowdfunding at $0 quietly hides after 7 days — no city notice. Direct mode opens the pin for bids immediately. Prefer the first Stripe dollar to start a live campaign.',
       reportZoneConvertConfirm: 'Convert & go live',
       reportZoneConvertFailed: 'Could not convert this report.',
       reportZoneConverted: 'Report converted — crowdfunding is live!',
@@ -1999,11 +2004,16 @@ const resources = {
         'Красная метка поставлена — тап по карте перемещает её, тап по метке открывает форму.',
       reportZoneBadge: 'Зона внимания',
       reportZoneBridgeHint:
-        'Гражданский отчёт — бесплатно. Запустите краудфандинг или назначьте награду.',
-      reportZoneConvertCta: '🚀 Запустить Краудфандинг / Назначить награду',
+        'Гражданский отчёт — бесплатно. Первый доллар Stripe запускает кампанию. Без доната за 7 дней пин тихо скрывается (без уведомления властям).',
+      reportZoneHideIn: 'Скроется через: {{time}}',
+      reportZoneExpiredQuiet: 'Скоро скроется',
+      reportZoneWakeTargetLabel: 'Цель кампании (USD)',
+      reportZoneCreatorWait:
+        'Создатель не может финансировать свой пин. Соседи запускают кампанию первым долларом Stripe.',
+      reportZoneConvertCta: 'Назначить награду / запустить без оплаты',
       reportZoneConvertTitle: 'Запустить оплачиваемую уборку',
       reportZoneConvertHint:
-        'Укажите целевую сумму. Краудфандинг собирает взносы; прямой режим сразу открывает ставки.',
+        'Необязательный запуск без оплаты. Краудфандинг с $0 тихо скрывается через 7 дней — без уведомления властям. Прямой режим сразу открывает ставки. Лучше запустить кампанию первым долларом Stripe.',
       reportZoneConvertConfirm: 'Конвертировать и опубликовать',
       reportZoneConvertFailed: 'Не удалось конвертировать отчёт.',
       reportZoneConverted: 'Отчёт конвертирован — краудфандинг запущен!',

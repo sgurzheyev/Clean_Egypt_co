@@ -457,6 +457,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     () =>
       (Array.isArray(marketplaceJobs) ? marketplaceJobs : []).filter((job) => {
         const status = String(job.status || '').toLowerCase();
+        if (status === 'hidden' || status === 'archived') return false;
         if (status === 'reported' || job.is_report) return true;
         // Crowdfunding campaigns stay public until fully funded → in_progress,
         // even when a cleaner is pre-locked during funding.

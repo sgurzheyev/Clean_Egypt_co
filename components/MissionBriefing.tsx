@@ -27,12 +27,15 @@ import {
 import { missionTokenBid, missionWorkBudgetUsd } from '../src/lib/missionBudget';
 import { missionPinIcon, missionSector } from '../src/lib/serviceSectors';
 import {
+  CROWDFUNDING_MIN_TARGET_USD,
   formatCrowdfundingCountdownCompact,
   getCrowdfundingCountdownParts,
   getCrowdfundingExpiresAt,
   isCrowdfundingOpen,
+  isReportFirstDonateOpen,
   crowdfundingRemainingUsd,
   isCrowdfundingPin,
+  resolveCampaignTargetUsd,
 } from '../src/lib/crowdfunding';
 import { type MissionBidRow, bidWorkerDisplayName } from '../src/lib/missionBids';
 import {
@@ -134,7 +137,7 @@ export type MissionBriefingProps = {
   /** Crowdfunding contribution (Garbage Removal only). */
   canContribute?: boolean;
   contributeSubmitting?: boolean;
-  onContribute?: (amountUsd: number) => void;
+  onContribute?: (amountUsd: number, extras?: { targetUsd?: number }) => void;
   assignedWorker?: AssignedWorkerProfile | null;
   gpsDistanceMeters: number | null;
   gpsDistanceError: string | null;
@@ -327,6 +330,8 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const [convertOpen, setConvertOpen] = useState(false);
   const [convertBudget, setConvertBudget] = useState('50');
   const [convertCrowdfund, setConvertCrowdfund] = useState(true);
+  const [wakeTarget, setWakeTarget] = useState('');
+  const [wakeAmount, setWakeAmount] = useState('');
   const [convertSubmitting, setConvertSubmitting] = useState(false);
   const [convertError, setConvertError] = useState<string | null>(null);
   const [impactOpen, setImpactOpen] = useState(false);
@@ -624,11 +629,11 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const [fundingNowMs, setFundingNowMs] = useState(() => Date.now());
 
   useEffect(() => {
-    if (!crowdfundingOpen) return;
+    if (!crowdfundingOpen && !isReportPin) return;
     setFundingNowMs(Date.now());
     const id = window.setInterval(() => setFundingNowMs(Date.now()), 60_000);
     return () => window.clearInterval(id);
-  }, [crowdfundingOpen, mission.id, mission.crowdfunding_expires_at]);
+  }, [crowdfundingOpen, isReportPin, mission.id, mission.crowdfunding_expires_at]);
 
   // Prefill proposed USD price with campaign target (worker may raise or lower).
   useEffect(() => {
@@ -641,6 +646,13 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
     ? getCrowdfundingCountdownParts(getCrowdfundingExpiresAt(mission), fundingNowMs)
     : null;
   const fundingCountdownLabel = formatCrowdfundingCountdownCompact(fundingCountdownParts);
+  const reportHideCountdownParts = isReportPin
+    ? getCrowdfundingCountdownParts(getCrowdfundingExpiresAt(mission), fundingNowMs)
+    : null;
+  const reportHideCountdownLabel = formatCrowdfundingCountdownCompact(reportHideCountdownParts);
+  const reportFirstDonateOpen = isReportFirstDonateOpen(mission);
+  const draftedReportTarget = Math.max(0, Math.floor(Number(mission.expected_price ?? 0)));
+  const reportNeedsWakeTarget = isReportPin && draftedReportTarget < CROWDFUNDING_MIN_TARGET_USD;
   const assignedWorkerName = assignedWorker
     ? assignedWorker.full_name?.trim() ||
       (assignedWorker.telegram_username?.trim()
@@ -1048,34 +1060,143 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
             <div className="relative z-[1] space-y-5 bg-[#020617] px-5 pt-1 pb-1">
               {isReportPin && (
                 <section className="border-t border-white/5 pt-4">
-                  <p className="text-[11px] leading-relaxed text-slate-300">
-                    {t('reportZoneBridgeHint', {
-                      defaultValue:
-                        'Civic report — free. Launch crowdfunding or set a bounty so cleaners can take it on.',
-                    })}
-                  </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-[11px] leading-relaxed text-slate-300">
+                      {t('reportZoneBridgeHint', {
+                        defaultValue:
+                          'Civic report — free. The first Stripe dollar starts the campaign. No donation in 7 days quietly hides the pin (no city notice).',
+                      })}
+                    </p>
+                    {reportHideCountdownParts && (
+                      <p
+                        className={`shrink-0 text-[10px] font-black uppercase tracking-[0.12em] tabular-nums ${
+                          reportHideCountdownParts.expired
+                            ? 'text-red-300'
+                            : 'text-amber-200/90'
+                        }`}
+                      >
+                        {reportHideCountdownParts.expired
+                          ? t('reportZoneExpiredQuiet', { defaultValue: 'Hiding soon' })
+                          : t('reportZoneHideIn', {
+                              time: reportHideCountdownLabel,
+                              defaultValue: 'Hides in: {{time}}',
+                            })}
+                      </p>
+                    )}
+                  </div>
+                  {draftedReportTarget >= CROWDFUNDING_MIN_TARGET_USD && (
+                    <p className="mt-2 text-xs text-slate-400">
+                      {t('crowdfundingProgressHint', {
+                        raised: formatWorkBudgetUsd(fundedUsd),
+                        target: formatWorkBudgetUsd(draftedReportTarget),
+                      })}
+                    </p>
+                  )}
+                  {canContribute && onContribute && reportFirstDonateOpen && (
+                    <form
+                      className="mt-4 space-y-2"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (contributeSubmitting) return;
+                        const amount = parseIntegerUsdFromInput(wakeAmount);
+                        if (amount <= 0) return;
+                        const extras = reportNeedsWakeTarget
+                          ? { targetUsd: parseIntegerUsdFromInput(wakeTarget) }
+                          : undefined;
+                        const target = resolveCampaignTargetUsd(mission, extras?.targetUsd);
+                        if (target < CROWDFUNDING_MIN_TARGET_USD) return;
+                        if (amount > target) return;
+                        onContribute(amount, extras);
+                        setWakeAmount('');
+                      }}
+                    >
+                      {reportNeedsWakeTarget && (
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          pattern="\d*"
+                          value={wakeTarget}
+                          onChange={(e) => setWakeTarget(sanitizeIntegerUsdDigits(e.target.value))}
+                          placeholder={t('reportZoneWakeTargetLabel', {
+                            defaultValue: 'Campaign target (USD)',
+                          })}
+                          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-amber-400/40 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
+                        />
+                      )}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          pattern="\d*"
+                          value={wakeAmount}
+                          onChange={(e) => setWakeAmount(sanitizeIntegerUsdDigits(e.target.value))}
+                          placeholder={t('contributionAmountLabel')}
+                          className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-amber-400/40 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
+                        />
+                        <button
+                          type="submit"
+                          disabled={
+                            contributeSubmitting ||
+                            parseIntegerUsdFromInput(wakeAmount) <= 0 ||
+                            (reportNeedsWakeTarget &&
+                              parseIntegerUsdFromInput(wakeTarget) <
+                                CROWDFUNDING_MIN_TARGET_USD) ||
+                            parseIntegerUsdFromInput(wakeAmount) >
+                              resolveCampaignTargetUsd(
+                                mission,
+                                reportNeedsWakeTarget
+                                  ? parseIntegerUsdFromInput(wakeTarget)
+                                  : undefined
+                              ) ||
+                            !!reportHideCountdownParts?.expired
+                          }
+                          className="shrink-0 rounded-xl border border-amber-400/40 bg-amber-500/90 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-black transition-all hover:bg-amber-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {contributeSubmitting ? t('processing') : t('contributeWithStripe')}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                  {!canContribute && !isMissionCreator && (
+                    <p className="mt-3 text-xs italic text-slate-500">
+                      {t('signInToContribute', {
+                        defaultValue: 'Sign in to start this campaign with the first dollar.',
+                      })}
+                    </p>
+                  )}
+                  {isMissionCreator && (
+                    <p className="mt-3 text-xs text-slate-500">
+                      {t('reportZoneCreatorWait', {
+                        defaultValue:
+                          'Creators cannot fund their own pin. Neighbors start the campaign with the first Stripe dollar.',
+                      })}
+                    </p>
+                  )}
                   {currentUserId ? (
                     <button
                       type="button"
                       onClick={() => {
-                        setConvertBudget(String(Math.max(CITY_MIN_PRICE, 50)));
+                        setConvertBudget(
+                          String(
+                            Math.max(
+                              CITY_MIN_PRICE,
+                              draftedReportTarget >= CITY_MIN_PRICE ? draftedReportTarget : 50
+                            )
+                          )
+                        );
                         setConvertCrowdfund(true);
                         setConvertError(null);
                         setConvertOpen(true);
                       }}
-                      className="mt-3 w-full rounded-full border border-amber-400/50 bg-gradient-to-r from-amber-500/90 to-rose-500/90 py-3.5 text-[11px] font-black uppercase tracking-[0.16em] text-slate-950 shadow-[0_0_24px_rgba(251,191,36,0.35)] transition-transform active:scale-[0.98]"
+                      className="mt-3 w-full rounded-full border border-white/15 bg-white/5 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-200 transition-transform active:scale-[0.98]"
                     >
                       {t('reportZoneConvertCta', {
-                        defaultValue: '🚀 Launch Crowdfunding / Set bounty',
+                        defaultValue: 'Set bounty / launch without paying',
                       })}
                     </button>
-                  ) : (
-                    <p className="mt-3 text-xs italic text-slate-500">
-                      {t('signInToContribute', {
-                        defaultValue: 'Sign in to convert this report.',
-                      })}
-                    </p>
-                  )}
+                  ) : null}
                 </section>
               )}
 
@@ -2063,7 +2184,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           <p className="mb-4 text-[11px] leading-relaxed text-slate-400">
             {t('reportZoneConvertHint', {
               defaultValue:
-                'Set a target bounty. Crowdfunding collects community funds; direct mode opens the pin for bids immediately.',
+                'Optional unpaid launch. Crowdfunding at $0 quietly hides after 7 days — no city notice. Direct mode opens the pin for bids immediately. Prefer the first Stripe dollar above to start a live campaign.',
             })}
           </p>
 

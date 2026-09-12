@@ -9,6 +9,40 @@ export const GARBAGE_REMOVAL_SERVICES: readonly ServiceType[] = [
   'beach_street_cleanup',
 ] as const;
 
+/** Matches `20260909_min_work_budget_2_usd.sql` / convert + first-donate wake floor. */
+export const CROWDFUNDING_MIN_TARGET_USD = 2;
+
+export function isQuietHideStatus(status: string | null | undefined): boolean {
+  const value = String(status || '').toLowerCase();
+  return value === 'hidden' || value === 'archived';
+}
+
+/** Free civic pin that can take a first Stripe dollar (not a live campaign yet). */
+export function isReportFirstDonateOpen(mission: {
+  is_report?: boolean | null;
+  status?: string | null;
+  crowdfunding_mode?: boolean | null;
+  crowdfunding_expires_at?: string | null;
+  created_at?: string | null;
+}): boolean {
+  if (isQuietHideStatus(mission.status)) return false;
+  const status = String(mission.status || '').toLowerCase();
+  const isReport = !!mission.is_report || status === 'reported';
+  if (!isReport || status !== 'reported' || mission.crowdfunding_mode) return false;
+  const parts = getCrowdfundingCountdownParts(getCrowdfundingExpiresAt(mission));
+  return !parts?.expired;
+}
+
+/** Draft `expected_price` wins when already ≥ $2; otherwise the checkout-provided target. */
+export function resolveCampaignTargetUsd(
+  mission: { expected_price?: number | null },
+  requestedTargetUsd?: number | null
+): number {
+  const drafted = Math.max(0, Math.floor(Number(mission.expected_price ?? 0)));
+  if (drafted >= CROWDFUNDING_MIN_TARGET_USD) return drafted;
+  return Math.max(0, Math.floor(Number(requestedTargetUsd ?? 0)));
+}
+
 export function isGarbageRemovalService(
   serviceType: string | null | undefined
 ): boolean {

@@ -6,6 +6,7 @@
  *
  * Rows are queued in `city_notification_events` (pdf_status = pending) by:
  *   • process_expired_crowdfunding_missions → event_type = crowdfunding_expired
+ *     ONLY when 0 < raised < target (never for $0-raised hide)
  *   • trg_enqueue_crowdfunding_completion_notification → mission_completed
  *     (crowdfunding status completed or approved)
  */

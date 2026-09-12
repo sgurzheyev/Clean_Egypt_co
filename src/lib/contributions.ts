@@ -21,16 +21,20 @@ export async function startContributionCheckout(input: {
   amountUsd: number;
   successUrl: string;
   cancelUrl?: string;
+  /** Frozen campaign goal when waking a `reported` pin (ignored if the pin already has a draft ≥ $2). */
+  targetUsd?: number;
 }): Promise<{ url: string; sessionId: string }> {
   const accessToken = await resolveAccessToken();
   if (!accessToken) {
     throw new Error('Not authenticated');
   }
 
+  const targetUsd = Math.floor(Number(input.targetUsd ?? 0));
   const res = await supabase.functions.invoke('stripe-contribution-checkout', {
     body: {
       mission_id: input.missionId,
       amount_usd: Math.floor(input.amountUsd),
+      ...(targetUsd >= 2 ? { target_usd: targetUsd } : {}),
       success_url: input.successUrl,
       cancel_url: input.cancelUrl || input.successUrl,
     },

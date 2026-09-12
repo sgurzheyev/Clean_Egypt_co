@@ -167,6 +167,7 @@ function asLiveMarketMissions(data: unknown): LiveMarketMission[] {
 function isPublicMarketMission(mission: LiveMarketMission): boolean {
   const status = String(mission.status || '').toLowerCase() as (typeof ACTIVE_MARKET_STATUSES)[number];
   if (!ACTIVE_MARKET_STATUSES.includes(status)) return false;
+  if (status === 'hidden' || status === 'archived') return false;
   if (status === 'reported' || mission.is_report) return true;
   if (status === 'funding') return true;
   if (status === 'in_progress') return true;

@@ -114,6 +114,8 @@ import {
   getCrowdfundingExpiresAt,
   isCrowdfundingOpen,
   isCrowdfundingPin,
+  isReportFirstDonateOpen,
+  resolveCampaignTargetUsd,
   isGarbageRemovalService,
   crowdfundingRemainingUsd,
 } from '../src/lib/crowdfunding';
@@ -401,6 +403,8 @@ interface JobOnMap {
 function missionEligibleForMapPin(job: JobOnMap): boolean {
   // Phantom pins (unpaid drafts) must never appear on the map.
   if (job.status === 'pending_payment') return false;
+  const statusKey = String(job.status || '').toLowerCase();
+  if (statusKey === 'hidden' || statusKey === 'archived') return false;
   if (job.status === 'reported' || job.is_report) return true;
   if (job.status === 'pending') return true;
   if (job.status === 'available') return true;
@@ -3775,12 +3779,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
     [fetchMissions, refreshMissionBids, t, toast]
   );
 
-  const handleBriefingContribute = useCallback(
-    async (amountUsd: number) => {
+    const handleBriefingContribute = useCallback(
+    async (amountUsd: number, extras?: { targetUsd?: number }) => {
       if (!selectedMission || briefingActionLockRef.current) return;
-      const target = Math.floor(Number(selectedMission.expected_price ?? 0));
+      const wakeFromReport = isReportFirstDonateOpen(selectedMission);
+      const target = resolveCampaignTargetUsd(selectedMission, extras?.targetUsd);
       const funded = Math.floor(Number(selectedMission.current_funding ?? 0));
       const remaining = Math.max(0, target - funded);
+      if (wakeFromReport && target < CITY_MIN_PRICE) {
+        toast.error(
+          t('cityPriceRangeUsd', {
+            min: CITY_MIN_PRICE,
+            max: 10000,
+            defaultValue: `Budget must be at least $${CITY_MIN_PRICE}`,
+          })
+        );
+        return;
+      }
       if (remaining < 1) {
         toast.error(t('crowdfundingTargetReached'));
         return;
@@ -3811,6 +3826,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           amountUsd,
           successUrl: returnUrl,
           cancelUrl: returnUrl,
+          ...(wakeFromReport ? { targetUsd: target } : {}),
         });
         navigatingAway = true;
         window.location.assign(url);
@@ -6259,7 +6275,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           canContribute={
             !!currentUserId &&
             currentUserId !== selectedMission.creator_id &&
-            isCrowdfundingOpen(selectedMission)
+            (isCrowdfundingOpen(selectedMission) ||
+              isReportFirstDonateOpen(selectedMission))
           }
           contributeSubmitting={briefingBidSubmitting}
           onContribute={handleBriefingContribute}

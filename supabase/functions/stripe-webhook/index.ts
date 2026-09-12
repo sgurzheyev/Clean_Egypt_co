@@ -129,6 +129,7 @@ Deno.serve(async (req) => {
   const metadataUsd = Math.floor(Number(session.metadata?.amount_usd || 0));
   const paidUsd = Math.floor(Number(session.amount_total || 0) / 100);
   const amountUsd = paidUsd >= 1 ? paidUsd : metadataUsd;
+  const targetUsd = Math.floor(Number(session.metadata?.target_usd || 0));
 
   if (!missionId || !contributorId || amountUsd < 1) {
     console.error('[stripe-webhook] invalid crowdfunding metadata', {
@@ -173,6 +174,7 @@ Deno.serve(async (req) => {
     p_contributor_id: contributorId,
     p_amount_usd: amountUsd,
     p_stripe_checkout_session_id: session.id,
+    ...(targetUsd >= 2 ? { p_target_usd: targetUsd } : {}),
   });
 
   if (rpcErr) {
@@ -185,6 +187,7 @@ Deno.serve(async (req) => {
       /exceeds remaining/i.test(msg) ||
       /window has expired/i.test(msg) ||
       /target budget is invalid/i.test(msg) ||
+      /target budget must be at least/i.test(msg) ||
       /direct-payment only/i.test(msg) ||
       /only for Garbage Removal/i.test(msg);
 

@@ -35,12 +35,14 @@ Deno.serve(async (req) => {
     const body = (await req.json()) as {
       mission_id?: unknown;
       amount_usd?: unknown;
+      target_usd?: unknown;
       success_url?: unknown;
       cancel_url?: unknown;
     };
 
     const missionId = typeof body.mission_id === 'string' ? body.mission_id.trim() : '';
     const amountUsd = Math.floor(Number(body.amount_usd));
+    const requestedTargetUsd = Math.floor(Number(body.target_usd));
     const successUrl =
       typeof body.success_url === 'string' && body.success_url.trim().length > 0
         ? body.success_url.trim()
@@ -71,7 +73,7 @@ Deno.serve(async (req) => {
     const { data: mission, error: missionErr } = await supabaseUser
       .from('missions')
       .select(
-        'id, status, crowdfunding_mode, service_type, expected_price, current_funding, crowdfunding_expires_at, creator_id'
+        'id, status, crowdfunding_mode, is_report, service_type, expected_price, current_funding, crowdfunding_expires_at, created_at, creator_id'
       )
       .eq('id', missionId)
       .maybeSingle();
@@ -83,8 +85,27 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!mission.crowdfunding_mode) {
-      return new Response(JSON.stringify({ error: 'Mission is not in crowdfunding mode' }), {
+    const status = String(mission.status || '').toLowerCase();
+    const isReport = !!mission.is_report || status === 'reported';
+    const wakeFromReport =
+      isReport && status === 'reported' && !mission.crowdfunding_mode;
+    const isLiveCrowd = !!mission.crowdfunding_mode && status === 'funding';
+
+    if (status === 'hidden' || status === 'archived' || status === 'expired') {
+      return new Response(JSON.stringify({ error: 'Mission is not accepting contributions' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!isLiveCrowd && !wakeFromReport) {
+      if (!mission.crowdfunding_mode) {
+        return new Response(JSON.stringify({ error: 'Mission is not in crowdfunding mode' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ error: 'Mission is not accepting contributions' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -98,16 +119,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (String(mission.status || '').toLowerCase() !== 'funding') {
-      return new Response(JSON.stringify({ error: 'Mission is not accepting contributions' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     const expiresAt = mission.crowdfunding_expires_at
       ? Date.parse(String(mission.crowdfunding_expires_at))
-      : NaN;
+      : mission.created_at
+        ? Date.parse(String(mission.created_at)) + 7 * 24 * 60 * 60 * 1000
+        : NaN;
     if (Number.isFinite(expiresAt) && expiresAt < Date.now()) {
       return new Response(JSON.stringify({ error: 'Crowdfunding window has expired' }), {
         status: 400,
@@ -115,9 +131,23 @@ Deno.serve(async (req) => {
       });
     }
 
-    const target = Math.floor(Number(mission.expected_price ?? 0));
+    const draftedTarget = Math.floor(Number(mission.expected_price ?? 0));
+    const target = wakeFromReport
+      ? draftedTarget >= 2
+        ? draftedTarget
+        : requestedTargetUsd
+      : draftedTarget;
     const funded = Math.floor(Number(mission.current_funding ?? 0));
     const remaining = Math.max(0, target - funded);
+    if (wakeFromReport && target < 2) {
+      return new Response(
+        JSON.stringify({ error: 'Target budget must be at least 2 USD', min_target: 2 }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
     if (target < 1 || remaining < 1) {
       return new Response(JSON.stringify({ error: 'Campaign already funded' }), {
         status: 400,
@@ -175,6 +205,8 @@ Deno.serve(async (req) => {
         mission_id: missionId,
         contributor_id: user.id,
         amount_usd: String(amountUsd),
+        target_usd: String(target),
+        wake_from_report: wakeFromReport ? '1' : '0',
       },
       payment_intent_data: {
         metadata: {
@@ -182,6 +214,8 @@ Deno.serve(async (req) => {
           mission_id: missionId,
           contributor_id: user.id,
           amount_usd: String(amountUsd),
+          target_usd: String(target),
+          wake_from_report: wakeFromReport ? '1' : '0',
         },
       },
     });
