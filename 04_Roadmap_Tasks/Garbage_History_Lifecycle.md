@@ -9,7 +9,7 @@ tags: [garbagin, crowdfunding, eco-ultimatum, city-notice, r2, n8n]
 # Garbage History — сквозной пайплайн краудфандинга и эко-ультиматума
 
 > Каноническая логика **бесплатного civic-пина → Stripe-кампания → rolling timer → Gov Notice / медиа → публичная «История мусора» → архив**.  
-> Хаб: [[🗺️ GARBAGIN Master Index]] · деньги: [[01_Architecture/Stripe_USD_Flow]] · P2P (другой мир): [[01_Architecture/P2P_Deal_Flow]] · карта: [[../.cursorrules]] · аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
+> Хаб: [[🗺️ GARBAGIN Master Index]] · деньги: [[01_Architecture/Stripe_USD_Flow]] · P2P (другой мир): [[01_Architecture/P2P_Deal_Flow]] · карта: [[../.cursorrules]] · аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 
 Этот документ описывает **целевой** сквозной пайплайн. Блок «Реализация vs канон» в конце явно отделяет уже живущий SQL/Edge от шагов, которые ещё нужно дописать.
 
@@ -275,7 +275,7 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 
 ## 8. Реализация vs канон (снимок 2026-09-12)
 
-Аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]]. Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]. Снимок 2026-08-26 ниже **устарел** по строкам P0 / convert / success-PDF / `failed` / abandon.
+Аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]]. Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]. Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]. Снимок 2026-08-26 ниже **устарел** по строкам P0 / convert / success-PDF / `failed` / abandon / `amount_target`.
 
 | Правило | Сейчас в коде | Разрыв |
 | --- | --- | --- |
@@ -293,6 +293,9 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 | История 7 дней | `expired` пины живут бессрочно | Нужны `history_public_until`, публичный фильтр, затем purge |
 | Purge R2 | Нет | Нужен cron удаления ключей `reports/` / `mission-photos/` / proof / public PDF |
 | Success PDF | Триггер на `completed` **или** `approved` (`20260826_status_changed_at_approved_reviews.sql`) | OK — строка 2026-08-26 была stale |
+| `amount_target` = token rank | Convert / accept больше не пишут USD (P2-3). Backfill: rank == USD budget → 1 | OK. First-donate wake оставляет 0 на free pin |
+| Profile `approved` / `failed` | Worker active + History включают crowd close (P2-4) | OK |
+| Creator DELETE funded | RLS + `creator_delete_mission` блокируют pot (P3-4) | OK. Admin `admin_delete_mission` без изменений |
 
 Не ломать: идемпотентность Stripe session, `FOR UPDATE SKIP LOCKED` на expiry, Hungry-Games phone lock на crowd, 1 token / bid, funding-with-cleaner visible.
 
@@ -307,7 +310,7 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 5. Колонки `history_public_until`, `media_purged_at`; n8n после `pdf_status = sent`. — Wave D
 6. Cron архива + R2 delete. — Wave D
 7. Feed/map: показывать `expired` только до `history_public_until`. — Wave D
-8. Wave C: `amount_target` не писать USD; Profile `approved` hygiene (P2-3 / P2-4).
+8. ~~Wave C: `amount_target` не писать USD; Profile `approved`; funded DELETE lock.~~ **Wave C / P2-3 + P2-4 + P3-4** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]].
 
 ---
 
@@ -320,6 +323,7 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 - [[04_Roadmap_Tasks/00_Dashboard]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] — P0-3 / P1-4
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] — P1-1 / P1-2 / P3-3
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] — P2-3 / P2-4 / P3-4
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]
 - [[../supabase/migrations/20260720_crowdfunding_expiry_cron.sql]]
 - [[../supabase/migrations/20260722_city_notification_pipeline.sql]]
@@ -328,5 +332,6 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 - [[../supabase/migrations/20260912_split_expiry_and_first_donate_wake.sql]]
 - [[../supabase/migrations/20260912_overfund_refund_and_creator_convert.sql]]
 - [[../supabase/migrations/20260912_wave_b_failed_recovery_abandon_confirm.sql]]
+- [[../supabase/migrations/20260912_wave_c_amount_target_profile_delete.sql]]
 - [[../src/lib/cityNotification.ts]]
 - [[../supabase/functions/city-notification-pipeline/index.ts]]

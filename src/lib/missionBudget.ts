@@ -7,7 +7,11 @@ export function missionWorkBudgetUsd(job: {
   if (Number.isFinite(budget) && budget > 0) {
     return Math.floor(budget);
   }
-  /** Legacy rows: amount_target held fiat before expected_price existed (typically 100+). */
+  /**
+   * Pre-Wave-C leftover: amount_target once held fiat (typically 100+).
+   * After the P2-3 backfill those rows copy USD into expected_price and reset
+   * rank to 1 — this branch only remains for un-migrated hosts.
+   */
   const legacy = Number(job.amount_target);
   if (Number.isFinite(legacy) && legacy >= 100) {
     return Math.floor(legacy);

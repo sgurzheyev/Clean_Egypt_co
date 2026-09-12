@@ -71,7 +71,14 @@ import DonorProofReview from './DonorProofReview';
 import { userIsMissionDonor } from '../src/lib/escrowProofVotes';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionWorkBudgetUsd, missionTokenBid } from '../src/lib/missionBudget';
-import { isPlatformAdmin, isArchivedMissionStatus } from '../src/lib/platformAdmin';
+import {
+  isPlatformAdmin,
+  isArchivedMissionStatus,
+  isWorkerActiveMissionStatus,
+  WORKER_PROFILE_STATUSES,
+  WORKER_HISTORY_STATUSES,
+} from '../src/lib/platformAdmin';
+import { creatorDeleteMission } from '../src/lib/creatorDeleteMission';
 import { adminDeleteMission } from '../src/lib/adminMission';
 import {
   APP_EVENT_CREATE_MISSION,
@@ -562,7 +569,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const activeWorkJobs = useMemo(
     () =>
       (myActiveJobs || []).filter((job) =>
-        ['in_progress', 'review', 'pending_approval'].includes(String(job.status || '').toLowerCase())
+        isWorkerActiveMissionStatus(job.status)
       ),
     [myActiveJobs]
   );
@@ -1048,7 +1055,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         .from('missions')
         .select(MISSION_ACTIVE_SELECT)
         .eq('cleaner_id', userId)
-        .in('status', ['in_progress', 'review', 'pending_approval', 'awaiting_approval', 'completed', 'finished'])
+        .in('status', [...WORKER_PROFILE_STATUSES])
         .order('created_at', { ascending: false });
       setMyActiveJobs(((activeJobsData || []) as unknown as Job[]).map(normalizeJobMedia));
 
@@ -1080,7 +1087,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           )
         `
         )
-        .in('status', ['completed', 'finished'])
+        .in('status', [...WORKER_HISTORY_STATUSES])
         .or(`creator_id.eq.${userId},cleaner_id.eq.${userId}`)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -1265,17 +1272,26 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const handleDeleteJob = async (jobId: string) => {
     if (!window.confirm('Delete this request? This action cannot be undone.')) return;
     try {
-      const { error } = await supabase.from('missions').delete().eq('id', jobId);
-      if (error) throw error;
+      await creatorDeleteMission(jobId);
       setMyHomeJobs((prev) => prev.filter((j) => j.id !== jobId));
+      setMyCityJobs((prev) => prev.filter((j) => j.id !== jobId));
       setJobBidsById((prev) => {
         const next = { ...prev };
         delete next[jobId];
         return next;
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Failed to delete. Please try again.');
+      const msg = String(err?.message || '');
+      if (/received funds/i.test(msg)) {
+        alert(
+          t('deleteMissionFunded', {
+            defaultValue: 'This mission has received funds and cannot be deleted.',
+          })
+        );
+        return;
+      }
+      alert(msg || 'Failed to delete. Please try again.');
     }
   };
 
@@ -2996,7 +3012,17 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                         </span>
                       </div>
                       <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-700/40 text-slate-200 text-[10px] font-bold uppercase tracking-wider mb-3 border border-slate-500/60">
-                        {job.status === 'completed' ? 'COMPLETED' : t('finished')}
+                        {(() => {
+                          const st = String(job.status || '').toLowerCase();
+                          if (st === 'approved') {
+                            return t('historyStatusApproved', { defaultValue: 'Approved' });
+                          }
+                          if (st === 'failed') {
+                            return t('historyStatusFailed', { defaultValue: 'Failed' });
+                          }
+                          if (st === 'completed') return 'COMPLETED';
+                          return t('finished');
+                        })()}
                       </div>
                       <div className="flex justify-between items-center mb-2">
                         <div className="flex items-center gap-3">
@@ -3090,13 +3116,20 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
                       description={extractMissionFeedDescription(job.description)}
                       statusBadge={
                         <span
-                          className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${
-                            isHome
-                              ? 'border-amber-400/50 bg-amber-500/25 text-amber-100'
-                              : 'border-emerald-400/50 bg-emerald-500/25 text-emerald-100'
-                          }`}
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${orderStatusBadgeClass(
+                            String(job.status || '')
+                          )}`}
                         >
-                          {roleLabel}
+                          {(() => {
+                            const st = String(job.status || '').toLowerCase();
+                            if (st === 'approved') {
+                              return t('historyStatusApproved', { defaultValue: 'Approved' });
+                            }
+                            if (st === 'failed') {
+                              return t('historyStatusFailed', { defaultValue: 'Failed' });
+                            }
+                            return roleLabel;
+                          })()}
                         </span>
                       }
                       topLeftBadge={

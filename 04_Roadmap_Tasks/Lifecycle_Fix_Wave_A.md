@@ -10,7 +10,7 @@ aliases: [Wave A, Overfund refund, Creator-only convert, P0-3, P1-4]
 # Lifecycle Fix — Wave A (overfund refund + reporter-only convert)
 
 > Product close of **P0-3** and **P1-4** from the lifecycle audit.  
-> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
+> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
 
 **Code PR:** [Clean_Egypt_co#4](https://github.com/sgurzheyev/Clean_Egypt_co/pull/4)  
 **Stacked on:** [PR #3](https://github.com/sgurzheyev/Clean_Egypt_co/pull/3) (P0-1 split expiry + P0-2 first-donate wake). Retarget to `main` after P0 merges.
@@ -122,7 +122,7 @@ From [[docs/GARBAGIN_LIFECYCLE_AUDIT]] / [[04_Roadmap_Tasks/Garbage_History_Life
 - ~~P1-1 crowd `failed` is terminal~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
 - ~~P1-2 abandon sweep re-tenders funded crowd jobs~~ — Wave B
 - P2-1 / P2-2 history window, n8n, R2 purge — Wave D
-- P2-3 `amount_target` USD clobber — Wave C
+- ~~P2-3 `amount_target` USD clobber~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 
 ---
 
@@ -130,6 +130,7 @@ From [[docs/GARBAGIN_LIFECYCLE_AUDIT]] / [[04_Roadmap_Tasks/Garbage_History_Life
 
 - [[🗺️ GARBAGIN Master Index]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]
 - [[04_Roadmap_Tasks/00_Dashboard]]
 - [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]]

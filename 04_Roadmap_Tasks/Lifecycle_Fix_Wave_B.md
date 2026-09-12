@@ -10,7 +10,7 @@ aliases: [Wave B, Failed recovery, Crowd abandon exclude, P1-1, P1-2, P3-3]
 # Lifecycle Fix — Wave B (`failed` retry + no silent crowd abandon + P2P confirm RPC)
 
 > Product close of **P1-1**, **P1-2**, and **P3-3** from the lifecycle audit.  
-> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · money: [[01_Architecture/Stripe_USD_Flow]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
+> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · money: [[01_Architecture/Stripe_USD_Flow]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
 
 **Code PR:** stacked on [Clean_Egypt_co#4](https://github.com/sgurzheyev/Clean_Egypt_co/pull/4) (Wave A on P0). Retarget to `main` after P0 / Wave A merge.
 
@@ -113,13 +113,13 @@ Stripe session idempotency · `FOR UPDATE SKIP LOCKED` on expiry · Hungry-Games
 
 ---
 
-## Still open (Wave C / D — not this PR)
+## Still open (Wave D — not this PR)
 
 From [[docs/GARBAGIN_LIFECYCLE_AUDIT]] / [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] §8:
 
-- P2-3 `amount_target` USD clobber
+- ~~P2-3 `amount_target` USD clobber~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 - P2-1 / P2-2 history window, n8n, R2 purge
-- P2-4 Profile lists drop `approved`
+- ~~P2-4 Profile lists drop `approved`~~ — Wave C
 - Explicit crowd re-tender if a locked cleaner ghosts a full pot (notify donors — do not revive silent abandon)
 
 ---
@@ -128,6 +128,7 @@ From [[docs/GARBAGIN_LIFECYCLE_AUDIT]] / [[04_Roadmap_Tasks/Garbage_History_Life
 
 - [[🗺️ GARBAGIN Master Index]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]
 - [[04_Roadmap_Tasks/00_Dashboard]]
 - [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]]

@@ -3030,7 +3030,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setMapDraftPin(null);
     setSelectedMission(job);
     setShowBidInput(false);
-    setMissionBidAmount(String(Math.floor(Number(job.amount_target ?? 0))));
+    setMissionBidAmount(String(missionWorkBudgetUsd(job) || ''));
   }, [clearMissionPinHover]);
 
   /**
@@ -3731,7 +3731,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 status: nextStatus,
                 cleaner_id: bid.cleaner_id,
                 expected_price: budgetUsd,
-                amount_target: budgetUsd,
               }
             : prev
         );

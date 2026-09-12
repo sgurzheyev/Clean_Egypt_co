@@ -11,7 +11,7 @@ aliases: [Lifecycle audit, GARBAGIN_LIFECYCLE_AUDIT, P0 P1 scorecard]
 
 > Read-only comparison of vault canon vs shipped SQL / Edge / client.  
 > Full write-up + repros: [PR #2](https://github.com/sgurzheyev/Clean_Egypt_co/pull/2) (`cursor/lifecycle-audit-50f5`).  
-> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · dashboard: [[04_Roadmap_Tasks/00_Dashboard]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
+> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · dashboard: [[04_Roadmap_Tasks/00_Dashboard]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 
 This note is the **vault graph node** for the audit. It does not change product behavior. Implementations land in later PRs and link back here.
 
@@ -47,14 +47,23 @@ Hungry-Games: 1 token per *new* bid; creator phone locked until accept. Crowd pi
 | P1-2 | `process_abandoned_missions` re-tenders funded crowd jobs | **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] (crowd excluded from silent abandon) |
 | P1-4 | Any auth user can unpaid-convert another user’s report | **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] (reporter-only; neighbors use P0-2) |
 | P2-1 / P2-2 | No `history_public_until`, n8n, R2 purge; expired not on feed/map | Open (doc-only product) |
-| P2-3 | `amount_target` overwritten with USD (rank pollution) | Open |
-| P2-4 | Profile lists drop `approved` | Open |
+| P2-3 | `amount_target` overwritten with USD (rank pollution) | **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] |
+| P2-4 | Profile lists drop `approved` | **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] |
 | P3-3 | `confirm_mission_work_done` only in `migrations/archive/` | **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] |
+| P3-4 | Creator DELETE allowed on funded rows | **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] |
 | Success PDF on `approved` | Vault §8 (2026-08-26) said missing | **Discarded** — enqueue includes `approved` since `20260826_status_changed_at_approved_reviews.sql` |
 
 Do not break: Stripe session idempotency, `FOR UPDATE SKIP LOCKED` on expiry, crowd phone = NULL, 1 token / new bid, funding-visible-with-cleaner.
 
 ---
+
+## Wave C close (P2-3 + P2-4 + P3-4)
+
+Product language and file pointers: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]].
+
+- **Token rank** stays `amount_target` (usually 1). USD lives in `expected_price` / bids.
+- **Profile** History includes crowd `approved` (and rare/legacy `failed`). Active work includes `awaiting_approval`.
+- **Creator DELETE** is blocked when `current_funding > 0` or any `contributions` row exists. Admin moderation is unchanged.
 
 ## Wave B close (P1-1 + P1-2 + P3-3)
 
@@ -80,9 +89,10 @@ Product language and file pointers: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]].
 3. ~~Overfund refund~~ (P0-3) — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]
 4. ~~`failed` recovery (P1-1)~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
 5. ~~Exclude crowdfunding from abandon retender (P1-2)~~ — Wave B
-6. Stop writing USD into `amount_target` (P2-3) — Wave C
+6. ~~Stop writing USD into `amount_target` (P2-3)~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 7. History columns + n8n + R2 purge (after 1–2) — Wave D
-8. Profile / map list hygiene (P2-4) — Wave C/D
+8. ~~Profile / map list hygiene (P2-4)~~ — Wave C
+9. ~~Creator DELETE on funded rows (P3-4)~~ — Wave C
 
 P3-3 (`confirm_mission_work_done` in the active tree) shipped with Wave B.
 
@@ -94,6 +104,7 @@ Canon snapshot table: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] §8.
 
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]
 - [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]]
 - [[01_Architecture/Stripe_USD_Flow]]

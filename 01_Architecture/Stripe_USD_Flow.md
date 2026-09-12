@@ -5,7 +5,7 @@ aliases: [Stripe USD Flow, Crowdfunding money]
 
 # Stripe USD Flow
 
-> All fiat rails are **USD** (cents on Stripe, whole dollars in Postgres). Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/KYC_Verification]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
+> All fiat rails are **USD** (cents on Stripe, whole dollars in Postgres). Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/KYC_Verification]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
 
 ## Crowdfunding contributions
 
@@ -51,4 +51,6 @@ Confirm failures return `{ error }` JSON; client parses via [[../src/lib/supabas
 
 ## Hub
 
-[[01_Architecture/Architecture_Overview]] · [[04_Roadmap_Tasks/00_Dashboard]] · [[01_Architecture/Security_and_RPCs]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[🗺️ GARBAGIN Master Index]]
+Campaign USD is `expected_price` / `current_funding`. `amount_target` is token listing rank and must not store dollars ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]).
+
+[[01_Architecture/Architecture_Overview]] · [[04_Roadmap_Tasks/00_Dashboard]] · [[01_Architecture/Security_and_RPCs]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[🗺️ GARBAGIN Master Index]]

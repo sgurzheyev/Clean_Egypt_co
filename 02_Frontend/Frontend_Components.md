@@ -28,7 +28,7 @@ aliases: [Frontend Components, UI Map]
 | Report garbage zone | [[components/ReportGarbageZoneModal.tsx]] |
 | Live market feed | [[components/LiveMarketFeed.tsx]] |
 | Bids terminal | [[components/BidsTerminal.tsx]] |
-| Profile floating glass card / P2P confirm + donor vote | [[components/Profile.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] |
+| Profile floating glass card / P2P confirm + donor vote + approved history | [[components/Profile.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] |
 | Donor proof review (approve / reject-retry) | [[components/DonorProofReview.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] |
 | Public profile | [[components/PublicProfile.tsx]] |
 | Auth overlay | [[components/AuthOverlay.tsx]] |
@@ -66,6 +66,7 @@ aliases: [Frontend Components, UI Map]
 - [[src/lib/contractorStore.ts]]
 - [[src/lib/bidPackages.ts]]
 - [[src/lib/missionBids.ts]]
+- [[src/lib/creatorDeleteMission.ts]]
 - [[src/lib/trustBadges.ts]]
 
 ## Related flows
@@ -74,6 +75,7 @@ aliases: [Frontend Components, UI Map]
 - Crowdfunding UI → [[01_Architecture/Stripe_USD_Flow]]
 - Reporter-only unpaid convert / first-donate form → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[docs/GARBAGIN_LIFECYCLE_AUDIT]]
 - Donor reject retry / P2P confirm RPC → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
+- Token rank vs USD / Profile `approved` / funded DELETE → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 - P2P briefing CTAs → [[01_Architecture/P2P_Deal_Flow]]
 - Country / city filter + map camera sync → [[01_Architecture/Global_Location_Filtering]]
 - KYC gate → [[01_Architecture/KYC_Verification]]

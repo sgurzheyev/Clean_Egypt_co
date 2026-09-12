@@ -3,6 +3,7 @@
  * All other services stay on the Direct Payment / bid flow.
  */
 import type { ServiceType } from './serviceSectors';
+import { missionWorkBudgetUsd } from './missionBudget';
 
 export const GARBAGE_REMOVAL_SERVICES: readonly ServiceType[] = [
   'junk_removal',
@@ -78,10 +79,7 @@ export function crowdfundingRemainingUsd(mission: {
 }): number | null {
   if (!isCrowdfundingPin(mission)) return null;
   if (String(mission.status ?? '').toLowerCase() !== 'funding') return null;
-  const target = Math.max(
-    0,
-    Math.floor(Number(mission.expected_price ?? mission.amount_target ?? 0))
-  );
+  const target = Math.max(0, missionWorkBudgetUsd(mission));
   const raised = Math.max(0, Math.floor(Number(mission.current_funding ?? 0)));
   const remaining = Math.max(0, target - raised);
   return remaining > 0 ? remaining : null;

@@ -137,6 +137,7 @@ export type ConvertedMissionRow = {
   is_report: boolean;
   crowdfunding_mode: boolean;
   expected_price: number | null;
+  /** Token listing rank after convert (1). USD is expected_price. */
   amount_target: number | null;
   current_funding: number | null;
   crowdfunding_expires_at: string | null;
