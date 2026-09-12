@@ -1,5 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
 import Stripe from 'https://esm.sh/stripe@14.16.0?target=deno';
+import {
+  isPermanentContributionReject,
+  refundRejectedCheckout,
+} from '../_shared/contributionRefund.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,6 +18,10 @@ const corsHeaders = {
  * Listens for `checkout.session.completed`, verifies the Stripe signature, then
  * calls the same service-role RPC as `stripe-contribution-confirm`:
  *   apply_stripe_contribution (idempotent on stripe_checkout_session_id).
+ *
+ * Permanent business rejects (over-budget / not accepting / expired / …) after a
+ * paid Session trigger an automatic Stripe refund (P0-3). Idempotent on session
+ * id — confirm + webhook will not double-refund.
  *
  * Token / subscription / wallet packs use PaymentIntents + client credit edges,
  * not Checkout Sessions — those purposes are acknowledged and ignored here.
@@ -131,6 +139,10 @@ Deno.serve(async (req) => {
   const amountUsd = paidUsd >= 1 ? paidUsd : metadataUsd;
   const targetUsd = Math.floor(Number(session.metadata?.target_usd || 0));
 
+  const supabaseService = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
   if (!missionId || !contributorId || amountUsd < 1) {
     console.error('[stripe-webhook] invalid crowdfunding metadata', {
       session_id: session.id,
@@ -140,9 +152,27 @@ Deno.serve(async (req) => {
       paid_usd: paidUsd,
       metadata_usd: metadataUsd,
     });
-    // 200 — bad metadata will never self-heal; avoid infinite Stripe retries.
+    const refund = await refundRejectedCheckout({
+      stripe,
+      supabaseService,
+      session,
+      rejectReason: 'invalid_metadata',
+      logLabel: '[stripe-webhook]',
+    });
+    if (!refund.ok && refund.retryable) {
+      return new Response(JSON.stringify({ error: refund.error || 'Refund failed' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     return new Response(
-      JSON.stringify({ received: true, applied: false, reason: 'invalid_metadata' }),
+      JSON.stringify({
+        received: true,
+        applied: false,
+        reason: 'invalid_metadata',
+        refunded: refund.refunded,
+        refund_id: refund.refund_id,
+      }),
       {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -156,18 +186,33 @@ Deno.serve(async (req) => {
       paid_usd: paidUsd,
       metadata_usd: metadataUsd,
     });
+    const refund = await refundRejectedCheckout({
+      stripe,
+      supabaseService,
+      session,
+      rejectReason: 'amount_mismatch',
+      logLabel: '[stripe-webhook]',
+    });
+    if (!refund.ok && refund.retryable) {
+      return new Response(JSON.stringify({ error: refund.error || 'Refund failed' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     return new Response(
-      JSON.stringify({ received: true, applied: false, reason: 'amount_mismatch' }),
+      JSON.stringify({
+        received: true,
+        applied: false,
+        reason: 'amount_mismatch',
+        refunded: refund.refunded,
+        refund_id: refund.refund_id,
+      }),
       {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
   }
-
-  const supabaseService = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
 
   const { data, error: rpcErr } = await supabaseService.rpc('apply_stripe_contribution', {
     p_mission_id: missionId,
@@ -179,17 +224,7 @@ Deno.serve(async (req) => {
 
   if (rpcErr) {
     const msg = String(rpcErr.message || '');
-    // Business rejects (already funded / expired / exceeds remaining): ack 200
-    // so Stripe does not retry forever. Money may need manual refund ops.
-    const permanent =
-      /not accepting contributions/i.test(msg) ||
-      /already funded/i.test(msg) ||
-      /exceeds remaining/i.test(msg) ||
-      /window has expired/i.test(msg) ||
-      /target budget is invalid/i.test(msg) ||
-      /target budget must be at least/i.test(msg) ||
-      /direct-payment only/i.test(msg) ||
-      /only for Garbage Removal/i.test(msg);
+    const permanent = isPermanentContributionReject(msg);
 
     console.error('[stripe-webhook] apply_stripe_contribution failed', {
       session_id: session.id,
@@ -202,12 +237,53 @@ Deno.serve(async (req) => {
     });
 
     if (permanent) {
+      const refund = await refundRejectedCheckout({
+        stripe,
+        supabaseService,
+        session,
+        rejectReason: msg,
+        logLabel: '[stripe-webhook]',
+      });
+
+      if (refund.skipped === 'credited') {
+        return new Response(
+          JSON.stringify({
+            received: true,
+            applied: true,
+            reason: 'credited_after_reject_race',
+            idempotent: true,
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      if (!refund.ok && refund.retryable) {
+        // Ask Stripe to retry so we can finish the refund. Do not leave "manual ops".
+        return new Response(
+          JSON.stringify({
+            error: refund.error || 'Auto-refund failed',
+            applied: false,
+            reason: 'business_reject',
+            refunded: false,
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
       return new Response(
         JSON.stringify({
           received: true,
           applied: false,
           reason: 'business_reject',
           error: msg,
+          refunded: refund.refunded,
+          refund_id: refund.refund_id,
         }),
         {
           status: 200,
@@ -216,7 +292,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Transient / unknown — ask Stripe to retry.
+    // Transient / unknown — ask Stripe to retry apply (do not refund).
     return new Response(JSON.stringify({ error: msg || 'Contribution RPC failed' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

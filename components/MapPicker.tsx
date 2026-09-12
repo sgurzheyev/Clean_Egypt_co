@@ -3922,8 +3922,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }
       } catch (e: any) {
         console.error('confirmContributionCheckout', e);
-        toast.error(e?.message || t('stripeTopUpError') || t('unexpectedErrorTryAgain'));
-        // Keep session_id in the URL so the user can retry after a transient failure.
+        const refunded =
+          e?.refunded === true || e?.code === 'contribution_rejected_refunded';
+        toast.error(
+          refunded
+            ? t('contributionRejectedRefunded', {
+                defaultValue:
+                  'This campaign could not accept the payment. Your card was refunded automatically.',
+              })
+            : e?.message || t('stripeTopUpError') || t('unexpectedErrorTryAgain')
+        );
+        // Refunded sessions should not retry confirm. Transient failures keep the URL.
+        if (refunded && !cancelled) {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('cf_contribution');
+          url.searchParams.delete('session_id');
+          window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+        }
       } finally {
         if (!cancelled) setBriefingBidSubmitting(false);
       }

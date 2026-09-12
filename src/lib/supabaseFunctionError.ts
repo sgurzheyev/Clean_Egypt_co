@@ -16,13 +16,19 @@ export function isEdgeFunctionUnreachable(error: unknown): boolean {
   );
 }
 
-export type InvokeFailure = Error & { code?: string };
+export type InvokeFailure = Error & { code?: string; refunded?: boolean };
 
-function throwInvokeError(message: string, code?: string): never {
-  throw Object.assign(new Error(message), { code }) as InvokeFailure;
+function throwInvokeError(
+  message: string,
+  extras?: string | { code?: string; refunded?: boolean }
+): never {
+  const parsed = typeof extras === 'string' ? { code: extras } : extras || {};
+  throw Object.assign(new Error(message), parsed) as InvokeFailure;
 }
 
-function errorFromPayload(payload: unknown): { message: string; code?: string } | null {
+function errorFromPayload(
+  payload: unknown
+): { message: string; code?: string; refunded?: boolean } | null {
   if (!payload) return null;
   if (typeof payload === 'string' && payload.trim()) {
     try {
@@ -30,6 +36,7 @@ function errorFromPayload(payload: unknown): { message: string; code?: string } 
         error?: unknown;
         message?: unknown;
         code?: unknown;
+        refunded?: unknown;
       };
       const message =
         parsed?.error != null
@@ -41,6 +48,7 @@ function errorFromPayload(payload: unknown): { message: string; code?: string } 
         return {
           message,
           code: parsed?.code != null ? String(parsed.code) : undefined,
+          refunded: parsed?.refunded === true,
         };
       }
     } catch {
@@ -49,13 +57,19 @@ function errorFromPayload(payload: unknown): { message: string; code?: string } 
     return { message: payload };
   }
   if (typeof payload === 'object' && payload !== null) {
-    const obj = payload as { error?: unknown; message?: unknown; code?: unknown };
+    const obj = payload as {
+      error?: unknown;
+      message?: unknown;
+      code?: unknown;
+      refunded?: unknown;
+    };
     const message =
       obj.error != null ? String(obj.error) : obj.message != null ? String(obj.message) : '';
     if (message) {
       return {
         message,
         code: obj.code != null ? String(obj.code) : undefined,
+        refunded: obj.refunded === true,
       };
     }
   }
@@ -84,7 +98,10 @@ export async function throwIfInvokeFailed(
 
   if (hasDataError) {
     const parsed = errorFromPayload(data);
-    throwInvokeError(String(dataError), parsed?.code);
+    throwInvokeError(String(dataError), {
+      code: parsed?.code,
+      refunded: parsed?.refunded,
+    });
   }
 
   const anyErr = error as { message?: string; context?: unknown } | null;
@@ -99,7 +116,12 @@ export async function throwIfInvokeFailed(
     try {
       const text = await (ctx as Response).clone().text();
       const parsed = errorFromPayload(text);
-      if (parsed) throwInvokeError(parsed.message, parsed.code);
+      if (parsed) {
+        throwInvokeError(parsed.message, {
+          code: parsed.code,
+          refunded: parsed.refunded,
+        });
+      }
     } catch (e) {
       if (e instanceof Error && e.message !== anyErr?.message) throw e;
     }
@@ -107,7 +129,9 @@ export async function throwIfInvokeFailed(
 
   if (typeof ctx === 'object' && ctx !== null && 'body' in ctx) {
     const parsed = errorFromPayload((ctx as { body?: unknown }).body);
-    if (parsed) throwInvokeError(parsed.message, parsed.code);
+    if (parsed) {
+      throwInvokeError(parsed.message, { code: parsed.code, refunded: parsed.refunded });
+    }
   }
 
   if (error instanceof Error) throw error;

@@ -61,6 +61,7 @@ Chronological — June–July 2026 token / crowdfunding / privacy stack.
 | 2026-07-26 | [[20260726_tiered_bid_packages.sql]] | eBay-style `offer_packages` on bids; `place_mission_bid` / `accept_mission_bid` package selection. |
 | 2026-07-27 | [[20260727_security_hardening_rls_economy.sql]] | CRITICAL: mission_bids RLS, profiles economy column lock, phone/email revoke, service-only money RPCs, admin finance RPCs, notifications INSERT lock. |
 | 2026-09-12 | [[20260912_split_expiry_and_first_donate_wake.sql]] | P0: $0 expiry quietly hides (no Gov Notice); first Stripe dollar wakes `reported` pins. **Apply via SQL Editor** — CLI history is out of sync. Verify: `supabase/manual/20260912_p0_expiry_first_donate_verify.sql`. |
+| 2026-09-12 | [[20260912_overfund_refund_and_creator_convert.sql]] | Wave A: overfund/business-reject auto-refund ledger + RPCs; unpaid `convert_report_to_mission` is reporter-only. **Apply via SQL Editor after P0.** Verify: `supabase/manual/20260912_wave_a_refund_convert_verify.sql`. |
 
 > Full marketplace architecture write-up: [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]]
 

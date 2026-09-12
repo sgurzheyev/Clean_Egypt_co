@@ -1,5 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
 import Stripe from 'https://esm.sh/stripe@14.16.0?target=deno';
+import {
+  isPermanentContributionReject,
+  refundRejectedCheckout,
+} from '../_shared/contributionRefund.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -73,12 +77,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    const stripe = new Stripe(stripeKey, {
+      apiVersion: '2023-10-16',
+      httpClient: Stripe.createFetchHttpClient(),
+    });
+
     let session;
     try {
-      const stripe = new Stripe(stripeKey, {
-        apiVersion: '2023-10-16',
-        httpClient: Stripe.createFetchHttpClient(),
-      });
       session = await stripe.checkout.sessions.retrieve(sessionId);
     } catch (e: any) {
       return jsonError('Stripe session retrieve failed', 400, {
@@ -112,22 +117,45 @@ Deno.serve(async (req) => {
     const amountUsd = paidUsd >= 1 ? paidUsd : metadataUsd;
     const targetUsd = Math.floor(Number(session.metadata?.target_usd || 0));
 
-    if (!missionId || amountUsd < 1) {
-      return jsonError('Invalid contribution metadata', 400, {
-        mission_id: missionId || null,
-        amount_usd: amountUsd,
-        paid_usd: paidUsd,
-        metadata_usd: metadataUsd,
-        metadata: session.metadata || null,
+    // Service role bypasses RLS for contributions insert + mission funding update.
+    const supabaseService = createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const refundPaidReject = async (reason: string) => {
+      const refund = await refundRejectedCheckout({
+        stripe,
+        supabaseService,
+        session,
+        rejectReason: reason,
+        logLabel: '[stripe-contribution-confirm]',
       });
+      if (!refund.ok && refund.retryable) {
+        return jsonError(refund.error || 'Automatic refund failed. Please retry.', 500, {
+          code: 'contribution_reject_refund_failed',
+          refunded: false,
+          session_id: sessionId,
+        });
+      }
+      return jsonError(
+        'This campaign could not accept the payment. Your card was refunded automatically.',
+        409,
+        {
+          code: 'contribution_rejected_refunded',
+          refunded: true,
+          refund_id: refund.refund_id,
+          reject_reason: reason,
+          session_id: sessionId,
+        }
+      );
+    };
+
+    if (!missionId || amountUsd < 1) {
+      return await refundPaidReject('invalid_metadata');
     }
 
     if (metadataUsd >= 1 && paidUsd >= 1 && metadataUsd !== paidUsd) {
-      return jsonError('Amount mismatch between Stripe charge and metadata', 400, {
-        paid_usd: paidUsd,
-        metadata_usd: metadataUsd,
-        session_id: sessionId,
-      });
+      return await refundPaidReject('amount_mismatch');
     }
 
     if (contributorId !== user.id) {
@@ -136,11 +164,6 @@ Deno.serve(async (req) => {
         user_id: user.id,
       });
     }
-
-    // Service role bypasses RLS for contributions insert + mission funding update.
-    const supabaseService = createClient(supabaseUrl, serviceKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
 
     const { data, error: rpcErr } = await supabaseService.rpc('apply_stripe_contribution', {
       p_mission_id: missionId,
@@ -151,7 +174,73 @@ Deno.serve(async (req) => {
     });
 
     if (rpcErr) {
-      return jsonError(rpcErr.message || 'Contribution RPC failed', 400, {
+      const msg = String(rpcErr.message || 'Contribution RPC failed');
+      const permanent = isPermanentContributionReject(msg);
+
+      if (permanent) {
+        const refund = await refundRejectedCheckout({
+          stripe,
+          supabaseService,
+          session,
+          rejectReason: msg,
+          logLabel: '[stripe-contribution-confirm]',
+        });
+
+        if (refund.skipped === 'credited') {
+          const retry = await supabaseService.rpc('apply_stripe_contribution', {
+            p_mission_id: missionId,
+            p_contributor_id: user.id,
+            p_amount_usd: amountUsd,
+            p_stripe_checkout_session_id: sessionId,
+            ...(targetUsd >= 2 ? { p_target_usd: targetUsd } : {}),
+          });
+          if (!retry.error) {
+            const row = (retry.data || {}) as Record<string, unknown>;
+            return new Response(
+              JSON.stringify({
+                mission_id: String(row.mission_id ?? missionId),
+                amount_usd: Number(row.amount_usd ?? amountUsd),
+                current_funding: Number(row.current_funding ?? 0),
+                target_budget: Number(row.target_budget ?? 0),
+                opened_for_bidding: !!row.opened_for_bidding,
+                crowdfunding_expires_at: row.crowdfunding_expires_at ?? null,
+                started_work: !!row.started_work,
+                idempotent: true,
+              }),
+              {
+                status: 200,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              }
+            );
+          }
+        }
+
+        if (!refund.ok && refund.retryable) {
+          return jsonError(refund.error || 'Automatic refund failed. Please retry.', 500, {
+            code: 'contribution_reject_refund_failed',
+            refunded: false,
+            mission_id: missionId,
+            amount_usd: amountUsd,
+            session_id: sessionId,
+          });
+        }
+
+        return jsonError(
+          'This campaign could not accept the payment. Your card was refunded automatically.',
+          409,
+          {
+            code: 'contribution_rejected_refunded',
+            refunded: true,
+            refund_id: refund.refund_id,
+            reject_reason: msg,
+            mission_id: missionId,
+            amount_usd: amountUsd,
+            session_id: sessionId,
+          }
+        );
+      }
+
+      return jsonError(msg, 400, {
         code: rpcErr.code || null,
         details: rpcErr.details || null,
         hint: rpcErr.hint || null,

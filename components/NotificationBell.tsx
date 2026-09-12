@@ -31,6 +31,7 @@ const TYPE_LABEL_KEYS: Record<string, string> = {
   bid_accepted: 'notifBidAccepted',
   funding_bumped: 'notifFundingBumped',
   funding_complete: 'notifFundingComplete',
+  contribution_refunded: 'notifContributionRefunded',
 };
 
 const TYPE_ICON: Record<string, string> = {
@@ -43,6 +44,7 @@ const TYPE_ICON: Record<string, string> = {
   bid_accepted: '✅',
   funding_bumped: '📈',
   funding_complete: '🎯',
+  contribution_refunded: '↩️',
 };
 
 function notificationBody(

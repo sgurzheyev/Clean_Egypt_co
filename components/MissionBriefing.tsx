@@ -574,6 +574,14 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
       setConvertError(t('signInToContribute', { defaultValue: 'Sign in to continue.' }));
       return;
     }
+    if (!isMissionCreator) {
+      setConvertError(
+        t('reportZoneConvertForbidden', {
+          defaultValue: 'Only the person who reported this zone can launch without paying.',
+        })
+      );
+      return;
+    }
     const amount = parseIntegerUsdFromInput(convertBudget);
     if (amount < CITY_MIN_PRICE) {
       setConvertError(
@@ -1174,7 +1182,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       })}
                     </p>
                   )}
-                  {currentUserId ? (
+                  {currentUserId && isMissionCreator ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -2184,7 +2192,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           <p className="mb-4 text-[11px] leading-relaxed text-slate-400">
             {t('reportZoneConvertHint', {
               defaultValue:
-                'Optional unpaid launch. Crowdfunding at $0 quietly hides after 7 days — no city notice. Direct mode opens the pin for bids immediately. Prefer the first Stripe dollar above to start a live campaign.',
+                'Reporter only. Optional unpaid launch. Crowdfunding at $0 quietly hides after 7 days — no city notice. Direct mode opens the pin for bids immediately. Neighbors start a live campaign with the first Stripe dollar.',
             })}
           </p>
 

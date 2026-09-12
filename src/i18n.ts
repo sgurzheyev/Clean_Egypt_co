@@ -200,6 +200,8 @@ const resources = {
       notifBidAccepted: 'Your bid was accepted — you are the assigned cleaner.',
       notifFundingBumped: 'A crowdfunding target was updated.',
       notifFundingComplete: 'Crowdfunding reached the target.',
+      notifContributionRefunded:
+        'Your contribution could not be applied. The charge was refunded automatically.',
       submitting: 'Submitting...',
       noCompletedMissionsYet: 'No completed missions yet.',
       loadingMissionHistory: 'Loading mission history...',
@@ -671,10 +673,14 @@ const resources = {
       reportZoneConvertCta: 'Set bounty / launch without paying',
       reportZoneConvertTitle: 'Launch paid cleanup',
       reportZoneConvertHint:
-        'Optional unpaid launch. Crowdfunding at $0 quietly hides after 7 days — no city notice. Direct mode opens the pin for bids immediately. Prefer the first Stripe dollar to start a live campaign.',
+        'Reporter only. Optional unpaid launch. Crowdfunding at $0 quietly hides after 7 days — no city notice. Direct mode opens the pin for bids immediately. Neighbors start a live campaign with the first Stripe dollar.',
+      reportZoneConvertForbidden:
+        'Only the person who reported this zone can launch without paying.',
       reportZoneConvertConfirm: 'Convert & go live',
       reportZoneConvertFailed: 'Could not convert this report.',
       reportZoneConverted: 'Report converted — crowdfunding is live!',
+      contributionRejectedRefunded:
+        'This campaign could not accept the payment. Your card was refunded automatically.',
       ecoHeroesLabel: 'Eco Heroes',
       ecoHeroAnonymous: 'Eco Hero',
       ecoHeroesMore: '+{{count}} more',
@@ -1567,6 +1573,8 @@ const resources = {
       notifBidAccepted: 'Вашу ставку приняли — вы назначены исполнителем.',
       notifFundingBumped: 'Цель краудфандинга обновлена.',
       notifFundingComplete: 'Краудфандинг достиг цели.',
+      notifContributionRefunded:
+        'Взнос не удалось зачислить. Платёж автоматически возвращён на карту.',
       submitting: 'Отправка...',
       noCompletedMissionsYet: 'Пока нет завершённых заданий.',
       loadingMissionHistory: 'Загрузка истории заданий...',
@@ -2013,10 +2021,14 @@ const resources = {
       reportZoneConvertCta: 'Назначить награду / запустить без оплаты',
       reportZoneConvertTitle: 'Запустить оплачиваемую уборку',
       reportZoneConvertHint:
-        'Необязательный запуск без оплаты. Краудфандинг с $0 тихо скрывается через 7 дней — без уведомления властям. Прямой режим сразу открывает ставки. Лучше запустить кампанию первым долларом Stripe.',
+        'Только автор репорта. Необязательный запуск без оплаты. Краудфандинг с $0 тихо скрывается через 7 дней — без уведомления властям. Прямой режим сразу открывает ставки. Соседи запускают живую кампанию первым долларом Stripe.',
+      reportZoneConvertForbidden:
+        'Только автор репорта может запустить уборку без оплаты.',
       reportZoneConvertConfirm: 'Конвертировать и опубликовать',
       reportZoneConvertFailed: 'Не удалось конвертировать отчёт.',
       reportZoneConverted: 'Отчёт конвертирован — краудфандинг запущен!',
+      contributionRejectedRefunded:
+        'Кампания не приняла платёж. Деньги автоматически возвращены на карту.',
       ecoHeroesLabel: 'Герои сбора',
       ecoHeroAnonymous: 'Эко-герой',
       ecoHeroesMore: 'ещё {{count}}',

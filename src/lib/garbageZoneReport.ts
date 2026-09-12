@@ -152,6 +152,7 @@ export async function convertReportToMission(input: {
     throw new Error(`Target budget must be at least $${CITY_MIN_PRICE}`);
   }
 
+  // RPC rejects non-creators (P1-4). Neighbors wake the pin via first Stripe dollar.
   const { data, error } = await supabase.rpc('convert_report_to_mission', {
     p_mission_id: input.missionId,
     p_expected_price: price,
