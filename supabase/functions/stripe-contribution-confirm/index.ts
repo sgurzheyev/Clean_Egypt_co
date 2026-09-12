@@ -213,6 +213,13 @@ Deno.serve(async (req) => {
               }
             );
           }
+          return jsonError(String(retry.error.message || msg), 400, {
+            code: retry.error.code || null,
+            mission_id: missionId,
+            amount_usd: amountUsd,
+            session_id: sessionId,
+            refunded: false,
+          });
         }
 
         if (!refund.ok && refund.retryable) {
