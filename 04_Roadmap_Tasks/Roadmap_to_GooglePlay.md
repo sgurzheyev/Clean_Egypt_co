@@ -20,6 +20,8 @@ tags: [garbagin, roadmap, google-play, crowdfunding, tokens, ar, p2p]
 - Migrations → [[03_Backend_SQL/SQL_Migrations_Index]]
 - Stripe / USD → [[01_Architecture/Stripe_USD_Flow]]
 - Eco-ultimatum / Garbage History → [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]
+- Lifecycle audit → [[docs/GARBAGIN_LIFECYCLE_AUDIT]]
+- Wave A (overfund refund / creator convert) → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]
 - P2P deals → [[01_Architecture/P2P_Deal_Flow]]
 - Security & RPCs → [[01_Architecture/Security_and_RPCs]]
 - KYC → [[01_Architecture/KYC_Verification]]
@@ -120,7 +122,7 @@ funding ──(target met)──► available ──(accept bid)──► in_pro
 - [x] When timer expires underfunded: status → `expired` + `city_notification_events` (`crowdfunding_expired`).
 - [x] **Municipal escalation PDF** via `city-notification-pipeline` (coords, raised/target, description, fee / no-refund notice).
 - [x] **Deliver** PDF to Telegram (`TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`); email via Resend when configured (else stub log).
-- [ ] Funds remain platform-retained (processing fee) — **no** Stripe refund automation.
+- [x] Funds remain platform-retained on **expiry with money raised** (processing fee) — **no** Stripe refund on eco-ultimatum. Separate: a Checkout the pot never accepted is auto-refunded (P0-3) — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]].
 
 ### Engineering notes
 - Edge Function: `supabase/functions/city-notification-pipeline` (pdf-lib → Storage → Telegram / Resend stub).

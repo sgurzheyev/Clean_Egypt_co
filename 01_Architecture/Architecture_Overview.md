@@ -11,6 +11,8 @@
 - [[01_Architecture/P2P_Deal_Flow]] — USD direct payment + dispute (no fiat escrow)
 - [[01_Architecture/Stripe_USD_Flow]] — Checkout crowdfunding, tokens, `crowdfunding_expires_at` timer
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] — eco-ultimatum, Gov Notice, 7-day Garbage History, R2 archive
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] — P0-3 overfund refund + P1-4 reporter-only convert
+- [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — lifecycle audit scorecard
 - [[01_Architecture/Global_Location_Filtering]] — `location_catalog`, autofill trigger, multi-country filter + facets
 - Frontend map: [[02_Frontend/Frontend_Components]]
 - Field dashboard: [[04_Roadmap_Tasks/00_Dashboard]]
@@ -104,6 +106,8 @@ Active folder: [[../supabase/migrations]]
 | Mission `country` / `city` columns | [[../supabase/migrations/20260725_mission_country_city.sql]] |
 | Location catalog + autofill trigger + facets | [[../supabase/migrations/20260726_global_location_catalog.sql]] |
 | Trigger border fix | [[../supabase/migrations/20260726_fix_location_trigger_border.sql]] |
+| P0 split expiry + first-donate wake | [[../supabase/migrations/20260912_split_expiry_and_first_donate_wake.sql]] |
+| Wave A overfund refund + creator convert | [[../supabase/migrations/20260912_overfund_refund_and_creator_convert.sql]] |
 | Missions RLS + spatial CHECKs | [[../supabase/migrations/20260726_missions_schema_hardening.sql]] |
 | Contractor stores | [[../supabase/migrations/20260726_contractor_stores.sql]] |
 | Supplies / bundles / recurrence | [[../supabase/migrations/20260726_store_supplies_bundles_recurrence.sql]] |
@@ -118,7 +122,9 @@ Manual Storage policies (hosted): [[../supabase/manual/kyc_documents_storage_pol
 | Purpose | Link | Doc |
 | --- | --- | --- |
 | Crowdfunding Checkout | [[../supabase/functions/stripe-contribution-checkout/index.ts]] | [[Stripe_USD_Flow]] |
-| Crowdfunding confirm | [[../supabase/functions/stripe-contribution-confirm/index.ts]] | [[Stripe_USD_Flow]] |
+| Crowdfunding confirm | [[../supabase/functions/stripe-contribution-confirm/index.ts]] | [[Stripe_USD_Flow]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] |
+| Crowdfunding webhook | [[../supabase/functions/stripe-webhook/index.ts]] | [[Stripe_USD_Flow]] · reject-refund |
+| Reject-refund helper | [[../supabase/functions/_shared/contributionRefund.ts]] | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] |
 | KYC admin signed URLs | [[../supabase/functions/kyc-admin-signed-urls/index.ts]] | [[KYC_Verification]] |
 | Wallet / tokens / subscription | [[../supabase/functions]] | [[Stripe_USD_Flow]] |
 
@@ -147,5 +153,5 @@ missions
 ## Graph convention
 
 - Central hub: [[🗺️ GARBAGIN Master Index]]; also open [[04_Roadmap_Tasks/00_Dashboard]]
-- Prefer folder wiki links: `[[01_Architecture/KYC_Verification]]`, `[[01_Architecture/Security_and_RPCs]]`, `[[01_Architecture/P2P_Deal_Flow]]`, `[[01_Architecture/Stripe_USD_Flow]]`
+- Prefer folder wiki links: `[[01_Architecture/KYC_Verification]]`, `[[01_Architecture/Security_and_RPCs]]`, `[[01_Architecture/P2P_Deal_Flow]]`, `[[01_Architecture/Stripe_USD_Flow]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]`, `[[docs/GARBAGIN_LIFECYCLE_AUDIT]]`
 - Source paths relative to vault root folders (e.g. `[[../src/components/AROverlay.tsx]]` from `01_Architecture/`)

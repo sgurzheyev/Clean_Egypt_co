@@ -20,7 +20,7 @@ aliases: [Frontend Components, UI Map]
 | B2B storefront page | [[components/StorefrontPage.tsx]] |
 | Trust badge pills | [[components/TrustBadgeRow.tsx]] |
 | Store showcase sections | [[components/StoreShowcaseSections.tsx]] |
-| Mission briefing / contribute / bid | [[components/MissionBriefing.tsx]] |
+| Mission briefing / contribute / bid / reporter-only convert | [[components/MissionBriefing.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] |
 | Briefing error boundary | [[components/MissionBriefingErrorBoundary.tsx]] |
 | Filters bottom sheet | [[components/MissionFilterPanel.tsx]] |
 | Feed card | [[components/MissionFeedCard.tsx]] |
@@ -71,6 +71,7 @@ aliases: [Frontend Components, UI Map]
 
 - Marketplace stores / bids / map UX → [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]]
 - Crowdfunding UI → [[01_Architecture/Stripe_USD_Flow]]
+- Reporter-only unpaid convert / first-donate form → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[docs/GARBAGIN_LIFECYCLE_AUDIT]]
 - P2P briefing CTAs → [[01_Architecture/P2P_Deal_Flow]]
 - Country / city filter + map camera sync → [[01_Architecture/Global_Location_Filtering]]
 - KYC gate → [[01_Architecture/KYC_Verification]]

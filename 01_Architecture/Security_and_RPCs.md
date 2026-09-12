@@ -1,6 +1,11 @@
+---
+tags: [architecture, security, rpc]
+aliases: [Security and RPCs, RPC lock]
+---
+
 # Security and RPCs
 
-> Hardened server paths: no client escrow mutation, USD-only money columns, service-role Stripe apply. Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/KYC_Verification]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]].
+> Hardened server paths: no client escrow mutation, USD-only money columns, service-role Stripe apply. Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/KYC_Verification]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
 
 ## Principles
 
@@ -18,12 +23,14 @@
 | `confirm_mission_*` / client confirm | Creator | P2P “work done” — see [[P2P_Deal_Flow]] |
 | `process_abandoned_missions` | Cron / service_role | `in_progress` idle >24h → `available` (clears `cleaner_id`) |
 | `process_stuck_reviews` | Cron / service_role | `review` idle >3d → `completed` + `auto_approved` |
-| `apply_stripe_contribution` | **service_role only** | Idempotent on `stripe_checkout_session_id`; writes `amount_usd` only |
+| `apply_stripe_contribution` | **service_role only** | Idempotent on `stripe_checkout_session_id`; writes `amount_usd` only; optional `p_target_usd` wakes `reported` (P0-2) |
+| `claim_contribution_reject_refund` / `mark_contribution_reject_refund` | **service_role only** | P0-3 ledger for paid-but-rejected Checkout Sessions ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]) |
 | `contribute_to_mission` | Locked | Revoked from `authenticated` — Stripe path only ([[../supabase/migrations/20260719_lock_crowdfunding_and_accept_bids.sql]]) |
+| `convert_report_to_mission` | **Creator only** | Unpaid launch; neighbors use first Stripe dollar (P1-4) |
 | `submit_kyc_verification` | Worker | After Storage upload ([[KYC_Verification]]) |
 | `moderate_kyc_verification` | Admin | Approve / reject |
-| `process_expired_crowdfunding_missions` | Cron / service_role | `funding` → `expired` + city notification queue |
-| `accept_mission_bid` | Creator | Only `available` / `pending` |
+| `process_expired_crowdfunding_missions` | Cron / service_role | `$0` → `hidden`; `0 < raised < target` → `expired` + city queue (P0-1) |
+| `accept_mission_bid` | Creator | `available` / `pending` / `open` / **`funding`** (lock cleaner while still raising) |
 | `admin_delete_mission` | Admin | Content moderation only |
 | `is_platform_admin` | Shared | Email / role / telegram gates |
 
@@ -47,4 +54,4 @@ Supervisor / admin dispute path is P2P-aligned (no escrow reverse): [[../supabas
 ## Graph
 
 - Rules: [[../.cursorrules]]
-- Vault: [[🗺️ GARBAGIN Master Index]], [[04_Roadmap_Tasks/00_Dashboard]], [[01_Architecture/Architecture_Overview]]
+- Vault: [[🗺️ GARBAGIN Master Index]], [[04_Roadmap_Tasks/00_Dashboard]], [[01_Architecture/Architecture_Overview]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]

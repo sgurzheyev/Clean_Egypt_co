@@ -37,8 +37,8 @@ Legacy aliases still seen in UI/data: `pending` ≈ available, `pending_approval
 
 ## vs Crowdfunding
 
-Garbage Removal campaigns use Stripe contributions while `status = funding`, then open for bidding when target met — [[Stripe_USD_Flow]]. Expired underfunded campaigns with money → eco-ultimatum (Gov Notice, n8n, 7-day Garbage History) — [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]. $0 after 7 days → pin hidden (no refund path).
+Garbage Removal campaigns use Stripe contributions while `status = funding`, then open for bidding when target met — [[Stripe_USD_Flow]]. Expired underfunded campaigns with money → eco-ultimatum (Gov Notice, n8n, 7-day Garbage History) — [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]. $0 after 7 days → pin hidden (no refund path). A Checkout the pot **never accepted** (overfund race) **is** card-refunded — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. Unpaid convert of a civic pin is the **reporter only**.
 
 ## Related RPCs
 
-Documented in [[01_Architecture/Security_and_RPCs]]. Field notes: [[04_Roadmap_Tasks/00_Dashboard]].
+Documented in [[01_Architecture/Security_and_RPCs]]. Field notes: [[04_Roadmap_Tasks/00_Dashboard]]. Audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]].

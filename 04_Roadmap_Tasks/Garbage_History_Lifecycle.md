@@ -2,14 +2,14 @@
 title: Garbage History Lifecycle
 type: architecture
 status: canonical
-updated: 2026-08-26
+updated: 2026-09-12
 tags: [garbagin, crowdfunding, eco-ultimatum, city-notice, r2, n8n]
 ---
 
 # Garbage History — сквозной пайплайн краудфандинга и эко-ультиматума
 
 > Каноническая логика **бесплатного civic-пина → Stripe-кампания → rolling timer → Gov Notice / медиа → публичная «История мусора» → архив**.  
-> Хаб: [[🗺️ GARBAGIN Master Index]] · деньги: [[01_Architecture/Stripe_USD_Flow]] · P2P (другой мир): [[01_Architecture/P2P_Deal_Flow]] · карта: [[../.cursorrules]]
+> Хаб: [[🗺️ GARBAGIN Master Index]] · деньги: [[01_Architecture/Stripe_USD_Flow]] · P2P (другой мир): [[01_Architecture/P2P_Deal_Flow]] · карта: [[../.cursorrules]] · аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]
 
 Этот документ описывает **целевой** сквозной пайплайн. Блок «Реализация vs канон» в конце явно отделяет уже живущий SQL/Edge от шагов, которые ещё нужно дописать.
 
@@ -99,7 +99,7 @@ Cron / RPC (канон): выбрать `is_report = true AND status = 'reported
 - `is_report = false`
 - `crowdfunding_mode = true`
 - `status = 'funding'`
-- `expected_price` = зафиксированная цель USD (минимум $5, как в `convert_report_to_mission`)
+- `expected_price` = зафиксированная цель USD (минимум **$2**, как в `convert_report_to_mission` / first-donate)
 - `current_funding` += сумма доната
 - `crowdfunding_expires_at = GREATEST(crowdfunding_expires_at, now() + 30 days)`
 
@@ -111,7 +111,8 @@ Cron / RPC (канон): выбрать `is_report = true AND status = 'reported
 2. Edge [[../supabase/functions/stripe-contribution-checkout/index.ts]]
 3. Возврат `cf_contribution=1&session_id=…`
 4. `stripe-contribution-confirm` **и** `stripe-webhook` (идемпотентность по `stripe_checkout_session_id`)
-5. service_role `apply_stripe_contribution` — `FOR UPDATE` на миссии, кредит, bump таймера
+5. service_role `apply_stripe_contribution` — `FOR UPDATE` на миссии, кредит, bump таймера; на `reported` — атомарный wake (P0-2)
+6. Постоянный business-reject после оплаты → auto Stripe refund (P0-3) — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]
 
 Прямой клиентский `contribute_to_mission` **запрещён** ([[../supabase/migrations/20260719_lock_crowdfunding_and_accept_bids.sql]]).
 
@@ -260,11 +261,11 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 | Шаг | Где |
 | --- | --- |
 | Free pin create | `create_garbage_zone_report` · [[../src/lib/garbageZoneReport.ts]] · [[../components/MapPicker.tsx]] |
-| Convert / first-donate activate | сегодня ручной `convert_report_to_mission`; канон — внутри `apply_stripe_contribution` на первом платеже |
-| Contribute | checkout / confirm / webhook → `apply_stripe_contribution` |
+| Convert / first-donate activate | **Канон в коде (P0-2):** первый Stripe-доллар внутри `apply_stripe_contribution` будит `reported`. **Опционально:** `convert_report_to_mission` — **только автор** пина (P1-4, [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]) |
+| Contribute | checkout / confirm / webhook → `apply_stripe_contribution` · overfund loser → auto-refund (P0-3) |
 | Bid / accept during funding | `place_mission_bid` / `accept_mission_bid` |
-| $0 hide sweep | **нужен** новый cron (сейчас expiry не различает $0 и частичный сбор) |
-| Underfunded sweep | `process_expired_crowdfunding_missions` · [[../supabase/migrations/20260722_stabilize_crowdfunding_proof_concurrency.sql]] |
+| $0 hide sweep | **Есть (P0-1):** `process_expired_crowdfunding_missions` → `hidden`, без `city_notification_events` |
+| Underfunded sweep | `process_expired_crowdfunding_missions` · 0 < raised < target → `expired` + Gov Notice |
 | Gov Notice | INSERT `city_notification_events` → pg_net → `city-notification-pipeline` |
 | n8n | **нужен** trigger после `pdf_status = sent` |
 | History 7d + R2 purge | **нужен** cron `process_garbage_history_archives` |
@@ -272,46 +273,55 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 
 ---
 
-## 8. Реализация vs канон (снимок 2026-08-26)
+## 8. Реализация vs канон (снимок 2026-09-12)
+
+Аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]]. Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. Снимок 2026-08-26 ниже **устарел** по строкам P0 / convert / success-PDF.
 
 | Правило | Сейчас в коде | Разрыв |
 | --- | --- | --- |
-| Free pin 7d | `create_garbage_zone_report` → `reported`, **без** авто-expiry | Нет sweep hide/delete при $0 |
-| Первый донат включает crowd | Ручной `convert_report_to_mission` (любой auth user, цель ≥ $5, сразу `funding` + 7d) **до** денег | Stripe не принимает донат на `reported`; пин не «оживает» от первого доллара |
+| Free pin 7d | `create_garbage_zone_report` ставит `crowdfunding_expires_at = now()+7d`. Sweep: `$0` `reported`/`funding` → `hidden` (P0-1) | OK для hide. Опциональный сразу-purge R2 `reports/` ещё нет |
+| Первый донат включает crowd | `apply_stripe_contribution(..., p_target_usd)` атомарно будит `reported` (P0-2). Checkout принимает report + `target_usd` | OK |
+| Unpaid convert | `convert_report_to_mission` — **только creator**, цель ≥ **$2**. Соседи — first-donate (P1-4) | OK. `$0` funding после convert может только hide (P0-1), не Gov Notice |
+| Overfund race | Loser Checkout → auto Stripe refund (confirm + webhook, идемпотентно) (P0-3) | OK. Expiry **с деньгами** по-прежнему без card-refund |
 | Rolling +30d | Да, `apply_stripe_contribution` | OK |
 | Цель собрана → work | Да, `available` / `in_progress` если cleaner locked | OK |
-| Expiry без рефанда | Да | Sweep срабатывает и при **$0** и ставит `expired` + city queue — канон: $0 = hide, без Gov Notice |
+| Expiry без рефанда (есть сбор) | Да — 0 < raised < target → `expired` + city queue | OK vs оферта. Не путать с P0-3 |
 | Gov Notice PDF + Telegram | Да, `city-notification-pipeline` → R2 `city-pdfs/` | Назвать/обогатить фото+видео в PDF; официальный канал муниципалитета |
 | n8n соцкампания | Нет | Нужен webhook + secrets |
 | История 7 дней | `expired` пины живут бессрочно | Нужны `history_public_until`, публичный фильтр, затем purge |
 | Purge R2 | Нет | Нужен cron удаления ключей `reports/` / `mission-photos/` / proof / public PDF |
-| Success PDF | Триггер на `completed` | Крауд proof заканчивается в `approved` — PDF успеха может не стрельнуть |
+| Success PDF | Триггер на `completed` **или** `approved` (`20260826_status_changed_at_approved_reviews.sql`) | OK — строка 2026-08-26 была stale |
 
-Не ломать: идемпотентность Stripe session, `FOR UPDATE SKIP LOCKED` на expiry, Hungry-Games phone lock на crowd, 1 token / bid.
+Не ломать: идемпотентность Stripe session, `FOR UPDATE SKIP LOCKED` на expiry, Hungry-Games phone lock на crowd, 1 token / bid, funding-with-cleaner visible.
 
 ---
 
 ## 9. Порядок работ (если закрывать разрыв)
 
-1. Split expiry: `$0` → `hidden` + optional immediate R2 delete; `raised > 0` → eco-ultimatum.
-2. Разрешить первый Checkout на `reported` **или** атомарно конвертить report→funding внутри `apply_stripe_contribution`.
-3. Колонки `history_public_until`, `media_purged_at`, статус `hidden` / `archived`.
-4. n8n webhook после `pdf_status = sent`.
+1. ~~Split expiry: `$0` → `hidden`; `raised > 0` → eco-ultimatum.~~ **P0-1 shipped** (optional immediate R2 delete still open).
+2. ~~Первый Checkout / атомарный convert внутри `apply_stripe_contribution`.~~ **P0-2 shipped.**
+3. ~~Overfund auto-refund + convert только автор.~~ **Wave A / P0-3 + P1-4** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]].
+4. Колонки `history_public_until`, `media_purged_at`; n8n после `pdf_status = sent`.
 5. Cron архива + R2 delete.
 6. Feed/map: показывать `expired` только до `history_public_until`.
+7. Дальше по аудиту: `failed` recovery, abandon exclude crowd, `amount_target` не писать USD.
 
 ---
 
 ## Связанные ноты и исходники
 
-- [[01_Architecture/Stripe_USD_Flow]] — Checkout, +30d, expiry queue
+- [[01_Architecture/Stripe_USD_Flow]] — Checkout, +30d, expiry queue, reject-refund
 - [[01_Architecture/Architecture_Overview]] — модель `missions`
 - [[01_Architecture/Security_and_RPCs]]
 - [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] — Phase 1 timers, Phase 2 PDF
 - [[04_Roadmap_Tasks/00_Dashboard]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] — P0-3 / P1-4
+- [[docs/GARBAGIN_LIFECYCLE_AUDIT]]
 - [[../supabase/migrations/20260720_crowdfunding_expiry_cron.sql]]
 - [[../supabase/migrations/20260722_city_notification_pipeline.sql]]
 - [[../supabase/migrations/20260724_restore_crowdfunding_contribution_timer_bump.sql]]
 - [[../supabase/migrations/20260724_garbage_zone_reports.sql]]
+- [[../supabase/migrations/20260912_split_expiry_and_first_donate_wake.sql]]
+- [[../supabase/migrations/20260912_overfund_refund_and_creator_convert.sql]]
 - [[../src/lib/cityNotification.ts]]
 - [[../supabase/functions/city-notification-pipeline/index.ts]]
