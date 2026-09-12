@@ -12,7 +12,7 @@ aliases: [Wave D, Garbage History window, R2 purge, n8n eco-ultimatum, P2-1, P2-
 > Product close of **P2-1**, **P2-1b**, **P2-1c**, and **P2-2** from the lifecycle audit.  
 > Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
 
-**Code PR:** stacked on [Clean_Egypt_co#6](https://github.com/sgurzheyev/Clean_Egypt_co/pull/6) (Wave C). Retarget to `main` after P0 / A / B / C merge.
+**Code PR:** [Clean_Egypt_co#7](https://github.com/sgurzheyev/Clean_Egypt_co/pull/7) stacked on [Clean_Egypt_co#6](https://github.com/sgurzheyev/Clean_Egypt_co/pull/6) (Wave C). Retarget to `main` after P0 / A / B / C merge.
 
 This note is the vault node for Wave D. It does **not** re-describe P0 or Waves A–C.
 
