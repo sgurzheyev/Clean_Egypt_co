@@ -10,7 +10,7 @@ aliases: [Database Migrations MOC, SQL Migrations Index]
 
 This Map of Content (MOC) clusters every migration file into one Obsidian graph hub so the vault graph stays readable. Each row links the `.sql` note and summarizes what that change did in plain English.
 
-**Related audit:** [[03_Backend_SQL/AUDIT_phone_missions_access]] · lifecycle: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
+**Related audit:** [[03_Backend_SQL/AUDIT_phone_missions_access]] · lifecycle: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · apply: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · CLI history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 
 **Layout on disk:** active migrations live in `supabase/migrations/`; historical / superseded scripts live under `supabase/migrations/archive/`.
 
@@ -60,11 +60,11 @@ Chronological — June–July 2026 token / crowdfunding / privacy stack.
 | 2026-07-26 | [[20260726_store_supplies_bundles_recurrence.sql]] | `store_supplies`, JSONB `service_bundles`, recurrence on stores/missions, RPC updates. |
 | 2026-07-26 | [[20260726_tiered_bid_packages.sql]] | eBay-style `offer_packages` on bids; `place_mission_bid` / `accept_mission_bid` package selection. |
 | 2026-07-27 | [[20260727_security_hardening_rls_economy.sql]] | CRITICAL: mission_bids RLS, profiles economy column lock, phone/email revoke, service-only money RPCs, admin finance RPCs, notifications INSERT lock. |
-| 2026-09-12 | [[20260912_split_expiry_and_first_donate_wake.sql]] | P0: $0 expiry quietly hides (no Gov Notice); first Stripe dollar wakes `reported` pins. **Apply via SQL Editor** — CLI history is out of sync. Verify: `supabase/manual/20260912_p0_expiry_first_donate_verify.sql`. |
-| 2026-09-12 | [[20260912_overfund_refund_and_creator_convert.sql]] | Wave A: overfund/business-reject auto-refund ledger + RPCs; unpaid `convert_report_to_mission` is reporter-only. **Apply via SQL Editor after P0.** Verify: `supabase/manual/20260912_wave_a_refund_convert_verify.sql`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. |
-| 2026-09-12 | [[20260912_wave_b_failed_recovery_abandon_confirm.sql]] | Wave B: donor reject → `in_progress` retry (P1-1); exclude crowdfunding from 24h abandon (P1-2); recreate `confirm_mission_work_done` / `confirm_mission_direct_payment` (P3-3). **Apply via SQL Editor after Wave A.** Verify: `supabase/manual/20260912_wave_b_verify.sql`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]. |
-| 2026-09-12 | [[20260912_wave_c_amount_target_profile_delete.sql]] | Wave C: stop writing USD into `amount_target` (P2-3); block creator DELETE while funded (P3-4). **Apply via SQL Editor after Wave B.** Verify: `supabase/manual/20260912_wave_c_verify.sql`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]. |
-| 2026-09-12 | [[20260912_wave_d_garbage_history_window.sql]] | Wave D: `history_public_until` / `media_purged_at`; archive cron; R2 purge RPCs; n8n columns. **Apply via SQL Editor after Wave C.** Verify: `supabase/manual/20260912_wave_d_verify.sql`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]. |
+| 2026-09-12 | [[20260912_split_expiry_and_first_donate_wake.sql]] | P0: $0 expiry quietly hides (no Gov Notice); first Stripe dollar wakes `reported` pins. **Live: applied via SQL Editor.** CLI version `20260912` (shared with the four rows below). New project: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]. This project history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]. Verify: `supabase/manual/20260912_p0_expiry_first_donate_verify.sql`. |
+| 2026-09-12 | [[20260912_overfund_refund_and_creator_convert.sql]] | Wave A: overfund/business-reject auto-refund ledger + RPCs; unpaid `convert_report_to_mission` is reporter-only. Same CLI version `20260912`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. |
+| 2026-09-12 | [[20260912_wave_b_failed_recovery_abandon_confirm.sql]] | Wave B: donor reject → `in_progress` retry (P1-1); exclude crowdfunding from 24h abandon (P1-2); recreate `confirm_mission_work_done` / `confirm_mission_direct_payment` (P3-3). Same CLI version `20260912`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]. |
+| 2026-09-12 | [[20260912_wave_c_amount_target_profile_delete.sql]] | Wave C: stop writing USD into `amount_target` (P2-3); block creator DELETE while funded (P3-4). Same CLI version `20260912`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]. |
+| 2026-09-12 | [[20260912_wave_d_garbage_history_window.sql]] | Wave D: `history_public_until` / `media_purged_at`; archive cron; R2 purge RPCs; n8n columns. Same CLI version `20260912`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]. |
 
 > Full marketplace architecture write-up: [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]]
 
@@ -164,3 +164,4 @@ Full list lives on [[🗺️ GARBAGIN Master Index]] under **Backend & Supabase 
 2. Prefer linking new migrations from this MOC when you add files under `supabase/migrations/`.
 3. Keep product narrative in [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]]; keep schema history here.
 4. Always add a back-link from new backend notes to [[🗺️ GARBAGIN Master Index]].
+5. Hosted `20260912_*` files share one CLI timestamp — do not `db push` to “sync”. See [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]. Future files: unique `YYYYMMDDHHMMSS_` prefixes.

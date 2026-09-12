@@ -15,6 +15,9 @@
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] — P1-1 donor-reject retry + P1-2 crowd abandon exclude + P3-3 confirm RPC
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] — P2-3 token rank ≠ USD + P2-4 Profile `approved` + P3-4 funded DELETE
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] — P2-1 7-day Garbage History + R2 purge + n8n
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] — vault + CLI history hygiene (no product change)
+- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `migration repair` for `20260912_*` (no `db push`)
+- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→D SQL + Edge apply order
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — lifecycle audit scorecard
 - [[01_Architecture/Global_Location_Filtering]] — `location_catalog`, autofill trigger, multi-country filter + facets
 - Frontend map: [[02_Frontend/Frontend_Components]]
@@ -113,6 +116,7 @@ Active folder: [[../supabase/migrations]]
 | Wave A overfund refund + creator convert | [[../supabase/migrations/20260912_overfund_refund_and_creator_convert.sql]] |
 | Wave B failed retry + abandon exclude + confirm RPC | [[../supabase/migrations/20260912_wave_b_failed_recovery_abandon_confirm.sql]] |
 | Wave C token rank + Profile approved + funded DELETE | [[../supabase/migrations/20260912_wave_c_amount_target_profile_delete.sql]] |
+| Wave D Garbage History 7d + archive / purge RPCs | [[../supabase/migrations/20260912_wave_d_garbage_history_window.sql]] |
 | Missions RLS + spatial CHECKs | [[../supabase/migrations/20260726_missions_schema_hardening.sql]] |
 | Contractor stores | [[../supabase/migrations/20260726_contractor_stores.sql]] |
 | Supplies / bundles / recurrence | [[../supabase/migrations/20260726_store_supplies_bundles_recurrence.sql]] |
@@ -130,6 +134,8 @@ Manual Storage policies (hosted): [[../supabase/manual/kyc_documents_storage_pol
 | Crowdfunding confirm | [[../supabase/functions/stripe-contribution-confirm/index.ts]] | [[Stripe_USD_Flow]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] |
 | Crowdfunding webhook | [[../supabase/functions/stripe-webhook/index.ts]] | [[Stripe_USD_Flow]] · reject-refund |
 | Reject-refund helper | [[../supabase/functions/_shared/contributionRefund.ts]] | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] |
+| Gov Notice PDF + gated n8n | [[../supabase/functions/city-notification-pipeline/index.ts]] | [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] |
+| Garbage History R2 purge | [[../supabase/functions/garbage-history-purge/index.ts]] | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] |
 | KYC admin signed URLs | [[../supabase/functions/kyc-admin-signed-urls/index.ts]] | [[KYC_Verification]] |
 | Wallet / tokens / subscription | [[../supabase/functions]] | [[Stripe_USD_Flow]] |
 
@@ -160,5 +166,5 @@ missions
 ## Graph convention
 
 - Central hub: [[🗺️ GARBAGIN Master Index]]; also open [[04_Roadmap_Tasks/00_Dashboard]]
-- Prefer folder wiki links: `[[01_Architecture/KYC_Verification]]`, `[[01_Architecture/Security_and_RPCs]]`, `[[01_Architecture/P2P_Deal_Flow]]`, `[[01_Architecture/Stripe_USD_Flow]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]`, `[[docs/GARBAGIN_LIFECYCLE_AUDIT]]`
+- Prefer folder wiki links: `[[01_Architecture/KYC_Verification]]`, `[[01_Architecture/Security_and_RPCs]]`, `[[01_Architecture/P2P_Deal_Flow]]`, `[[01_Architecture/Stripe_USD_Flow]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]`, `[[04_Roadmap_Tasks/Ops_Migration_History_Repair]]`, `[[docs/GARBAGIN_LIFECYCLE_AUDIT]]`
 - Source paths relative to vault root folders (e.g. `[[../src/components/AROverlay.tsx]]` from `01_Architecture/`)

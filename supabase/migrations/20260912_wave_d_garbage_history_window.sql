@@ -6,6 +6,8 @@
 -- (or `psql` as a privileged role) AFTER
 -- `20260912_wave_c_amount_target_profile_delete.sql` (Wave C).
 -- Safe to re-run: ADD COLUMN IF NOT EXISTS / CREATE OR REPLACE / keyed UPDATEs.
+-- CLI version 20260912 is shared — repair, do not push / reset:
+-- 04_Roadmap_Tasks/Ops_Migration_History_Repair.md · docs/LIFECYCLE_FIX_APPLY_RUNBOOK.md.
 --
 -- P2-1: underfunded expiry (raised > 0) stays `expired` and gets
 --   history_public_until = now() + 7 days. Public map / Live Market may show

@@ -3,6 +3,8 @@
 -- ============================================================================
 -- Apply first: paste supabase/migrations/20260912_split_expiry_and_first_donate_wake.sql
 -- into the Supabase SQL Editor (CLI migration history is out of sync).
+-- Order + history repair: docs/LIFECYCLE_FIX_APPLY_RUNBOOK.md ·
+-- 04_Roadmap_Tasks/Ops_Migration_History_Repair.md. Do not db push.
 -- Then run this file as a read-mostly checklist. Destructive fixture blocks
 -- are commented out — uncomment only on a staging project.
 -- ============================================================================

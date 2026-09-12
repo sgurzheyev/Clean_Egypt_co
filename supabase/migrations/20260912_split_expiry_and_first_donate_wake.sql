@@ -5,6 +5,10 @@
 -- to replay older files). Paste this entire file into the Supabase SQL Editor
 -- (or `psql` as a privileged role) on the hosted project. Safe to re-run:
 -- CREATE OR REPLACE / DROP IF EXISTS / IF NOT EXISTS only.
+-- After live apply: mark CLI version 20260912 applied (one version for all
+-- 20260912_* files). Do NOT db reset remote. See
+-- 04_Roadmap_Tasks/Ops_Migration_History_Repair.md and
+-- docs/LIFECYCLE_FIX_APPLY_RUNBOOK.md.
 --
 -- Canon (Garbage_History_Lifecycle.md):
 --   • Free civic pin (status=reported, $0) lives 7 days then quietly HIDES.

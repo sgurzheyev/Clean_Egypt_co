@@ -9,7 +9,7 @@ tags: [garbagin, crowdfunding, eco-ultimatum, city-notice, r2, n8n]
 # Garbage History — сквозной пайплайн краудфандинга и эко-ультиматума
 
 > Каноническая логика **бесплатного civic-пина → Stripe-кампания → rolling timer → Gov Notice / медиа → публичная «История мусора» → архив**.  
-> Хаб: [[🗺️ GARBAGIN Master Index]] · деньги: [[01_Architecture/Stripe_USD_Flow]] · P2P (другой мир): [[01_Architecture/P2P_Deal_Flow]] · карта: [[../.cursorrules]] · аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
+> Хаб: [[🗺️ GARBAGIN Master Index]] · деньги: [[01_Architecture/Stripe_USD_Flow]] · P2P (другой мир): [[01_Architecture/P2P_Deal_Flow]] · карта: [[../.cursorrules]] · аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E (гигиена): [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · apply: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · CLI history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 
 Этот документ описывает **целевой** сквозной пайплайн. Блок «Реализация vs канон» в конце явно отделяет уже живущий SQL/Edge от шагов, которые ещё нужно дописать.
 
@@ -273,9 +273,11 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 
 ---
 
-## 8. Реализация vs канон (снимок 2026-09-12)
+## 8. Реализация vs канон (снимок 2026-09-12, через Wave D)
 
-Аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]]. Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]. Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]. Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]. Снимок 2026-08-26 ниже **устарел** по строкам P0 / convert / success-PDF / `failed` / abandon / `amount_target` / history window.
+Аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]]. Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]. Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]. Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]. Wave E (docs/ops only): [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]. Apply order: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]. CLI history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]].
+
+Таблица ниже — **текущий** снимок (P0→D на live SQL + Edge). Снимок 2026-08-26 больше не канон.
 
 | Правило | Сейчас в коде | Разрыв |
 | --- | --- | --- |
@@ -292,7 +294,7 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 | n8n соцкампания | **Есть (P2-1c):** webhook после PDF `sent`/`generated`; skip если URL не задан | Сам n8n workflow — ops, не этот репозиторий |
 | История 7 дней | `history_public_until`; feed/map до окна; затем `archived` (P2-1 / P2-2) | OK |
 | Purge R2 | Edge `garbage-history-purge` + `media_purged_at` (P2-1b) | Нужны R2 secrets + configure script; без Edge пин уже скрыт |
-| Success PDF | Триггер на `completed` **или** `approved` (`20260826_status_changed_at_approved_reviews.sql`) | OK — строка 2026-08-26 была stale |
+| Success PDF | Триггер на `completed` **или** `approved` (`20260826_status_changed_at_approved_reviews.sql`) | OK |
 | `amount_target` = token rank | Convert / accept больше не пишут USD (P2-3). Backfill: rank == USD budget → 1 | OK. First-donate wake оставляет 0 на free pin |
 | Profile `approved` / `failed` | Worker active + History включают crowd close (P2-4) | OK |
 | Creator DELETE funded | RLS + `creator_delete_mission` блокируют pot (P3-4) | OK. Admin `admin_delete_mission` без изменений |
@@ -311,6 +313,9 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 6. ~~Cron архива + R2 delete.~~ **Wave D / P2-1b**
 7. ~~Feed/map: показывать `expired` только до `history_public_until`.~~ **Wave D / P2-2**
 8. ~~Wave C: `amount_target` не писать USD; Profile `approved`; funded DELETE lock.~~ **Wave C / P2-3 + P2-4 + P3-4** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
+9. ~~Vault / Roadmap / CLI-history hygiene.~~ **Wave E** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
+
+Ещё открыто (не код Wave E): optional сразу-purge R2 на `$0` hide; официальный канал муниципалитета; явный re-tender если cleaner бросил полный pot; сам n8n workflow; merge PR #3–#7 в `main`.
 
 ---
 
@@ -325,6 +330,9 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] — P1-1 / P1-2 / P3-3
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] — P2-3 / P2-4 / P3-4
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] — P2-1 / P2-1b / P2-1c / P2-2
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] — docs + CLI history hygiene
+- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `migration repair` / no `db push`
+- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→D paste order + Edge
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]
 - [[../supabase/migrations/20260720_crowdfunding_expiry_cron.sql]]
 - [[../supabase/migrations/20260722_city_notification_pipeline.sql]]

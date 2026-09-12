@@ -6,6 +6,8 @@
 -- (or `psql` as a privileged role) AFTER
 -- `20260912_wave_b_failed_recovery_abandon_confirm.sql` (Wave B).
 -- Safe to re-run: CREATE OR REPLACE / DROP POLICY IF EXISTS / keyed UPDATEs.
+-- CLI version 20260912 is shared — repair, do not push / reset:
+-- 04_Roadmap_Tasks/Ops_Migration_History_Repair.md · docs/LIFECYCLE_FIX_APPLY_RUNBOOK.md.
 --
 -- P2-3: amount_target is token-boost / listing rank. convert_report_to_mission
 -- and accept_mission_bid were copying USD prices into it, so a $50 convert

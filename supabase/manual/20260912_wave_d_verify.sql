@@ -8,6 +8,7 @@
 --   4) supabase/migrations/20260912_wave_c_amount_target_profile_delete.sql
 --   5) supabase/migrations/20260912_wave_d_garbage_history_window.sql
 -- CLI migration history is out of sync — do not rely on `supabase db push`.
+-- docs/LIFECYCLE_FIX_APPLY_RUNBOOK.md · 04_Roadmap_Tasks/Ops_Migration_History_Repair.md.
 -- Then run this file as a read-mostly checklist. Destructive fixture blocks
 -- are commented out — uncomment only on a staging project.
 -- ============================================================================

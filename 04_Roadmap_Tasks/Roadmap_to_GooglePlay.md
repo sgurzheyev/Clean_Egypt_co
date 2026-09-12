@@ -3,7 +3,7 @@ title: Roadmap to Google Play
 type: roadmap
 status: active
 target: Google Play Store launch
-updated: 2026-07-22
+updated: 2026-09-12
 tags: [garbagin, roadmap, google-play, crowdfunding, tokens, ar, p2p]
 ---
 
@@ -24,6 +24,10 @@ tags: [garbagin, roadmap, google-play, crowdfunding, tokens, ar, p2p]
 - Wave A (overfund refund / creator convert) → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]
 - Wave B (failed retry / crowd abandon exclude / P2P confirm RPC) → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
 - Wave C (token rank / Profile approved / funded DELETE) → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
+- Wave D (7-day Garbage History / R2 purge / n8n) → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
+- Wave E (vault + CLI history hygiene) → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]
+- Apply runbook (P0→D) → [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
+- CLI history repair → [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 - P2P deals → [[01_Architecture/P2P_Deal_Flow]]
 - Security & RPCs → [[01_Architecture/Security_and_RPCs]]
 - KYC → [[01_Architecture/KYC_Verification]]
@@ -52,15 +56,20 @@ Use this as the floor — do **not** rebuild what works.
 
 - [x] Map-first React shell + neon FAB filter / joystick controls
 - [x] Crowdfunding Stripe Checkout + `apply_stripe_contribution` (idempotent) + **`stripe-webhook`**
-- [x] Fixed 7-day `crowdfunding_expires_at` + `expired` + `city_notification_events` **queue stub**
+- [x] Dynamic timers: 7-day create / civic pin; **+30d** on each successful Stripe dollar (`20260722_dynamic_crowdfunding_timers.sql` + `apply_stripe_contribution`)
+- [x] Crowd-bid during `funding` + accept-while-raising (`20260722_place_mission_bid_crowd_funding.sql`, `20260723_dynamic_funding_bid_acceptance.sql`)
+- [x] P0→D lifecycle: `$0` quiet hide, first-donate wake, overfund refund, reject-retry, history 7d / R2 purge / gated n8n — [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] §8
+- [x] City PDF pipeline (`city-notification-pipeline`) + Telegram / Resend ops channel
 - [x] Token packs / subscription rails (Stripe intents)
-- [x] Token-boost listing rank (`amount_target`)
-- [x] P2P proof lifecycle + PostGIS ≤200m GPS gate
+- [x] Token-boost listing rank (`amount_target`) — USD must not land here (Wave C)
+- [x] P2P proof lifecycle + PostGIS ≤200m GPS gate + `confirm_mission_work_done` (Wave B)
 - [x] KYC admin queue + signed media
-- [x] In-app notification bell (DB-backed; not FCM yet)
+- [x] In-app notification bell (DB-backed; FCM Edge scaffold exists, secrets not live)
+- [x] Hungry-Games: 1 token / bid + phone locked until accept (subscription gate still open)
+- [x] In-app P2P chat (`mission_chats` + MissionChatPanel)
 - [x] Lazy WebXR [[../src/components/AROverlay]] (field-unvalidated)
 
-**Gap to Play:** dynamic timers, crowd-bidding, PDF pipeline, Hungry-Games token stake + phone unlock, in-app chat, AR field proof, FCM, Android packaging.
+**Gap to Play:** subscription-gated bidding, AR field proof, FCM secrets + expiry pings, Android packaging / Play Console. Lifecycle SQL is on live; git `main` may still lack PRs #3–#7.
 
 ---
 
@@ -71,30 +80,31 @@ Use this as the floor — do **not** rebuild what works.
 ### Business rules (canonical)
 
 #### Dynamic expiry timers
-- [ ] **New campaign @ $0 raised** → funding window = **7 days** from create (`crowdfunding_expires_at = created_at + 7d`).
-- [ ] **Any successful Stripe contribution** → reset / extend timer to **+30 days from that payment’s timestamp** (not from create).
-- [ ] Subsequent contributions **re-apply** the +30d extension from the **latest** successful payment.
-- [ ] Soft-expiry UI + checkout/apply/webhook **must all honor** the same `crowdfunding_expires_at` (no soft-expired contributes).
-- [ ] Expiry sweep (`process_expired_crowdfunding_missions`) only fires when **still underfunded** and past `crowdfunding_expires_at` (already race-hardened; re-verify after timer rewrite).
+- [x] **New campaign @ $0 raised** → funding window = **7 days** from create (`crowdfunding_expires_at = created_at + 7d`). Civic `reported` pins use the same 7d quiet-hide clock (P0-1).
+- [x] **Any successful Stripe contribution** → reset / extend timer to **+30 days from that payment’s timestamp** (not from create) inside `apply_stripe_contribution` (`FOR UPDATE`).
+- [x] Subsequent contributions **re-apply** the +30d extension from the **latest** successful payment (`GREATEST(expires, now()+30d)`).
+- [x] Soft-expiry UI + checkout/apply/webhook **honor** the same `crowdfunding_expires_at` (no soft-expired contributes).
+- [x] Expiry sweep (`process_expired_crowdfunding_missions`): `$0` → `hidden` (no Gov Notice); `0 < raised < target` → `expired` + city queue (P0-1). Race-hardened (`FOR UPDATE SKIP LOCKED`).
 
 #### Crowd-bidding
-- [ ] Workers may **place bids while status = `funding`** (and after `available`) — not only after target met.
-- [ ] Bid modes:
-	- [ ] **Accept target** — bid = current campaign `expected_price` (work budget).
-	- [ ] **Propose own price** — worker may bid **higher or lower** than the target (“I will finish for $X”).
-- [ ] Creator (or campaign steward UX) can **accept one bid** → mission → `in_progress`, cleaner assigned.
-- [ ] UI: crowdfunding briefing shows **Contribute** *and* **Bid / Propose price** (update [[../.cursorrules]] Map Interface note when this lands).
-- [ ] State machine update:
+- [x] Workers may **place bids while status = `funding`** (and after `available`) — `20260722_place_mission_bid_crowd_funding.sql`.
+- [x] Bid modes:
+	- [x] **Accept target** — bid = current campaign `expected_price` (work budget).
+	- [x] **Propose own price** — worker may bid **higher or lower** than the target (“I will finish for $X”) / tiered packages.
+- [x] Creator can **accept one bid during `funding`** → `cleaner_id` locked, status **stays `funding`** until donations hit the (possibly bumped) `expected_price`, then `in_progress` (skip re-tender). `20260723_dynamic_funding_bid_acceptance.sql` · [[../.cursorrules]].
+- [x] UI: crowdfunding briefing shows **Contribute** *and* **Bid / Propose price**.
+- [x] State machine (locked):
 
 ```
-funding ──(target met)──► available ──(accept bid)──► in_progress ► review ► completed
-   │                           ▲
-   │                           │
-   └──(crowd-bid accepted*)────┘   *product decision: accept during funding vs only after available
-   └──(timer expired, underfunded)─► expired → Phase 2 PDF escalation
+funding ──(target met, no cleaner)──► available ──(accept bid)──► in_progress ► review ► completed
+   │
+   └──(crowd-bid accepted while funding)──► stay funding + cleaner locked
+         └──(donations fill new goal)──► in_progress (no re-bid)
+   └──(timer expired, raised = 0)──► hidden          (P0-1, no PDF)
+   └──(timer expired, 0 < raised < target)──► expired → Phase 2 / Wave D history
 ```
 
-> **Open product decision to lock in Phase 1 kickoff:** May a bid be accepted **before** the USD target is fully funded? Document the chosen rule in [[P2P_Deal_Flow]] and this note before coding accept RPC changes.
+> **Product decision (locked):** yes — a bid **may** be accepted before the USD target is full. Cleaner is locked; pot keeps filling; Live Market still shows the pin. Documented in [[P2P_Deal_Flow]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[../.cursorrules]].
 
 ### Engineering notes
 - Touch points: `apply_stripe_contribution`, checkout/confirm/webhook metadata, [[../src/lib/crowdfunding]], [[../components/MissionBriefing]], bid RPCs (`accept_mission_bid` allowlist).
@@ -102,9 +112,9 @@ funding ──(target met)──► available ──(accept bid)──► in_pro
 - Seed / admin tools: assert 7d→30d behavior in SQL tests or seed scripts.
 
 ### Exit criteria
-- [ ] Contribute $1 on a fresh $0 campaign → UI countdown jumps to ~30 days.
-- [ ] Worker can submit a custom-price bid on a live crowdfunding pin.
-- [ ] Soft-expired campaign rejects Checkout + webhook apply.
+- [x] Contribute $1 on a fresh $0 campaign → UI countdown jumps to ~30 days (and first dollar wakes `reported` — P0-2).
+- [x] Worker can submit a custom-price bid on a live crowdfunding pin.
+- [x] Soft-expired campaign rejects Checkout + webhook apply (paid reject → Wave A auto-refund if the pot never accepted the Session).
 
 ---
 
@@ -132,7 +142,8 @@ funding ──(target met)──► available ──(accept bid)──► in_pro
 - Configure URL/keys via `private.app_config` (no `ALTER DATABASE`): `supabase/manual/configure_city_notification_webhook.sql`.
 - Deploy with `verify_jwt=false`; set secrets; run migration `20260723_…_app_config` + configure script (paste service role key).
 - Keep expiry sweep cron (`process_expired_crowdfunding_missions`) so rows are inserted.
-- Wave D: 7-day Garbage History + archive cron + optional n8n / R2 purge — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]].
+- Wave D: 7-day Garbage History + archive cron + optional n8n / R2 purge — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] (SQL on live; client may still be in PR #7).
+- Apply / verify order: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]. CLI history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]].
 
 ### Exit criteria
 - [ ] Expired underfunded mission produces a downloadable PDF in Storage within N minutes (after deploy + secrets).
@@ -323,8 +334,9 @@ flowchart LR
 
 | Date | Note |
 | --- | --- |
+| 2026-09-12 | Wave E: Phase 1 timers + crowd-bid + accept-during-funding marked shipped; P0→D / PDF / Hungry-Games / chat moved into baseline. Hygiene: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]. |
 | 2026-07-22 | Initial Roadmap to Google Play authored from new business rules + post-stabilization architecture. |
 
 ---
 
-> _Next action:_ Pick Phase 1 product decision (bid accept before full funding?) → spike `apply_stripe_contribution` +30d extension under lock → update [[Stripe_USD_Flow]] and [[../.cursorrules]] when rules land in code.
+> _Next action:_ Merge PRs #3–#7 to `main`. Repair CLI history ([[04_Roadmap_Tasks/Ops_Migration_History_Repair]]). Remaining Play blockers: subscription-gated bid, FCM secrets, AR field test, AAB / Play Console.

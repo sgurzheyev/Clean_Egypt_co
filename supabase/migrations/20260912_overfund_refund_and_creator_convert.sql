@@ -6,6 +6,8 @@
 -- (or `psql` as a privileged role) AFTER
 -- `20260912_split_expiry_and_first_donate_wake.sql` (PR #3 / P0-1 + P0-2).
 -- Safe to re-run: CREATE OR REPLACE / IF NOT EXISTS / DROP POLICY IF EXISTS.
+-- CLI version is the shared prefix 20260912 — repair, do not push:
+-- 04_Roadmap_Tasks/Ops_Migration_History_Repair.md · docs/LIFECYCLE_FIX_APPLY_RUNBOOK.md.
 --
 -- P0-3: two Checkouts can race for the last $N. apply_stripe_contribution
 -- still rejects the loser (no silent clip). Confirm + webhook then claim a

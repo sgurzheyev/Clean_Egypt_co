@@ -5,7 +5,7 @@ aliases: [Frontend Components, UI Map]
 
 # Frontend Components
 
-> ← [[🗺️ GARBAGIN Master Index]] · Architecture: [[01_Architecture/Architecture_Overview]] · Roadmap: [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
+> ← [[🗺️ GARBAGIN Master Index]] · Architecture: [[01_Architecture/Architecture_Overview]] · Roadmap: [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]
 
 ## Primary surfaces
 
@@ -77,6 +77,7 @@ aliases: [Frontend Components, UI Map]
 - Donor reject retry / P2P confirm RPC → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
 - Token rank vs USD / Profile `approved` / funded DELETE → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 - Garbage History 7d / expired pins → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · [[src/lib/crowdfunding.ts]]
+- Vault / CLI history hygiene → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 - P2P briefing CTAs → [[01_Architecture/P2P_Deal_Flow]]
 - Country / city filter + map camera sync → [[01_Architecture/Global_Location_Filtering]]
 - KYC gate → [[01_Architecture/KYC_Verification]]

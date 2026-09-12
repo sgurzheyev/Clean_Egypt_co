@@ -10,7 +10,7 @@ aliases: [Wave C, amount_target rank, Profile approved, Funded delete lock, P2-3
 # Lifecycle Fix — Wave C (token rank ≠ USD + Profile `approved` + funded DELETE lock)
 
 > Product close of **P2-3**, **P2-4**, and **P3-4** from the lifecycle audit.  
-> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
+> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
 
 **Code PR:** [Clean_Egypt_co#6](https://github.com/sgurzheyev/Clean_Egypt_co/pull/6) stacked on [Clean_Egypt_co#5](https://github.com/sgurzheyev/Clean_Egypt_co/pull/5) (Wave B). Retarget to `main` after P0 / Wave A / Wave B merge.
 
@@ -112,7 +112,7 @@ No BEFORE DELETE trigger — `admin_delete_mission` clears `contributions` first
 
 ## Hosted apply
 
-CLI history is messy — paste in the SQL Editor **after** Wave B:
+CLI history is messy — paste in the SQL Editor **after** Wave B (full order: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]; mark applied: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]):
 
 1. [[supabase/migrations/20260912_split_expiry_and_first_donate_wake.sql]] (PR #3 — skip if applied)
 2. [[supabase/migrations/20260912_overfund_refund_and_creator_convert.sql]] (PR #4 — skip if applied)
@@ -145,6 +145,9 @@ From [[docs/GARBAGIN_LIFECYCLE_AUDIT]] / [[04_Roadmap_Tasks/Garbage_History_Life
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]
+- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
+- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]
 - [[04_Roadmap_Tasks/00_Dashboard]]
 - [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]]

@@ -5,7 +5,7 @@ aliases: [Security and RPCs, RPC lock]
 
 # Security and RPCs
 
-> Hardened server paths: no client escrow mutation, USD-only money columns, service-role Stripe apply. Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/KYC_Verification]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
+> Hardened server paths: no client escrow mutation, USD-only money columns, service-role Stripe apply. Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/KYC_Verification]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]], [[04_Roadmap_Tasks/Ops_Migration_History_Repair]], [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
 
 ## Principles
 
@@ -60,4 +60,4 @@ Supervisor / admin dispute path is P2P-aligned (no escrow reverse): [[../supabas
 ## Graph
 
 - Rules: [[../.cursorrules]]
-- Vault: [[🗺️ GARBAGIN Master Index]], [[04_Roadmap_Tasks/00_Dashboard]], [[01_Architecture/Architecture_Overview]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
+- Vault: [[🗺️ GARBAGIN Master Index]], [[04_Roadmap_Tasks/00_Dashboard]], [[01_Architecture/Architecture_Overview]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]], [[04_Roadmap_Tasks/Ops_Migration_History_Repair]], [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]

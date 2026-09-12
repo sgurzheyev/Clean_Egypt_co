@@ -5,6 +5,7 @@
 --   1) supabase/migrations/20260912_split_expiry_and_first_donate_wake.sql
 --   2) supabase/migrations/20260912_overfund_refund_and_creator_convert.sql
 -- CLI migration history is out of sync — do not rely on `supabase db push`.
+-- docs/LIFECYCLE_FIX_APPLY_RUNBOOK.md · 04_Roadmap_Tasks/Ops_Migration_History_Repair.md.
 -- Then run this file as a read-mostly checklist. Destructive fixture blocks
 -- are commented out — uncomment only on a staging project.
 -- ============================================================================

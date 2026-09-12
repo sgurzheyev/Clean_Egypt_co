@@ -1,6 +1,9 @@
 -- ============================================================================
 -- Wave B — P1-1 failed recovery + P1-2 crowd abandon exclude + P3-3 confirm RPC
 -- ============================================================================
+-- CLI version 20260912 is shared with the other 20260912_* files — mark applied
+-- via migration repair, never blind db push / remote reset:
+-- 04_Roadmap_Tasks/Ops_Migration_History_Repair.md · docs/LIFECYCLE_FIX_APPLY_RUNBOOK.md.
 -- APPLY (remote CLI history is out of sync — do NOT rely on `supabase db push`
 -- to replay older files). Paste this entire file into the Supabase SQL Editor
 -- (or `psql` as a privileged role) AFTER

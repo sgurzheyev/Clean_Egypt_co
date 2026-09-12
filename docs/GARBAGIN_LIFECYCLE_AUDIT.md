@@ -11,7 +11,7 @@ aliases: [Lifecycle audit, GARBAGIN_LIFECYCLE_AUDIT, P0 P1 scorecard]
 
 > Read-only comparison of vault canon vs shipped SQL / Edge / client.  
 > Full write-up + repros: [PR #2](https://github.com/sgurzheyev/Clean_Egypt_co/pull/2) (`cursor/lifecycle-audit-50f5`).  
-> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · dashboard: [[04_Roadmap_Tasks/00_Dashboard]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
+> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · dashboard: [[04_Roadmap_Tasks/00_Dashboard]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · apply: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · CLI history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 
 This note is the **vault graph node** for the audit. It does not change product behavior. Implementations land in later PRs and link back here.
 
@@ -56,6 +56,14 @@ Hungry-Games: 1 token per *new* bid; creator phone locked until accept. Crowd pi
 Do not break: Stripe session idempotency, `FOR UPDATE SKIP LOCKED` on expiry, crowd phone = NULL, 1 token / new bid, funding-visible-with-cleaner.
 
 ---
+
+## Wave E close (docs + CLI history)
+
+Product language: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]. No RPC / Edge / client change.
+
+- Vault + Play Phase 1 checkboxes match shipped P0→D.
+- Apply order: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]].
+- CLI Local-only `20260912`: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] (`migration repair --status applied`, never blind `db push`).
 
 ## Wave D close (P2-1 + P2-1b + P2-1c + P2-2)
 
@@ -102,6 +110,7 @@ Product language and file pointers: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]].
 7. ~~History columns + n8n + R2 purge (after 1–2)~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
 8. ~~Profile / map list hygiene (P2-4)~~ — Wave C
 9. ~~Creator DELETE on funded rows (P3-4)~~ — Wave C
+10. ~~Vault / Roadmap / CLI-history hygiene~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]
 
 P3-3 (`confirm_mission_work_done` in the active tree) shipped with Wave B.
 
@@ -115,6 +124,9 @@ Canon snapshot table: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] §8.
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]
+- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
+- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]
 - [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]]
 - [[01_Architecture/Stripe_USD_Flow]]

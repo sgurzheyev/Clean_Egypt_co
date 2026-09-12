@@ -21,7 +21,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 | Backend / SQL | [[03_Backend_SQL/SQL_Migrations_Index]] |
 | Edge & API | [[03_Backend_SQL/Backend_Edge_and_API]] |
 | Roadmap | [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] |
-| Lifecycle audit / Wave A–D | [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] |
+| Lifecycle audit / Wave A–E | [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] · [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] |
 | Archive | [[05_Archive/Garbagin_Roadmap_Update]] |
 | Field dashboard | [[04_Roadmap_Tasks/00_Dashboard]] |
 
@@ -42,6 +42,9 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] — P1-1 donor-reject retry + P1-2 no silent crowd abandon + P3-3 confirm RPC
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] — P2-3 token rank ≠ USD + P2-4 Profile `approved` + P3-4 funded DELETE
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] — P2-1 7-day Garbage History + P2-1b R2 purge + P2-1c n8n + P2-2 feed filters
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] — vault + CLI history hygiene (no product change)
+- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `supabase migration repair` for `20260912_*`
+- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→D SQL + Edge apply order
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — read-only lifecycle scorecard (PR #2)
 
 ### App shell & config
@@ -220,6 +223,8 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[supabase/manual/20260912_wave_b_verify.sql]]
 - [[supabase/manual/20260912_wave_c_verify.sql]]
 - [[supabase/manual/20260912_wave_d_verify.sql]]
+- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
+- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 
 ### Active migrations (canonical Jun–Jul 2026+)
 - [[supabase/migrations/20260617_garbage_crowdfunding.sql]]
@@ -278,6 +283,9 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] — failed retry + crowd abandon exclude + P2P confirm RPC
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] — token rank ≠ USD + Profile approved + funded DELETE
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] — 7-day Garbage History + R2 purge + n8n
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] — vault + CLI history hygiene
+- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — mark `20260912` applied (no `db push`)
+- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→D paste order + Edge redeploys
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — audit scorecard vs canon
 - [[05_Archive/Garbagin_Roadmap_Update]] — superseded status report
 - [[.cursorrules]] — product + UI rules of engagement
@@ -291,6 +299,7 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 | Lifecycle Wave B | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] | [[supabase/migrations/20260912_wave_b_failed_recovery_abandon_confirm.sql]], [[components/DonorProofReview.tsx]] |
 | Lifecycle Wave C | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] | [[supabase/migrations/20260912_wave_c_amount_target_profile_delete.sql]], [[components/Profile.tsx]] |
 | Lifecycle Wave D | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] | [[supabase/migrations/20260912_wave_d_garbage_history_window.sql]], [[supabase/functions/garbage-history-purge/index.ts]], [[src/lib/crowdfunding.ts]] |
+| Lifecycle Wave E / CLI history | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] | [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] |
 | P2P deals (no escrow) | [[01_Architecture/P2P_Deal_Flow]] | [[src/lib/submitMissionProof.ts]], [[src/lib/missionBids.ts]] |
 | Security / RPCs | [[01_Architecture/Security_and_RPCs]] | [[supabase/migrations/20260719_submit_mission_proof_rpc.sql]] |
 | KYC | [[01_Architecture/KYC_Verification]] | [[components/VerificationModal.tsx]], [[src/lib/kycDocuments.ts]] |
