@@ -12,6 +12,8 @@ aliases: [Wave E, Lifecycle hygiene, Docs sync, Migration history repair]
 > Docs-and-ops close after **P0 → Wave D**. No product behavior change.  
 > Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · apply order: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · CLI repair: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] · money: [[01_Architecture/Stripe_USD_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
 
+**Code PR:** [Clean_Egypt_co#8](https://github.com/sgurzheyev/Clean_Egypt_co/pull/8) stacked on [Clean_Egypt_co#7](https://github.com/sgurzheyev/Clean_Egypt_co/pull/7) (Wave D). Retarget to `main` after P0 / A / B / C / D merge.
+
 **This PR is hygiene only.** Live Supabase already has P0→D SQL and the relevant Edge functions redeployed. Frontend/PRs #3–#7 may still be unmerged to `main`. Wave E makes the vault match that shipped stack and records how to fix CLI migration history **without** `db push` or a remote reset.
 
 This note does **not** re-describe P0 or Waves A–D.
