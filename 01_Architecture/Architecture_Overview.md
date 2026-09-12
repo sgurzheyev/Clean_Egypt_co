@@ -12,6 +12,7 @@
 - [[01_Architecture/Stripe_USD_Flow]] — Checkout crowdfunding, tokens, `crowdfunding_expires_at` timer
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] — eco-ultimatum, Gov Notice, 7-day Garbage History, R2 archive
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] — P0-3 overfund refund + P1-4 reporter-only convert
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] — P1-1 donor-reject retry + P1-2 crowd abandon exclude + P3-3 confirm RPC
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — lifecycle audit scorecard
 - [[01_Architecture/Global_Location_Filtering]] — `location_catalog`, autofill trigger, multi-country filter + facets
 - Frontend map: [[02_Frontend/Frontend_Components]]
@@ -108,6 +109,7 @@ Active folder: [[../supabase/migrations]]
 | Trigger border fix | [[../supabase/migrations/20260726_fix_location_trigger_border.sql]] |
 | P0 split expiry + first-donate wake | [[../supabase/migrations/20260912_split_expiry_and_first_donate_wake.sql]] |
 | Wave A overfund refund + creator convert | [[../supabase/migrations/20260912_overfund_refund_and_creator_convert.sql]] |
+| Wave B failed retry + abandon exclude + confirm RPC | [[../supabase/migrations/20260912_wave_b_failed_recovery_abandon_confirm.sql]] |
 | Missions RLS + spatial CHECKs | [[../supabase/migrations/20260726_missions_schema_hardening.sql]] |
 | Contractor stores | [[../supabase/migrations/20260726_contractor_stores.sql]] |
 | Supplies / bundles / recurrence | [[../supabase/migrations/20260726_store_supplies_bundles_recurrence.sql]] |
@@ -153,5 +155,5 @@ missions
 ## Graph convention
 
 - Central hub: [[🗺️ GARBAGIN Master Index]]; also open [[04_Roadmap_Tasks/00_Dashboard]]
-- Prefer folder wiki links: `[[01_Architecture/KYC_Verification]]`, `[[01_Architecture/Security_and_RPCs]]`, `[[01_Architecture/P2P_Deal_Flow]]`, `[[01_Architecture/Stripe_USD_Flow]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]`, `[[docs/GARBAGIN_LIFECYCLE_AUDIT]]`
+- Prefer folder wiki links: `[[01_Architecture/KYC_Verification]]`, `[[01_Architecture/Security_and_RPCs]]`, `[[01_Architecture/P2P_Deal_Flow]]`, `[[01_Architecture/Stripe_USD_Flow]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]`, `[[docs/GARBAGIN_LIFECYCLE_AUDIT]]`
 - Source paths relative to vault root folders (e.g. `[[../src/components/AROverlay.tsx]]` from `01_Architecture/`)

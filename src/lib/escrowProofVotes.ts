@@ -1,5 +1,6 @@
 /**
- * Crowdfunding escrow: signed R2 playback + first-donor vote RPC.
+ * Crowdfunding escrow: signed R2 playback + donor vote RPC.
+ * Approve (first yes) → approved. Reject → in_progress retry (P1-1).
  */
 import { supabase } from '../../services/supabase';
 import { resolveAccessToken } from './supabaseAuth';

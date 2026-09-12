@@ -21,7 +21,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 | Backend / SQL | [[03_Backend_SQL/SQL_Migrations_Index]] |
 | Edge & API | [[03_Backend_SQL/Backend_Edge_and_API]] |
 | Roadmap | [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] |
-| Lifecycle audit / Wave A | [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] |
+| Lifecycle audit / Wave A–B | [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] |
 | Archive | [[05_Archive/Garbagin_Roadmap_Update]] |
 | Field dashboard | [[04_Roadmap_Tasks/00_Dashboard]] |
 
@@ -39,6 +39,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[01_Architecture/Global_Location_Filtering]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] — eco-ultimatum / Garbage History / Gov Notice
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] — P0-3 overfund auto-refund + P1-4 reporter-only convert
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] — P1-1 donor-reject retry + P1-2 no silent crowd abandon + P3-3 confirm RPC
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — read-only lifecycle scorecard (PR #2)
 
 ### App shell & config
@@ -135,6 +136,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 
 ### Profile, auth, chrome
 - [[components/Profile.tsx]]
+- [[components/DonorProofReview.tsx]]
 - [[components/ProfileCard.tsx]]
 - [[components/PublicProfile.tsx]]
 - [[components/Auth.tsx]]
@@ -209,6 +211,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[supabase/manual/AUDIT_phone_missions_access]]
 - [[supabase/manual/20260912_p0_expiry_first_donate_verify.sql]]
 - [[supabase/manual/20260912_wave_a_refund_convert_verify.sql]]
+- [[supabase/manual/20260912_wave_b_verify.sql]]
 
 ### Active migrations (canonical Jun–Jul 2026+)
 - [[supabase/migrations/20260617_garbage_crowdfunding.sql]]
@@ -250,6 +253,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[supabase/migrations/20260726_fix_location_trigger_border.sql]]
 - [[supabase/migrations/20260912_split_expiry_and_first_donate_wake.sql]]
 - [[supabase/migrations/20260912_overfund_refund_and_creator_convert.sql]]
+- [[supabase/migrations/20260912_wave_b_failed_recovery_abandon_confirm.sql]]
 
 Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 
@@ -261,6 +265,7 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 - [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] — product roadmap to store release
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] — crowdfunding eco-ultimatum, Gov Notice, 7-day Garbage History
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] — overfund refund + creator-only unpaid convert
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] — failed retry + crowd abandon exclude + P2P confirm RPC
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — audit scorecard vs canon
 - [[05_Archive/Garbagin_Roadmap_Update]] — superseded status report
 - [[.cursorrules]] — product + UI rules of engagement
@@ -271,6 +276,7 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 | Crowdfunding / Stripe USD | [[01_Architecture/Stripe_USD_Flow]] | [[src/lib/contributions.ts]], [[components/MissionBriefing.tsx]] |
 | Eco-ultimatum / Garbage History | [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] | [[src/lib/cityNotification.ts]], [[supabase/functions/city-notification-pipeline/index.ts]] |
 | Lifecycle audit / Wave A | [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] | [[supabase/functions/_shared/contributionRefund.ts]], [[supabase/migrations/20260912_overfund_refund_and_creator_convert.sql]] |
+| Lifecycle Wave B | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] | [[supabase/migrations/20260912_wave_b_failed_recovery_abandon_confirm.sql]], [[components/DonorProofReview.tsx]] |
 | P2P deals (no escrow) | [[01_Architecture/P2P_Deal_Flow]] | [[src/lib/submitMissionProof.ts]], [[src/lib/missionBids.ts]] |
 | Security / RPCs | [[01_Architecture/Security_and_RPCs]] | [[supabase/migrations/20260719_submit_mission_proof_rpc.sql]] |
 | KYC | [[01_Architecture/KYC_Verification]] | [[components/VerificationModal.tsx]], [[src/lib/kycDocuments.ts]] |

@@ -1593,6 +1593,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
     if (releasePaySubmitting || rejectProofSubmitting) return false;
     try {
       setReleasePaySubmitting(true);
+      // P3-3: active migration recreates this archive-only RPC for greenfield DBs.
       const { error: rpcErr } = await supabase.rpc('confirm_mission_work_done', {
         p_mission_id: job.id,
       });

@@ -5,7 +5,7 @@ aliases: [Stripe USD Flow, Crowdfunding money]
 
 # Stripe USD Flow
 
-> All fiat rails are **USD** (cents on Stripe, whole dollars in Postgres). Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/KYC_Verification]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
+> All fiat rails are **USD** (cents on Stripe, whole dollars in Postgres). Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/KYC_Verification]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
 
 ## Crowdfunding contributions
 
@@ -15,7 +15,7 @@ aliases: [Stripe USD Flow, Crowdfunding money]
 4. Edge → [[../supabase/functions/stripe-contribution-confirm/index.ts]] (browser confirm)
 5. **Also** Edge → [[../supabase/functions/stripe-webhook/index.ts]] on `checkout.session.completed` (server-side safety net if the user closes the tab)
 6. RPC `apply_stripe_contribution` (service_role) inserts `contributions.amount_usd` + `stripe_checkout_session_id`, bumps `missions.current_funding` — **idempotent** so confirm + webhook never double-credit. Optional `p_target_usd` wakes a `reported` pin (P0-2).
-7. If `current_funding >= expected_price` → `in_progress` when a cleaner is already locked, else `available` (open for bids).
+7. If `current_funding >= expected_price` → `in_progress` when a cleaner is already locked, else `available` (open for bids). A later donor **reject** on the proof video does **not** refund the pot — it sends work back to `in_progress` ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]). Funded crowd jobs are not silently abandoned after 24h.
 8. **P0-3 reject-refund:** if apply permanently rejects a *paid* Session (over-budget / not accepting / expired / …), confirm + webhook auto-create a Stripe refund. Ledger: `stripe_contribution_refunds`. Helper: [[../supabase/functions/_shared/contributionRefund.ts]]. Never refund a session that already has a `contributions` row. Product note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]].
 
 Webhook requires `STRIPE_WEBHOOK_SECRET` and `verify_jwt = false` (see `supabase/config.toml`).
@@ -51,4 +51,4 @@ Confirm failures return `{ error }` JSON; client parses via [[../src/lib/supabas
 
 ## Hub
 
-[[01_Architecture/Architecture_Overview]] · [[04_Roadmap_Tasks/00_Dashboard]] · [[01_Architecture/Security_and_RPCs]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[🗺️ GARBAGIN Master Index]]
+[[01_Architecture/Architecture_Overview]] · [[04_Roadmap_Tasks/00_Dashboard]] · [[01_Architecture/Security_and_RPCs]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[🗺️ GARBAGIN Master Index]]

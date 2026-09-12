@@ -28,7 +28,8 @@ aliases: [Frontend Components, UI Map]
 | Report garbage zone | [[components/ReportGarbageZoneModal.tsx]] |
 | Live market feed | [[components/LiveMarketFeed.tsx]] |
 | Bids terminal | [[components/BidsTerminal.tsx]] |
-| Profile floating glass card | [[components/Profile.tsx]] |
+| Profile floating glass card / P2P confirm + donor vote | [[components/Profile.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] |
+| Donor proof review (approve / reject-retry) | [[components/DonorProofReview.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] |
 | Public profile | [[components/PublicProfile.tsx]] |
 | Auth overlay | [[components/AuthOverlay.tsx]] |
 | Notification bell | [[components/NotificationBell.tsx]] |
@@ -72,6 +73,7 @@ aliases: [Frontend Components, UI Map]
 - Marketplace stores / bids / map UX → [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]]
 - Crowdfunding UI → [[01_Architecture/Stripe_USD_Flow]]
 - Reporter-only unpaid convert / first-donate form → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[docs/GARBAGIN_LIFECYCLE_AUDIT]]
+- Donor reject retry / P2P confirm RPC → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
 - P2P briefing CTAs → [[01_Architecture/P2P_Deal_Flow]]
 - Country / city filter + map camera sync → [[01_Architecture/Global_Location_Filtering]]
 - KYC gate → [[01_Architecture/KYC_Verification]]

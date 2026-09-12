@@ -119,16 +119,17 @@ Stripe session idempotency · `FOR UPDATE SKIP LOCKED` on expiry · Hungry-Games
 
 From [[docs/GARBAGIN_LIFECYCLE_AUDIT]] / [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] §8:
 
-- P1-1 crowd `failed` is terminal
-- P1-2 abandon sweep re-tenders funded crowd jobs
-- P2-1 / P2-2 history window, n8n, R2 purge
-- P2-3 `amount_target` USD clobber
+- ~~P1-1 crowd `failed` is terminal~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
+- ~~P1-2 abandon sweep re-tenders funded crowd jobs~~ — Wave B
+- P2-1 / P2-2 history window, n8n, R2 purge — Wave D
+- P2-3 `amount_target` USD clobber — Wave C
 
 ---
 
 ## Graph
 
 - [[🗺️ GARBAGIN Master Index]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]
 - [[04_Roadmap_Tasks/00_Dashboard]]
 - [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]]

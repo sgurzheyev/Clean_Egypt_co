@@ -1,5 +1,7 @@
 /**
- * Donor escrow review: play R2 proof video and first-vote Approve / Reject.
+ * Donor escrow review: play R2 proof video.
+ * Approve (first yes) closes the job. Reject sends work back to in_progress
+ * so the locked cleaner can re-upload — not a terminal `failed`.
  */
 import React, { useEffect, useState } from 'react';
 import { Check, Loader2, ShieldAlert, X } from 'lucide-react';
@@ -69,7 +71,12 @@ const DonorProofReview: React.FC<DonorProofReviewProps> = ({
       setVoting(isApproved ? 'approve' : 'reject');
       const result = await processProofVote({ missionId, isApproved });
       toast?.success(
-        t('escrowVoteRecorded', { defaultValue: 'Your vote has been recorded.' })
+        isApproved
+          ? t('escrowVoteRecorded', { defaultValue: 'Your vote has been recorded.' })
+          : t('escrowVoteRejectedRetry', {
+              defaultValue:
+                'Rejected. The cleaner can re-upload. The pot stays intact.',
+            })
       );
       onVoted?.(result.status);
     } catch (err: unknown) {
@@ -87,7 +94,8 @@ const DonorProofReview: React.FC<DonorProofReviewProps> = ({
       </p>
       <p className="text-xs text-slate-300">
         {t('escrowDonorReviewHint', {
-          defaultValue: 'First donor vote decides this job. Approve to release, or reject as fraud.',
+          defaultValue:
+            'Approve closes the job. Reject sends it back so the cleaner can re-upload — the pot is not refunded.',
         })}
       </p>
 
@@ -147,7 +155,7 @@ const DonorProofReview: React.FC<DonorProofReviewProps> = ({
           ) : (
             <X className="h-4 w-4" aria-hidden />
           )}
-          {t('escrowRejectCta', { defaultValue: 'Reject (fraud)' })}
+          {t('escrowRejectCta', { defaultValue: 'Reject — ask for a new video' })}
         </button>
       </div>
     </div>

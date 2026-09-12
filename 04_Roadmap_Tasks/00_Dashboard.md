@@ -10,6 +10,7 @@
 - [[01_Architecture/Stripe_USD_Flow]] — Checkout contribute, tokens, crowdfunding expiry
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] — free pin → rolling crowdfund → Gov Notice / n8n → 7-day history → R2 archive
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] — overfund auto-refund + reporter-only unpaid convert
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] — donor-reject retry + no silent crowd abandon + P2P confirm RPC
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — canon vs code scorecard
 - [[02_Frontend/Frontend_Components]] — UI / map component map
 - [[03_Backend_SQL/SQL_Migrations_Index]] — migrations MOC
@@ -20,6 +21,7 @@
 - [[01_Architecture/Stripe_USD_Flow]]: Экономика в USD + crowdfunding timer (`crowdfunding_expires_at`)
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]: Эко-ультиматум, Gov Notice, «История мусора»
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]: P0-3 refund / P1-4 convert lock
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]: P1-1 reject-retry / P1-2 crowd abandon exclude / P3-3 confirm RPC
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]: аудит стейт-машины
 - [[01_Architecture/KYC_Verification]]: Admin KYC queue + signed media
 - [[01_Architecture/P2P_Deal_Flow]]: Proof → review → P2P confirm (no escrow)
@@ -37,8 +39,9 @@
     - [ ] Корректность отображения прогресса сбора средств
 - [ ] Crowdfunding: Stripe contribute → funding bar → expiry countdown → `expired` + city queue
 - [ ] Wave A: two Checkouts for last `$N` → loser auto-refund; neighbor cannot unpaid-convert another user’s report ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]])
+- [ ] Wave B: donor reject on crowd proof → cleaner re-uploads (`in_progress`); funded crowd survives 24h abandon; Profile P2P confirm RPC exists ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]])
 - [ ] KYC: submit → admin signed preview → approve/reject
 - [ ] P2P: bid → proof → creator confirm
 
 ## Graph tips
-Open Graph View and center on [[🗺️ GARBAGIN Master Index]] or [[01_Architecture/Architecture_Overview]] — wiki-links fan out to [[01_Architecture/KYC_Verification]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], and [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
+Open Graph View and center on [[🗺️ GARBAGIN Master Index]] or [[01_Architecture/Architecture_Overview]] — wiki-links fan out to [[01_Architecture/KYC_Verification]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], and [[docs/GARBAGIN_LIFECYCLE_AUDIT]].

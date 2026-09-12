@@ -5,7 +5,7 @@ aliases: [Security and RPCs, RPC lock]
 
 # Security and RPCs
 
-> Hardened server paths: no client escrow mutation, USD-only money columns, service-role Stripe apply. Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/KYC_Verification]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
+> Hardened server paths: no client escrow mutation, USD-only money columns, service-role Stripe apply. Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/KYC_Verification]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
 
 ## Principles
 
@@ -20,8 +20,9 @@ aliases: [Security and RPCs, RPC lock]
 | --- | --- | --- |
 | `submit_mission_proof` | Worker | `in_progress` → `review`; **PostGIS GPS ≤200m**; no wallet debit. [[../supabase/migrations/20260720_proof_of_work_lifecycle_security.sql]] |
 | `creator_reject_proof` | Creator | `review` → `in_progress`; clears proof; stores `rejection_reason` |
-| `confirm_mission_*` / client confirm | Creator | P2P “work done” — see [[P2P_Deal_Flow]] |
-| `process_abandoned_missions` | Cron / service_role | `in_progress` idle >24h → `available` (clears `cleaner_id`) |
+| `confirm_mission_work_done` / `confirm_mission_direct_payment` | Creator | P2P “work done”: `review` / `pending_approval` → `completed`. Active tree (P3-3) — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] |
+| `process_proof_vote` | Donor | First **approve** → `approved`. First **reject** → `in_progress` retry (not `failed`) — P1-1 |
+| `process_abandoned_missions` | Cron / service_role | **P2P only:** `in_progress` idle >24h → `available` (clears `cleaner_id`). Crowdfunding excluded (P1-2) |
 | `process_stuck_reviews` | Cron / service_role | `review` idle >3d → `completed` + `auto_approved` |
 | `apply_stripe_contribution` | **service_role only** | Idempotent on `stripe_checkout_session_id`; writes `amount_usd` only; optional `p_target_usd` wakes `reported` (P0-2) |
 | `claim_contribution_reject_refund` / `mark_contribution_reject_refund` | **service_role only** | P0-3 ledger for paid-but-rejected Checkout Sessions ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]) |
@@ -54,4 +55,4 @@ Supervisor / admin dispute path is P2P-aligned (no escrow reverse): [[../supabas
 ## Graph
 
 - Rules: [[../.cursorrules]]
-- Vault: [[🗺️ GARBAGIN Master Index]], [[04_Roadmap_Tasks/00_Dashboard]], [[01_Architecture/Architecture_Overview]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]
+- Vault: [[🗺️ GARBAGIN Master Index]], [[04_Roadmap_Tasks/00_Dashboard]], [[01_Architecture/Architecture_Overview]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]

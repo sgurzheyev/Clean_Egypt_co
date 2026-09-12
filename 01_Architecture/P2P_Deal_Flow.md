@@ -16,9 +16,9 @@ Legacy aliases still seen in UI/data: `pending` ≈ available, `pending_approval
 2. **Bid / accept** — worker bids; creator `accept_mission_bid` → `in_progress` ([[Security_and_RPCs]]).
 3. **Home missions** — worker must be KYC-verified ([[KYC_Verification]]).
 4. **Proof** — worker `submit_mission_proof` → `review` (photos / liveness + **server GPS ≤200m**). No wallet debit.
-5. **Confirm** — creator confirms work done and pays the worker **off-platform / agreed P2P**. Platform does not hold fiat escrow.
-5b. **Creator reject** — `creator_reject_proof` → `in_progress` with `rejection_reason` (worker re-uploads).
-5c. **Timers** — abandoned `in_progress` (>24h) → `available`; stuck `review` (>3d) → `completed` + `auto_approved`.
+5. **Confirm** — creator calls `confirm_mission_work_done` (alias of `confirm_mission_direct_payment`, P3-3 in the active tree) and pays the worker **off-platform / agreed P2P**. Platform does not hold fiat escrow.
+5b. **Creator reject** — `creator_reject_proof` → `in_progress` with `rejection_reason` (worker re-uploads). Crowd donor reject uses the same retry shape ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]).
+5c. **Timers** — abandoned **P2P** `in_progress` (>24h) → `available`; stuck `review` (>3d) → `completed` + `auto_approved`. Crowdfunding is **not** silently abandoned (P1-2).
 6. **Dispute** — supervisor/admin moderation updates status / retry; no escrow unwind ([[../supabase/migrations/20260719_moderate_mission_dispute_p2p.sql]]).
 
 ## UI surfaces
@@ -37,7 +37,7 @@ Legacy aliases still seen in UI/data: `pending` ≈ available, `pending_approval
 
 ## vs Crowdfunding
 
-Garbage Removal campaigns use Stripe contributions while `status = funding`, then open for bidding when target met — [[Stripe_USD_Flow]]. Expired underfunded campaigns with money → eco-ultimatum (Gov Notice, n8n, 7-day Garbage History) — [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]. $0 after 7 days → pin hidden (no refund path). A Checkout the pot **never accepted** (overfund race) **is** card-refunded — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. Unpaid convert of a civic pin is the **reporter only**.
+Garbage Removal campaigns use Stripe contributions while `status = funding`, then open for bidding when target met — [[Stripe_USD_Flow]]. Expired underfunded campaigns with money → eco-ultimatum (Gov Notice, n8n, 7-day Garbage History) — [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]. $0 after 7 days → pin hidden (no refund path). A Checkout the pot **never accepted** (overfund race) **is** card-refunded — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. Unpaid convert of a civic pin is the **reporter only**. Donor reject on a funded video retries the cleaner — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]].
 
 ## Related RPCs
 

@@ -726,14 +726,17 @@ const resources = {
       proofSubmitVideoCta: 'Submit video report',
       escrowDonorReviewTitle: 'Review worker video',
       escrowDonorReviewHint:
-        'First donor vote decides this job. Approve to release, or reject as fraud.',
+        'Approve closes the job. Reject sends it back so the cleaner can re-upload — the pot is not refunded.',
       escrowApproveCta: 'Approve work',
-      escrowRejectCta: 'Reject (fraud)',
+      escrowRejectCta: 'Reject — ask for a new video',
       escrowVoteRecorded: 'Your vote has been recorded.',
+      escrowVoteRejectedRetry:
+        'Rejected. The cleaner can re-upload. The pot stays intact.',
       escrowVoteFailed: 'Could not record vote.',
       escrowVideoExpired: 'Video expired / unavailable. Storage window is 7 days.',
       escrowWaitingDonors: 'Waiting for a donor to review the video report.',
-      escrowWaitingDonorsWorker: 'Video submitted. Waiting for a donor to approve or reject.',
+      escrowWaitingDonorsWorker:
+        'Video submitted. A donor approve closes the job; a reject lets you re-upload.',
       proofUploadSuccess: 'Proof uploaded! Tokens will be credited after quick review.',
       proofAfterSubmitClientReview:
         'After you submit, the client will review and confirm the work is done.',
@@ -2073,14 +2076,17 @@ const resources = {
       proofSubmitVideoCta: 'Отправить видеоотчёт',
       escrowDonorReviewTitle: 'Проверка видео исполнителя',
       escrowDonorReviewHint:
-        'Первый голос донора решает исход. Одобрите работу или отклоните как фрод.',
+        'Одобрение закрывает работу. Отклонение возвращает её клинеру на повторную загрузку — банк не возвращается.',
       escrowApproveCta: 'Одобрить работу',
-      escrowRejectCta: 'Отклонить (фрод)',
+      escrowRejectCta: 'Отклонить — запросить новое видео',
       escrowVoteRecorded: 'Ваш голос учтён.',
+      escrowVoteRejectedRetry:
+        'Отклонено. Клинер может загрузить отчёт снова. Сбор остаётся на месте.',
       escrowVoteFailed: 'Не удалось записать голос.',
       escrowVideoExpired: 'Видео недоступно или срок хранения истёк.',
       escrowWaitingDonors: 'Ждём, пока донор проверит видеоотчёт.',
-      escrowWaitingDonorsWorker: 'Видео отправлено. Ждём одобрения или отклонения донора.',
+      escrowWaitingDonorsWorker:
+        'Видео отправлено. Одобрение донора закрывает работу; отклонение даёт вам перезалить отчёт.',
       proofUploadSuccess: 'Фотоотчёт загружен! Токены будут начислены после проверки.',
       proofAfterSubmitClientReview:
         'После отправки заказчик проверит и подтвердит выполнение работы.',
