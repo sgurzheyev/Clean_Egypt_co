@@ -5,7 +5,7 @@ aliases: [Security and RPCs, RPC lock]
 
 # Security and RPCs
 
-> Hardened server paths: no client escrow mutation, USD-only money columns, service-role Stripe apply. Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/KYC_Verification]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]], [[04_Roadmap_Tasks/Ops_Migration_History_Repair]], [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
+> Hardened server paths: no client escrow mutation, USD-only money columns, service-role Stripe apply. Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/KYC_Verification]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]], [[04_Roadmap_Tasks/Ops_Migration_History_Repair]], [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]], [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]].
 
 ## Principles
 
@@ -38,7 +38,7 @@ aliases: [Security and RPCs, RPC lock]
 | `creator_delete_mission` | Creator | `$0` / unfunded pins only. Funded pot → reject (P3-4) |
 | `mission_has_retained_funds` | Shared | `current_funding > 0` or any `contributions` row |
 | `admin_delete_mission` | Admin | Content moderation only (still deletes funded rows) |
-| `is_platform_admin` | Shared | Email / role / telegram gates |
+| `is_platform_admin` | Shared | Email / role / telegram gates — **open risk:** TG username self-set → admin ([[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] SEC-1) |
 
 ## Currency cleanup (EGP → USD)
 

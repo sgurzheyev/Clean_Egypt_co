@@ -2,7 +2,7 @@
 title: Garbagin Lifecycle Audit
 type: architecture
 status: audit
-updated: 2026-09-12
+updated: 2026-09-15
 tags: [garbagin, audit, crowdfunding, lifecycle]
 aliases: [Lifecycle audit, GARBAGIN_LIFECYCLE_AUDIT, P0 P1 scorecard]
 ---
@@ -11,6 +11,7 @@ aliases: [Lifecycle audit, GARBAGIN_LIFECYCLE_AUDIT, P0 P1 scorecard]
 
 > Read-only comparison of vault canon vs shipped SQL / Edge / client.  
 > Full write-up + repros: [PR #2](https://github.com/sgurzheyev/Clean_Egypt_co/pull/2) (`cursor/lifecycle-audit-50f5`).  
+> **Post–Wave E bug search (2026-09-15):** [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] — new SEC/LIFE findings (admin TG escalation, missions UPDATE forgery, accept-underfund).  
 > Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · dashboard: [[04_Roadmap_Tasks/00_Dashboard]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · apply: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · CLI history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 
 This note is the **vault graph node** for the audit. It does not change product behavior. Implementations land in later PRs and link back here.
@@ -113,6 +114,8 @@ Product language and file pointers: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]].
 10. ~~Vault / Roadmap / CLI-history hygiene~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]
 
 P3-3 (`confirm_mission_work_done` in the active tree) shipped with Wave B.
+
+**After Wave E (2026-09-15 E2E):** see [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] — Wave F (SEC-1/2 admin + missions UPDATE), Wave G (LIFE-1/2/3 accept-underfund + reject RPC + expiry unlock), Wave H (Edge/API auth).
 
 Canon snapshot table: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] §8.
 

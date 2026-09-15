@@ -21,7 +21,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 | Backend / SQL | [[03_Backend_SQL/SQL_Migrations_Index]] |
 | Edge & API | [[03_Backend_SQL/Backend_Edge_and_API]] |
 | Roadmap | [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] |
-| Lifecycle audit / Wave A–E | [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] · [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] |
+| Lifecycle audit / Wave A–E | [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] · [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] |
 | Archive | [[05_Archive/Garbagin_Roadmap_Update]] |
 | Field dashboard | [[04_Roadmap_Tasks/00_Dashboard]] |
 
@@ -46,6 +46,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `supabase migration repair` for `20260912_*`
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→D SQL + Edge apply order
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — read-only lifecycle scorecard (PR #2)
+- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] — post–Wave E E2E bug search (SEC / LIFE open items)
 
 ### App shell & config
 - [[App.tsx]]

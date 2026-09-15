@@ -16,7 +16,8 @@
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] — vault + CLI history hygiene (no product change)
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `migration repair` for `20260912_*` (no `db push`)
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→D SQL + Edge apply order
-- [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — canon vs code scorecard
+- [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — canon vs code scorecard (Waves A–E)
+- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] — post–Wave E security + lifecycle bug search (`main` last push 2026-09-12)
 - [[02_Frontend/Frontend_Components]] — UI / map component map
 - [[03_Backend_SQL/SQL_Migrations_Index]] — migrations MOC
 - [[03_Backend_SQL/Backend_Edge_and_API]] — edge functions & API routes
@@ -33,6 +34,7 @@
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]: `supabase migration repair --status applied 20260912`
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]: P0→D paste order (live already applied)
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]: аудит стейт-машины
+- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]]: E2E bug search 2026-09-15 (SEC-1 admin TG, SEC-2 missions UPDATE, LIFE-1 accept-underfund)
 - [[01_Architecture/KYC_Verification]]: Admin KYC queue + signed media
 - [[01_Architecture/P2P_Deal_Flow]]: Proof → review → P2P confirm (no escrow)
 
