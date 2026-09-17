@@ -505,14 +505,18 @@ Deno.serve(async (req) => {
     return json({ error: 'Method not allowed' }, 405);
   }
 
-  const webhookSecret = Deno.env.get('CITY_NOTIFICATION_WEBHOOK_SECRET');
-  if (webhookSecret) {
-    const provided =
-      req.headers.get('x-webhook-secret') ||
-      req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '');
-    if (provided !== webhookSecret) {
-      return json({ error: 'Unauthorized' }, 401);
-    }
+  const webhookSecret = str(Deno.env.get('CITY_NOTIFICATION_WEBHOOK_SECRET'));
+  const serviceRoleKey = str(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
+  const authHeader = str(req.headers.get('Authorization')).replace(/^Bearer\s+/i, '');
+  const gotSecret = str(req.headers.get('x-webhook-secret'));
+
+  const isServiceRole = Boolean(serviceRoleKey && authHeader === serviceRoleKey);
+  const isSecretMatch = Boolean(
+    webhookSecret && (gotSecret === webhookSecret || authHeader === webhookSecret)
+  );
+
+  if (!isServiceRole && !isSecretMatch) {
+    return json({ error: 'Unauthorized: valid service_role or webhook secret required' }, 401);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');

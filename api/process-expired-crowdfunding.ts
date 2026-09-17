@@ -1,62 +1,49 @@
 /**
- * Placeholder cron/webhook endpoint for expired Garbage Removal crowdfunding campaigns.
- *
- * Intended flow (wire when deploying a scheduled job):
- * 1. Call Supabase RPC `process_expired_crowdfunding_missions()` with service role.
- * 2. Fetch pending rows from `city_notification_events`.
- * 3. Generate PDF via `generateCityNotificationPdfPlaceholder` (replace with real PDF).
- * 4. Upload PDF + mark pdf_status = 'generated' | 'sent'.
- *
- * No Paymob — platform billing remains Stripe-only.
+ * Cron/webhook endpoint to process expired Garbage Removal crowdfunding campaigns.
+ * Calls Supabase RPC `process_expired_crowdfunding_missions()` with service role.
  */
-import {
-  buildCityNotificationSummary,
-  generateCityNotificationPdfPlaceholder,
-  type CityNotificationEvent,
-} from '../src/lib/cityNotification';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
-    return;
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Auth gate for cron secrets should be added before production use.
-  const secret = req.headers?.['x-cron-secret'] || req.headers?.['authorization'];
-  if (!secret) {
-    res.status(401).json({ error: 'Missing cron secret' });
-    return;
+  // OPS-1: Strict auth verification against configured secret
+  const expectedSecret = process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const authHeader = String(req.headers?.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  const cronHeader = String(req.headers?.['x-cron-secret'] || '').trim();
+  const provided = cronHeader || authHeader;
+
+  if (!expectedSecret || provided !== expectedSecret) {
+    return res.status(401).json({ error: 'Unauthorized: valid cron secret required' });
   }
 
   try {
-    // Placeholder: real implementation uses SUPABASE_SERVICE_ROLE_KEY + rpc + select.
-    console.info('[process-expired-crowdfunding] stub invoked', {
-      at: new Date().toISOString(),
-      summaryHelperReady: typeof buildCityNotificationSummary === 'function',
-      pdfHelperReady: typeof generateCityNotificationPdfPlaceholder === 'function',
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceRoleKey) {
+      return res.status(500).json({ error: 'Supabase service role config missing' });
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const sample: CityNotificationEvent = {
-      id: 'stub',
-      mission_id: '00000000-0000-0000-0000-000000000000',
-      event_type: 'crowdfunding_expired',
-      payload: {
-        service_type: 'junk_removal',
-        target_budget: 0,
-        raised: 0,
-      },
-      pdf_status: 'pending',
-      created_at: new Date().toISOString(),
-    };
-    await generateCityNotificationPdfPlaceholder(sample);
+    const { data: count, error } = await supabase.rpc('process_expired_crowdfunding_missions');
+    if (error) {
+      console.error('[process-expired-crowdfunding] RPC failed:', error);
+      return res.status(500).json({ error: error.message });
+    }
 
-    res.status(200).json({
+    return res.status(200).json({
       ok: true,
-      message:
-        'Placeholder only. Deploy cron to call process_expired_crowdfunding_missions and generate PDFs.',
+      processed_expired: count ?? 0,
+      timestamp: new Date().toISOString(),
     });
   } catch (err: any) {
     console.error('[process-expired-crowdfunding]', err);
-    res.status(500).json({ error: err?.message || 'Failed' });
+    return res.status(500).json({ error: err?.message || 'Failed' });
   }
 }

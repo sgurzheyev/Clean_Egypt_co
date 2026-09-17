@@ -89,15 +89,11 @@ Deno.serve(async (req) => {
       });
       const { data: profile } = await supabaseServiceProbe
         .from('profiles')
-        .select('role, telegram_username')
+        .select('role')
         .eq('id', user.id)
         .maybeSingle();
-      const email = String(user.email || '').toLowerCase();
       const roleOk = String(profile?.role || '').toLowerCase() === 'admin';
-      const emailOk =
-        email === 'sgurzheyev@gmail.com' || email.includes('tg_6618910143');
-      const tgOk = String(profile?.telegram_username || '').toLowerCase() === 'sergiogurgini';
-      if (!roleOk && !emailOk && !tgOk) {
+      if (!roleOk) {
         return jsonError(adminErr.message || 'Admin check failed', 403);
       }
     } else if (!isAdmin) {
