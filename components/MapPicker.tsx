@@ -3976,6 +3976,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
           return;
         }
 
+        // Hungry-Games: worker must have an active subscription to place bids
+        if (!workerHasActiveSubscription && !isPlatformAdminViewer) {
+          setShowSubscriptionModal(true);
+          return;
+        }
+
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('is_verified')
@@ -4002,13 +4008,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
       } catch (e: any) {
         console.error('handleBriefingPlaceBid', e);
         const msg = String(e?.message || '');
-        toast.error(
-          /insufficient tokens/i.test(msg)
-            ? t('insufficientTokensForBid', {
-                defaultValue: 'Insufficient tokens. 1 token required to place a bid.',
-              })
-            : msg || t('mapToastBidUnexpectedError')
-        );
+        if (/subscription required/i.test(msg)) {
+          setShowSubscriptionModal(true);
+        } else if (/insufficient tokens/i.test(msg)) {
+          toast.error(
+            t('insufficientTokensForBid', {
+              defaultValue: 'Insufficient tokens. 1 token required to place a bid.',
+            })
+          );
+        } else {
+          toast.error(msg || t('mapToastBidUnexpectedError'));
+        }
       } finally {
         briefingActionLockRef.current = false;
         setBriefingBidSubmitting(false);
@@ -4016,12 +4026,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
     },
     [
       fetchMissions,
+      isPlatformAdminViewer,
       onRequestAuth,
       placePendingBid,
       refreshMissionBids,
       selectedMission,
       t,
       toast,
+      workerHasActiveSubscription,
     ]
   );
 

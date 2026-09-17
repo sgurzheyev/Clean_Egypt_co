@@ -105,3 +105,9 @@ export async function acceptMissionBid(
   const { error } = await supabase.rpc('accept_mission_bid', payload);
   if (error) throw error;
 }
+
+/** Creator declines a pending bid. */
+export async function rejectMissionBid(bidId: string): Promise<void> {
+  const { error } = await supabase.rpc('reject_mission_bid', { p_bid_id: bidId });
+  if (error) throw error;
+}

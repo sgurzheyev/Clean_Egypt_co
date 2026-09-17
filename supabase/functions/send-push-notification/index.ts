@@ -187,11 +187,17 @@ Deno.serve(async (req) => {
   }
 
   const expectedSecret = str(Deno.env.get('PUSH_WEBHOOK_SECRET'));
-  if (expectedSecret) {
-    const got = str(req.headers.get('x-webhook-secret'));
-    if (got !== expectedSecret) {
-      return json({ error: 'Unauthorized webhook' }, 401);
-    }
+  const serviceRoleKey = str(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
+  const authHeader = str(req.headers.get('Authorization')).replace(/^Bearer\s+/i, '');
+  const gotSecret = str(req.headers.get('x-webhook-secret'));
+
+  const isServiceRole = Boolean(serviceRoleKey && authHeader === serviceRoleKey);
+  const isSecretMatch = Boolean(
+    expectedSecret && (gotSecret === expectedSecret || authHeader === expectedSecret)
+  );
+
+  if (!isServiceRole && !isSecretMatch) {
+    return json({ error: 'Unauthorized: valid service_role or webhook secret required' }, 401);
   }
 
   let body: Record<string, unknown>;

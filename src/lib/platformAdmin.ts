@@ -1,4 +1,4 @@
-/** Matches server-side admin checks (trigger + admin_delete_mission RPC). */
+/** Matches server-side admin checks (platform_admins / email / role). */
 export function isPlatformAdmin(input: {
   email?: string | null;
   telegramUsername?: string | null;
@@ -6,8 +6,7 @@ export function isPlatformAdmin(input: {
 }): boolean {
   if (String(input.role ?? '').toLowerCase() === 'admin') return true;
   const email = String(input.email ?? '').toLowerCase();
-  if (email === 'sgurzheyev@gmail.com' || email.includes('tg_6618910143')) return true;
-  return String(input.telegramUsername ?? '').toLowerCase() === 'sergiogurgini';
+  return email === 'sgurzheyev@gmail.com' || email.includes('tg_6618910143');
 }
 
 /** Worker Orders — still in flight (P2P review + crowd awaiting_approval). */
