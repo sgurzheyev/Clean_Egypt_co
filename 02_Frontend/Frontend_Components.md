@@ -20,7 +20,7 @@ aliases: [Frontend Components, UI Map]
 | B2B storefront page | [[components/StorefrontPage.tsx]] |
 | Trust badge pills | [[components/TrustBadgeRow.tsx]] |
 | Store showcase sections | [[components/StoreShowcaseSections.tsx]] |
-| Mission briefing / contribute / bid / reporter-only convert | [[components/MissionBriefing.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] |
+| Mission briefing / contribute / bid / reporter-only convert | [[components/MissionBriefing.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Map pin card matches store preview: hero is photos + X / count / dots only; category, price, location, status, token hint, description, and reporter chip sit in the dark body below. |
 | Briefing error boundary | [[components/MissionBriefingErrorBoundary.tsx]] |
 | Filters bottom sheet | [[components/MissionFilterPanel.tsx]] |
 | Feed card | [[components/MissionFeedCard.tsx]] |

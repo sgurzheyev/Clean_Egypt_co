@@ -2,7 +2,7 @@
  * [[Architecture_Overview.md]]
  * Mission detail panel — bids, crowdfunding progress + Stripe contribute.
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, EyeOff, MapPin, Pencil, Video, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import TranslatableMissionDescription from './TranslatableMissionDescription';
@@ -403,7 +403,103 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   const editVideoInputRef = useRef<HTMLInputElement>(null);
   const photos = resolveMissionGalleryUrls(mission);
   const videoProofSrc = resolveStoredMediaUrl(mission.video_proof_url);
+  const mediaCount = photos.length + (videoProofSrc ? 1 : 0);
+  const heroPagerRef = useRef<HTMLDivElement | null>(null);
+  const heroDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startLeft: number;
+    moved: boolean;
+  } | null>(null);
+  const [heroIndex, setHeroIndex] = useState(0);
   const remainingUsd = crowdfundingRemainingUsd(mission);
+
+  const syncHeroIndexFromScroll = useCallback(() => {
+    const el = heroPagerRef.current;
+    if (!el || mediaCount < 2) return;
+    const width = Math.max(1, el.clientWidth);
+    const next = Math.min(
+      mediaCount - 1,
+      Math.max(0, Math.round(el.scrollLeft / width))
+    );
+    setHeroIndex((prev) => (prev === next ? prev : next));
+  }, [mediaCount]);
+
+  const goToHero = useCallback(
+    (next: number) => {
+      const el = heroPagerRef.current;
+      if (!el || mediaCount < 2) return;
+      const clamped = Math.min(mediaCount - 1, Math.max(0, next));
+      const width = Math.max(1, el.clientWidth);
+      el.scrollTo({ left: clamped * width, behavior: 'smooth' });
+      setHeroIndex(clamped);
+    },
+    [mediaCount]
+  );
+
+  const onHeroPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (mediaCount < 2) return;
+    if (e.pointerType === 'touch') return;
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('video, button, a, input, textarea')) return;
+    const el = e.currentTarget;
+    heroDragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startLeft: el.scrollLeft,
+      moved: false,
+    };
+    el.setPointerCapture(e.pointerId);
+  };
+
+  const onHeroPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = heroDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const dx = e.clientX - drag.startX;
+    if (!drag.moved && Math.abs(dx) < 6) return;
+    drag.moved = true;
+    e.currentTarget.scrollLeft = drag.startLeft - dx;
+  };
+
+  const endHeroDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = heroDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const moved = drag.moved;
+    heroDragRef.current = null;
+    const el = e.currentTarget;
+    if (el.hasPointerCapture(e.pointerId)) {
+      el.releasePointerCapture(e.pointerId);
+    }
+    if (!moved) {
+      syncHeroIndexFromScroll();
+      return;
+    }
+    const width = Math.max(1, el.clientWidth);
+    const next = Math.min(
+      mediaCount - 1,
+      Math.max(0, Math.round(el.scrollLeft / width))
+    );
+    el.scrollTo({ left: next * width, behavior: 'smooth' });
+    setHeroIndex(next);
+  };
+
+  const onHeroKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      goToHero(heroIndex + 1);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      goToHero(heroIndex - 1);
+    }
+  };
+
+  useEffect(() => {
+    setHeroIndex(0);
+    const el = heroPagerRef.current;
+    if (el) el.scrollLeft = 0;
+  }, [mission.id]);
+
   const placeholderVariant = placeholderVariantFor(mission);
   const isReportPin = isGarbageZoneReport(mission);
   const placeholderIcon = missionPinIcon(
@@ -841,47 +937,59 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
           </div>
         ) : (
           <>
-            {/* Immersive magazine hero — explicit height so absolute media cannot collapse */}
+            {/* Hero gallery — store pin card pattern: photos + minimal chrome only */}
             <div className="relative w-full shrink-0 overflow-hidden bg-slate-900 h-[min(38svh,16rem)] sm:h-[22rem]">
               {photos.length > 0 || videoProofSrc ? (
-                <>
-                  <div
-                    className="relative z-0 flex h-full w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain overscroll-y-none touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-                    style={{ WebkitOverflowScrolling: 'touch' }}
-                  >
-                    {photos.map((url, index) => (
-                      <div
-                        key={`${url}-${index}`}
-                        className="relative h-full w-full min-w-full flex-[0_0_100%] snap-center snap-always overflow-hidden"
-                      >
-                        <img
-                          src={url}
-                          alt={`Mission photo ${index + 1}`}
-                          className="block h-full w-full object-cover"
-                          loading={index === 0 ? 'eager' : 'lazy'}
-                          decoding="async"
-                          draggable={false}
-                        />
-                      </div>
-                    ))}
-                    {videoProofSrc ? (
-                      <div className="relative h-full w-full min-w-full flex-[0_0_100%] snap-center snap-always overflow-hidden bg-black">
-                        <video
-                          src={videoProofSrc}
-                          className="block h-full w-full object-cover"
-                          controls
-                          playsInline
-                          preload="metadata"
-                        />
-                      </div>
-                    ) : null}
-                  </div>
-                  {(photos.length + (videoProofSrc ? 1 : 0)) > 1 && (
-                    <p className="pointer-events-none absolute top-12 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/20 bg-black/45 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white/80 backdrop-blur-sm">
-                      {t('swipeForMorePhotos')} · {photos.length + (videoProofSrc ? 1 : 0)}
-                    </p>
-                  )}
-                </>
+                <div
+                  ref={heroPagerRef}
+                  dir="ltr"
+                  tabIndex={mediaCount > 1 ? 0 : undefined}
+                  role={mediaCount > 1 ? 'region' : undefined}
+                  aria-roledescription={mediaCount > 1 ? 'carousel' : undefined}
+                  aria-label={t('swipeForMorePhotos')}
+                  onScroll={syncHeroIndexFromScroll}
+                  onPointerDown={onHeroPointerDown}
+                  onPointerMove={onHeroPointerMove}
+                  onPointerUp={endHeroDrag}
+                  onPointerCancel={endHeroDrag}
+                  onKeyDown={onHeroKeyDown}
+                  className={`ce-hide-scrollbar relative z-0 flex h-full w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain overscroll-y-none touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
+                    mediaCount > 1 ? 'cursor-grab active:cursor-grabbing' : ''
+                  }`}
+                  style={{ WebkitOverflowScrolling: 'touch' }}
+                >
+                  {photos.map((url, index) => (
+                    <div
+                      key={`${url}-${index}`}
+                      className="relative h-full w-full min-w-full flex-[0_0_100%] snap-center snap-always overflow-hidden"
+                      aria-hidden={index !== heroIndex}
+                    >
+                      <img
+                        src={url}
+                        alt={`Mission photo ${index + 1}`}
+                        className="block h-full w-full select-none object-cover"
+                        loading={index === 0 ? 'eager' : 'lazy'}
+                        decoding="async"
+                        draggable={false}
+                        onDragStart={(ev) => ev.preventDefault()}
+                      />
+                    </div>
+                  ))}
+                  {videoProofSrc ? (
+                    <div
+                      className="relative h-full w-full min-w-full flex-[0_0_100%] snap-center snap-always overflow-hidden bg-black"
+                      aria-hidden={heroIndex !== photos.length}
+                    >
+                      <video
+                        src={videoProofSrc}
+                        className="block h-full w-full object-cover"
+                        controls
+                        playsInline
+                        preload="metadata"
+                      />
+                    </div>
+                  ) : null}
+                </div>
               ) : (
                 <div
                   className={`flex h-full w-full items-center justify-center ${missionFeedPlaceholderGradient(
@@ -894,11 +1002,20 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 </div>
               )}
 
-              {/* Bottom fade into the sheet only — do not paint over the photo */}
               <div
-                className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-24 bg-gradient-to-t from-[#020617] to-transparent"
+                className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-12 bg-gradient-to-t from-[#020617] via-[#020617]/45 to-transparent"
                 aria-hidden
               />
+
+              {mediaCount > 1 && (
+                <p className="pointer-events-none absolute left-3 top-3 z-20 rounded-full border border-white/20 bg-black/50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/90 backdrop-blur-sm">
+                  {t('storePhotoCount', {
+                    defaultValue: '{{current}} / {{total}}',
+                    current: heroIndex + 1,
+                    total: mediaCount,
+                  })}
+                </p>
+              )}
 
               <button
                 type="button"
@@ -909,68 +1026,96 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 <X className="h-4 w-4" strokeWidth={2.25} />
               </button>
 
-              <div className="pointer-events-none absolute left-3 top-3 z-20 flex max-w-[calc(100%-4.5rem)] flex-wrap gap-1.5">
-                {isReportPin ? (
-                  <span className="rounded-full border border-rose-400/55 bg-rose-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-rose-100 backdrop-blur-sm">
-                    {t('reportZoneBadge', { defaultValue: 'Reported Zone' })}
-                  </span>
-                ) : (
-                  <span
-                    className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${
-                      placeholderVariant === 'home'
-                        ? 'border-amber-400/50 bg-amber-500/25 text-amber-100'
-                        : 'border-emerald-400/50 bg-emerald-500/25 text-emerald-100'
-                    }`}
-                  >
-                    {placeholderVariant === 'home' ? t('homeCleaning') : t('cityCleaning')}
-                  </span>
-                )}
-                {isOwnActive && (
-                  <span className="rounded-full border border-sky-400/50 bg-sky-500/25 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-sky-100 backdrop-blur-sm">
-                    {t('yourActiveMission')}
-                  </span>
-                )}
-                {missionRecurrence !== 'one_time' && (
-                  <span className="rounded-full border border-fuchsia-400/50 bg-fuchsia-500/25 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-fuchsia-100 backdrop-blur-sm">
-                    {t(recurrenceLabelKey(missionRecurrence), {
-                      defaultValue: missionRecurrence,
-                    })}
-                  </span>
-                )}
-              </div>
+              {mediaCount > 1 && (
+                <div
+                  className="pointer-events-auto absolute inset-x-0 bottom-2.5 z-20 flex items-center justify-center gap-1.5"
+                  role="tablist"
+                  aria-label={t('swipeForMorePhotos')}
+                >
+                  {Array.from({ length: mediaCount }, (_, photoIndex) => (
+                    <button
+                      key={`hero-dot-${photoIndex}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={photoIndex === heroIndex}
+                      aria-label={t('storePhotoGoTo', {
+                        defaultValue: 'Photo {{n}}',
+                        n: photoIndex + 1,
+                      })}
+                      onClick={() => goToHero(photoIndex)}
+                      className={`h-1.5 rounded-full transition-all duration-200 ${
+                        photoIndex === heroIndex
+                          ? 'w-5 bg-cyan-200'
+                          : 'w-1.5 bg-white/45 hover:bg-white/70'
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
 
-              {/* Editorial stack over the photo — price overlays preserved; status + copy sit on top */}
-              <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-end">
-                <div className="relative px-4 pb-3 pt-24">
-                  <div
-                    className={
-                      onCreatorClick || (onMuteCreator && !isMissionCreator && mission.creator_id)
-                        ? 'pr-36'
-                        : ''
-                    }
-                  >
-                    <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-300/80">
-                      {t('missionBriefing')}
-                    </p>
-                    <p className="text-2xl font-black leading-none tracking-tight text-orange-300 drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)] sm:text-3xl">
-                      {budgetValue}
-                    </p>
-                    <div className="mt-2 flex items-start gap-1.5">
-                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300/90" strokeWidth={2.25} />
-                      <p className="line-clamp-2 text-xs font-medium leading-snug text-slate-100/90">
-                        {locationTranslation.displayText}
+            <div className="relative z-[1] space-y-5 bg-[#020617] px-5 pt-3.5 pb-1">
+              <div
+                className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                aria-hidden
+              />
+
+              <header className="space-y-3">
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      {isReportPin ? (
+                        <span className="rounded-full border border-rose-400/55 bg-rose-500/25 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-rose-100">
+                          {t('reportZoneBadge', { defaultValue: 'Reported Zone' })}
+                        </span>
+                      ) : (
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] ${
+                            placeholderVariant === 'home'
+                              ? 'border-amber-400/50 bg-amber-500/20 text-amber-100'
+                              : 'border-emerald-400/50 bg-emerald-500/20 text-emerald-100'
+                          }`}
+                        >
+                          {placeholderVariant === 'home' ? t('homeCleaning') : t('cityCleaning')}
+                        </span>
+                      )}
+                      {isOwnActive && (
+                        <span className="rounded-full border border-sky-400/50 bg-sky-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-sky-100">
+                          {t('yourActiveMission')}
+                        </span>
+                      )}
+                      {missionRecurrence !== 'one_time' && (
+                        <span className="rounded-full border border-fuchsia-400/50 bg-fuchsia-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-fuchsia-100">
+                          {t(recurrenceLabelKey(missionRecurrence), {
+                            defaultValue: missionRecurrence,
+                          })}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                        {t('missionBriefing')}
                       </p>
+                      <p className="mt-1 text-2xl font-black leading-none tracking-tight text-orange-300 sm:text-3xl">
+                        {budgetValue}
+                      </p>
+                      <div className="mt-2 flex items-start gap-1.5">
+                        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300/90" strokeWidth={2.25} />
+                        <p className="line-clamp-2 text-xs font-medium leading-snug text-slate-200">
+                          {locationTranslation.displayText}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
                   {(onCreatorClick ||
                     (onMuteCreator && !isMissionCreator && !!mission.creator_id)) && (
-                    <div className="pointer-events-auto absolute bottom-3 right-3 z-30 flex max-w-[min(100%,14rem)] items-center gap-1.5">
+                    <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
                       {onMuteCreator && !isMissionCreator && mission.creator_id && (
                         <button
                           type="button"
                           onClick={() => onMuteCreator(String(mission.creator_id))}
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rose-400/40 bg-black/60 text-rose-200 shadow-lg backdrop-blur-md transition-transform hover:border-rose-300/70 hover:bg-rose-500/20 active:scale-95"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rose-400/40 bg-rose-500/10 text-rose-200 transition-transform hover:border-rose-300/70 hover:bg-rose-500/20 active:scale-95"
                           aria-label={t('muteCreatorAction', {
                             defaultValue: 'Hide creator',
                           })}
@@ -983,7 +1128,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                         <button
                           type="button"
                           onClick={onCreatorClick}
-                          className="flex min-w-0 items-center gap-2 rounded-full border border-emerald-300/50 bg-black/55 py-1 pl-1 pr-2.5 text-emerald-100 shadow-lg backdrop-blur-md transition-transform hover:border-emerald-200/80 active:scale-95"
+                          className="flex min-w-0 items-center gap-2 rounded-full border border-emerald-300/40 bg-emerald-500/15 py-1 pl-1 pr-2.5 text-emerald-100 transition-transform hover:border-emerald-200/70 active:scale-95"
                           aria-label={t('viewCreatorProfile')}
                           title={creatorName || t('viewCreatorProfile')}
                         >
@@ -1018,71 +1163,67 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                   )}
                 </div>
 
-                <div className="pointer-events-auto relative z-10 space-y-3 px-5 pb-5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] backdrop-blur-sm ${statusBadgeTone}`}
-                    >
-                      {t('status')}: {statusLabel}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] ${statusBadgeTone}`}
+                  >
+                    {t('status')}: {statusLabel}
+                  </span>
+                  <span className="text-[10px] font-medium text-slate-300">
+                    {isReportPin
+                      ? t('reportZoneFreeLabel', { defaultValue: 'Free civic report' })
+                      : `${t('missionTokenBidLabel')}: ${formatTokens(missionTokenBid(mission))}`}
+                  </span>
+                  {activeBidCount > 0 && (
+                    <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300">
+                      {t('activeBidsOnMission')}
                     </span>
-                    <span className="text-[10px] font-medium text-slate-200/90 drop-shadow-sm">
-                      {isReportPin
-                        ? t('reportZoneFreeLabel', { defaultValue: 'Free civic report' })
-                        : `${t('missionTokenBidLabel')}: ${formatTokens(missionTokenBid(mission))}`}
-                    </span>
-                    {activeBidCount > 0 && (
-                      <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 drop-shadow-sm">
-                        {t('activeBidsOnMission')}
-                      </span>
-                    )}
-                    {remainingUsd != null && (
-                      <span className="rounded-full border border-violet-400/50 bg-violet-600/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-white backdrop-blur-sm">
-                        {t('feedNeedsMore', {
-                          amount: remainingUsd,
-                          defaultValue: 'Needs ${{amount}} more',
-                        })}
-                      </span>
-                    )}
-                    {canEditMission && (
-                      <button
-                        type="button"
-                        onClick={openEditModal}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/35 bg-black/50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.18)] backdrop-blur-md transition-transform hover:border-cyan-300/55 hover:bg-black/65 active:scale-95"
-                      >
-                        <Pencil className="h-3 w-3" strokeWidth={2.5} aria-hidden />
-                        {t('edit')}
-                      </button>
-                    )}
-                  </div>
-
-                  {feedDescription && (
-                    <section>
-                      <TranslatableMissionDescription
-                        text={feedDescription}
-                        autoTranslate
-                        showTranslateButton
-                        clampClassName=""
-                        className="text-sm font-medium leading-relaxed text-slate-100 drop-shadow-[0_1px_8px_rgba(0,0,0,0.65)]"
-                      />
-                    </section>
                   )}
-
-                  {canEditMission && !feedDescription && (
+                  {remainingUsd != null && (
+                    <span className="rounded-full border border-violet-400/50 bg-violet-600/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-white">
+                      {t('feedNeedsMore', {
+                        amount: remainingUsd,
+                        defaultValue: 'Needs ${{amount}} more',
+                      })}
+                    </span>
+                  )}
+                  {canEditMission && (
                     <button
                       type="button"
                       onClick={openEditModal}
-                      className="text-left text-xs font-medium text-cyan-300/90 underline-offset-2 hover:underline"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/35 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200 transition-transform hover:border-cyan-300/55 hover:bg-cyan-500/15 active:scale-95"
                     >
-                      {t('editMissionAddDetails', {
-                        defaultValue: 'Add description or photos',
-                      })}
+                      <Pencil className="h-3 w-3" strokeWidth={2.5} aria-hidden />
+                      {t('edit')}
                     </button>
                   )}
                 </div>
-              </div>
-            </div>
 
-            <div className="relative z-[1] space-y-5 bg-[#020617] px-5 pt-1 pb-1">
+                {feedDescription && (
+                  <section>
+                    <TranslatableMissionDescription
+                      text={feedDescription}
+                      autoTranslate
+                      showTranslateButton
+                      clampClassName=""
+                      className="text-sm font-medium leading-relaxed text-slate-200"
+                    />
+                  </section>
+                )}
+
+                {canEditMission && !feedDescription && (
+                  <button
+                    type="button"
+                    onClick={openEditModal}
+                    className="text-left text-xs font-medium text-cyan-300/90 underline-offset-2 hover:underline"
+                  >
+                    {t('editMissionAddDetails', {
+                      defaultValue: 'Add description or photos',
+                    })}
+                  </button>
+                )}
+              </header>
+
               {isReportPin && (
                 <section className="border-t border-white/5 pt-4">
                   <div className="flex items-start justify-between gap-3">
