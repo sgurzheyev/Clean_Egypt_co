@@ -13,7 +13,7 @@ aliases: [Frontend Components, UI Map]
 | --- | --- |
 | Map (create / bid / crowdfund / stores / Hungry-Games sub modal) | [[components/MapPicker.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] |
 | Store coverage map (lilac zone) | [[components/StoreCoverageMap.tsx]] |
-| Store pin preview | [[components/MapStorePreviewCard.tsx]] · `.map-store-preview-card` light frost (service zone stays visible through the sheet) |
+| Store pin preview | [[components/MapStorePreviewCard.tsx]] · `.map-store-preview-card` light frost (service zone stays visible through the sheet). Hero swipes all `contractor_stores.store_photos` (cover first); bio expands in-place. |
 | Portaled store profile | [[components/StoreProfileOverlay.tsx]] |
 | My Store panel | [[components/ContractorStorePanel.tsx]] |
 | Public store card | [[components/PublicStoreCard.tsx]] |

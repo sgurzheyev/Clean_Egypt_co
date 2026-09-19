@@ -456,6 +456,11 @@ const resources = {
       storeZoneVisibleHint: 'Service zone highlighted on the map',
       storeTapMapToFitZone: 'Tap map for a 3D flyover of the service zone',
       storeOpenProfile: 'Open store profile',
+      storeBioShowMore: 'Show more',
+      storeBioShowLess: 'Show less',
+      storePhotoCount: '{{current}} / {{total}}',
+      storePhotoGalleryLabel: '{{name}} photos',
+      storePhotoGoTo: 'Photo {{n}}',
       storePanelHint:
         'Build your business storefront: office, coverage, supplies, bundles, and Subscribe & Save.',
       storeNameLabel: 'Store name',
@@ -1827,6 +1832,11 @@ const resources = {
       storeZoneVisibleHint: 'Зона обслуживания подсвечена на карте',
       storeTapMapToFitZone: 'Нажмите на карту — 3D-облёт всей зоны обслуживания',
       storeOpenProfile: 'Открыть профиль магазина',
+      storeBioShowMore: 'Ещё',
+      storeBioShowLess: 'Свернуть',
+      storePhotoCount: '{{current}} / {{total}}',
+      storePhotoGalleryLabel: 'Фото {{name}}',
+      storePhotoGoTo: 'Фото {{n}}',
       storePanelHint:
         'Соберите витрину бизнеса: офис, зона, расходники, пакеты услуг и Subscribe & Save.',
       storeNameLabel: 'Название магазина',
