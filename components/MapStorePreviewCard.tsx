@@ -58,7 +58,7 @@ const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({
       aria-label={title}
     >
       {/* Top half — large cover photo */}
-      <div className="relative h-[9.5rem] w-full shrink-0 overflow-hidden rounded-t-2xl bg-slate-950 sm:h-[11rem]">
+      <div className="relative h-[8rem] w-full shrink-0 overflow-hidden rounded-t-2xl bg-slate-950 sm:h-[9rem]">
         {hero ? (
           <img
             src={hero}
