@@ -13,7 +13,7 @@ aliases: [Frontend Components, UI Map]
 | --- | --- |
 | Map (create / bid / crowdfund / stores / Hungry-Games sub modal) | [[components/MapPicker.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] |
 | Store coverage map (lilac zone) | [[components/StoreCoverageMap.tsx]] |
-| Store pin preview | [[components/MapStorePreviewCard.tsx]] |
+| Store pin preview | [[components/MapStorePreviewCard.tsx]] · `.map-store-preview-card` light frost (service zone stays visible through the sheet) |
 | Portaled store profile | [[components/StoreProfileOverlay.tsx]] |
 | My Store panel | [[components/ContractorStorePanel.tsx]] |
 | Public store card | [[components/PublicStoreCard.tsx]] |
@@ -45,7 +45,7 @@ aliases: [Frontend Components, UI Map]
 
 | Concern | Link |
 | --- | --- |
-| Global CSS (sheets, glass, water) | [[index.css]] |
+| Global CSS (sheets, glass, water, store-pin frost) | [[index.css]] |
 | Steel / profile glass tokens | [[constants.ts]] |
 | Map Egypt theme | [[src/lib/mapEgyptTheme.ts]] |
 | Map weather layers | [[src/lib/mapWeather.ts]] |

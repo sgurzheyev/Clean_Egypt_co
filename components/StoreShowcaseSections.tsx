@@ -40,6 +40,8 @@ export function storeSkuUnitLabelKey(unit: StoreServiceUnit): string {
 export type StoreServiceSkusShowcaseProps = {
   skus: StoreServiceSku[];
   compact?: boolean;
+  /** Denser chip fill — use on light map frost where /15 emerald washes out. */
+  solidChips?: boolean;
   /** When set, SKU rows become request CTAs (store → mission draft). */
   onSelectSku?: (sku: StoreServiceSku) => void;
 };
@@ -48,6 +50,7 @@ export type StoreServiceSkusShowcaseProps = {
 export const StoreServiceSkusShowcase: React.FC<StoreServiceSkusShowcaseProps> = ({
   skus,
   compact = false,
+  solidChips = false,
   onSelectSku,
 }) => {
   const { t } = useTranslation();
@@ -82,8 +85,9 @@ export const StoreServiceSkusShowcase: React.FC<StoreServiceSkusShowcaseProps> =
               </span>
             </>
           );
-          const className =
-            'inline-flex max-w-full items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-100';
+          const className = solidChips
+            ? 'inline-flex max-w-full items-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-600/55 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-50'
+            : 'inline-flex max-w-full items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-100';
           if (onSelectSku) {
             return (
               <button

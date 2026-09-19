@@ -1,7 +1,7 @@
 /**
  * Compact store preview card shown when a map store pin is selected.
- * Photo fills the top half; body sits on dense dark glass so white copy
- * stays readable on the dark land cover under a dynamic sky.
+ * Photo fills the top half; body uses light frost (.map-store-preview-card)
+ * so the published service-zone fill stays visible through the sheet.
  */
 import React from 'react';
 import { MapPin, Store, X } from 'lucide-react';
@@ -11,7 +11,6 @@ import {
   resolveStoreMediaUrl,
   type ContractorStore,
 } from '../src/lib/contractorStore';
-import { PROFILE_GLASS_PANEL } from '../constants';
 import { StoreServiceSkusShowcase } from './StoreShowcaseSections';
 
 export type MapStorePreviewCardProps = {
@@ -54,7 +53,7 @@ const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({
 
   return (
     <div
-      className={`pointer-events-auto fixed inset-x-3 bottom-[max(5.5rem,calc(env(safe-area-inset-bottom,0px)+4.5rem))] z-[10025] mx-auto flex w-auto max-w-md flex-col overflow-hidden rounded-2xl border border-white/25 shadow-[0_20px_50px_rgba(0,0,0,0.55)] ${PROFILE_GLASS_PANEL}`}
+      className="map-store-preview-card pointer-events-auto fixed inset-x-3 bottom-[max(5.5rem,calc(env(safe-area-inset-bottom,0px)+4.5rem))] z-[10025] mx-auto flex w-auto max-w-md flex-col overflow-hidden rounded-2xl border border-white/25 shadow-[0_20px_50px_rgba(0,0,0,0.55)]"
       role="dialog"
       aria-label={title}
     >
@@ -87,22 +86,22 @@ const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({
         </button>
       </div>
 
-      {/* Bottom half — dense dark glass text plate (day-map safe) */}
-      <div className="relative space-y-2.5 bg-[rgba(2,6,23,0.88)] px-3.5 py-3.5 backdrop-blur-xl supports-[backdrop-filter]:bg-[rgba(2,6,23,0.78)]">
+      {/* Bottom half — light frost so the map zone peeks through copy */}
+      <div className="map-store-preview-body relative space-y-2.5 px-3.5 py-3.5">
         <div
           className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
           aria-hidden
         />
         <div className="flex items-start gap-2">
-          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-violet-400/50 bg-violet-500/25 text-violet-100">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-violet-400/55 bg-violet-600/55 text-violet-50">
             <Store className="h-4 w-4" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-black text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
+            <p className="truncate text-base font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]">
               {title}
             </p>
             {store.office_address && (
-              <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-violet-100">
+              <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-violet-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                 <MapPin className="h-3 w-3 shrink-0" aria-hidden />
                 {store.office_address}
               </p>
@@ -111,18 +110,20 @@ const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({
         </div>
 
         {store.store_bio && (
-          <p className="line-clamp-2 text-xs leading-relaxed text-slate-200">
+          <p className="line-clamp-2 text-xs leading-relaxed text-slate-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
             {store.store_bio}
           </p>
         )}
 
-        {skus.length > 0 && <StoreServiceSkusShowcase skus={skus} compact />}
+        {skus.length > 0 && (
+          <StoreServiceSkusShowcase skus={skus} compact solidChips />
+        )}
 
         {(store.service_bundles.length > 0 ||
           store.supported_recurrence_types.some((r) => r !== 'one_time')) && (
           <div className="flex flex-wrap gap-1">
             {store.service_bundles.length > 0 && (
-              <span className="rounded-full border border-violet-400/45 bg-violet-500/30 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-violet-50">
+              <span className="rounded-full border border-violet-400/55 bg-violet-600/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-violet-50">
                 {t('storeBundlesBadge', {
                   defaultValue: '{{count}} bundles',
                   count: store.service_bundles.length,
@@ -130,7 +131,7 @@ const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({
               </span>
             )}
             {store.supported_recurrence_types.some((r) => r !== 'one_time') && (
-              <span className="rounded-full border border-fuchsia-400/45 bg-fuchsia-500/30 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-fuchsia-50">
+              <span className="rounded-full border border-fuchsia-400/55 bg-fuchsia-600/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-fuchsia-50">
                 {t('storeSubscribeSaveBadge', {
                   defaultValue: 'Subscribe & Save',
                 })}
@@ -140,7 +141,7 @@ const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({
         )}
 
         {store.service_radius_polygon && (
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-200">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
             {t('storeZoneVisibleHint', {
               defaultValue: 'Service zone highlighted on the map',
             })}
@@ -150,7 +151,7 @@ const MapStorePreviewCard: React.FC<MapStorePreviewCardProps> = ({
         <button
           type="button"
           onClick={openFull}
-          className="w-full rounded-full border border-violet-400/55 bg-violet-500/35 py-2.5 text-[11px] font-black uppercase tracking-[0.16em] text-violet-50 shadow-[0_0_16px_rgba(168,85,247,0.3)]"
+          className="w-full rounded-full border border-violet-300/70 bg-violet-600/85 py-2.5 text-[11px] font-black uppercase tracking-[0.16em] text-white shadow-[0_0_16px_rgba(168,85,247,0.45)]"
         >
           {t('storeOpenProfile', { defaultValue: 'Open store profile' })}
         </button>
