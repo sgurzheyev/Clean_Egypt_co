@@ -4,7 +4,7 @@
  * Mission status / payouts are handled only by dedicated RPCs (e.g. supervisor approval).
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
+import { JSON_MAX_BODY_BYTES, rejectIfOversized, requireMissionMember } from './_lib/requireUser';
 
 type FraudAuditJson = {
   verified_status: 'fraud' | 'verified' | string;
@@ -42,37 +42,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { missionId } = req.body as { missionId?: string };
 
-    if (!missionId || typeof missionId !== 'string') {
-      return res.status(400).json({ error: 'missionId is required' });
-    }
+    const gated = await requireMissionMember<{
+      id: string;
+      creator_id: string | null;
+      cleaner_id: string | null;
+      title: string | null;
+      description: string | null;
+      photo_urls: string[] | null;
+      after_photo_urls: string[] | null;
+    }>(
+      req,
+      res,
+      String(missionId || ''),
+      'id, creator_id, cleaner_id, title, description, photo_urls, after_photo_urls'
+    );
+    if (!gated) return;
+
+    if (rejectIfOversized(req, res, JSON_MAX_BODY_BYTES)) return;
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return res.status(500).json({ error: 'OPENAI_API_KEY is not configured' });
     }
 
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      return res.status(500).json({ error: 'Supabase server config missing' });
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
-    const { data: mission, error: missionErr } = await supabase
-      .from('missions')
-      .select('id, title, description, photo_urls, after_photo_urls')
-      .eq('id', missionId)
-      .maybeSingle();
-
-    if (missionErr) {
-      console.error('analyze-mission: mission fetch error', missionErr.message);
-      return res.status(500).json({ error: 'Failed to fetch mission' });
-    }
-
-    if (!mission) {
-      return res.status(404).json({ error: 'Mission not found' });
-    }
+    const mission = gated.mission;
 
     const photo_urls = ((mission.photo_urls || []) as string[])
       .map(toPublicMediaUrl)

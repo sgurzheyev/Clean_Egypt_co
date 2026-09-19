@@ -1,4 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import {
+  IMAGE_MAX_BASE64_CHARS,
+  IMAGE_MAX_BODY_BYTES,
+  isOversizedBase64,
+  rejectIfOversized,
+  requireUser,
+} from './_lib/requireUser';
 
 const PROMPT =
   'Analyze the image. Only return "EXPLICIT" if there is hardcore pornography, nudity, or explicit sexual acts. Otherwise, for ANYTHING else (faces, animals, trash, general clutter, vehicles, etc.), return "SAFE". Do not actively look for text or QR codes. Your default is SAFE. Return only "SAFE" or "EXPLICIT".';
@@ -15,6 +22,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  if (!(await requireUser(req, res))) return;
+
+  if (rejectIfOversized(req, res, IMAGE_MAX_BODY_BYTES)) return;
+
   try {
     const body = req.body as { imageBase64?: string; mimeType?: string };
     const imageBase64 = body?.imageBase64;
@@ -22,6 +33,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!imageBase64 || typeof imageBase64 !== 'string') {
       return res.status(400).json({ error: 'imageBase64 is required' });
+    }
+
+    if (isOversizedBase64(imageBase64, IMAGE_MAX_BASE64_CHARS)) {
+      return res.status(413).json({ error: 'Image payload too large' });
     }
 
     const dataUrl = imageBase64.startsWith('data:')

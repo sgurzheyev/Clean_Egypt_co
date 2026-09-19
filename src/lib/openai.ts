@@ -1,3 +1,5 @@
+import { authHeaders } from './supabaseAuth';
+
 export type AiResult = { score: number; verdict: string };
 
 /**
@@ -5,9 +7,12 @@ export type AiResult = { score: number; verdict: string };
  * The OpenAI API key is never exposed to the client.
  */
 export async function runMissionAiAnalysis(missionId: string): Promise<AiResult> {
+  const headers = await authHeaders({ 'Content-Type': 'application/json' });
+  if (!headers) throw new Error('Not authenticated');
+
   const res = await fetch('/api/analyze-mission', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ missionId }),
   });
 

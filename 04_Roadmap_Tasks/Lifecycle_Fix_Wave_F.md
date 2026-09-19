@@ -16,7 +16,7 @@ aliases: [Wave F, SEC-1, SEC-2, platform_admins, mission column lock]
 
 This note is the vault node for Wave F. It does **not** re-describe P0 or Waves A–E.
 
-Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H (incl. Hungry-Games subscription): [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]].
+Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H (incl. Hungry-Games subscription): [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · Wave I (SEC-4 Vercel JWT): [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]].
 
 ---
 
@@ -118,7 +118,7 @@ From [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]]:
 - ~~SEC-1 / SEC-2~~ — this wave
 - ~~LIFE-1 / LIFE-2 / LIFE-3~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
 - ~~SEC-3 / SEC-5 / OPS-1~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
-- **SEC-4** Vercel `/api/analyze-mission`, `translate`, `moderate-*`, `notify-*` still unauthenticated
+- ~~**SEC-4** Vercel `/api/*` JWT~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]
 - Edge secrets `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET` must be set (fail-closed — empty secret + no service-role bearer → 401)
 - CLI repair for `20260917_*` if `migration list` is still Local-only
 - KYC Edge still falls back to `profiles.role = 'admin'` if the `is_platform_admin` RPC errors (no TG; optional to drop)
@@ -135,6 +135,7 @@ From [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]]:
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]

@@ -115,7 +115,7 @@ Stripe session idempotency · `FOR UPDATE SKIP LOCKED` on expiry · Hungry-Games
 ## Still open (not this wave)
 
 - Hungry-Games **subscription** (same commit) — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
-- **SEC-4** Vercel `/api/*` unauthenticated
+- ~~**SEC-4** Vercel `/api/*` JWT~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]
 - Edge secrets `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET`
 - CLI repair for `20260917_*`
 - Explicit crowd re-tender if a locked cleaner ghosts a **full** pot (notify donors — do not revive silent abandon). LIFE-3 only unlocks **underfunded expiry**.
@@ -132,6 +132,7 @@ Stripe session idempotency · `FOR UPDATE SKIP LOCKED` on expiry · Hungry-Games
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]

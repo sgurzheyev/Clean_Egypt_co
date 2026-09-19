@@ -116,7 +116,7 @@ Product language and file pointers: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]].
 P3-3 (`confirm_mission_work_done` in the active tree) shipped with Wave B.
 
 **After Wave E (2026-09-15 E2E):** [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]].  
-**Waves F/G/H (2026-09-17, `cbf5c62`):** SEC-1/2 · LIFE-1/2/3 · SEC-3/5 · OPS-1 · Hungry-Games subscription — shipped. **SEC-4** Vercel `/api/*` still Open. Notes: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]].
+**Waves F/G/H (2026-09-17, `cbf5c62`):** SEC-1/2 · LIFE-1/2/3 · SEC-3/5 · OPS-1 · Hungry-Games subscription — shipped. **Wave I (2026-09-19):** SEC-4 Vercel `/api/*` user JWT — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]. Notes: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]].
 
 Canon snapshot table: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] §8.
 
@@ -132,6 +132,7 @@ Canon snapshot table: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] §8.
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]

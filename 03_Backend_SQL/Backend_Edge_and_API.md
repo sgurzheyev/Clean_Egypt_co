@@ -5,7 +5,7 @@ aliases: [Backend Edge and API]
 
 # Backend — Edge Functions & API
 
-> ← [[🗺️ GARBAGIN Master Index]] · Migrations: [[03_Backend_SQL/SQL_Migrations_Index]] · Security: [[01_Architecture/Security_and_RPCs]] · Stripe: [[01_Architecture/Stripe_USD_Flow]]
+> ← [[🗺️ GARBAGIN Master Index]] · Migrations: [[03_Backend_SQL/SQL_Migrations_Index]] · Security: [[01_Architecture/Security_and_RPCs]] · Stripe: [[01_Architecture/Stripe_USD_Flow]] · Wave I: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]
 
 ## Stripe / payments
 - [[supabase/functions/stripe-contribution-checkout/index.ts]]
@@ -28,14 +28,15 @@ aliases: [Backend Edge and API]
 - [[supabase/functions/send-push-notification/index.ts]] — Wave H fail-closed auth (`PUSH_WEBHOOK_SECRET` or service-role)
 
 ## Vercel API routes
-- [[api/process-expired-crowdfunding.ts]] — Wave H: real RPC + secret equality (SEC-4 sibling routes still open)
-- [[api/verify-job-payment.ts]]
-- [[api/notify-mission-submitted.ts]]
-- [[api/notify-dispute.ts]]
-- [[api/moderate-mission-image.ts]]
-- [[api/moderate-mission-photo-safety.ts]]
-- [[api/analyze-mission.ts]]
-- [[api/translate.ts]]
+- [[api/_lib/requireUser.ts]] — Wave I shared user JWT + mission membership
+- [[api/process-expired-crowdfunding.ts]] — Wave H: real RPC + secret equality (not user JWT)
+- [[api/verify-job-payment.ts]] — Wave I: JWT on legacy no-op
+- [[api/notify-mission-submitted.ts]] — Wave I: JWT + creator/cleaner/admin
+- [[api/notify-dispute.ts]] — Wave I: JWT + creator/cleaner/admin
+- [[api/moderate-mission-image.ts]] — Wave I: JWT + image size cap
+- [[api/moderate-mission-photo-safety.ts]] — Wave I: JWT + image size cap
+- [[api/analyze-mission.ts]] — Wave I: JWT + membership; still read-only
+- [[api/translate.ts]] — Wave I: JWT + max text length
 
 ## Clients
 - [[services/supabase.ts]]
@@ -56,6 +57,7 @@ aliases: [Backend Edge and API]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]

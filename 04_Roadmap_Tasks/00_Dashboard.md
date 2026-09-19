@@ -17,10 +17,11 @@
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] — SEC-1 `platform_admins` + SEC-2 mission column freeze
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] — LIFE-1 underfund accept + LIFE-2 reject RPC + LIFE-3 expiry unlock
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] — SEC-5 push token + fail-closed Edge + Hungry-Games subscription
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] — SEC-4 Vercel user JWT on AI / notify APIs
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `migration repair` for `20260912_*` / `20260917_*` (no `db push`)
-- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games SQL + Edge apply order
-- [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — canon vs code scorecard (Waves A–H)
-- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] — post–Wave E security + lifecycle bug search (F/G/H shipped; SEC-4 open)
+- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games SQL + Edge apply order · Wave I Vercel JWT (no SQL)
+- [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — canon vs code scorecard (Waves A–I)
+- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] — post–Wave E security + lifecycle bug search (F/G/H/I shipped; SEC-4 closed)
 - [[02_Frontend/Frontend_Components]] — UI / map component map
 - [[03_Backend_SQL/SQL_Migrations_Index]] — migrations MOC
 - [[03_Backend_SQL/Backend_Edge_and_API]] — edge functions & API routes
@@ -37,10 +38,11 @@
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]: SEC-1 admin allowlist / SEC-2 mission UPDATE lock
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]: LIFE-1 accept-underfund / LIFE-2 reject RPC / LIFE-3 expiry unlock
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]: SEC-5 push token / fail-closed Edge / Hungry-Games subscription
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]: SEC-4 Vercel `/api/*` user JWT + membership
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]: `supabase migration repair --status applied 20260912` / `20260917`
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]: P0→H + Hungry-Games paste order (live already applied)
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]: аудит стейт-машины
-- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]]: E2E bug search 2026-09-15 (F/G/H shipped; SEC-4 Vercel APIs still open)
+- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]]: E2E bug search 2026-09-15 (F/G/H/I shipped; SEC-4 closed)
 - [[01_Architecture/KYC_Verification]]: Admin KYC queue + signed media
 - [[01_Architecture/P2P_Deal_Flow]]: Proof → review → P2P confirm (no escrow)
 
@@ -64,9 +66,10 @@
 - [ ] Wave F: TG username does not grant admin; participant cannot PostgREST-set `status` / `cleaner_id` / funds ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]])
 - [ ] Wave G: accept bid above raised on an `available` crowd pin stays `funding`; expiry clears `cleaner_id` ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]])
 - [ ] Wave H / Hungry-Games: new bid without subscription opens the MapPicker modal; push token conflict does not hijack; Edge 401s without secret ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]])
+- [ ] Wave I: unauthenticated POST `/api/translate` / `moderate-*` / `analyze-mission` / `notify-*` is 401; non-member cannot analyze/notify ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]])
 - [ ] Wave F–H (ops): `migration list` no Local-only `20260917`; Edge secrets `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET` set
 - [ ] KYC: submit → admin signed preview → approve/reject
 - [ ] P2P: bid → proof → creator confirm
 
 ## Graph tips
-Open Graph View and center on [[🗺️ GARBAGIN Master Index]] or [[01_Architecture/Architecture_Overview]] — wiki-links fan out to [[01_Architecture/KYC_Verification]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]], [[04_Roadmap_Tasks/Ops_Migration_History_Repair]], and [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
+Open Graph View and center on [[🗺️ GARBAGIN Master Index]] or [[01_Architecture/Architecture_Overview]] — wiki-links fan out to [[01_Architecture/KYC_Verification]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]], [[04_Roadmap_Tasks/Ops_Migration_History_Repair]], and [[docs/GARBAGIN_LIFECYCLE_AUDIT]].

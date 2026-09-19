@@ -1,4 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import {
+  TRANSLATE_MAX_BODY_BYTES,
+  TRANSLATE_MAX_CHARS,
+  isOversizedText,
+  rejectIfOversized,
+  requireUser,
+} from './_lib/requireUser';
 
 const ALLOWED = new Set(['en', 'ar', 'ru', 'de', 'it', 'es']);
 
@@ -6,6 +13,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  if (!(await requireUser(req, res))) return;
+
+  if (rejectIfOversized(req, res, TRANSLATE_MAX_BODY_BYTES)) return;
 
   try {
     const { text, targetLanguage } = req.body as {
@@ -15,6 +26,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ error: 'text is required' });
+    }
+
+    if (isOversizedText(text, TRANSLATE_MAX_CHARS)) {
+      return res.status(413).json({ error: 'text is too long' });
     }
 
     const target = (targetLanguage || 'en').toLowerCase().split('-')[0];

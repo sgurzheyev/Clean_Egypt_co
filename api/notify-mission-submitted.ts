@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sendTelegramAlert } from '../lib/telegram';
+import { JSON_MAX_BODY_BYTES, rejectIfOversized, requireMissionMember } from './_lib/requireUser';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -23,9 +24,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       wood?: number | string;
     };
 
-    if (!missionId) {
-      return res.status(400).json({ error: 'missionId is required' });
-    }
+    if (!(await requireMissionMember(req, res, String(missionId || '')))) return;
+
+    if (rejectIfOversized(req, res, JSON_MAX_BODY_BYTES)) return;
 
     const plasticVal = Number.parseFloat(String(plastic ?? 0)) || 0;
     const glassVal = Number.parseFloat(String(glass ?? 0)) || 0;

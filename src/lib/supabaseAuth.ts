@@ -66,6 +66,15 @@ export async function resolveAccessToken(maxAttempts = 8): Promise<string | null
   return null;
 }
 
+/** Headers for browser `fetch('/api/...')` — Wave I / SEC-4 user JWT. */
+export async function authHeaders(extra?: HeadersInit): Promise<Headers | null> {
+  const token = await resolveAccessToken();
+  if (!token) return null;
+  const headers = new Headers(extra);
+  headers.set('Authorization', `Bearer ${token}`);
+  return headers;
+}
+
 function invokeStatus(result: { data: unknown; error: Error | null }): number | null {
   const err = result.error as { context?: unknown; message?: string } | null;
   const ctx = err?.context;

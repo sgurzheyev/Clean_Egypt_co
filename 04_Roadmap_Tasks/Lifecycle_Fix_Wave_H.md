@@ -10,13 +10,13 @@ aliases: [Wave H, SEC-5, SEC-3, Hungry-Games subscription, push token hijack]
 # Lifecycle Fix — Wave H (push token lock + fail-closed Edge + Hungry-Games sub)
 
 > Surface close of **SEC-5**, **SEC-3**, and **OPS-1** from the post–Wave E E2E audit, plus the **Hungry-Games subscription gate** (same commit).  
-> Hub: [[🗺️ GARBAGIN Master Index]] · security: [[01_Architecture/Security_and_RPCs]] · KYC: [[01_Architecture/KYC_Verification]] · audit: [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · apply order: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
+> Hub: [[🗺️ GARBAGIN Master Index]] · security: [[01_Architecture/Security_and_RPCs]] · KYC: [[01_Architecture/KYC_Verification]] · audit: [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave I (SEC-4 Vercel JWT): [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · apply order: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
 
 **Code:** already on `main` as [`cbf5c62`](https://github.com/sgurzheyev/Clean_Egypt_co/commit/cbf5c62) / merge [`05d1dd7`](https://github.com/sgurzheyev/Clean_Egypt_co/commit/05d1dd7) (author Sergio Gurgini). This vault note is hygiene only — SQL + Edge are live.
 
 This note is the vault node for Wave H. It does **not** re-describe Waves A–G.
 
-**SEC-4** (unauthenticated Vercel `/api/analyze-mission`, `translate`, `moderate-*`, `notify-*`) is **not** in this wave. Leave it Open on the E2E scorecard.
+**SEC-4** (unauthenticated Vercel `/api/analyze-mission`, `translate`, `moderate-*`, `notify-*`) is **not** in this wave. Closed later: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] (user JWT). Edge secrets below remain ops.
 
 ---
 
@@ -140,7 +140,7 @@ Do **not**: `db push` to “fix” Local-only `20260917` · leave Edge secrets e
 
 ## Still open (not this wave)
 
-- **SEC-4** Vercel `/api/analyze-mission`, `translate`, `moderate-*`, `notify-*` — no JWT / participant check
+- ~~**SEC-4** Vercel `/api/*` user JWT~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]
 - Hosted Edge secrets `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET` (and matching `private.app_config`) — code is fail-closed
 - CLI `migration repair --status applied 20260917` if the list is still Local-only
 - Optional: KYC Edge `role = admin` fallback if `is_platform_admin` RPC errors
@@ -160,6 +160,7 @@ Do **not**: `db push` to “fix” Local-only `20260917` · leave Edge secrets e
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]

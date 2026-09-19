@@ -103,6 +103,7 @@ import {
 import { fetchContractorStore } from '../src/lib/contractorStore';
 import { requestDeleteAccount } from '../src/lib/deleteAccount';
 import { isEdgeFunctionUnreachable } from '../src/lib/supabaseFunctionError';
+import { authHeaders } from '../src/lib/supabaseAuth';
 
 const MISSION_CREATOR_EMBED = 'creator:profiles!creator_id (full_name, avatar_url)';
 
@@ -1571,21 +1572,26 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               ? getAppOrigin()
               : '';
           const notifyUrl = origin ? `${origin}/api/notify-mission-submitted` : '/api/notify-mission-submitted';
-          const notifyRes = await fetch(notifyUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              missionId: proofJob.id,
-              category: proofJob.category,
-              plastic,
-              glass,
-              debris,
-              wood,
-            }),
-          });
-          if (!notifyRes.ok) {
-            const errText = await notifyRes.text().catch(() => '');
-            console.warn('notify-mission-submitted HTTP', notifyRes.status, errText);
+          const notifyHeaders = await authHeaders({ 'Content-Type': 'application/json' });
+          if (!notifyHeaders) {
+            console.warn('notify-mission-submitted skipped: not authenticated');
+          } else {
+            const notifyRes = await fetch(notifyUrl, {
+              method: 'POST',
+              headers: notifyHeaders,
+              body: JSON.stringify({
+                missionId: proofJob.id,
+                category: proofJob.category,
+                plastic,
+                glass,
+                debris,
+                wood,
+              }),
+            });
+            if (!notifyRes.ok) {
+              const errText = await notifyRes.text().catch(() => '');
+              console.warn('notify-mission-submitted HTTP', notifyRes.status, errText);
+            }
           }
         } catch (notifyErr) {
           console.warn('notify-mission-submitted failed:', notifyErr);

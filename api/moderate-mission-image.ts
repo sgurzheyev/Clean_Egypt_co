@@ -1,4 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import {
+  IMAGE_MAX_BASE64_CHARS,
+  IMAGE_MAX_BODY_BYTES,
+  isOversizedBase64,
+  rejectIfOversized,
+  requireUser,
+} from './_lib/requireUser';
 
 type ModerationResult = {
   isApproved: boolean;
@@ -62,6 +69,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  if (!(await requireUser(req, res))) return;
+
+  if (rejectIfOversized(req, res, IMAGE_MAX_BODY_BYTES)) return;
+
   try {
     const body = req.body as {
       imageBase64?: string;
@@ -75,6 +86,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!imageBase64 || typeof imageBase64 !== 'string') {
       return res.status(400).json({ isApproved: false, reason: 'Invalid image payload.' });
+    }
+
+    if (isOversizedBase64(imageBase64, IMAGE_MAX_BASE64_CHARS)) {
+      return res.status(413).json({ isApproved: false, reason: 'Image payload too large.' });
     }
 
     const apiKey = process.env.OPENAI_API_KEY;

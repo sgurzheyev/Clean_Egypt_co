@@ -8,6 +8,7 @@ import {
 } from '../src/lib/missionContentPolicy';
 import { PROFILE_GLASS_PANEL } from '../constants';
 import { fileToBase64Parts } from '../src/lib/imageBase64';
+import { authHeaders } from '../src/lib/supabaseAuth';
 
 const MODERATION_COMPRESSION = {
   maxWidthOrHeight: 1200,
@@ -182,9 +183,17 @@ const CreateMission: React.FC<Props> = ({
         const compressed = await imageCompression(file, MODERATION_COMPRESSION).catch(() => file);
         const { base64, mimeType } = await fileToBase64Parts(compressed);
 
+        const headers = await authHeaders({ 'Content-Type': 'application/json' });
+        if (!headers) {
+          console.warn('moderate-mission-image skipped: not authenticated');
+          approveSlot(key);
+          setModerationToast(t('photoModerationUnavailable'));
+          return;
+        }
+
         const res = await fetch('/api/moderate-mission-image', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             imageBase64: base64,
             mimeType,

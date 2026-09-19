@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sendTelegramAlert } from '../lib/telegram';
+import { JSON_MAX_BODY_BYTES, rejectIfOversized, requireMissionMember } from './_lib/requireUser';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -8,9 +9,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { jobId } = req.body as { jobId?: string };
-    if (!jobId) {
-      return res.status(400).json({ error: 'jobId is required' });
-    }
+    if (!(await requireMissionMember(req, res, String(jobId || '')))) return;
+
+    if (rejectIfOversized(req, res, JSON_MAX_BODY_BYTES)) return;
 
     const message =
       `🚨 <b>DISPUTE OPENED!</b>\n` +

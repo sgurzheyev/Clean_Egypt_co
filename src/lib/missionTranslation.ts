@@ -1,3 +1,5 @@
+import { authHeaders } from './supabaseAuth';
+
 const translationCache = new Map<string, string>();
 
 /** Detect likely source language from mission user text. */
@@ -49,9 +51,12 @@ export async function translateMissionText(
 
   const { masked, tags } = maskHashtags(trimmed);
 
+  const headers = await authHeaders({ 'Content-Type': 'application/json' });
+  if (!headers) throw new Error('Not authenticated');
+
   const res = await fetch('/api/translate', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ text: masked, targetLanguage: target }),
   });
 

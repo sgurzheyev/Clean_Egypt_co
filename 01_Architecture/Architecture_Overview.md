@@ -124,6 +124,7 @@ Active folder: [[../supabase/migrations]]
 | Wave G underfund accept + reject RPC + expiry unlock | [[../supabase/migrations/20260917_wave_g_lifecycle_hardening.sql]] |
 | Wave H push token lock | [[../supabase/migrations/20260917_wave_h_surface_hardening.sql]] |
 | Hungry-Games subscription gate | [[../supabase/migrations/20260917_hungry_games_subscription_gate.sql]] |
+| Wave I Vercel user JWT (SEC-4, no SQL) | [[../api/_lib/requireUser.ts]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] |
 | Missions RLS + spatial CHECKs | [[../supabase/migrations/20260726_missions_schema_hardening.sql]] |
 | Contractor stores | [[../supabase/migrations/20260726_contractor_stores.sql]] |
 | Supplies / bundles / recurrence | [[../supabase/migrations/20260726_store_supplies_bundles_recurrence.sql]] |

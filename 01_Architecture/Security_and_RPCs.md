@@ -5,7 +5,7 @@ aliases: [Security and RPCs, RPC lock]
 
 # Security and RPCs
 
-> Hardened server paths: no client escrow mutation, USD-only money columns, service-role Stripe apply. Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/KYC_Verification]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]], [[04_Roadmap_Tasks/Ops_Migration_History_Repair]], [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]], [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]].
+> Hardened server paths: no client escrow mutation, USD-only money columns, service-role Stripe apply. Links: [[🗺️ GARBAGIN Master Index]], [[01_Architecture/Architecture_Overview]], [[01_Architecture/KYC_Verification]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]], [[04_Roadmap_Tasks/Ops_Migration_History_Repair]], [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]], [[docs/GARBAGIN_LIFECYCLE_AUDIT]], [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]].
 
 ## Principles
 
@@ -52,9 +52,13 @@ aliases: [Security and RPCs, RPC lock]
 
 ## Auth helpers (frontend)
 
-- Session resolve / refresh: [[../src/lib/supabaseAuth.ts]]
+- Session resolve / refresh / Vercel `authHeaders`: [[../src/lib/supabaseAuth.ts]]
 - Edge error body parse: [[../src/lib/supabaseFunctionError.ts]]
 - Canonical client: [[../services/supabase.ts]]
+
+## Vercel `/api` (Wave I / SEC-4)
+
+User JWT (`Authorization: Bearer <access_token>` → anon `auth.getUser(token)`) on `translate`, `moderate-*`, `analyze-mission`, `notify-*`. Mission-scoped routes then load the row with service role and allow only creator / assigned cleaner / `is_platform_admin` (user JWT client — never the service-role short-circuit). `analyze-mission` stays **read-only**. Shared helper: [[../api/_lib/requireUser.ts]]. Wave H expiry cron stays secret-equality ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]). Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]].
 
 ## Dispute moderation
 
@@ -63,4 +67,4 @@ Supervisor / admin dispute path is P2P-aligned (no escrow reverse): [[../supabas
 ## Graph
 
 - Rules: [[../.cursorrules]]
-- Vault: [[🗺️ GARBAGIN Master Index]], [[04_Roadmap_Tasks/00_Dashboard]], [[01_Architecture/Architecture_Overview]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]], [[04_Roadmap_Tasks/Ops_Migration_History_Repair]], [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
+- Vault: [[🗺️ GARBAGIN Master Index]], [[04_Roadmap_Tasks/00_Dashboard]], [[01_Architecture/Architecture_Overview]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]], [[04_Roadmap_Tasks/Ops_Migration_History_Repair]], [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]

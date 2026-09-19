@@ -2,7 +2,7 @@
 title: Garbagin E2E Audit 2026-09-15
 type: architecture
 status: audit
-updated: 2026-09-17
+updated: 2026-09-19
 tags: [garbagin, audit, security, bugs, e2e]
 aliases: [E2E audit Sep 15, post-Wave-E bug search]
 ---
@@ -13,6 +13,8 @@ Read-only bug search after Waves A–E. Does **not** change product behavior.
 Prior lifecycle scorecard: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] (2026-09-12, all Wave items marked **Shipped**).
 
 **Vault close (2026-09-17):** Waves F/G/H + Hungry-Games SQL/Edge landed on `main` as [`cbf5c62`](https://github.com/sgurzheyev/Clean_Egypt_co/commit/cbf5c62) / merge [`05d1dd7`](https://github.com/sgurzheyev/Clean_Egypt_co/commit/05d1dd7). Scorecard below marked **Shipped** where that commit closed the finding. Product notes: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]].
+
+**Wave I (2026-09-19):** SEC-4 Vercel user JWT — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]. Wave H Edge secrets remain ops.
 
 ## Last push to `main`
 
@@ -30,12 +32,12 @@ Ops still open: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — confirm li
 
 ## Executive verdict
 
-Lifecycle Waves A–E closed the Sep-12 crowdfunding scorecard. This pass found **new** security and state-machine holes that those waves did not cover. **Waves F/G/H (2026-09-17) shipped the P0/P1 code fixes** except **SEC-4**.
+Lifecycle Waves A–E closed the Sep-12 crowdfunding scorecard. This pass found **new** security and state-machine holes that those waves did not cover. **Waves F/G/H (2026-09-17) shipped the P0/P1 code fixes** except **SEC-4**. **Wave I (2026-09-19) shipped SEC-4** (Vercel user JWT).
 
 1. ~~**Critical** — any user can self-promote to platform admin by setting `telegram_username = 'sergiogurgini'`.~~ **Shipped** — Wave F `platform_admins` + `is_platform_admin` without TG.
 2. ~~**Critical** — mission participants can UPDATE lifecycle/economy columns via PostgREST.~~ **Shipped** — Wave F column GRANT + freeze trigger.
 3. ~~**High** — `accept_mission_bid` can start underfunded crowdfunding work after a 100% raise flipped the pin to `available`.~~ **Shipped** — Wave G underfund gate.
-4. **High, still open — SEC-4** — several **Vercel** `/api/*` surfaces have no user JWT (OpenAI / Telegram burn). Edge push/city now fail closed (SEC-3 shipped); secrets must be set.
+4. ~~**High — SEC-4** — several **Vercel** `/api/*` surfaces have no user JWT (OpenAI / Telegram burn).~~ **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]. Edge push/city fail closed (SEC-3); secrets must still be set (Wave H ops).
 
 Bid token debit (1 token / new bid), Stripe webhook signature verify, and Hungry-Games phone column REVOKE for **P2P** look intact. Hungry-Games **subscription** for new bids shipped on the same commit ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]).
 
@@ -49,7 +51,7 @@ Bid token debit (1 token / new bid), Stripe webhook signature verify, and Hungry
 | SEC-2 | **P0** | `missions` full-row UPDATE for participants | **Shipped** — Wave F column GRANT + `trg_protect_mission_lifecycle_columns` |
 | LIFE-1 | **P0** | Accept bid on fully-raised `available` crowd pin → `in_progress` even if bid > raised | **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] (gate on `crowdfunding_mode AND raised < budget`) |
 | SEC-3 | **P1** | `send-push-notification` / `city-notification-pipeline` auth skip when secret unset (`verify_jwt=false`) | **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] fail-closed (service-role **or** non-empty secret). Ops: set `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET` |
-| SEC-4 | **P1** | Vercel `/api/analyze-mission`, `translate`, `moderate-*`, `notify-*` unauthenticated (OpenAI / Telegram burn) | **Open** |
+| SEC-4 | **P1** | Vercel `/api/analyze-mission`, `translate`, `moderate-*`, `notify-*` unauthenticated (OpenAI / Telegram burn) | **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] (user JWT + membership; cron expiry stays Wave H secret) |
 | SEC-5 | **P1** | `upsert_user_push_token` steals token on `ON CONFLICT` (`user_id = uid`) | **Shipped** — Wave H reject unless same owner |
 | LIFE-2 | **P1** | `reject_mission_bid` only in `migrations/archive/` — decline path fragile on fresh apply | **Shipped** — Wave G promoted RPC |
 | LIFE-3 | **P1** | Expiry leaves `cleaner_id` on `expired` underfunded pot; worker stranded | **Shipped** — Wave G clears lock + rejects bids + backfill |
@@ -112,7 +114,7 @@ Bid token debit (1 token / new bid), Stripe webhook signature verify, and Hungry
 | ID | Evidence | Fix |
 | --- | --- | --- |
 | SEC-3 | `config.toml` `verify_jwt=false`; push/city skip auth when env secret empty | **Shipped (code):** fail closed. **Ops:** set `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET` |
-| SEC-4 | `api/analyze-mission.ts` etc. — no JWT | **Open** — require user JWT + participant/admin; rate-limit |
+| SEC-4 | `api/analyze-mission.ts` etc. — no JWT | **Shipped** — user JWT + participant/admin; body/image size caps |
 | SEC-5 | `upsert_user_push_token` conflict sets `user_id = uid` | **Shipped** — reject conflict unless same owner |
 | LIFE-2 | `reject_mission_bid` only under `migrations/archive/` | **Shipped** — promoted to active migration |
 | LIFE-3 | Wave D expiry keeps `cleaner_id` on `expired` | **Shipped** — clear lock + reject bids + backfill |
@@ -149,11 +151,11 @@ Treat as **product decision**, not a silent regression. If civic pins should sta
 
 1. ~~**Wave F (security):** SEC-1 admin rewrite + SEC-2 mission column lock~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]
 2. ~~**Wave G (lifecycle):** LIFE-1 accept-underfund + LIFE-2 reject RPC + LIFE-3 expiry unlock~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
-3. ~~**Wave H (surfaces):** SEC-3/5 Edge auth + push token conflict~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] (**SEC-4 Vercel APIs still Open**)
-4. **Ops:** `migration repair --status applied 20260917` if Local-only; set `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET`; optional drop KYC `role=admin` fallback
-5. **Still code:** SEC-4 Vercel `/api/*` JWT + participant/admin + rate-limit
+3. ~~**Wave H (surfaces):** SEC-3/5 Edge auth + push token conflict~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
+4. ~~**Wave I (Vercel JWT):** SEC-4 AI/notify user JWT + membership~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]
+5. **Ops:** `migration repair --status applied 20260917` if Local-only; set `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET`; optional drop KYC `role=admin` fallback
 
-Field checklist on [[04_Roadmap_Tasks/00_Dashboard]] (AR / Stripe / Waves A–H) remains unchecked — schedule a hosted smoke.
+Field checklist on [[04_Roadmap_Tasks/00_Dashboard]] (AR / Stripe / Waves A–I) remains unchecked — schedule a hosted smoke.
 
 ---
 
