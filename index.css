@@ -93,8 +93,8 @@ body,
 
 /**
  * Store-mode pin briefing over the live map (MapStorePreviewCard).
- * Single light frost on the shell — do not stack .glass-panel / blur-xl here,
- * or the cyan/lilac service-zone fill disappears behind the sheet.
+ * Single light frost on the shell (~6px / 36% navy) — do not stack
+ * .glass-panel / blur-xl here, or the ~18% cyan coverage fill disappears.
  * Mission briefing, feed cards, and profile sheets keep .glass-panel.
  */
 .map-store-preview-card {
