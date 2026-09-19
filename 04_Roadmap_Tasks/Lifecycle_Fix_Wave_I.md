@@ -12,6 +12,8 @@ aliases: [Wave I, SEC-4, Vercel JWT, analyze-mission auth]
 > Surface close of **SEC-4** from the post–Wave E E2E audit.  
 > Hub: [[🗺️ GARBAGIN Master Index]] · security: [[01_Architecture/Security_and_RPCs]] · Edge sibling: [[03_Backend_SQL/Backend_Edge_and_API]] · audit: [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · apply order: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
 
+**Code PR:** [Clean_Egypt_co#11](https://github.com/sgurzheyev/Clean_Egypt_co/pull/11) (`cursor/sec-4-vercel-jwt-wave-i-2bc0` → `main`).
+
 **This wave is Vercel-only.** No SQL migrations. Wave H already fail-closed **Edge** push/city secrets (`PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET`) and gated `api/process-expired-crowdfunding` with **secret equality**. Those stay cron/secret auth. **SEC-4** is the remaining public `/api/*` burn of `OPENAI_API_KEY` and Telegram.
 
 This note is the vault node for Wave I. It does **not** re-describe Waves A–H.

@@ -14,7 +14,7 @@ Prior lifecycle scorecard: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] (2026-09-12, all Wa
 
 **Vault close (2026-09-17):** Waves F/G/H + Hungry-Games SQL/Edge landed on `main` as [`cbf5c62`](https://github.com/sgurzheyev/Clean_Egypt_co/commit/cbf5c62) / merge [`05d1dd7`](https://github.com/sgurzheyev/Clean_Egypt_co/commit/05d1dd7). Scorecard below marked **Shipped** where that commit closed the finding. Product notes: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]].
 
-**Wave I (2026-09-19):** SEC-4 Vercel user JWT — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]. Wave H Edge secrets remain ops.
+**Wave I (2026-09-19):** SEC-4 Vercel user JWT — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] ([PR #11](https://github.com/sgurzheyev/Clean_Egypt_co/pull/11)). Wave H Edge secrets remain ops.
 
 ## Last push to `main`
 
