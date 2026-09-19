@@ -49,7 +49,32 @@ aliases: [Frontend Components, UI Map]
 | Steel / profile glass tokens | [[constants.ts]] |
 | Map Egypt theme | [[src/lib/mapEgyptTheme.ts]] |
 | Map weather layers | [[src/lib/mapWeather.ts]] |
+| PWA / home-screen app icon | [[public/brand/garbagin-app-icon-1024.png]] · [[scripts/export-app-icons.py]] |
 | Project UI rules | [[.cursorrules]] |
+
+### App icon (PWA install)
+
+Home-screen / favicon artwork is a 3D glass-metal **G** (same silhouette family as the old ring-G: rounded C + mid-bar) on a full-bleed navy plate. Colors are pulled from the live UI, not a generic neon pair:
+
+| Token | Hex | Where it already lives |
+| --- | --- | --- |
+| Navy glass | `#020617` `#0A0A12` `#05060a` | `index.css` `--uv-bg`, html/body, MapPicker night space |
+| Violet / magenta CTA | `#8b5cf6` `#a855f7` `#c026ff` | Store / funding CTAs, MapBootSplash wordmark |
+| Cyan map accent | `#22d3ee` | Glass neon, service-zone pins, splash gradient |
+| Emerald eco tag | `#10b981` `#34d399` | `--uv-accent`, approve CTAs, history chips |
+
+**Master:** `public/brand/garbagin-app-icon-1024.png` (1024×1024, square, no pre-drawn squircle — iOS/Android apply their own mask).
+
+**Install copies** (rewritten by `python3 scripts/export-app-icons.py`):
+
+| Path | Role |
+| --- | --- |
+| `public/icon-1024.png` | High-res `any` |
+| `public/icon-512.png` / `public/icon-192.png` | Manifest + favicon `any` |
+| `public/icon-512-maskable.png` / `public/icon-192-maskable.png` | Manifest `maskable` (G inset ~72% so a circular crop does not clip the letter) |
+| `public/apple-touch-icon.png` | 180×180, `index.html` |
+
+Wired in `public/manifest.json` and `index.html` (`theme-color` / `background_color` `#020617`). No Capacitor / Android `mipmap` / iOS `AppIcon` tree exists in this repo yet — when Play packaging lands, reuse the 1024 master. Do not change this mark to Paranoic cyan; keep the violet–magenta body + cyan rim.
 
 ## Hooks & helpers
 
