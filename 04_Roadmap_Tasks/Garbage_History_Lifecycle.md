@@ -2,14 +2,14 @@
 title: Garbage History Lifecycle
 type: architecture
 status: canonical
-updated: 2026-09-12
+updated: 2026-09-17
 tags: [garbagin, crowdfunding, eco-ultimatum, city-notice, r2, n8n]
 ---
 
 # Garbage History — сквозной пайплайн краудфандинга и эко-ультиматума
 
 > Каноническая логика **бесплатного civic-пина → Stripe-кампания → rolling timer → Gov Notice / медиа → публичная «История мусора» → архив**.  
-> Хаб: [[🗺️ GARBAGIN Master Index]] · деньги: [[01_Architecture/Stripe_USD_Flow]] · P2P (другой мир): [[01_Architecture/P2P_Deal_Flow]] · карта: [[../.cursorrules]] · аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E (гигиена): [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · apply: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · CLI history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
+> Хаб: [[🗺️ GARBAGIN Master Index]] · деньги: [[01_Architecture/Stripe_USD_Flow]] · P2P (другой мир): [[01_Architecture/P2P_Deal_Flow]] · карта: [[../.cursorrules]] · аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · E2E: [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E (гигиена): [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · apply: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · CLI history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 
 Этот документ описывает **целевой** сквозной пайплайн. Блок «Реализация vs канон» в конце явно отделяет уже живущий SQL/Edge от шагов, которые ещё нужно дописать.
 
@@ -263,9 +263,9 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 | Free pin create | `create_garbage_zone_report` · [[../src/lib/garbageZoneReport.ts]] · [[../components/MapPicker.tsx]] |
 | Convert / first-donate activate | **Канон в коде (P0-2):** первый Stripe-доллар внутри `apply_stripe_contribution` будит `reported`. **Опционально:** `convert_report_to_mission` — **только автор** пина (P1-4, [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]) |
 | Contribute | checkout / confirm / webhook → `apply_stripe_contribution` · overfund loser → auto-refund (P0-3) |
-| Bid / accept during funding | `place_mission_bid` / `accept_mission_bid` |
-| $0 hide sweep | **Есть (P0-1):** `process_expired_crowdfunding_missions` → `hidden`, без `city_notification_events` |
-| Underfunded sweep | `process_expired_crowdfunding_missions` · 0 < raised < target → `expired` + Gov Notice |
+| Bid / accept during funding | `place_mission_bid` / `accept_mission_bid` — underfund stay `funding` (LIFE-1, [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]); new bid needs active sub ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]) |
+| $0 hide sweep | **Есть (P0-1 / LIFE-3):** `process_expired_crowdfunding_missions` → `hidden`, `cleaner_id` NULL, без `city_notification_events` |
+| Underfunded sweep | `process_expired_crowdfunding_missions` · 0 < raised < target → `expired` + Gov Notice + **unlock cleaner** (LIFE-3) |
 | Gov Notice | INSERT `city_notification_events` → pg_net → `city-notification-pipeline` |
 | n8n | **Есть (P2-1c):** `city-notification-pipeline` после `sent`/`generated`; fail-soft если URL не задан |
 | History 7d + R2 purge | **Есть (P2-1 / P2-1b):** `process_garbage_history_archives` + Edge `garbage-history-purge` |
@@ -273,11 +273,11 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 
 ---
 
-## 8. Реализация vs канон (снимок 2026-09-12, через Wave D)
+## 8. Реализация vs канон (снимок 2026-09-17, через Wave H)
 
-Аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]]. Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]. Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]. Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]. Wave E (docs/ops only): [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]. Apply order: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]. CLI history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]].
+Аудит: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · E2E: [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]]. Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]. Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]. Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]. Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]. Wave E (docs/ops only): [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]. Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]. Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]. Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]. Apply order: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]. CLI history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]].
 
-Таблица ниже — **текущий** снимок (P0→D на live SQL + Edge). Снимок 2026-08-26 больше не канон.
+Таблица ниже — **текущий** снимок (P0→H на live SQL + Edge). Снимок 2026-08-26 больше не канон.
 
 | Правило | Сейчас в коде | Разрыв |
 | --- | --- | --- |
@@ -286,10 +286,10 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 | Unpaid convert | `convert_report_to_mission` — **только creator**, цель ≥ **$2**. Соседи — first-donate (P1-4) | OK. `$0` funding после convert может только hide (P0-1), не Gov Notice |
 | Overfund race | Loser Checkout → auto Stripe refund (confirm + webhook, идемпотентно) (P0-3) | OK. Expiry **с деньгами** по-прежнему без card-refund |
 | Rolling +30d | Да, `apply_stripe_contribution` | OK |
-| Цель собрана → work | Да, `available` / `in_progress` если cleaner locked. 24h abandon sweep **не** трогает crowd (P1-2) | OK |
+| Цель собрана → work | Да, `available` / `in_progress` если cleaner locked. Accept выше raised **остаётся `funding`** (LIFE-1). 24h abandon sweep **не** трогает crowd (P1-2) | OK |
 | Donor reject proof | `process_proof_vote(false)` → `in_progress` retry, cleaner kept, pot intact (P1-1) | OK. `failed` больше не пишется. Старые `failed` с cleaner backfill-нуты |
 | P2P confirm RPC | `confirm_mission_work_done` в active tree (P3-3) | OK для greenfield |
-| Expiry без рефанда (есть сбор) | Да — 0 < raised < target → `expired` + city queue | OK vs оферта. Не путать с P0-3 |
+| Expiry без рефанда (есть сбор) | Да — 0 < raised < target → `expired` + city queue; **`cleaner_id` NULL** (LIFE-3) | OK vs оферта. Не путать с P0-3 |
 | Gov Notice PDF + Telegram | Да, `city-notification-pipeline` → R2 `city-pdfs/` | Назвать/обогатить фото+видео в PDF; официальный канал муниципалитета |
 | n8n соцкампания | **Есть (P2-1c):** webhook после PDF `sent`/`generated`; skip если URL не задан | Сам n8n workflow — ops, не этот репозиторий |
 | История 7 дней | `history_public_until`; feed/map до окна; затем `archived` (P2-1 / P2-2) | OK |
@@ -314,8 +314,9 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 7. ~~Feed/map: показывать `expired` только до `history_public_until`.~~ **Wave D / P2-2**
 8. ~~Wave C: `amount_target` не писать USD; Profile `approved`; funded DELETE lock.~~ **Wave C / P2-3 + P2-4 + P3-4** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 9. ~~Vault / Roadmap / CLI-history hygiene.~~ **Wave E** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
+10. ~~Admin TG / missions UPDATE / underfund accept / expiry unlock / push hijack.~~ **Waves F/G/H** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
 
-Ещё открыто (не код Wave E): optional сразу-purge R2 на `$0` hide; официальный канал муниципалитета; явный re-tender если cleaner бросил полный pot; сам n8n workflow; merge PR #3–#7 в `main`.
+Ещё открыто: optional сразу-purge R2 на `$0` hide; официальный канал муниципалитета; явный re-tender если cleaner бросил **полный** pot; сам n8n workflow; **SEC-4** Vercel `/api/*`; Edge secrets `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET`; CLI repair `20260917_*`.
 
 ---
 
@@ -331,9 +332,13 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] — P2-3 / P2-4 / P3-4
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] — P2-1 / P2-1b / P2-1c / P2-2
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] — docs + CLI history hygiene
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] — SEC-1 / SEC-2
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] — LIFE-1 / LIFE-2 / LIFE-3
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] — SEC-5 / fail-closed Edge / Hungry-Games sub
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `migration repair` / no `db push`
-- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→D paste order + Edge
+- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H paste order + Edge
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]
+- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]]
 - [[../supabase/migrations/20260720_crowdfunding_expiry_cron.sql]]
 - [[../supabase/migrations/20260722_city_notification_pipeline.sql]]
 - [[../supabase/migrations/20260724_restore_crowdfunding_contribution_timer_bump.sql]]
@@ -343,6 +348,7 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 - [[../supabase/migrations/20260912_wave_b_failed_recovery_abandon_confirm.sql]]
 - [[../supabase/migrations/20260912_wave_c_amount_target_profile_delete.sql]]
 - [[../supabase/migrations/20260912_wave_d_garbage_history_window.sql]]
+- [[../supabase/migrations/20260917_wave_g_lifecycle_hardening.sql]]
 - [[../src/lib/cityNotification.ts]]
 - [[../src/lib/crowdfunding.ts]]
 - [[../supabase/functions/city-notification-pipeline/index.ts]]

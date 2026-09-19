@@ -2,7 +2,7 @@
 title: Garbagin E2E Audit 2026-09-15
 type: architecture
 status: audit
-updated: 2026-09-15
+updated: 2026-09-17
 tags: [garbagin, audit, security, bugs, e2e]
 aliases: [E2E audit Sep 15, post-Wave-E bug search]
 ---
@@ -12,30 +12,32 @@ aliases: [E2E audit Sep 15, post-Wave-E bug search]
 Read-only bug search after Waves A–E. Does **not** change product behavior.
 Prior lifecycle scorecard: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] (2026-09-12, all Wave items marked **Shipped**).
 
+**Vault close (2026-09-17):** Waves F/G/H + Hungry-Games SQL/Edge landed on `main` as [`cbf5c62`](https://github.com/sgurzheyev/Clean_Egypt_co/commit/cbf5c62) / merge [`05d1dd7`](https://github.com/sgurzheyev/Clean_Egypt_co/commit/05d1dd7). Scorecard below marked **Shipped** where that commit closed the finding. Product notes: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]].
+
 ## Last push to `main`
 
 | Field | Value |
 | --- | --- |
-| Tip | `5747602` — *Point the Wave E vault note at PR #8.* |
+| Tip (this audit, 2026-09-15) | `5747602` — *Point the Wave E vault note at PR #8.* |
 | When | **2026-09-12 11:49:21 UTC** (~3 days before this audit) |
 | Author | Cursor Agent |
-| Gap | No commits on `main` since Wave E close |
+| Later close | **2026-09-17** — `cbf5c62` Waves F/G/H + Hungry-Games (Sergio Gurgini); merge `05d1dd7` |
 | PR hygiene | PRs [#2](https://github.com/sgurzheyev/Clean_Egypt_co/pull/2)–[#8](https://github.com/sgurzheyev/Clean_Egypt_co/pull/8) are **CLOSED** with `mergedAt: null` — code landed on `main` via direct push / agent merge, not GitHub “Merge” |
 
-Ops still open from Wave E: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — confirm live DB `migration list` has no Local-only `20260912_*` (never blind `db push`).
+Ops still open: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — confirm live DB `migration list` has no Local-only `20260912_*` **or** `20260917_*` (never blind `db push`).
 
 ---
 
 ## Executive verdict
 
-Lifecycle Waves A–E closed the Sep-12 crowdfunding scorecard. This pass finds **new** security and state-machine holes that Waves did not cover:
+Lifecycle Waves A–E closed the Sep-12 crowdfunding scorecard. This pass found **new** security and state-machine holes that those waves did not cover. **Waves F/G/H (2026-09-17) shipped the P0/P1 code fixes** except **SEC-4**.
 
-1. **Critical** — any user can self-promote to platform admin by setting `telegram_username = 'sergiogurgini'`.
-2. **Critical** — mission participants can UPDATE lifecycle/economy columns (`status`, `cleaner_id`, `current_funding`, …) via PostgREST.
-3. **High** — `accept_mission_bid` can start underfunded crowdfunding work after a 100% raise flipped the pin to `available`.
-4. **High** — several Edge/API surfaces fail open or have no auth.
+1. ~~**Critical** — any user can self-promote to platform admin by setting `telegram_username = 'sergiogurgini'`.~~ **Shipped** — Wave F `platform_admins` + `is_platform_admin` without TG.
+2. ~~**Critical** — mission participants can UPDATE lifecycle/economy columns via PostgREST.~~ **Shipped** — Wave F column GRANT + freeze trigger.
+3. ~~**High** — `accept_mission_bid` can start underfunded crowdfunding work after a 100% raise flipped the pin to `available`.~~ **Shipped** — Wave G underfund gate.
+4. **High, still open — SEC-4** — several **Vercel** `/api/*` surfaces have no user JWT (OpenAI / Telegram burn). Edge push/city now fail closed (SEC-3 shipped); secrets must be set.
 
-Bid token debit (1 token / new bid), Stripe webhook signature verify, and Hungry-Games phone column REVOKE for **P2P** look intact.
+Bid token debit (1 token / new bid), Stripe webhook signature verify, and Hungry-Games phone column REVOKE for **P2P** look intact. Hungry-Games **subscription** for new bids shipped on the same commit ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]).
 
 ---
 
@@ -43,18 +45,18 @@ Bid token debit (1 token / new bid), Stripe webhook signature verify, and Hungry
 
 | ID | Severity | Finding | Status |
 | --- | --- | --- | --- |
-| SEC-1 | **P0** | Admin escalation via editable `telegram_username` | **Open** |
-| SEC-2 | **P0** | `missions` full-row UPDATE for participants | **Open** |
-| LIFE-1 | **P0** | Accept bid on fully-raised `available` crowd pin → `in_progress` even if bid > raised | **Open** |
-| SEC-3 | **P1** | `send-push-notification` / `city-notification-pipeline` auth skip when secret unset (`verify_jwt=false`) | **Open** |
+| SEC-1 | **P0** | Admin escalation via editable `telegram_username` | **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] (`platform_admins` + no TG in `is_platform_admin`) |
+| SEC-2 | **P0** | `missions` full-row UPDATE for participants | **Shipped** — Wave F column GRANT + `trg_protect_mission_lifecycle_columns` |
+| LIFE-1 | **P0** | Accept bid on fully-raised `available` crowd pin → `in_progress` even if bid > raised | **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] (gate on `crowdfunding_mode AND raised < budget`) |
+| SEC-3 | **P1** | `send-push-notification` / `city-notification-pipeline` auth skip when secret unset (`verify_jwt=false`) | **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] fail-closed (service-role **or** non-empty secret). Ops: set `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET` |
 | SEC-4 | **P1** | Vercel `/api/analyze-mission`, `translate`, `moderate-*`, `notify-*` unauthenticated (OpenAI / Telegram burn) | **Open** |
-| SEC-5 | **P1** | `upsert_user_push_token` steals token on `ON CONFLICT` (`user_id = uid`) | **Open** |
-| LIFE-2 | **P1** | `reject_mission_bid` only in `migrations/archive/` — decline path fragile on fresh apply | **Open** |
-| LIFE-3 | **P1** | Expiry leaves `cleaner_id` on `expired` underfunded pot; worker stranded | **Open** |
-| OPS-1 | **P1** | `api/process-expired-crowdfunding.ts` is a non-functional stub (auth checks presence, not equality) | **Open** (prod path = `pg_cron` + Edge — verify hosted) |
-| UX-1 | **P2** | “Subscribe to unlock” copy implies subscription bypasses Hungry-Games | **Open** |
+| SEC-5 | **P1** | `upsert_user_push_token` steals token on `ON CONFLICT` (`user_id = uid`) | **Shipped** — Wave H reject unless same owner |
+| LIFE-2 | **P1** | `reject_mission_bid` only in `migrations/archive/` — decline path fragile on fresh apply | **Shipped** — Wave G promoted RPC |
+| LIFE-3 | **P1** | Expiry leaves `cleaner_id` on `expired` underfunded pot; worker stranded | **Shipped** — Wave G clears lock + rejects bids + backfill |
+| OPS-1 | **P1** | `api/process-expired-crowdfunding.ts` is a non-functional stub (auth checks presence, not equality) | **Shipped** — Wave H real RPC + secret equality (prod path still `pg_cron` + Edge) |
+| UX-1 | **P2** | “Subscribe to unlock” copy implies subscription bypasses Hungry-Games | **Open** (subscription now required for new bids; copy pass still optional) |
 | SEC-6 | **P2** | Chat-photos bucket public; R2 presign for `chat` / `mission-photos` lacks mission membership check | **Open** |
-| OPS-2 | **P2** | `is_platform_admin` body only in archive; Wave `20260912_*` CLI history may still be Local-only | **Open** (ops) |
+| OPS-2 | **P2** | `is_platform_admin` body only in archive; Wave `20260912_*` CLI history may still be Local-only | **Partial** — Wave F put admin helper in active SQL. CLI: also repair `20260917_*` ([[04_Roadmap_Tasks/Ops_Migration_History_Repair]]) |
 | NOTE-1 | — | Crowdfunding phone always NULL | **Intentional** per vault (not a regression) — conflicts with literal `.cursorrules` unlock-after-accept |
 
 ---
@@ -62,6 +64,8 @@ Bid token debit (1 token / new bid), Stripe webhook signature verify, and Hungry
 ## P0 detail
 
 ### SEC-1 — Admin escalation via Telegram username
+
+**Status:** **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]. Attack below is the 2026-09-15 finding.
 
 **Attack:** Authenticated user `UPDATE profiles SET telegram_username = 'sergiogurgini' WHERE id = auth.uid()`.
 
@@ -80,6 +84,8 @@ Bid token debit (1 token / new bid), Stripe webhook signature verify, and Hungry
 
 ### SEC-2 — Mission lifecycle forgery via RLS UPDATE
 
+**Status:** **Shipped** — Wave F column GRANT + freeze trigger. Evidence below is the 2026-09-15 finding.
+
 **Evidence:** `missions_update_participants` + `GRANT UPDATE … ON public.missions TO authenticated` in `20260726_missions_schema_hardening.sql` — no column grants, no `BEFORE UPDATE` freeze trigger. Profiles got column-lock treatment on 2026-07-27; missions did not.
 
 **Impact:** Creator or assigned cleaner can PostgREST-set `status = 'completed'`, bump `current_funding`, reassign `cleaner_id`, etc., bypassing RPCs.
@@ -87,6 +93,8 @@ Bid token debit (1 token / new bid), Stripe webhook signature verify, and Hungry
 **Fix direction:** Same pattern as profiles — `REVOKE UPDATE` → `GRANT UPDATE (safe cols)` + trigger that rejects economy/status mutations unless `service_role` / DEFINER. Move before-photo updates into an RPC if needed.
 
 ### LIFE-1 — Underfunded start after `available` transition
+
+**Status:** **Shipped** — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] gates on `crowdfunding_mode AND raised < budget`. Flow below is the 2026-09-15 finding.
 
 **Flow:**
 1. Crowd pin hits 100% with no cleaner → `apply_stripe_contribution` sets `status = 'available'` (`20260912_split_expiry_and_first_donate_wake.sql` ~308–331).
@@ -103,12 +111,12 @@ Bid token debit (1 token / new bid), Stripe webhook signature verify, and Hungry
 
 | ID | Evidence | Fix |
 | --- | --- | --- |
-| SEC-3 | `config.toml` `verify_jwt=false`; push/city skip auth when env secret empty | Fail closed; require service-role bearer or non-empty secret match |
-| SEC-4 | `api/analyze-mission.ts` etc. — no JWT | Require user JWT + participant/admin; rate-limit |
-| SEC-5 | `upsert_user_push_token` conflict sets `user_id = uid` | Reject conflict unless same owner |
-| LIFE-2 | `reject_mission_bid` only under `migrations/archive/` | Promote to active migration |
-| LIFE-3 | Wave D expiry keeps `cleaner_id` on `expired` | Clear lock + reject bids, or recovery RPC |
-| OPS-1 | Vercel stub returns 200 placeholder | Wire or delete; verify `pg_cron` + `city-notification-pipeline` on host |
+| SEC-3 | `config.toml` `verify_jwt=false`; push/city skip auth when env secret empty | **Shipped (code):** fail closed. **Ops:** set `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET` |
+| SEC-4 | `api/analyze-mission.ts` etc. — no JWT | **Open** — require user JWT + participant/admin; rate-limit |
+| SEC-5 | `upsert_user_push_token` conflict sets `user_id = uid` | **Shipped** — reject conflict unless same owner |
+| LIFE-2 | `reject_mission_bid` only under `migrations/archive/` | **Shipped** — promoted to active migration |
+| LIFE-3 | Wave D expiry keeps `cleaner_id` on `expired` | **Shipped** — clear lock + reject bids + backfill |
+| OPS-1 | Vercel stub returns 200 placeholder | **Shipped** — real RPC + secret equality |
 
 ---
 
@@ -139,12 +147,13 @@ Treat as **product decision**, not a silent regression. If civic pins should sta
 
 ## Recommended fix order (next waves)
 
-1. **Wave F (security):** SEC-1 admin rewrite + SEC-2 mission column lock  
-2. **Wave G (lifecycle):** LIFE-1 accept-underfund + LIFE-2 reject RPC + LIFE-3 expiry unlock  
-3. **Wave H (surfaces):** SEC-3/4/5 Edge+API auth + push token conflict  
-4. **Ops:** confirm Wave E migration repair on live; cron/expiry path smoke test  
+1. ~~**Wave F (security):** SEC-1 admin rewrite + SEC-2 mission column lock~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]
+2. ~~**Wave G (lifecycle):** LIFE-1 accept-underfund + LIFE-2 reject RPC + LIFE-3 expiry unlock~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
+3. ~~**Wave H (surfaces):** SEC-3/5 Edge auth + push token conflict~~ — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] (**SEC-4 Vercel APIs still Open**)
+4. **Ops:** `migration repair --status applied 20260917` if Local-only; set `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET`; optional drop KYC `role=admin` fallback
+5. **Still code:** SEC-4 Vercel `/api/*` JWT + participant/admin + rate-limit
 
-Field checklist on [[04_Roadmap_Tasks/00_Dashboard]] (AR / Stripe / Waves A–E) remains unchecked — schedule a hosted smoke after F/G.
+Field checklist on [[04_Roadmap_Tasks/00_Dashboard]] (AR / Stripe / Waves A–H) remains unchecked — schedule a hosted smoke.
 
 ---
 

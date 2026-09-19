@@ -44,7 +44,7 @@ Short front-camera clip (WebRTC / `MediaRecorder`) in [[../components/Verificati
 Browser RLS blocks non-owner reads. Admins mint 1h URLs via Edge Function:
 
 - [[../supabase/functions/kyc-admin-signed-urls/index.ts]]
-- Uses `SUPABASE_SERVICE_ROLE_KEY` after `is_platform_admin` check
+- Uses `SUPABASE_SERVICE_ROLE_KEY` after `is_platform_admin` check (Wave F). If the RPC errors, fallback is `profiles.role = admin` only — **no** Telegram username (Wave H).
 
 ## SQL migrations
 
@@ -57,4 +57,6 @@ Browser RLS blocks non-owner reads. Admins mint 1h URLs via Edge Function:
 - Trust / home mission gate: [[../src/lib/homeMissionAccess.ts]]
 - Admin shell: [[../src/components/AdminDashboard.tsx]]
 - Dashboard hub: [[04_Roadmap_Tasks/00_Dashboard]]
+- Wave F admin rewrite: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]
+- Wave H KYC fallback: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
 - Master index: [[🗺️ GARBAGIN Master Index]]

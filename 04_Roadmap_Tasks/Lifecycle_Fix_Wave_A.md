@@ -10,7 +10,7 @@ aliases: [Wave A, Overfund refund, Creator-only convert, P0-3, P1-4]
 # Lifecycle Fix — Wave A (overfund refund + reporter-only convert)
 
 > Product close of **P0-3** and **P1-4** from the lifecycle audit.  
-> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
+> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
 
 **Code PR:** [Clean_Egypt_co#4](https://github.com/sgurzheyev/Clean_Egypt_co/pull/4)  
 **Stacked on:** [PR #3](https://github.com/sgurzheyev/Clean_Egypt_co/pull/3) (P0-1 split expiry + P0-2 first-donate wake). Retarget to `main` after P0 merges.
@@ -133,6 +133,9 @@ From [[docs/GARBAGIN_LIFECYCLE_AUDIT]] / [[04_Roadmap_Tasks/Garbage_History_Life
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]

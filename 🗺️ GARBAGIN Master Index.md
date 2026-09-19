@@ -21,7 +21,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 | Backend / SQL | [[03_Backend_SQL/SQL_Migrations_Index]] |
 | Edge & API | [[03_Backend_SQL/Backend_Edge_and_API]] |
 | Roadmap | [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] |
-| Lifecycle audit / Wave A–E | [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] · [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] |
+| Lifecycle audit / Wave A–H | [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] · [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] |
 | Archive | [[05_Archive/Garbagin_Roadmap_Update]] |
 | Field dashboard | [[04_Roadmap_Tasks/00_Dashboard]] |
 
@@ -43,10 +43,13 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] — P2-3 token rank ≠ USD + P2-4 Profile `approved` + P3-4 funded DELETE
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] — P2-1 7-day Garbage History + P2-1b R2 purge + P2-1c n8n + P2-2 feed filters
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] — vault + CLI history hygiene (no product change)
-- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `supabase migration repair` for `20260912_*`
-- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→D SQL + Edge apply order
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] — SEC-1 `platform_admins` + SEC-2 mission column freeze
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] — LIFE-1 underfund accept + LIFE-2 reject RPC + LIFE-3 expiry unlock
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] — SEC-5 push token lock + fail-closed Edge + Hungry-Games subscription
+- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `supabase migration repair` for `20260912_*` / `20260917_*`
+- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games SQL + Edge apply order
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — read-only lifecycle scorecard (PR #2)
-- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] — post–Wave E E2E bug search (SEC / LIFE open items)
+- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] — post–Wave E E2E bug search (F/G/H shipped; SEC-4 still open)
 
 ### App shell & config
 - [[App.tsx]]
@@ -270,6 +273,10 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[supabase/migrations/20260912_wave_b_failed_recovery_abandon_confirm.sql]]
 - [[supabase/migrations/20260912_wave_c_amount_target_profile_delete.sql]]
 - [[supabase/migrations/20260912_wave_d_garbage_history_window.sql]]
+- [[supabase/migrations/20260917_wave_f_security_hardening.sql]]
+- [[supabase/migrations/20260917_wave_g_lifecycle_hardening.sql]]
+- [[supabase/migrations/20260917_wave_h_surface_hardening.sql]]
+- [[supabase/migrations/20260917_hungry_games_subscription_gate.sql]]
 
 Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 
@@ -285,8 +292,11 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] — token rank ≠ USD + Profile approved + funded DELETE
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] — 7-day Garbage History + R2 purge + n8n
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] — vault + CLI history hygiene
-- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — mark `20260912` applied (no `db push`)
-- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→D paste order + Edge redeploys
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] — admin allowlist + mission column lock
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] — underfund accept + reject RPC + expiry unlock
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] — push token lock + fail-closed Edge + Hungry-Games sub
+- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — mark `20260912` / `20260917` applied (no `db push`)
+- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games paste order + Edge redeploys
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — audit scorecard vs canon
 - [[05_Archive/Garbagin_Roadmap_Update]] — superseded status report
 - [[.cursorrules]] — product + UI rules of engagement
@@ -301,6 +311,9 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 | Lifecycle Wave C | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] | [[supabase/migrations/20260912_wave_c_amount_target_profile_delete.sql]], [[components/Profile.tsx]] |
 | Lifecycle Wave D | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] | [[supabase/migrations/20260912_wave_d_garbage_history_window.sql]], [[supabase/functions/garbage-history-purge/index.ts]], [[src/lib/crowdfunding.ts]] |
 | Lifecycle Wave E / CLI history | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] | [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] |
+| Lifecycle Wave F | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] | [[supabase/migrations/20260917_wave_f_security_hardening.sql]], [[src/lib/platformAdmin.ts]] |
+| Lifecycle Wave G | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] | [[supabase/migrations/20260917_wave_g_lifecycle_hardening.sql]], [[src/lib/missionBids.ts]] |
+| Lifecycle Wave H / Hungry-Games sub | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] | [[supabase/migrations/20260917_wave_h_surface_hardening.sql]], [[supabase/migrations/20260917_hungry_games_subscription_gate.sql]], [[components/MapPicker.tsx]] |
 | P2P deals (no escrow) | [[01_Architecture/P2P_Deal_Flow]] | [[src/lib/submitMissionProof.ts]], [[src/lib/missionBids.ts]] |
 | Security / RPCs | [[01_Architecture/Security_and_RPCs]] | [[supabase/migrations/20260719_submit_mission_proof_rpc.sql]] |
 | KYC | [[01_Architecture/KYC_Verification]] | [[components/VerificationModal.tsx]], [[src/lib/kycDocuments.ts]] |

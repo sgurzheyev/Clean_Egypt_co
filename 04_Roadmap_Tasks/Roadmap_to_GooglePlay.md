@@ -3,7 +3,7 @@ title: Roadmap to Google Play
 type: roadmap
 status: active
 target: Google Play Store launch
-updated: 2026-09-12
+updated: 2026-09-17
 tags: [garbagin, roadmap, google-play, crowdfunding, tokens, ar, p2p]
 ---
 
@@ -26,7 +26,11 @@ tags: [garbagin, roadmap, google-play, crowdfunding, tokens, ar, p2p]
 - Wave C (token rank / Profile approved / funded DELETE) → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 - Wave D (7-day Garbage History / R2 purge / n8n) → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
 - Wave E (vault + CLI history hygiene) → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]
-- Apply runbook (P0→D) → [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
+- Wave F (admin allowlist / mission column lock) → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]
+- Wave G (underfund accept / reject RPC / expiry unlock) → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
+- Wave H (push token / fail-closed Edge / Hungry-Games sub) → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
+- E2E audit (SEC-4 still open) → [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]]
+- Apply runbook (P0→H + Hungry-Games) → [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
 - CLI history repair → [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 - P2P deals → [[01_Architecture/P2P_Deal_Flow]]
 - Security & RPCs → [[01_Architecture/Security_and_RPCs]]
@@ -65,11 +69,11 @@ Use this as the floor — do **not** rebuild what works.
 - [x] P2P proof lifecycle + PostGIS ≤200m GPS gate + `confirm_mission_work_done` (Wave B)
 - [x] KYC admin queue + signed media
 - [x] In-app notification bell (DB-backed; FCM Edge scaffold exists, secrets not live)
-- [x] Hungry-Games: 1 token / bid + phone locked until accept (subscription gate still open)
+- [x] Hungry-Games: 1 token / bid + phone locked until accept + **active subscription** for new bids (admins exempt) — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
 - [x] In-app P2P chat (`mission_chats` + MissionChatPanel)
 - [x] Lazy WebXR [[../src/components/AROverlay]] (field-unvalidated)
 
-**Gap to Play:** subscription-gated bidding, AR field proof, FCM secrets + expiry pings, Android packaging / Play Console. Lifecycle SQL is on live; git `main` may still lack PRs #3–#7.
+**Gap to Play:** AR field proof, FCM secrets + expiry pings, Android packaging / Play Console. Lifecycle SQL (P0→H) is on live and on `main` (`cbf5c62`). SEC-4 Vercel `/api/*` auth still open.
 
 ---
 
@@ -167,7 +171,7 @@ funding ──(target met, no cleaner)──► available ──(accept bid)─�
 	- [x] **No private client phone** attached to the pin (RPC always returns NULL when `crowdfunding_mode`).
 
 #### Token-gated bidding (Hungry-Games)
-- [ ] Worker must have an **active subscription** to place any bid.
+- [x] Worker must have an **active subscription** to place any **new** bid (`place_mission_bid`; admins exempt; pending updates skip re-check) — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
 - [x] Placing a bid costs exactly **1 Token** on crowdfunding (non-refundable stake).
 - [x] Deduct token **atomically** with bid insert (`FOR UPDATE` on `profiles.token_balance`) — no free bids on race.
 - [ ] Token-boost for **listing promotion** remains separate from the 1-token bid stake.
@@ -311,7 +315,7 @@ flowchart LR
 - [ ] Stripe webhook live in production; no orphaned paid sessions in staging soak
 - [ ] No client phone leakage on private tasks (security review / RLS audit)
 - [ ] Crowdfunding expiry → PDF → Admin email + Telegram verified end-to-end
-- [ ] Hungry-Games: subscription + 1 token deducted per bid
+- [x] Hungry-Games: subscription + 1 token deducted per bid
 - [ ] `.aab` uploaded; Internal + Closed tracks signed off
 - [ ] Privacy Policy / Terms URLs live and linked
 
@@ -334,9 +338,10 @@ flowchart LR
 
 | Date | Note |
 | --- | --- |
+| 2026-09-17 | Waves F/G/H + Hungry-Games subscription on `main` (`cbf5c62`). Vault: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]. |
 | 2026-09-12 | Wave E: Phase 1 timers + crowd-bid + accept-during-funding marked shipped; P0→D / PDF / Hungry-Games / chat moved into baseline. Hygiene: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]. |
 | 2026-07-22 | Initial Roadmap to Google Play authored from new business rules + post-stabilization architecture. |
 
 ---
 
-> _Next action:_ Merge PRs #3–#7 to `main`. Repair CLI history ([[04_Roadmap_Tasks/Ops_Migration_History_Repair]]). Remaining Play blockers: subscription-gated bid, FCM secrets, AR field test, AAB / Play Console.
+> _Next action:_ Repair CLI history for `20260912` / `20260917` ([[04_Roadmap_Tasks/Ops_Migration_History_Repair]]). Set Edge secrets `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET`. Remaining Play blockers: SEC-4 Vercel `/api/*`, FCM secrets, AR field test, AAB / Play Console.

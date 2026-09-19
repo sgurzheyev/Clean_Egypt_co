@@ -10,7 +10,7 @@ aliases: [Wave B, Failed recovery, Crowd abandon exclude, P1-1, P1-2, P3-3]
 # Lifecycle Fix — Wave B (`failed` retry + no silent crowd abandon + P2P confirm RPC)
 
 > Product close of **P1-1**, **P1-2**, and **P3-3** from the lifecycle audit.  
-> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · money: [[01_Architecture/Stripe_USD_Flow]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
+> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · money: [[01_Architecture/Stripe_USD_Flow]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
 
 **Code PR:** stacked on [Clean_Egypt_co#4](https://github.com/sgurzheyev/Clean_Egypt_co/pull/4) (Wave A on P0). Retarget to `main` after P0 / Wave A merge.
 
@@ -131,6 +131,9 @@ From [[docs/GARBAGIN_LIFECYCLE_AUDIT]] / [[04_Roadmap_Tasks/Garbage_History_Life
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]

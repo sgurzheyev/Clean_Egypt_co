@@ -10,11 +10,11 @@ aliases: [Wave E, Lifecycle hygiene, Docs sync, Migration history repair]
 # Lifecycle Fix — Wave E (vault + CLI history hygiene)
 
 > Docs-and-ops close after **P0 → Wave D**. No product behavior change.  
-> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · apply order: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · CLI repair: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] · money: [[01_Architecture/Stripe_USD_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
+> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · apply order: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · CLI repair: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] · money: [[01_Architecture/Stripe_USD_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · audit: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · field list: [[04_Roadmap_Tasks/00_Dashboard]]
 
 **Code PR:** [Clean_Egypt_co#8](https://github.com/sgurzheyev/Clean_Egypt_co/pull/8) stacked on [Clean_Egypt_co#7](https://github.com/sgurzheyev/Clean_Egypt_co/pull/7) (Wave D). Retarget to `main` after P0 / A / B / C / D merge.
 
-**This PR is hygiene only.** Live Supabase already has P0→D SQL and the relevant Edge functions redeployed. Frontend/PRs #3–#7 may still be unmerged to `main`. Wave E makes the vault match that shipped stack and records how to fix CLI migration history **without** `db push` or a remote reset.
+**This PR is hygiene only.** Live Supabase already has P0→D SQL and the relevant Edge functions redeployed. Frontend/PRs #3–#7 later landed on `main` with F/G/H (`cbf5c62`). Wave E makes the vault match that shipped stack and records how to fix CLI migration history **without** `db push` or a remote reset.
 
 This note does **not** re-describe P0 or Waves A–D.
 
@@ -53,7 +53,7 @@ No new RPC, Edge function, or client path.
 
 **None.** Do not paste a new migration for Wave E.
 
-If a later operator needs to re-apply P0→D on a **new** project, use [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]. If this project’s CLI list still shows Local-only `20260912` versions, use [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — not `supabase db push`.
+If a later operator needs to re-apply P0→H on a **new** project, use [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]. If this project’s CLI list still shows Local-only `20260912` or `20260917` versions, use [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — not `supabase db push`.
 
 ---
 
@@ -73,7 +73,8 @@ From [[docs/GARBAGIN_LIFECYCLE_AUDIT]] / [[04_Roadmap_Tasks/Garbage_History_Life
 - Official municipality channel beyond Telegram / Resend ops
 - Explicit crowd re-tender if a locked cleaner ghosts a full pot (notify donors — do not revive silent abandon)
 - n8n social workflow itself (Edge only POSTs when a URL is set)
-- Merge PRs #3–#7 to `main` so git `main` matches live SQL
+- ~~Merge PRs #3–#7 to `main` so git `main` matches live SQL~~ — P0→H is on `main` (`cbf5c62` / `05d1dd7`); vault nodes F/G/H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
+- CLI repair for `20260917_*` if still Local-only; **SEC-4** Vercel APIs; Edge secrets `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET`
 - Future migrations: unique `YYYYMMDDHHMMSS_` prefixes (see [[04_Roadmap_Tasks/Ops_Migration_History_Repair]])
 
 ---
@@ -85,6 +86,9 @@ From [[docs/GARBAGIN_LIFECYCLE_AUDIT]] / [[04_Roadmap_Tasks/Garbage_History_Life
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]
@@ -98,3 +102,4 @@ From [[docs/GARBAGIN_LIFECYCLE_AUDIT]] / [[04_Roadmap_Tasks/Garbage_History_Life
 - [[03_Backend_SQL/SQL_Migrations_Index]]
 - [[02_Frontend/Frontend_Components]]
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]
+- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]]

@@ -21,14 +21,14 @@ aliases: [Backend Edge and API]
 - [[supabase/functions/create-payment-intent/index.ts]]
 
 ## KYC / city / push
-- [[supabase/functions/kyc-admin-signed-urls/index.ts]]
-- [[supabase/functions/city-notification-pipeline/index.ts]]
+- [[supabase/functions/kyc-admin-signed-urls/index.ts]] — Wave H: no TG fallback
+- [[supabase/functions/city-notification-pipeline/index.ts]] — Wave H fail-closed auth (`CITY_NOTIFICATION_WEBHOOK_SECRET` or service-role)
 - [[supabase/functions/garbage-history-purge/index.ts]] — Wave D R2 purge after history window
 - [[supabase/functions/_shared/n8nEcoUltimatum.ts]] — Wave D n8n (env-gated)
-- [[supabase/functions/send-push-notification/index.ts]]
+- [[supabase/functions/send-push-notification/index.ts]] — Wave H fail-closed auth (`PUSH_WEBHOOK_SECRET` or service-role)
 
 ## Vercel API routes
-- [[api/process-expired-crowdfunding.ts]]
+- [[api/process-expired-crowdfunding.ts]] — Wave H: real RPC + secret equality (SEC-4 sibling routes still open)
 - [[api/verify-job-payment.ts]]
 - [[api/notify-mission-submitted.ts]]
 - [[api/notify-dispute.ts]]
@@ -53,7 +53,11 @@ aliases: [Backend Edge and API]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]
+- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]]
 - [[🗺️ GARBAGIN Master Index]]

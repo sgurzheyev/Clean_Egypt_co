@@ -2,7 +2,7 @@
 title: Garbagin Lifecycle Audit
 type: architecture
 status: audit
-updated: 2026-09-15
+updated: 2026-09-17
 tags: [garbagin, audit, crowdfunding, lifecycle]
 aliases: [Lifecycle audit, GARBAGIN_LIFECYCLE_AUDIT, P0 P1 scorecard]
 ---
@@ -11,8 +11,8 @@ aliases: [Lifecycle audit, GARBAGIN_LIFECYCLE_AUDIT, P0 P1 scorecard]
 
 > Read-only comparison of vault canon vs shipped SQL / Edge / client.  
 > Full write-up + repros: [PR #2](https://github.com/sgurzheyev/Clean_Egypt_co/pull/2) (`cursor/lifecycle-audit-50f5`).  
-> **Post–Wave E bug search (2026-09-15):** [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] — new SEC/LIFE findings (admin TG escalation, missions UPDATE forgery, accept-underfund).  
-> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · dashboard: [[04_Roadmap_Tasks/00_Dashboard]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · apply: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · CLI history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
+> **Post–Wave E bug search (2026-09-15):** [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] — SEC/LIFE findings. **F/G/H shipped 2026-09-17** ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]); SEC-4 Vercel APIs still Open.  
+> Hub: [[🗺️ GARBAGIN Master Index]] · canon: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] · money: [[01_Architecture/Stripe_USD_Flow]] · P2P: [[01_Architecture/P2P_Deal_Flow]] · security: [[01_Architecture/Security_and_RPCs]] · dashboard: [[04_Roadmap_Tasks/00_Dashboard]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · apply: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · CLI history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 
 This note is the **vault graph node** for the audit. It does not change product behavior. Implementations land in later PRs and link back here.
 
@@ -33,7 +33,7 @@ WORLD 2 — Civic / crowd   [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]
          └─ timer + 0 < raised < target → expired → Gov Notice / history
 ```
 
-Hungry-Games: 1 token per *new* bid; creator phone locked until accept. Crowd pins never expose a client phone.
+Hungry-Games: 1 token per *new* bid **and** an active subscription (admins exempt); creator phone locked until accept. Crowd pins never expose a client phone. Product note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]].
 
 ---
 
@@ -115,7 +115,8 @@ Product language and file pointers: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]].
 
 P3-3 (`confirm_mission_work_done` in the active tree) shipped with Wave B.
 
-**After Wave E (2026-09-15 E2E):** see [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] — Wave F (SEC-1/2 admin + missions UPDATE), Wave G (LIFE-1/2/3 accept-underfund + reject RPC + expiry unlock), Wave H (Edge/API auth).
+**After Wave E (2026-09-15 E2E):** [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]].  
+**Waves F/G/H (2026-09-17, `cbf5c62`):** SEC-1/2 · LIFE-1/2/3 · SEC-3/5 · OPS-1 · Hungry-Games subscription — shipped. **SEC-4** Vercel `/api/*` still Open. Notes: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]].
 
 Canon snapshot table: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] §8.
 
@@ -128,6 +129,9 @@ Canon snapshot table: [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] §8.
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]

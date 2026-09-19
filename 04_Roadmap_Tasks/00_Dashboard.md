@@ -14,10 +14,13 @@
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] — token rank ≠ USD + Profile `approved` + funded DELETE lock
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] — 7-day Garbage History + R2 purge + n8n
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] — vault + CLI history hygiene (no product change)
-- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `migration repair` for `20260912_*` (no `db push`)
-- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→D SQL + Edge apply order
-- [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — canon vs code scorecard (Waves A–E)
-- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] — post–Wave E security + lifecycle bug search (`main` last push 2026-09-12)
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] — SEC-1 `platform_admins` + SEC-2 mission column freeze
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] — LIFE-1 underfund accept + LIFE-2 reject RPC + LIFE-3 expiry unlock
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] — SEC-5 push token + fail-closed Edge + Hungry-Games subscription
+- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `migration repair` for `20260912_*` / `20260917_*` (no `db push`)
+- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games SQL + Edge apply order
+- [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — canon vs code scorecard (Waves A–H)
+- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] — post–Wave E security + lifecycle bug search (F/G/H shipped; SEC-4 open)
 - [[02_Frontend/Frontend_Components]] — UI / map component map
 - [[03_Backend_SQL/SQL_Migrations_Index]] — migrations MOC
 - [[03_Backend_SQL/Backend_Edge_and_API]] — edge functions & API routes
@@ -31,10 +34,13 @@
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]: P2-3 token rank / P2-4 Profile `approved` / P3-4 funded DELETE
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]: P2-1 history 7d / P2-1b R2 purge / P2-1c n8n / P2-2 feed filters
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]: docs sync + CLI history repair (no product change)
-- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]: `supabase migration repair --status applied 20260912`
-- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]: P0→D paste order (live already applied)
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]: SEC-1 admin allowlist / SEC-2 mission UPDATE lock
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]: LIFE-1 accept-underfund / LIFE-2 reject RPC / LIFE-3 expiry unlock
+- [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]: SEC-5 push token / fail-closed Edge / Hungry-Games subscription
+- [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]: `supabase migration repair --status applied 20260912` / `20260917`
+- [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]: P0→H + Hungry-Games paste order (live already applied)
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]: аудит стейт-машины
-- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]]: E2E bug search 2026-09-15 (SEC-1 admin TG, SEC-2 missions UPDATE, LIFE-1 accept-underfund)
+- [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]]: E2E bug search 2026-09-15 (F/G/H shipped; SEC-4 Vercel APIs still open)
 - [[01_Architecture/KYC_Verification]]: Admin KYC queue + signed media
 - [[01_Architecture/P2P_Deal_Flow]]: Proof → review → P2P confirm (no escrow)
 
@@ -55,8 +61,12 @@
 - [ ] Wave C: map sort is token rank (not USD); Profile History shows `approved`; funded creator DELETE is rejected ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]])
 - [ ] Wave D: underfunded expiry stays on map/feed 7 days then archives; R2 purge cron; n8n fires only when webhook URL is set ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]])
 - [ ] Wave E (ops): `supabase migration list` no longer shows Local-only `20260912`; do **not** `db push` to “fix” it ([[04_Roadmap_Tasks/Ops_Migration_History_Repair]])
+- [ ] Wave F: TG username does not grant admin; participant cannot PostgREST-set `status` / `cleaner_id` / funds ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]])
+- [ ] Wave G: accept bid above raised on an `available` crowd pin stays `funding`; expiry clears `cleaner_id` ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]])
+- [ ] Wave H / Hungry-Games: new bid without subscription opens the MapPicker modal; push token conflict does not hijack; Edge 401s without secret ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]])
+- [ ] Wave F–H (ops): `migration list` no Local-only `20260917`; Edge secrets `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET` set
 - [ ] KYC: submit → admin signed preview → approve/reject
 - [ ] P2P: bid → proof → creator confirm
 
 ## Graph tips
-Open Graph View and center on [[🗺️ GARBAGIN Master Index]] or [[01_Architecture/Architecture_Overview]] — wiki-links fan out to [[01_Architecture/KYC_Verification]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]], [[04_Roadmap_Tasks/Ops_Migration_History_Repair]], and [[docs/GARBAGIN_LIFECYCLE_AUDIT]].
+Open Graph View and center on [[🗺️ GARBAGIN Master Index]] or [[01_Architecture/Architecture_Overview]] — wiki-links fan out to [[01_Architecture/KYC_Verification]], [[01_Architecture/Security_and_RPCs]], [[01_Architecture/P2P_Deal_Flow]], [[01_Architecture/Stripe_USD_Flow]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]], [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]], [[04_Roadmap_Tasks/Ops_Migration_History_Repair]], and [[docs/GARBAGIN_LIFECYCLE_AUDIT]].

@@ -10,7 +10,7 @@ aliases: [Database Migrations MOC, SQL Migrations Index]
 
 This Map of Content (MOC) clusters every migration file into one Obsidian graph hub so the vault graph stays readable. Each row links the `.sql` note and summarizes what that change did in plain English.
 
-**Related audit:** [[03_Backend_SQL/AUDIT_phone_missions_access]] · lifecycle: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · apply: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · CLI history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
+**Related audit:** [[03_Backend_SQL/AUDIT_phone_missions_access]] · lifecycle: [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · E2E: [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] · Wave A: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Wave B: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · Wave C: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · apply: [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] · CLI history: [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
 
 **Layout on disk:** active migrations live in `supabase/migrations/`; historical / superseded scripts live under `supabase/migrations/archive/`.
 
@@ -65,6 +65,10 @@ Chronological — June–July 2026 token / crowdfunding / privacy stack.
 | 2026-09-12 | [[20260912_wave_b_failed_recovery_abandon_confirm.sql]] | Wave B: donor reject → `in_progress` retry (P1-1); exclude crowdfunding from 24h abandon (P1-2); recreate `confirm_mission_work_done` / `confirm_mission_direct_payment` (P3-3). Same CLI version `20260912`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]. |
 | 2026-09-12 | [[20260912_wave_c_amount_target_profile_delete.sql]] | Wave C: stop writing USD into `amount_target` (P2-3); block creator DELETE while funded (P3-4). Same CLI version `20260912`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]. |
 | 2026-09-12 | [[20260912_wave_d_garbage_history_window.sql]] | Wave D: `history_public_until` / `media_purged_at`; archive cron; R2 purge RPCs; n8n columns. Same CLI version `20260912`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]. |
+| 2026-09-17 | [[20260917_wave_f_security_hardening.sql]] | Wave F: `platform_admins` allowlist; `is_platform_admin` without `telegram_username`; missions column GRANT + `trg_protect_mission_lifecycle_columns`. CLI version `20260917` (shared with the three rows below). Live applied; CLI may still show Local-only — [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]. |
+| 2026-09-17 | [[20260917_wave_g_lifecycle_hardening.sql]] | Wave G: `accept_mission_bid` underfund → `funding`; `reject_mission_bid` promoted; expiry clears `cleaner_id` + rejects bids + backfill. Same CLI version `20260917`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]. |
+| 2026-09-17 | [[20260917_wave_h_surface_hardening.sql]] | Wave H: `upsert_user_push_token` blocks hijack. Same CLI version `20260917`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]. |
+| 2026-09-17 | [[20260917_hungry_games_subscription_gate.sql]] | Hungry-Games: active subscription required for **new** bids (admins exempt; pending updates skip re-debit). Apply **after** Wave F. Filename sorts before `wave_f_*` — do not `db push`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]. |
 
 > Full marketplace architecture write-up: [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]]
 
@@ -164,4 +168,4 @@ Full list lives on [[🗺️ GARBAGIN Master Index]] under **Backend & Supabase 
 2. Prefer linking new migrations from this MOC when you add files under `supabase/migrations/`.
 3. Keep product narrative in [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]]; keep schema history here.
 4. Always add a back-link from new backend notes to [[🗺️ GARBAGIN Master Index]].
-5. Hosted `20260912_*` files share one CLI timestamp — do not `db push` to “sync”. See [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]. Future files: unique `YYYYMMDDHHMMSS_` prefixes.
+5. Hosted `20260912_*` and `20260917_*` files each share one CLI timestamp — do not `db push` to “sync”. See [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]. Future files: unique `YYYYMMDDHHMMSS_` prefixes.
