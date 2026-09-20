@@ -20,6 +20,7 @@ import {
   type ContractorStore,
 } from '../src/lib/contractorStore';
 import { StoreServiceSkusShowcase } from './StoreShowcaseSections';
+import { releaseCapturedPointer } from '../src/lib/mapInteractions';
 
 export type MapStorePreviewCardProps = {
   store: ContractorStore;
@@ -63,6 +64,13 @@ const StorePhotoCarousel: React.FC<StorePhotoCarouselProps> = ({
     moved: boolean;
   } | null>(null);
   const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    return () => {
+      releaseCapturedPointer(scrollerRef.current, dragRef.current?.pointerId);
+      dragRef.current = null;
+    };
+  }, []);
 
   const syncIndexFromScroll = useCallback(() => {
     const el = scrollerRef.current;

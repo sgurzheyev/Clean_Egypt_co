@@ -11,7 +11,7 @@ aliases: [Frontend Components, UI Map]
 
 | Surface | Link |
 | --- | --- |
-| Map (create / bid / crowdfund / stores / Hungry-Games sub modal) | [[components/MapPicker.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] |
+| Map (create / bid / crowdfund / stores / Hungry-Games sub modal) | [[components/MapPicker.tsx]] · [[src/lib/mapInteractions.ts]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] |
 | Store coverage map (lilac zone) | [[components/StoreCoverageMap.tsx]] |
 | Store pin preview | [[components/MapStorePreviewCard.tsx]] · `.map-store-preview-card` light frost (service zone stays visible through the sheet). Hero swipes all `contractor_stores.store_photos` (cover first); bio expands in-place. |
 | Portaled store profile | [[components/StoreProfileOverlay.tsx]] |
@@ -79,6 +79,7 @@ Wired in `public/manifest.json` and `index.html` (`theme-color` / `background_co
 
 ## Hooks & helpers
 
+- [[src/lib/mapInteractions.ts]] — restore Mapbox zoom/pan after MissionBriefing close or Store toggle (handlers can stick `_active` when an overlay steals pointerup)
 - [[src/hooks/useLocationCatalog.ts]]
 - [[src/hooks/useMissionChat.ts]]
 - [[src/hooks/useMissionTextTranslation.ts]]

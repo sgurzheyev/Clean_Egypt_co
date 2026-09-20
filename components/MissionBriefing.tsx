@@ -18,6 +18,7 @@ import {
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import { formatPinLocationTag } from '../src/lib/mapboxReverseGeocode';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
+import { releaseCapturedPointer } from '../src/lib/mapInteractions';
 import {
   coerceMissionGalleryUrls,
   resolveAvatarUrl,
@@ -498,6 +499,10 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
     setHeroIndex(0);
     const el = heroPagerRef.current;
     if (el) el.scrollLeft = 0;
+    return () => {
+      releaseCapturedPointer(el, heroDragRef.current?.pointerId);
+      heroDragRef.current = null;
+    };
   }, [mission.id]);
 
   const placeholderVariant = placeholderVariantFor(mission);
@@ -901,12 +906,12 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   return (
     <>
     <div
-      className="absolute inset-0 z-[10030] flex items-end justify-center pt-[env(safe-area-inset-top)] isolate pointer-events-none"
+      className="absolute inset-0 z-[10030] flex items-end justify-center pt-[env(safe-area-inset-top)] isolate pointer-events-auto touch-none"
       aria-hidden="false"
+      onClick={onClose}
     >
       <div
-        className="absolute inset-x-0 bottom-0 top-[28%] bg-gradient-to-t from-black/85 via-black/40 to-transparent backdrop-blur-[2px] pointer-events-auto"
-        onClick={onClose}
+        className="absolute inset-x-0 bottom-0 top-[28%] bg-gradient-to-t from-black/85 via-black/40 to-transparent backdrop-blur-[2px] pointer-events-none"
         aria-hidden="true"
       />
 

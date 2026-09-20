@@ -2,7 +2,7 @@
  * [[Architecture_Overview.md]]
  * Primary Mapbox UI — mission pins, create flow, bids, crowdfunding.
  */
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import MapGL, { MapRef, Source, Layer, Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import imageCompression from 'browser-image-compression';
@@ -131,6 +131,10 @@ import {
   type MetallicWaterController,
 } from '../src/lib/mapEgyptTheme';
 import { resolveBootMapLocation, type BootMapOrigin } from '../src/lib/mapBootLocation';
+import {
+  restoreMapInteractions,
+  suspendMapInteractions,
+} from '../src/lib/mapInteractions';
 import MapBootSplash from './MapBootSplash';import {
   applyMapboxStandardBasemapConfig,
   isMapStyleReady,
@@ -2829,6 +2833,44 @@ const MapPicker: React.FC<MapPickerProps> = ({
     ]
   );
 
+  /**
+   * Full-screen (or near-full) overlays that steal pointerup from Mapbox.
+   * Creation form / report-pin mode stay unlocked so the user can still tap-to-move.
+   */
+  const mapGesturesLocked = Boolean(
+    selectedMission ||
+      storeProfileOwnerId ||
+      storeFilterPanelOpen ||
+      hallOfFameMission ||
+      showLiveMarketFeed ||
+      showMyOrdersPanel ||
+      reportSheetOpen ||
+      profileOverlayOpen ||
+      showWorkerSubscriptionGate ||
+      showSubscriptionModal ||
+      proofUploadMission
+  );
+
+  const restoreLiveMapGestures = useCallback(() => {
+    const map = mapRef.current?.getMap?.() ?? mapInstanceRef.current;
+    restoreMapInteractions(map);
+  }, []);
+
+  useLayoutEffect(() => {
+    const map = mapInstanceRef.current ?? mapRef.current?.getMap?.();
+    if (!map || !mapReady) return;
+    if (mapGesturesLocked) {
+      suspendMapInteractions(map);
+      return;
+    }
+    restoreMapInteractions(map);
+    const onIdle = () => restoreMapInteractions(map);
+    map.once?.('idle', onIdle);
+    return () => {
+      map.off?.('idle', onIdle);
+    };
+  }, [mapReady, mapGesturesLocked, storeMode]);
+
   const [selectedRating, setSelectedRating] = useState<number>(0);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewedMissions, setReviewedMissions] = useState<Set<string>>(new Set());
@@ -3486,7 +3528,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setLeadPhoneVisible(false);
     setUnlockedLeadPhone(null);
     setSelectedRating(0);
-  }, []);
+    restoreLiveMapGestures();
+  }, [restoreLiveMapGestures]);
 
   const handleMuteCreator = useCallback(
     (creatorId: string) => {
@@ -4769,11 +4812,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
   // Boot locate runs BEFORE MapGL mounts (see resolveBootMapLocation above).
 
   const handleZoomIn = useCallback(() => {
+    restoreLiveMapGestures();
     mapRef.current?.getMap()?.zoomIn({ duration: 280, essential: true });
-  }, []);
+  }, [restoreLiveMapGestures]);
   const handleZoomOut = useCallback(() => {
+    restoreLiveMapGestures();
     mapRef.current?.getMap()?.zoomOut({ duration: 280, essential: true });
-  }, []);
+  }, [restoreLiveMapGestures]);
   const handleGeolocate = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       toast.error(
@@ -5070,13 +5115,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
           // MSAA is expensive on mobile GPUs; keep it for desktop only.
           antialias={!isMobile && !isTouchDevice}
           onMove={handleMapMove}
+          dragPan={!mapGesturesLocked}
+          scrollZoom={!mapGesturesLocked}
+          boxZoom={!mapGesturesLocked}
+          doubleClickZoom={!mapGesturesLocked}
+          dragRotate={!mapGesturesLocked}
+          keyboard={!mapGesturesLocked}
+          touchZoomRotate={!mapGesturesLocked}
+          touchPitch={!mapGesturesLocked}
           // 2D mode: pins are interactive, buildings are background only.
           // Click + hover are wired via native map.on(...) listeners (see the mapReady effect),
           // so no synthetic onClick/onMouseMove here.
+          // Omit store layer ids: those Sources mount a frame after storeMode flips, and
+          // queryRenderedFeatures on a missing layer aborts Mapbox's HandlerManager.
           interactiveLayerIds={
-            storeMode
-              ? ['store-pins-core', 'store-pins-glow']
-              : ['mission-pins-core', 'mission-pins-clusters']
+            mapReady && !storeMode
+              ? ['mission-pins-core', 'mission-pins-clusters']
+              : undefined
           }
           onLoad={(e: any) => {
           const map = e?.target;
@@ -5832,6 +5887,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
               }
               return next;
             });
+            // Overlay/layer swap can leave Mapbox handlers mid-gesture; restore after paint.
+            window.requestAnimationFrame(() => restoreLiveMapGestures());
           }}
           className={`fixed left-3 top-[max(7.75rem,calc(env(safe-area-inset-top)+7rem))] z-[10015] flex h-12 w-12 items-center justify-center rounded-full border backdrop-blur-lg transition-transform active:scale-95 ${
             storeMode
@@ -5861,7 +5918,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {storeMode && selectedStore && !storeProfileOwnerId && (
         <MapStorePreviewCard
           store={selectedStore}
-          onClose={() => setSelectedStore(null)}
+          onClose={() => {
+            setSelectedStore(null);
+            restoreLiveMapGestures();
+          }}
           onOpenFullProfile={() => openStoreProfileOverlay(selectedStore)}
         />
       )}
