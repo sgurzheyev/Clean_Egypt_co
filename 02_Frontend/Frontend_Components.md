@@ -23,6 +23,7 @@ aliases: [Frontend Components, UI Map]
 | Mission briefing / contribute / bid / reporter-only convert | [[components/MissionBriefing.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Map pin card matches store preview: hero is photos + X / count / dots only; category, price, location, status, token hint, description, and reporter chip sit in the dark body below. |
 | Briefing error boundary | [[components/MissionBriefingErrorBoundary.tsx]] |
 | Filters bottom sheet | [[components/MissionFilterPanel.tsx]] |
+| Store map filters | [[components/StoreMapFilterChips.tsx]] · floating card `left-[4.5rem]` clears the left FAB column (Filter / Alert / Store) so chips stay tappable |
 | Feed card | [[components/MissionFeedCard.tsx]] |
 | Create mission | [[components/CreateMission.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] |
 | Report garbage zone | [[components/ReportGarbageZoneModal.tsx]] |

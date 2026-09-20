@@ -85,6 +85,10 @@ const StoreMapFilterChips: React.FC<StoreMapFilterChipsProps> = ({
               aria-label={t('close', { defaultValue: 'Close' })}
               onClick={() => onOpenChange(false)}
             />
+            {/*
+              Left inset clears the map FAB column (left-3 + w-12 + 0.75rem gap)
+              so chips stay fully tappable beside Filter / Alert / Store.
+            */}
             <motion.div
               key="store-filter-card"
               id="store-map-filter-card"
@@ -95,7 +99,7 @@ const StoreMapFilterChips: React.FC<StoreMapFilterChipsProps> = ({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.98 }}
               transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-              className="pointer-events-auto fixed left-4 right-4 top-[max(5rem,calc(env(safe-area-inset-top)+4.25rem))] z-[10014] max-w-md rounded-2xl border border-[rgba(0,191,255,0.4)] p-3 shadow-[0_4px_20px_rgba(0,0,0,0.6),0_0_15px_rgba(0,191,255,0.2)] sm:left-4 sm:right-auto sm:w-full"
+              className="pointer-events-auto fixed left-[4.5rem] right-4 top-[max(5rem,calc(env(safe-area-inset-top)+4.25rem))] z-[10014] max-w-md rounded-2xl border border-[rgba(0,191,255,0.4)] p-3 shadow-[0_4px_20px_rgba(0,0,0,0.6),0_0_15px_rgba(0,191,255,0.2)] sm:left-[4.5rem] sm:right-auto sm:w-full"
               style={{
                 background: 'rgba(10, 12, 16, 0.85)',
                 backdropFilter: 'blur(16px)',
