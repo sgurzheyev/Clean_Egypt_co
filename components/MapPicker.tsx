@@ -2859,14 +2859,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
   useLayoutEffect(() => {
     const map = mapInstanceRef.current ?? mapRef.current?.getMap?.();
     if (!map || !mapReady) return;
+    let cancelled = false;
     if (mapGesturesLocked) {
       suspendMapInteractions(map);
       return;
     }
-    restoreMapInteractions(map);
-    const onIdle = () => restoreMapInteractions(map);
+    const run = () => {
+      if (cancelled) return;
+      restoreMapInteractions(map);
+    };
+    run();
+    const onIdle = () => run();
     map.once?.('idle', onIdle);
     return () => {
+      cancelled = true;
       map.off?.('idle', onIdle);
     };
   }, [mapReady, mapGesturesLocked, storeMode]);
