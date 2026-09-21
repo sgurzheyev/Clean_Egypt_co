@@ -22,7 +22,7 @@ import {
   createAisShipTracker,
   parseAisstreamMessage,
 } from '../lib/aisShips';
-import { hasAisstreamApiKey, readAisstreamApiKey } from '../lib/mapFunMode';
+import { hasAisstreamApiKey, readAisstreamApiKey, type RushCraftMode } from '../lib/mapFunMode';
 
 type MapLike = {
   getBounds?: () => {
@@ -36,7 +36,7 @@ type MapLike = {
 };
 
 export type UseMapLiveTrafficOptions = {
-  enabled: boolean;
+  craft: RushCraftMode;
   map: MapLike | null;
   cameraBusy?: boolean;
   bboxNonce?: number;
@@ -56,7 +56,9 @@ export type UseMapLiveTrafficResult = {
 };
 
 export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTrafficResult {
-  const { enabled, map, cameraBusy = false, bboxNonce = 0 } = opts;
+  const { craft, map, cameraBusy = false, bboxNonce = 0 } = opts;
+  const flightsOn = craft === 'planes';
+  const shipsOn = craft === 'ships';
   const [flightsGeoJSON, setFlightsGeoJSON] = useState<TrafficGeoJSON>(emptyTrafficGeoJSON);
   const [shipsGeoJSON, setShipsGeoJSON] = useState<TrafficGeoJSON>(emptyTrafficGeoJSON);
   const [flightsTrailsGeoJSON, setFlightsTrailsGeoJSON] =
@@ -108,7 +110,7 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
   }, [paintShips]);
 
   useEffect(() => {
-    if (!enabled || !shipsEnabled || typeof window === 'undefined') {
+    if (!shipsOn || !shipsEnabled || typeof window === 'undefined') {
       try {
         wsRef.current?.close();
       } catch {
@@ -201,10 +203,10 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
       trackerRef.current.clear();
       shipTrailsRef.current.clear();
     };
-  }, [enabled, shipsEnabled, readViewport, paintShips, scheduleShipsPaint]);
+  }, [shipsOn, shipsEnabled, readViewport, paintShips, scheduleShipsPaint]);
 
   useEffect(() => {
-    if (!enabled || !shipsEnabled) return;
+    if (!shipsOn || !shipsEnabled) return;
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const vp = readViewport();
@@ -214,10 +216,10 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
     } catch {
       /* ignore */
     }
-  }, [bboxNonce, enabled, shipsEnabled, readViewport]);
+  }, [bboxNonce, shipsOn, shipsEnabled, readViewport]);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!flightsOn) {
       abortRef.current?.abort();
       flightTrailsRef.current.clear();
       setFlightsGeoJSON(emptyTrafficGeoJSON());
@@ -287,7 +289,7 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
       if (timer) clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [enabled, cameraBusy, bboxNonce, readViewport]);
+  }, [flightsOn, cameraBusy, bboxNonce, readViewport]);
 
   useEffect(() => {
     return () => {
@@ -305,6 +307,6 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
     shipsCount,
     flightsLoading,
     shipsEnabled,
-    shipsHint: !enabled ? 'off' : shipsEnabled ? 'live' : 'need-key',
+    shipsHint: !shipsOn ? 'off' : shipsEnabled ? 'live' : 'need-key',
   };
 }

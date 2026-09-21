@@ -4,6 +4,9 @@
  */
 import { resolveMapboxLightPreset } from './mapboxStandardTheme.ts';
 import {
+  cycleRushCraftMode,
+  isRushCraftMode,
+  isRushLandOn,
   MAPBOX_STANDARD_FUN_LAND_COLORS,
   FUN_NEON_CYAN,
   FUN_NEON_VIOLET,
@@ -51,6 +54,15 @@ function testFunPalette() {
   assert(MAPBOX_STANDARD_FUN_LAND_COLORS.colorLand === '#0a1018', 'h2h dark land');
   assert(FLIGHT_TRAIL_COLOR === '#4ade80', 'plane trail lime');
   assert(SHIP_TRAIL_COLOR === '#f59e0b', 'ship trail amber');
+}
+
+function testRushCycle() {
+  assert(cycleRushCraftMode('off') === 'ships', 'off → ships');
+  assert(cycleRushCraftMode('ships') === 'planes', 'ships → planes');
+  assert(cycleRushCraftMode('planes') === 'off', 'planes → off');
+  assert(isRushLandOn('ships') && isRushLandOn('planes'), 'land on while craft active');
+  assert(!isRushLandOn('off'), 'land off when RUSH off');
+  assert(isRushCraftMode('planes') && !isRushCraftMode('both'), 'mode guard');
 }
 
 function testTwilightCurve() {
@@ -239,6 +251,7 @@ function testGeoJsonAndCaps() {
 }
 
 testFunPalette();
+testRushCycle();
 testTwilightCurve();
 testBboxCaps();
 testOpenSkyParse();

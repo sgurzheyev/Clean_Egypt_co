@@ -160,13 +160,13 @@ import {
 } from '../src/lib/mapSolarAtmosphere';
 import {
   ensureFunNeonRoadLayers,
+  isRushLandOn,
   MAPBOX_STANDARD_FUN_LAND_COLORS,
-  readFunMapMode,
-  readLiveMapTraffic,
+  readRushCraftMode,
   setFunNeonRoadLayersBusy,
   setFunNeonRoadLayersVisible,
-  writeFunMapMode,
-  writeLiveMapTraffic,
+  writeRushCraftMode,
+  type RushCraftMode,
 } from '../src/lib/mapFunMode';
 import {
   featureToTrafficEntity,
@@ -1577,10 +1577,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const funMapModeRef = React.useRef(false);
   const atmosphereIntervalMsRef = React.useRef(60_000);
 
-  const [funMapMode, setFunMapMode] = useState(() => readFunMapMode());
-  const [liveTraffic, setLiveTraffic] = useState(
-    () => readFunMapMode() || readLiveMapTraffic()
-  );
+  const [rushCraftMode, setRushCraftMode] = useState<RushCraftMode>(() => readRushCraftMode());
+  const funMapMode = isRushLandOn(rushCraftMode);
   funMapModeRef.current = funMapMode;
 
   /** Auto = Open-Meteo for map center; otherwise manual override. */
@@ -1897,9 +1895,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
     Math.round(viewState.latitude * 40) * 1_000_000 +
     Math.round(viewState.longitude * 40) * 100 +
     Math.round(viewState.zoom * 2);
-  const trafficEnabled = mapReady && funMapMode;
+  const trafficEnabled = mapReady && rushCraftMode !== 'off';
   const liveTrafficData = useMapLiveTraffic({
-    enabled: trafficEnabled,
+    craft: mapReady ? rushCraftMode : 'off',
     map: mapReady ? mapInstanceRef.current : null,
     cameraBusy: mapCameraBusy,
     bboxNonce: trafficBboxNonce,
@@ -5530,7 +5528,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
           />
         </Source>
 
-        {trafficEnabled && (
+        {mapReady && rushCraftMode === 'planes' && (
           <>
             <Source
               id={LIVE_FLIGHTS_TRAILS_SOURCE_ID}
@@ -5559,37 +5557,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 paint={{
                   'line-color': FLIGHT_TRAIL_CORE_COLOR,
                   'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.2, 10, 2, 14, 2.6],
-                  'line-opacity': 0.95,
-                }}
-              />
-            </Source>
-            <Source
-              id={LIVE_SHIPS_TRAILS_SOURCE_ID}
-              type="geojson"
-              data={liveTrafficData.shipsTrailsGeoJSON}
-            >
-              <Layer
-                id={LIVE_SHIPS_TRAIL_GLOW_LAYER_ID}
-                type="line"
-                minzoom={4}
-                slot={LIVE_TRAFFIC_SLOT}
-                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-                paint={{
-                  'line-color': SHIP_TRAIL_COLOR,
-                  'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3.2, 10, 5.5, 14, 7.5],
-                  'line-opacity': mapCameraBusy ? 0.28 : 0.48,
-                  'line-blur': mapCameraBusy ? 0.2 : 1.5,
-                }}
-              />
-              <Layer
-                id={LIVE_SHIPS_TRAIL_LAYER_ID}
-                type="line"
-                minzoom={4}
-                slot={LIVE_TRAFFIC_SLOT}
-                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-                paint={{
-                  'line-color': SHIP_TRAIL_CORE_COLOR,
-                  'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.1, 10, 1.8, 14, 2.4],
                   'line-opacity': 0.95,
                 }}
               />
@@ -5660,6 +5627,41 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   'text-color': '#dcfce7',
                   'text-halo-color': '#052e16',
                   'text-halo-width': 1.1,
+                }}
+              />
+            </Source>
+          </>
+        )}
+        {mapReady && rushCraftMode === 'ships' && (
+          <>
+            <Source
+              id={LIVE_SHIPS_TRAILS_SOURCE_ID}
+              type="geojson"
+              data={liveTrafficData.shipsTrailsGeoJSON}
+            >
+              <Layer
+                id={LIVE_SHIPS_TRAIL_GLOW_LAYER_ID}
+                type="line"
+                minzoom={4}
+                slot={LIVE_TRAFFIC_SLOT}
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                paint={{
+                  'line-color': SHIP_TRAIL_COLOR,
+                  'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3.2, 10, 5.5, 14, 7.5],
+                  'line-opacity': mapCameraBusy ? 0.28 : 0.48,
+                  'line-blur': mapCameraBusy ? 0.2 : 1.5,
+                }}
+              />
+              <Layer
+                id={LIVE_SHIPS_TRAIL_LAYER_ID}
+                type="line"
+                minzoom={4}
+                slot={LIVE_TRAFFIC_SLOT}
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                paint={{
+                  'line-color': SHIP_TRAIL_CORE_COLOR,
+                  'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.1, 10, 1.8, 14, 2.4],
+                  'line-opacity': 0.95,
                 }}
               />
             </Source>
@@ -6125,33 +6127,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       {showProfileFab && (
         <MapFunModeControls
-          funMapMode={funMapMode}
-          liveTraffic={liveTraffic}
-          onFunMapModeChange={(on) => {
-            setFunMapMode(on);
-            writeFunMapMode(on);
-            setLiveTraffic(on);
-            writeLiveMapTraffic(on);
-            if (!on) setTrafficTip(null);
+          mode={rushCraftMode}
+          onModeChange={(next) => {
+            setRushCraftMode(next);
+            writeRushCraftMode(next);
+            if (next === 'off') setTrafficTip(null);
             window.requestAnimationFrame(() => restoreLiveMapGestures());
           }}
-          onLiveTrafficChange={(on) => {
-            setLiveTraffic(on);
-            writeLiveMapTraffic(on);
-            if (!on) setTrafficTip(null);
-            window.requestAnimationFrame(() => restoreLiveMapGestures());
-          }}
-          shipsHint={liveTrafficData.shipsHint}
-          flightsCount={liveTrafficData.flightsCount}
-          shipsCount={liveTrafficData.shipsCount}
-          flightsLoading={liveTrafficData.flightsLoading}
-          flightsError={
-            liveTrafficData.flightMeta.error
-              ? t('liveMapTrafficFlightsOff', {
-                  defaultValue: 'no planes',
-                })
-              : null
-          }
         />
       )}
 

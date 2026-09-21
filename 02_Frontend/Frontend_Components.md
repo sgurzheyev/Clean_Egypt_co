@@ -105,15 +105,15 @@ Wired in `public/manifest.json` and `index.html` (`theme-color` / `background_co
 
 ### Fun map mode, sunrise/sunset, RUSH live traffic
 
-Palette FAB (`components/MapFunModeControls.tsx`) is **RUSH**. One press: cinematic night land + live craft + lift card. Same press closes the card (lift retract) and restores steel land. **No property-price / real-estate HUD.** Copy is short: `plane or ship only!` / `press · look · closed`. Note: [[04_Roadmap_Tasks/Map_Rush_Mode]].
+Palette FAB (`components/MapFunModeControls.tsx`) is **RUSH**. Cycle: **ships → planes → off**. Peek card (title + SHIP/PLANE chip) lifts then slides back. Night land follows whether a craft mode is active. **No property-price HUD.** No explanation copy. Note: [[04_Roadmap_Tasks/Map_Rush_Mode]].
 
 Dawn/dusk uses [[src/lib/mapSolarAtmosphere.ts]] from SunCalc at the map center (Egypt / Red Sea local solar times). Horizon fog/halo is cinematic in normal mode; RUSH only swaps land tokens + cyan road overlay. Atmosphere ticks every 20s in twilight, 60s otherwise.
 
 Live craft (RUSH on):
 
-- **Flights:** OpenSky + ADSB **in parallel** via [[api/opensky-states.ts]] / [[api/adsb-nearby.ts]]. ADSB merges `adsb.lol` + `opendata.adsb.fi` (lol often Cloudflare-403s from Vercel; empty lol must not skip fi). Street-zoom bbox is expanded so Marina Hurghada still sees HRG. Lime markers + lime trails; altitude in meters.
-- **Ships:** AISStream WebSocket when `VITE_AISSTREAM_API_KEY` is set (Class A + Class B). Amber markers + amber trails, rotated to heading. No key → `ships off`; positions are never invented.
-- Empty/loading is a one-word line on the card (`…` / `empty`).
+- **Flights** (planes mode only): OpenSky + ADSB **in parallel** via [[api/opensky-states.ts]] / [[api/adsb-nearby.ts]]. ADSB merges `adsb.lol` + `opendata.adsb.fi` (lol often Cloudflare-403s from Vercel; empty lol must not skip fi). Street-zoom bbox is expanded so Marina Hurghada still sees HRG. Lime markers + lime trails; altitude in meters.
+- **Ships** (ships mode only): AISStream WebSocket when `VITE_AISSTREAM_API_KEY` is set (Class A + Class B). Amber markers + amber trails, rotated to heading. Positions are never invented.
+- FAB chip: `SHIP` / `PLANE`. Card does not keep empty/error paragraphs.
 
 ## Related flows
 

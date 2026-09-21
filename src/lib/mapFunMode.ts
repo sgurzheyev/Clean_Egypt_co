@@ -7,6 +7,24 @@ import { isMapStyleReady, type MapboxStyleReadyMap } from './mapboxStandardTheme
 
 export const FUN_MAP_MODE_STORAGE_KEY = 'ce_fun_map_mode';
 export const LIVE_MAP_TRAFFIC_STORAGE_KEY = 'ce_live_map_traffic';
+export const RUSH_CRAFT_MODE_STORAGE_KEY = 'ce_rush_craft_mode';
+
+/** Pink FAB cycle: off → ships → planes → off. */
+export type RushCraftMode = 'off' | 'ships' | 'planes';
+
+export function isRushCraftMode(value: unknown): value is RushCraftMode {
+  return value === 'off' || value === 'ships' || value === 'planes';
+}
+
+export function cycleRushCraftMode(current: RushCraftMode): RushCraftMode {
+  if (current === 'off') return 'ships';
+  if (current === 'ships') return 'planes';
+  return 'off';
+}
+
+export function isRushLandOn(mode: RushCraftMode): boolean {
+  return mode !== 'off';
+}
 
 export const FUN_NEON_CYAN = '#22d3ee';
 /** Motorways stay cyan-forward (H2H night) so they do not compete with amber ships. */
@@ -56,7 +74,7 @@ function writeFlag(key: string, value: boolean): void {
 }
 
 export function readFunMapMode(): boolean {
-  return readFlag(FUN_MAP_MODE_STORAGE_KEY, false);
+  return isRushLandOn(readRushCraftMode());
 }
 
 export function writeFunMapMode(on: boolean): void {
@@ -64,11 +82,41 @@ export function writeFunMapMode(on: boolean): void {
 }
 
 export function readLiveMapTraffic(): boolean {
-  return readFlag(LIVE_MAP_TRAFFIC_STORAGE_KEY, false);
+  return isRushLandOn(readRushCraftMode());
 }
 
 export function writeLiveMapTraffic(on: boolean): void {
   writeFlag(LIVE_MAP_TRAFFIC_STORAGE_KEY, on);
+}
+
+function readStoredString(key: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+export function readRushCraftMode(): RushCraftMode {
+  const stored = readStoredString(RUSH_CRAFT_MODE_STORAGE_KEY);
+  if (isRushCraftMode(stored)) return stored;
+  // Pre-cycle RUSH used two booleans; treat "on" as ships (first step).
+  if (readFlag(FUN_MAP_MODE_STORAGE_KEY, false) || readFlag(LIVE_MAP_TRAFFIC_STORAGE_KEY, false)) {
+    return 'ships';
+  }
+  return 'off';
+}
+
+export function writeRushCraftMode(mode: RushCraftMode): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(RUSH_CRAFT_MODE_STORAGE_KEY, mode);
+  } catch {
+    /* private mode / quota */
+  }
+  writeFunMapMode(isRushLandOn(mode));
+  writeLiveMapTraffic(isRushLandOn(mode));
 }
 
 type FunRoadMap = MapboxStyleReadyMap & {

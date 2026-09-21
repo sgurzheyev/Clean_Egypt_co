@@ -69,7 +69,7 @@
 - [ ] Wave G: accept bid above raised on an `available` crowd pin stays `funding`; expiry clears `cleaner_id` ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]])
 - [ ] Wave H / Hungry-Games: new bid without subscription opens the MapPicker modal; push token conflict does not hijack; Edge 401s without secret ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]])
 - [ ] Wave I: unauthenticated POST `/api/translate` / `moderate-*` / `analyze-mission` / `notify-*` is 401; non-member cannot analyze/notify ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]])
-- [ ] RUSH: palette FAB opens lift card; second press retracts; lime planes / amber ships near HRG or a busy airport; off restores steel land ([[04_Roadmap_Tasks/Map_Rush_Mode]])
+- [ ] RUSH: FAB cycles ships → planes → off; peek card slides back; only that mode’s markers; off restores steel land ([[04_Roadmap_Tasks/Map_Rush_Mode]])
 - [ ] Wave F–H (ops): `migration list` no Local-only `20260917`; Edge secrets `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET` set
 - [ ] KYC: submit → admin signed preview → approve/reject
 - [ ] P2P: bid → proof → creator confirm
