@@ -7,16 +7,26 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Palette, Plane, Ship } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cycleRushCraftMode, hasAisstreamApiKey, type RushCraftMode } from '../src/lib/mapFunMode';
+import { formatRushFlightChip } from '../src/lib/mapLiveTraffic';
 
 export type MapFunModeControlsProps = {
   mode: RushCraftMode;
   onModeChange: (mode: RushCraftMode) => void;
+  flightsCount?: number;
+  flightError?: string | null;
+  flightsLoading?: boolean;
 };
 
 const LIFT_MS = 280;
 const PEEK_MS = 720;
 
-const MapFunModeControls: React.FC<MapFunModeControlsProps> = ({ mode, onModeChange }) => {
+const MapFunModeControls: React.FC<MapFunModeControlsProps> = ({
+  mode,
+  onModeChange,
+  flightsCount = 0,
+  flightError = null,
+  flightsLoading = false,
+}) => {
   const { t } = useTranslation();
   const rushOn = mode !== 'off';
   const [cardMounted, setCardMounted] = useState(false);
@@ -78,14 +88,18 @@ const MapFunModeControls: React.FC<MapFunModeControlsProps> = ({ mode, onModeCha
   const shipChip = shipsLive
     ? t('liveMapTrafficShip', { defaultValue: 'SHIP' })
     : t('liveMapTrafficShipsOff', { defaultValue: 'ships off' });
-  const chip =
-    peekMode === 'planes' ? t('liveMapTrafficPlane', { defaultValue: 'PLANE' }) : shipChip;
+  const planeChip = formatRushFlightChip({
+    count: flightsCount,
+    error: flightError,
+    loading: flightsLoading,
+  });
+  const chip = peekMode === 'planes' ? planeChip : shipChip;
 
   const fabLabel =
     mode === 'ships'
       ? `${t('liveMapTraffic', { defaultValue: 'RUSH' })} ${shipChip}`
       : mode === 'planes'
-        ? `${t('liveMapTraffic', { defaultValue: 'RUSH' })} ${t('liveMapTrafficPlane', { defaultValue: 'PLANE' })}`
+        ? `${t('liveMapTraffic', { defaultValue: 'RUSH' })} ${planeChip}`
         : t('liveMapTraffic', { defaultValue: 'RUSH' });
 
   return (
@@ -116,7 +130,7 @@ const MapFunModeControls: React.FC<MapFunModeControlsProps> = ({ mode, onModeCha
         {rushOn ? (
           <span className="mt-0.5 max-w-[44px] truncate text-[6px] font-black uppercase leading-none tracking-[0.08em]">
             {mode === 'planes'
-              ? t('liveMapTrafficPlane', { defaultValue: 'PLANE' })
+              ? planeChip
               : shipChip}
           </span>
         ) : null}

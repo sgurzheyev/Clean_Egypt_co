@@ -21,6 +21,7 @@ import {
 import {
   bboxRadiusNm,
   bboxToAisstreamBox,
+  bboxFromCamera,
   clampBbox,
   capTrafficEntities,
   createTrailTracker,
@@ -28,6 +29,7 @@ import {
   FLIGHT_TRAIL_COLOR,
   formatAltitudeLabel,
   formatHeading,
+  formatRushFlightChip,
   liveTrafficCap,
   padAndClampBbox,
   SHIP_TRAIL_COLOR,
@@ -142,6 +144,48 @@ function testBboxCaps() {
   assert(box[0][0] === padded.lamin && box[0][1] === padded.lomin, 'AIS [lat,lon] SW');
   assert(bboxRadiusNm(padded) >= 15, 'adsb radius min');
   assert(liveTrafficCap(5, 'flight') < liveTrafficCap(14, 'flight'), 'zoom-out caps flights');
+
+  const globeBounds = {
+    getSouth: () => -85,
+    getWest: () => -180,
+    getNorth: () => 85,
+    getEast: () => 180,
+  };
+  const ist = bboxFromCamera({
+    lat: 41.01,
+    lng: 28.98,
+    zoom: 11,
+    bounds: globeBounds,
+  });
+  assert(ist != null, 'camera bbox');
+  const midLat = (ist!.lamin + ist!.lamax) / 2;
+  const midLng = (ist!.lomin + ist!.lomax) / 2;
+  assert(Math.abs(midLat - 41.01) < 0.8, 'globe getBounds must not recenter on equator');
+  assert(Math.abs(midLng - 28.98) < 1.2, 'globe getBounds must not recenter on prime meridian');
+  assert(ist!.lamax - ist!.lamin <= 8.01, 'camera bbox lat still capped');
+
+  const portSaid = bboxFromCamera({ lat: 31.26, lng: 32.3, zoom: 12 });
+  assert(portSaid != null && portSaid.lamin < 31.26 && portSaid.lamax > 31.26, 'port said span');
+}
+
+function testRushFlightChip() {
+  assert(formatRushFlightChip({ count: 16, error: null, loading: false }) === '16', 'count');
+  assert(formatRushFlightChip({ count: 0, error: null, loading: true }) === '…', 'loading');
+  assert(formatRushFlightChip({ count: 0, error: 'live-flights 500', loading: false }) === '500', 'error');
+  assert(formatRushFlightChip({ count: 0, error: null, loading: false }) === '0', 'empty');
+}
+
+function testFlightPollDoesNotRemountOnBusy() {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const src = readFileSync(join(here, '../hooks/useMapLiveTraffic.ts'), 'utf8');
+  const flightEffect = src.slice(src.indexOf('if (!flightsOn)'));
+  const depLine = flightEffect
+    .split('\n')
+    .filter((l) => l.includes('}, [flightsOn') || l.includes('},[flightsOn'))
+    .pop();
+  assert(depLine != null, 'flight effect deps');
+  assert(!depLine!.includes('cameraBusy'), 'cameraBusy must not remount the flight poll');
+  assert(!depLine!.includes('bboxNonce'), 'bboxNonce must not remount the flight poll');
 }
 
 function testOpenSkyParse() {
@@ -341,6 +385,8 @@ testFunPalette();
 testRushCycle();
 testTwilightCurve();
 testBboxCaps();
+testRushFlightChip();
+testFlightPollDoesNotRemountOnBusy();
 testOpenSkyParse();
 testAisParseAndTracker();
 testGeoJsonAndCaps();

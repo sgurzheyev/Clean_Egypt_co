@@ -154,12 +154,91 @@ export function bboxFromMapBounds(bounds: {
   if (!bounds?.getSouth || !bounds.getWest || !bounds.getNorth || !bounds.getEast) {
     return null;
   }
-  const south = Number(bounds.getSouth());
-  const west = Number(bounds.getWest());
-  const north = Number(bounds.getNorth());
-  const east = Number(bounds.getEast());
-  if (![south, west, north, east].every(Number.isFinite)) return null;
-  return padAndClampBbox({ lamin: south, lomin: west, lamax: north, lomax: east });
+  try {
+    const south = Number(bounds.getSouth());
+    const west = Number(bounds.getWest());
+    const north = Number(bounds.getNorth());
+    const east = Number(bounds.getEast());
+    if (![south, west, north, east].every(Number.isFinite)) return null;
+    return padAndClampBbox({ lamin: south, lomin: west, lamax: north, lomax: east });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Camera-centered bbox. Globe + high pitch makes `map.getBounds()` span the
+ * whole world; clamping that box recenters on (0,0) so ADSB queries the gulf
+ * of Guinea instead of Istanbul/Port Said. Always pin the query to the camera.
+ */
+export function bboxFromCamera(opts: {
+  lat: number;
+  lng: number;
+  zoom?: number;
+  bounds?: {
+    getSouth?: () => number;
+    getWest?: () => number;
+    getNorth?: () => number;
+    getEast?: () => number;
+  } | null;
+}): GeoBbox | null {
+  const lat = Number(opts.lat);
+  const lng = Number(opts.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+
+  let latSpan = TRAFFIC_BBOX_MIN_LAT_SPAN;
+  let lngSpan = TRAFFIC_BBOX_MIN_LNG_SPAN;
+  const zoom = Number(opts.zoom);
+  if (Number.isFinite(zoom)) {
+    const zSpan = 360 / 2 ** Math.max(1, Math.min(20, zoom));
+    latSpan = Math.max(latSpan, zSpan);
+    lngSpan = Math.max(lngSpan, zSpan / Math.max(0.35, Math.cos((lat * Math.PI) / 180)));
+  }
+
+  try {
+    const b = opts.bounds;
+    if (b?.getSouth && b.getWest && b.getNorth && b.getEast) {
+      const south = Number(b.getSouth());
+      const west = Number(b.getWest());
+      const north = Number(b.getNorth());
+      const east = Number(b.getEast());
+      if ([south, west, north, east].every(Number.isFinite)) {
+        const boundLat = Math.abs(north - south);
+        const boundLng = Math.abs(east - west);
+        // Ignore globe-wide "bounds" — they are not the viewport.
+        if (boundLat > 0.05 && boundLat <= TRAFFIC_BBOX_MAX_LAT_SPAN + 4) {
+          latSpan = Math.max(latSpan, boundLat);
+        }
+        if (boundLng > 0.05 && boundLng <= TRAFFIC_BBOX_MAX_LNG_SPAN + 4) {
+          lngSpan = Math.max(lngSpan, boundLng);
+        }
+      }
+    }
+  } catch {
+    /* globe getBounds can throw */
+  }
+
+  return clampBbox({
+    lamin: lat - latSpan / 2,
+    lamax: lat + latSpan / 2,
+    lomin: lng - lngSpan / 2,
+    lomax: lng + lngSpan / 2,
+  });
+}
+
+/** Tiny RUSH FAB/peek chip: count when ADSB painted, else a short error. */
+export function formatRushFlightChip(opts: {
+  count: number;
+  error: string | null;
+  loading: boolean;
+}): string {
+  if (opts.count > 0) return String(opts.count);
+  if (opts.loading) return '…';
+  const err = String(opts.error || '').trim();
+  if (!err) return '0';
+  const short = err.replace(/^live-flights\s+/i, '').slice(0, 8);
+  return short || 'err';
 }
 
 export function bboxAreaSqDeg(bbox: GeoBbox): number {

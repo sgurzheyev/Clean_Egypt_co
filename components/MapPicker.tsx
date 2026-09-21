@@ -191,7 +191,6 @@ import {
   LIVE_SHIPS_TRAIL_GLOW_LAYER_ID,
   LIVE_SHIPS_TRAIL_LAYER_ID,
   LIVE_SHIPS_TRAILS_SOURCE_ID,
-  LIVE_TRAFFIC_LAYER_ORDER,
   LIVE_TRAFFIC_SLOT,
   registerLiveTrafficImages,
   SHIP_MARKER_COLOR,
@@ -1898,8 +1897,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const trafficEnabled = mapReady && rushCraftMode !== 'off';
   const liveTrafficData = useMapLiveTraffic({
     craft: mapReady ? rushCraftMode : 'off',
-    map: mapReady ? mapInstanceRef.current : null,
-    cameraBusy: mapCameraBusy,
+    getMap: () => mapRef.current?.getMap?.() ?? mapInstanceRef.current,
+    cameraBusyRef,
+    fallbackView: {
+      lat: viewState.latitude,
+      lng: viewState.longitude,
+      zoom: viewState.zoom,
+    },
     bboxNonce: trafficBboxNonce,
   });
   const [trafficTip, setTrafficTip] = useState<{
@@ -3432,12 +3436,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
     };
 
     // Pins must render above Standard 3D buildings/labels at zoom 13+.
+    // Do NOT moveLayer live-traffic layers: they use Standard `slot: 'top'`.
+    // moveLayer yanks slotted layers out of the slot and they vanish under the globe.
     const keepPinLayersOnTop = () => {
       try {
         const layers = map.getStyle()?.layers;
         if (!layers || layers.length === 0) return;
         const order = [
-          ...LIVE_TRAFFIC_LAYER_ORDER,
           'mission-pins-clusters',
           'mission-pins-cluster-count',
           'mission-pins-glow',
@@ -6128,6 +6133,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {showProfileFab && (
         <MapFunModeControls
           mode={rushCraftMode}
+          flightsCount={liveTrafficData.flightsCount}
+          flightError={liveTrafficData.flightMeta.error}
+          flightsLoading={liveTrafficData.flightsLoading}
           onModeChange={(next) => {
             setRushCraftMode(next);
             writeRushCraftMode(next);

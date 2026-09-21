@@ -23,6 +23,9 @@ Card: **RUSH** + one-word chip **SHIP** or **PLANE**. No hint paragraphs, no «p
 - **Ships** (1st press): amber markers + amber trails only, rotated to heading/COG. Label = name · course ° · kn.
 - Viewport bbox is expanded to a **minimum** span so street zoom at Marina Hurghada still queries HRG + Red Sea.
 - Flights poll same-origin [[api/opensky-states.ts]] and [[api/adsb-nearby.ts]] **in parallel**. ADSB merges `adsb.lol` + `opendata.adsb.fi` (normalizes `{ aircraft }` → `{ ac }`) because Vercel datacenter IPs often get Cloudflare HTML 403 from adsb.lol, and OpenSky often `fetch failed` from iad1. Empty lol `ac: []` does not skip fi. `/api/adsb-nearby` is a **self-contained** lambda (no `./_lib` import) and returns **200 `{ ac, error? }`** even when both hosts fail — never `FUNCTION_INVOCATION_FAILED`.
+- Query bbox is **camera-centered**. Globe + high pitch makes `map.getBounds()` world-wide; clamping that recenters on (0,0) so planes never appear over Port Said / Istanbul. `getBounds` span is used only when it is a real viewport.
+- Flight poll does **not** remount on `cameraBusy` / bbox nudges (those are refs inside tick). `moveLayer` is **not** applied to slotted RUSH craft layers (Standard slot `top`); yanking them out of the slot hides them under the globe.
+- PLANE FAB/peek chip shows the live **count** or a short **error** from `flightMeta`.
 - Ships: AISStream WebSocket when `VITE_AISSTREAM_API_KEY` is baked at build time. Class A + Class B position reports. Placeholder values (`SUPABASE_SERVICE_ROLE_KEY`, empty, ALL_CAPS env names) are treated as **no key** → chip **ships off**. Never fake vessels.
 
 ## Land (RUSH on)
