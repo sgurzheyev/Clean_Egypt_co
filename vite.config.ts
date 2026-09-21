@@ -61,40 +61,77 @@ function liveTrafficDevProxy(): Plugin {
         }
         try {
           const src = new URL(rawUrl, 'http://localhost');
-          let target: string;
+          const json = (status: number, body: unknown) => {
+            res.statusCode = status;
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Cache-Control', 'public, max-age=8');
+            res.end(JSON.stringify(body));
+          };
+          const ua = { Accept: 'application/json', 'User-Agent': 'GarbaGin/1.0 (+https://garbagin.com)' };
           if (pathOnly === '/api/opensky-states') {
             const lamin = src.searchParams.get('lamin');
             const lomin = src.searchParams.get('lomin');
             const lamax = src.searchParams.get('lamax');
             const lomax = src.searchParams.get('lomax');
             if (!lamin || !lomin || !lamax || !lomax) {
-              res.statusCode = 400;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: 'lamin,lomin,lamax,lomax required', states: [] }));
+              json(400, { error: 'lamin,lomin,lamax,lomax required', states: [] });
               return;
             }
-            target = `https://opensky-network.org/api/states/all?lamin=${encodeURIComponent(lamin)}&lomin=${encodeURIComponent(lomin)}&lamax=${encodeURIComponent(lamax)}&lomax=${encodeURIComponent(lomax)}`;
-          } else {
-            const lat = src.searchParams.get('lat');
-            const lon = src.searchParams.get('lon');
-            const dist = src.searchParams.get('dist') || '80';
-            if (!lat || !lon) {
-              res.statusCode = 400;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: 'lat,lon required', ac: [] }));
-              return;
+            const target = `https://opensky-network.org/api/states/all?lamin=${encodeURIComponent(lamin)}&lomin=${encodeURIComponent(lomin)}&lamax=${encodeURIComponent(lamax)}&lomax=${encodeURIComponent(lomax)}`;
+            try {
+              const upstream = await fetch(target, {
+                headers: ua,
+                signal: AbortSignal.timeout(5_000),
+              });
+              const text = await upstream.text();
+              let body: unknown = { states: [] };
+              try {
+                body = text ? JSON.parse(text) : { states: [] };
+              } catch {
+                body = { error: 'OpenSky returned non-JSON', states: [] };
+              }
+              json(200, body);
+            } catch (err) {
+              const message = err instanceof Error ? err.message : 'OpenSky unreachable';
+              json(200, { error: message, states: [] });
             }
-            target = `https://api.adsb.lol/v2/lat/${encodeURIComponent(lat)}/lon/${encodeURIComponent(lon)}/dist/${encodeURIComponent(dist)}`;
+            return;
           }
-          const upstream = await fetch(target, {
-            headers: { Accept: 'application/json' },
-            signal: AbortSignal.timeout(12_000),
-          });
-          const buf = Buffer.from(await upstream.arrayBuffer());
-          res.statusCode = upstream.status;
-          res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
-          res.setHeader('Cache-Control', 'public, max-age=8');
-          res.end(buf);
+          const lat = src.searchParams.get('lat');
+          const lon = src.searchParams.get('lon');
+          const dist = src.searchParams.get('dist') || '80';
+          if (!lat || !lon) {
+            json(400, { error: 'lat,lon required', ac: [] });
+            return;
+          }
+          const hosts = [
+            `https://api.adsb.lol/v2/lat/${encodeURIComponent(lat)}/lon/${encodeURIComponent(lon)}/dist/${encodeURIComponent(dist)}`,
+            `https://opendata.adsb.fi/api/v2/lat/${encodeURIComponent(lat)}/lon/${encodeURIComponent(lon)}/dist/${encodeURIComponent(dist)}`,
+          ];
+          for (const target of hosts) {
+            try {
+              const upstream = await fetch(target, {
+                headers: ua,
+                signal: AbortSignal.timeout(6_000),
+              });
+              const ct = String(upstream.headers.get('content-type') || '');
+              if (!upstream.ok || !ct.toLowerCase().includes('json')) continue;
+              const parsed = JSON.parse(await upstream.text()) as {
+                ac?: unknown;
+                aircraft?: unknown;
+              };
+              const ac = Array.isArray(parsed.ac)
+                ? parsed.ac
+                : Array.isArray(parsed.aircraft)
+                  ? parsed.aircraft
+                  : [];
+              json(200, { ac });
+              return;
+            } catch {
+              /* try next host */
+            }
+          }
+          json(200, { error: 'adsb unreachable', ac: [] });
         } catch (err) {
           res.statusCode = 502;
           res.setHeader('Content-Type', 'application/json');

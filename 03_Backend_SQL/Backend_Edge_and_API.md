@@ -37,6 +37,9 @@ aliases: [Backend Edge and API]
 - [[api/moderate-mission-photo-safety.ts]] — Wave I: JWT + image size cap
 - [[api/analyze-mission.ts]] — Wave I: JWT + membership; still read-only
 - [[api/translate.ts]] — Wave I: JWT + max text length
+- [[api/opensky-states.ts]] — RUSH flights proxy (OpenSky; soft-empty on timeout)
+- [[api/adsb-nearby.ts]] — RUSH flights proxy (adsb.lol → adsb.fi; Cloudflare 403 fallback)
+- [[api/_lib/adsbNearbyFetch.ts]]
 
 ## Clients
 - [[services/supabase.ts]]

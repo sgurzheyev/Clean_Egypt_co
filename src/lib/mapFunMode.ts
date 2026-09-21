@@ -9,7 +9,8 @@ export const FUN_MAP_MODE_STORAGE_KEY = 'ce_fun_map_mode';
 export const LIVE_MAP_TRAFFIC_STORAGE_KEY = 'ce_live_map_traffic';
 
 export const FUN_NEON_CYAN = '#22d3ee';
-export const FUN_NEON_VIOLET = '#8b5cf6';
+/** Motorways stay cyan-forward (H2H night) so they do not compete with amber ships. */
+export const FUN_NEON_VIOLET = '#67e8f9';
 
 export const FUN_STREETS_SOURCE_ID = 'fun-map-streets';
 export const FUN_ROADS_GLOW_LAYER_ID = 'fun-roads-glow';
@@ -17,20 +18,20 @@ export const FUN_ROADS_CORE_LAYER_ID = 'fun-roads-core';
 export const FUN_ROADS_MAJOR_LAYER_ID = 'fun-roads-major';
 
 /**
- * Simplified high-contrast land tokens for Mapbox Standard fun mode.
- * Roads are app-palette cyan / violet so they read as emissive against dark land.
+ * RUSH / fun-mode land tokens — cinematic night (H2H Move): dark navy land,
+ * muted mountain greens, cyan road glow. Off-mode uses Standard dark slate.
  */
 export const MAPBOX_STANDARD_FUN_LAND_COLORS = {
-  colorLand: '#10241c',
-  colorWater: '#063042',
-  colorGreenspace: '#145c38',
-  colorCommercial: '#1a2438',
-  colorEducation: '#18243a',
-  colorMedical: '#241830',
-  colorIndustrial: '#141c28',
+  colorLand: '#0a1018',
+  colorWater: '#050b12',
+  colorGreenspace: '#15241c',
+  colorCommercial: '#121820',
+  colorEducation: '#121820',
+  colorMedical: '#16141c',
+  colorIndustrial: '#0e141c',
   colorRoads: FUN_NEON_CYAN,
   colorMotorways: FUN_NEON_VIOLET,
-  colorTrunks: '#a78bfa',
+  colorTrunks: '#38bdf8',
   colorRoadLabels: '#e0f2fe',
 } as const;
 
@@ -117,9 +118,9 @@ function roadColorExpr(major: boolean): unknown[] {
     'motorway_link',
     FUN_NEON_VIOLET,
     'trunk',
-    '#a78bfa',
+    '#38bdf8',
     'trunk_link',
-    '#a78bfa',
+    '#38bdf8',
     'primary',
     FUN_NEON_CYAN,
     major ? FUN_NEON_VIOLET : FUN_NEON_CYAN,

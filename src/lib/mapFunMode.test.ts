@@ -19,14 +19,21 @@ import {
   bboxToAisstreamBox,
   clampBbox,
   capTrafficEntities,
+  createTrailTracker,
   entitiesToGeoJSON,
+  FLIGHT_TRAIL_COLOR,
+  formatAltitudeLabel,
+  formatHeading,
   liveTrafficCap,
   padAndClampBbox,
+  SHIP_TRAIL_COLOR,
   trafficTooltipLabel,
+  TRAFFIC_BBOX_MIN_LAT_SPAN,
   type LiveTrafficEntity,
 } from './mapLiveTraffic.ts';
 import { parseOpenSkyStates, parseAdsbNearby } from './openskyFlights.ts';
 import {
+  AIS_POSITION_MESSAGE_TYPES,
   buildAisstreamSubscribeMessage,
   createAisShipTracker,
   parseAisstreamMessage,
@@ -38,9 +45,12 @@ function assert(cond: unknown, msg: string): asserts cond {
 
 function testFunPalette() {
   assert(FUN_NEON_CYAN === '#22d3ee', 'cyan palette');
-  assert(FUN_NEON_VIOLET === '#8b5cf6', 'violet palette');
+  assert(FUN_NEON_VIOLET === '#67e8f9', 'rush motorways cyan-forward');
   assert(MAPBOX_STANDARD_FUN_LAND_COLORS.colorRoads === FUN_NEON_CYAN, 'fun roads cyan');
-  assert(MAPBOX_STANDARD_FUN_LAND_COLORS.colorMotorways === FUN_NEON_VIOLET, 'fun motorways violet');
+  assert(MAPBOX_STANDARD_FUN_LAND_COLORS.colorMotorways === FUN_NEON_VIOLET, 'fun motorways');
+  assert(MAPBOX_STANDARD_FUN_LAND_COLORS.colorLand === '#0a1018', 'h2h dark land');
+  assert(FLIGHT_TRAIL_COLOR === '#4ade80', 'plane trail lime');
+  assert(SHIP_TRAIL_COLOR === '#f59e0b', 'ship trail amber');
 }
 
 function testTwilightCurve() {
@@ -105,6 +115,8 @@ function testBboxCaps() {
   assert(wide.lomax - wide.lomin <= 10.01, 'lng span capped');
   const padded = padAndClampBbox({ lamin: 29.9, lomin: 31.1, lamax: 30.2, lomax: 31.4 });
   assert(padded.lamin < 29.9, 'pads south');
+  const tight = clampBbox({ lamin: 27.19, lomin: 33.83, lamax: 27.22, lomax: 33.86 });
+  assert(tight.lamax - tight.lamin >= TRAFFIC_BBOX_MIN_LAT_SPAN - 0.02, 'min lat span at street zoom');
   const box = bboxToAisstreamBox(padded);
   assert(box[0][0] === padded.lamin && box[0][1] === padded.lomin, 'AIS [lat,lon] SW');
   assert(bboxRadiusNm(padded) >= 15, 'adsb radius min');
@@ -134,6 +146,12 @@ function testOpenSkyParse() {
   assert(adsb.length === 2, 'adsb rows');
   assert(adsb[1].onGround === true, 'ground flag');
   assert(adsb[0].callsign === 'CFG002', 'adsb callsign trim');
+
+  const fi = parseAdsbNearby({
+    aircraft: [{ hex: '8963d2', flight: 'UAE5M  ', lat: 30.2, lon: 31.4, alt_geom: 34000, track: 10, gs: 480 }],
+  });
+  assert(fi.length === 1, 'adsb.fi aircraft key');
+  assert(fi[0].callsign === 'UAE5M', 'fi callsign');
 }
 
 function testAisParseAndTracker() {
@@ -156,11 +174,30 @@ function testAisParseAndTracker() {
   assert(msg?.speedKn === 12.4, 'sog kn');
   assert(parseAisstreamMessage({ MessageType: 'Other' }) === null, 'ignore non-position');
 
+  const classB = parseAisstreamMessage({
+    MessageType: 'StandardClassBPositionReport',
+    MetaData: { MMSI: 622999001, ShipName: 'HURGHADA SKIFF', latitude: 27.19, longitude: 33.84 },
+    Message: {
+      StandardClassBPositionReport: {
+        UserID: 622999001,
+        Latitude: 27.19,
+        Longitude: 33.84,
+        Cog: 210,
+        Sog: 6.2,
+        TrueHeading: 511,
+      },
+    },
+  });
+  assert(classB?.kind === 'ship', 'class B ship');
+  assert(classB?.heading === 210, 'class B heading falls back to COG');
+
   const sub = JSON.parse(
     buildAisstreamSubscribeMessage('k', { lamin: 27, lomin: 33, lamax: 28, lomax: 34 })
   );
   assert(sub.APIKey === 'k', 'subscribe key');
   assert(sub.FilterMessageTypes[0] === 'PositionReport', 'position only');
+  assert(sub.FilterMessageTypes.includes('StandardClassBPositionReport'), 'class B subscribed');
+  assert(AIS_POSITION_MESSAGE_TYPES.length >= 3, 'multiple AIS position types');
   assert(sub.BoundingBoxes[0][0][0] === 27, 'lat first in AIS bbox');
 
   const tracker = createAisShipTracker();
@@ -185,12 +222,20 @@ function testGeoJsonAndCaps() {
   assert(capped.length === liveTrafficCap(5, 'flight'), 'cap count');
   const gj = entitiesToGeoJSON(capped.slice(0, 1));
   assert(gj.features[0].geometry.coordinates[0] === 31, 'geojson lng first');
-  assert(
-    trafficTooltipLabel(capped[0]).includes('ft') || trafficTooltipLabel(capped[0]).includes('ground'),
-    'tooltip has alt'
-  );
+  const tip = trafficTooltipLabel(capped[0]);
+  assert(tip.includes('m') || tip.includes('GND'), 'tooltip has alt meters');
+  assert(formatAltitudeLabel(10000) === '10,000m', 'altitude meters');
+  assert(formatHeading(88) === '88°', 'heading degrees');
   assert(!JSON.stringify(gj).includes('€'), 'no price glyphs');
   assert(!JSON.stringify(gj).toLowerCase().includes('/mo'), 'no rent HUD');
+
+  const trails = createTrailTracker({ maxPoints: 4, minStepDeg: 0.00001 });
+  const a: LiveTrafficEntity = { ...capped[0], lng: 31, lat: 30 };
+  const b: LiveTrafficEntity = { ...capped[0], lng: 31.01, lat: 30.01 };
+  trails.sync([a], 'flight');
+  const line = trails.sync([b], 'flight');
+  assert(line.features.length === 1, 'trail after second point');
+  assert(line.features[0].geometry.coordinates.length === 2, 'two trail verts');
 }
 
 testFunPalette();

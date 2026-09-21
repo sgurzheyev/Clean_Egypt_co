@@ -5,13 +5,13 @@ aliases: [Frontend Components, UI Map]
 
 # Frontend Components
 
-> ← [[🗺️ GARBAGIN Master Index]] · Architecture: [[01_Architecture/Architecture_Overview]] · Roadmap: [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · Wave I: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]
+> ← [[🗺️ GARBAGIN Master Index]] · Architecture: [[01_Architecture/Architecture_Overview]] · Roadmap: [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · Wave I: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · RUSH: [[04_Roadmap_Tasks/Map_Rush_Mode]]
 
 ## Primary surfaces
 
 | Surface | Link |
 | --- | --- |
-| Map (create / bid / crowdfund / stores / Hungry-Games sub modal) | [[components/MapPicker.tsx]] · [[src/lib/mapInteractions.ts]] · [[components/MapFunModeControls.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] |
+| Map (create / bid / crowdfund / stores / Hungry-Games sub modal) | [[components/MapPicker.tsx]] · [[src/lib/mapInteractions.ts]] · [[components/MapFunModeControls.tsx]] · [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] |
 | Store coverage map (lilac zone) | [[components/StoreCoverageMap.tsx]] |
 | Store pin preview | [[components/MapStorePreviewCard.tsx]] · `.map-store-preview-card` light frost (service zone stays visible through the sheet). Hero swipes all `contractor_stores.store_photos` (cover first); bio expands in-place. |
 | Portaled store profile | [[components/StoreProfileOverlay.tsx]] |
@@ -23,7 +23,7 @@ aliases: [Frontend Components, UI Map]
 | Mission briefing / contribute / bid / reporter-only convert | [[components/MissionBriefing.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Map pin card matches store preview: hero is photos + X / count / dots only; category, price, location, status, token hint, description, and reporter chip sit in the dark body below. |
 | Briefing error boundary | [[components/MissionBriefingErrorBoundary.tsx]] |
 | Filters bottom sheet | [[components/MissionFilterPanel.tsx]] |
-| Store map filters | [[components/StoreMapFilterChips.tsx]] · floating card `left-[4.5rem]` clears the left FAB column (Filter / Alert / Store / Fun) so chips stay tappable |
+| Store map filters | [[components/StoreMapFilterChips.tsx]] · floating card `left-[4.5rem]` clears the left FAB column (Filter / Alert / Store / RUSH) so chips stay tappable |
 | Feed card | [[components/MissionFeedCard.tsx]] |
 | Create mission | [[components/CreateMission.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] |
 | Report garbage zone | [[components/ReportGarbageZoneModal.tsx]] |
@@ -82,7 +82,7 @@ Wired in `public/manifest.json` and `index.html` (`theme-color` / `background_co
 ## Hooks & helpers
 
 - [[src/lib/mapInteractions.ts]] — restore Mapbox zoom/pan after MissionBriefing close or Store toggle (handlers can stick `_active` when an overlay steals pointerup)
-- [[src/lib/mapFunMode.ts]] — `funMapMode` localStorage toggle (cartoon land + neon `#8b5cf6`/`#22d3ee` roads). No property-price HUD.
+- [[src/lib/mapFunMode.ts]] — RUSH / fun-map localStorage toggle (H2H night land + cyan roads). No property-price HUD.
 - [[src/lib/mapSolarAtmosphere.ts]] — cinematic dawn/dusk fog/sky from local solar altitude (Egypt / Red Sea). Fun mode only boosts bloom.
 - [[src/lib/openskyFlights.ts]] — OpenSky `/states/all` bbox (same-origin `/api/opensky-states`), ADSB.lol fallback (`/api/adsb-nearby`)
 - [[src/lib/aisShips.ts]] — AISStream WebSocket when `VITE_AISSTREAM_API_KEY` is set (free key: https://aisstream.io/ → sign in with GitHub → API Keys). No key → ships stay off; never fake vessels.
@@ -103,16 +103,17 @@ Wired in `public/manifest.json` and `index.html` (`theme-color` / `background_co
 - [[src/lib/creatorDeleteMission.ts]]
 - [[src/lib/trustBadges.ts]]
 
-### Fun map mode, sunrise/sunset, live traffic
+### Fun map mode, sunrise/sunset, RUSH live traffic
 
-Palette FAB on the map (`components/MapFunModeControls.tsx`) toggles `funMapMode` (persisted as `ce_fun_map_mode`). On: Mapbox Standard `theme: 'faded'`, simplified land contrast, neon roads (`#8b5cf6` / `#22d3ee`), punchier pin/coverage glow. Off: current production steel land. **No property-price / real-estate HUD.**
+Palette FAB (`components/MapFunModeControls.tsx`) is **RUSH**. One press: cinematic night land + live craft + lift card. Same press closes the card (lift retract) and restores steel land. **No property-price / real-estate HUD.** Copy is short: `plane or ship only!` / `press · look · closed`. Note: [[04_Roadmap_Tasks/Map_Rush_Mode]].
 
-Dawn/dusk uses [[src/lib/mapSolarAtmosphere.ts]] from SunCalc at the map center (Egypt / Red Sea local solar times). Horizon fog/halo is cinematic in normal mode; fun mode only boosts bloom. Atmosphere ticks every 20s in twilight, 60s otherwise.
+Dawn/dusk uses [[src/lib/mapSolarAtmosphere.ts]] from SunCalc at the map center (Egypt / Red Sea local solar times). Horizon fog/halo is cinematic in normal mode; RUSH only swaps land tokens + cyan road overlay. Atmosphere ticks every 20s in twilight, 60s otherwise.
 
-Live traffic (fun mode + Live traffic chip):
+Live craft (RUSH on):
 
-- **Flights:** OpenSky Network `GET /api/states/all` bbox around the viewport, polled ~12s while the tab is visible. Browser CORS is blocked, so the client calls same-origin [[api/opensky-states.ts]] (Vite dev middleware mirrors this). If OpenSky is down / AWS-blocked, [[api/adsb-nearby.ts]] falls back to free ADSB.lol. Entity counts cap by zoom. These two `/api` routes are public (no JWT) — bbox is clamped, responses cached ~10s.
-- **Ships:** AISStream WebSocket `wss://stream.aisstream.io/v0/stream` when `VITE_AISSTREAM_API_KEY` is set. Free key: sign in at https://aisstream.io/ (GitHub) → API Keys. No key → ship layer stays off with an in-map hint; positions are never invented.
+- **Flights:** OpenSky + ADSB in parallel via [[api/opensky-states.ts]] / [[api/adsb-nearby.ts]]. ADSB host fallback (`adsb.lol` → `opendata.adsb.fi`) because Vercel IPs often get Cloudflare 403 from adsb.lol. Street-zoom bbox is expanded so Marina Hurghada still sees HRG. Lime markers + lime trails; altitude in meters.
+- **Ships:** AISStream WebSocket when `VITE_AISSTREAM_API_KEY` is set (Class A + Class B). Amber markers + amber trails, rotated to heading. No key → `ships off`; positions are never invented.
+- Empty/loading is a one-word line on the card (`…` / `empty`).
 
 ## Related flows
 
@@ -127,6 +128,7 @@ Live traffic (fun mode + Live traffic chip):
 - Underfund accept / reject bid RPC / expiry unlock → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
 - Push token lock / fail-closed Edge / Hungry-Games subscription → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
 - Vercel `/api/*` user JWT (translate / moderate / analyze / notify) → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]
+- RUSH live craft / H2H night land → [[04_Roadmap_Tasks/Map_Rush_Mode]]
 - P2P briefing CTAs → [[01_Architecture/P2P_Deal_Flow]]
 - Country / city filter + map camera sync → [[01_Architecture/Global_Location_Filtering]]
 - KYC gate → [[01_Architecture/KYC_Verification]]

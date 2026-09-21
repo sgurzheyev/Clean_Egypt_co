@@ -6,11 +6,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   bboxFromMapBounds,
+  createTrailTracker,
   emptyTrafficGeoJSON,
+  emptyTrailGeoJSON,
   entitiesToGeoJSON,
   OPENSKY_POLL_MS,
   type GeoBbox,
   type TrafficGeoJSON,
+  type TrafficTrailGeoJSON,
 } from '../lib/mapLiveTraffic';
 import { fetchViewportFlights, type FlightFetchMeta } from '../lib/openskyFlights';
 import {
@@ -42,7 +45,12 @@ export type UseMapLiveTrafficOptions = {
 export type UseMapLiveTrafficResult = {
   flightsGeoJSON: TrafficGeoJSON;
   shipsGeoJSON: TrafficGeoJSON;
+  flightsTrailsGeoJSON: TrafficTrailGeoJSON;
+  shipsTrailsGeoJSON: TrafficTrailGeoJSON;
   flightMeta: FlightFetchMeta;
+  flightsCount: number;
+  shipsCount: number;
+  flightsLoading: boolean;
   shipsEnabled: boolean;
   shipsHint: 'need-key' | 'live' | 'off';
 };
@@ -51,6 +59,13 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
   const { enabled, map, cameraBusy = false, bboxNonce = 0 } = opts;
   const [flightsGeoJSON, setFlightsGeoJSON] = useState<TrafficGeoJSON>(emptyTrafficGeoJSON);
   const [shipsGeoJSON, setShipsGeoJSON] = useState<TrafficGeoJSON>(emptyTrafficGeoJSON);
+  const [flightsTrailsGeoJSON, setFlightsTrailsGeoJSON] =
+    useState<TrafficTrailGeoJSON>(emptyTrailGeoJSON);
+  const [shipsTrailsGeoJSON, setShipsTrailsGeoJSON] =
+    useState<TrafficTrailGeoJSON>(emptyTrailGeoJSON);
+  const [flightsCount, setFlightsCount] = useState(0);
+  const [shipsCount, setShipsCount] = useState(0);
+  const [flightsLoading, setFlightsLoading] = useState(false);
   const [flightMeta, setFlightMeta] = useState<FlightFetchMeta>({
     source: 'none',
     error: null,
@@ -61,6 +76,8 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
   const bboxRef = useRef<GeoBbox | null>(null);
   const zoomRef = useRef(10);
   const trackerRef = useRef(createAisShipTracker());
+  const flightTrailsRef = useRef(createTrailTracker());
+  const shipTrailsRef = useRef(createTrailTracker());
   const wsRef = useRef<WebSocket | null>(null);
   const wsRetryRef = useRef(0);
   const shipsPaintRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -76,7 +93,10 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
   }, [map]);
 
   const paintShips = useCallback(() => {
-    setShipsGeoJSON(entitiesToGeoJSON(trackerRef.current.list(zoomRef.current)));
+    const list = trackerRef.current.list(zoomRef.current);
+    setShipsGeoJSON(entitiesToGeoJSON(list));
+    setShipsCount(list.length);
+    setShipsTrailsGeoJSON(shipTrailsRef.current.sync(list, 'ship'));
   }, []);
 
   const scheduleShipsPaint = useCallback(() => {
@@ -96,7 +116,10 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
       }
       wsRef.current = null;
       trackerRef.current.clear();
+      shipTrailsRef.current.clear();
       setShipsGeoJSON(emptyTrafficGeoJSON());
+      setShipsTrailsGeoJSON(emptyTrailGeoJSON());
+      setShipsCount(0);
       return;
     }
 
@@ -176,6 +199,7 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
       }
       wsRef.current = null;
       trackerRef.current.clear();
+      shipTrailsRef.current.clear();
     };
   }, [enabled, shipsEnabled, readViewport, paintShips, scheduleShipsPaint]);
 
@@ -195,13 +219,18 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
   useEffect(() => {
     if (!enabled) {
       abortRef.current?.abort();
+      flightTrailsRef.current.clear();
       setFlightsGeoJSON(emptyTrafficGeoJSON());
+      setFlightsTrailsGeoJSON(emptyTrailGeoJSON());
+      setFlightsCount(0);
+      setFlightsLoading(false);
       setFlightMeta({ source: 'none', error: null });
       return;
     }
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    setFlightsLoading(true);
 
     const tick = async () => {
       if (cancelled) return;
@@ -225,7 +254,10 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
         const { entities, meta } = await fetchViewportFlights(vp.bbox, vp.zoom, ac.signal);
         if (cancelled) return;
         setFlightsGeoJSON(entitiesToGeoJSON(entities));
+        setFlightsCount(entities.length);
+        setFlightsTrailsGeoJSON(flightTrailsRef.current.sync(entities, 'flight'));
         setFlightMeta(meta);
+        setFlightsLoading(false);
       } catch (err) {
         if (cancelled || ac.signal.aborted) {
           /* next tick */
@@ -234,6 +266,7 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
             source: 'none',
             error: err instanceof Error ? err.message : 'flights unavailable',
           });
+          setFlightsLoading(false);
         }
       }
       if (!cancelled) timer = setTimeout(tick, OPENSKY_POLL_MS);
@@ -265,7 +298,12 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
   return {
     flightsGeoJSON,
     shipsGeoJSON,
+    flightsTrailsGeoJSON,
+    shipsTrailsGeoJSON,
     flightMeta,
+    flightsCount,
+    shipsCount,
+    flightsLoading,
     shipsEnabled,
     shipsHint: !enabled ? 'off' : shipsEnabled ? 'live' : 'need-key',
   };

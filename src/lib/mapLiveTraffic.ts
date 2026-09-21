@@ -1,6 +1,9 @@
 /**
  * Viewport bbox helpers + GeoJSON for live flights / ships.
  * Caps entity counts by zoom so mobile stays near 60 FPS.
+ *
+ * Craft colors are lime (planes) vs amber (ships) so they stay readable
+ * against cyan RUSH roads — not tiny cyan dots.
  */
 
 export type GeoBbox = {
@@ -35,18 +38,39 @@ export type LiveTrafficPointProps = {
 
 export const LIVE_FLIGHTS_SOURCE_ID = 'live-flights';
 export const LIVE_SHIPS_SOURCE_ID = 'live-ships';
+export const LIVE_FLIGHTS_TRAILS_SOURCE_ID = 'live-flights-trails';
+export const LIVE_SHIPS_TRAILS_SOURCE_ID = 'live-ships-trails';
 export const LIVE_FLIGHTS_GLOW_LAYER_ID = 'live-flights-glow';
 export const LIVE_FLIGHTS_CORE_LAYER_ID = 'live-flights-core';
 export const LIVE_FLIGHTS_ICON_LAYER_ID = 'live-flights-icon';
+export const LIVE_FLIGHTS_LABEL_LAYER_ID = 'live-flights-label';
+export const LIVE_FLIGHTS_TRAIL_GLOW_LAYER_ID = 'live-flights-trail-glow';
+export const LIVE_FLIGHTS_TRAIL_LAYER_ID = 'live-flights-trail';
 export const LIVE_SHIPS_GLOW_LAYER_ID = 'live-ships-glow';
 export const LIVE_SHIPS_CORE_LAYER_ID = 'live-ships-core';
 export const LIVE_SHIPS_ICON_LAYER_ID = 'live-ships-icon';
+export const LIVE_SHIPS_LABEL_LAYER_ID = 'live-ships-label';
+export const LIVE_SHIPS_TRAIL_GLOW_LAYER_ID = 'live-ships-trail-glow';
+export const LIVE_SHIPS_TRAIL_LAYER_ID = 'live-ships-trail';
 export const LIVE_PLANE_IMAGE_ID = 'ce-live-plane';
 export const LIVE_SHIP_IMAGE_ID = 'ce-live-ship';
+
+/** Mapbox Standard slot so craft sit above 3D buildings / terrain. */
+export const LIVE_TRAFFIC_SLOT = 'top';
+
+export const FLIGHT_TRAIL_COLOR = '#4ade80';
+export const FLIGHT_TRAIL_CORE_COLOR = '#bbf7d0';
+export const SHIP_TRAIL_COLOR = '#f59e0b';
+export const SHIP_TRAIL_CORE_COLOR = '#fdba74';
+export const FLIGHT_MARKER_COLOR = '#86efac';
+export const SHIP_MARKER_COLOR = '#fb923c';
 
 export const OPENSKY_POLL_MS = 12_000;
 export const TRAFFIC_BBOX_MAX_LAT_SPAN = 8;
 export const TRAFFIC_BBOX_MAX_LNG_SPAN = 10;
+/** Street-zoom viewports would otherwise miss HRG / Red Sea craft. */
+export const TRAFFIC_BBOX_MIN_LAT_SPAN = 1.4;
+export const TRAFFIC_BBOX_MIN_LNG_SPAN = 1.8;
 
 export type TrafficGeoJSON = {
   type: 'FeatureCollection';
@@ -58,7 +82,18 @@ export type TrafficGeoJSON = {
   }>;
 };
 
+export type TrafficTrailGeoJSON = {
+  type: 'FeatureCollection';
+  features: Array<{
+    type: 'Feature';
+    id?: string;
+    geometry: { type: 'LineString'; coordinates: [number, number][] };
+    properties: { id: string; kind: 'flight' | 'ship' };
+  }>;
+};
+
 const EMPTY_FC: TrafficGeoJSON = { type: 'FeatureCollection', features: [] };
+const EMPTY_TRAILS: TrafficTrailGeoJSON = { type: 'FeatureCollection', features: [] };
 
 export function clampBbox(bbox: GeoBbox): GeoBbox {
   const lamin = clamp(bbox.lamin, -90, 90);
@@ -73,12 +108,20 @@ export function clampBbox(bbox: GeoBbox): GeoBbox {
     west = lomin;
     east = lomax;
   }
-  const latSpan = north - south;
-  const lngSpan = east - west;
   const latMid = (south + north) / 2;
   const lngMid = (west + east) / 2;
-  const halfLat = Math.min(latSpan, TRAFFIC_BBOX_MAX_LAT_SPAN) / 2;
-  const halfLng = Math.min(lngSpan, TRAFFIC_BBOX_MAX_LNG_SPAN) / 2;
+  const latSpan = clamp(
+    north - south,
+    TRAFFIC_BBOX_MIN_LAT_SPAN,
+    TRAFFIC_BBOX_MAX_LAT_SPAN
+  );
+  const lngSpan = clamp(
+    east - west,
+    TRAFFIC_BBOX_MIN_LNG_SPAN,
+    TRAFFIC_BBOX_MAX_LNG_SPAN
+  );
+  const halfLat = latSpan / 2;
+  const halfLng = lngSpan / 2;
   return {
     lamin: clamp(latMid - halfLat, -90, 90),
     lamax: clamp(latMid + halfLat, -90, 90),
@@ -139,7 +182,7 @@ export function bboxRadiusNm(bbox: GeoBbox): number {
   const kmLng = lngSpan * 111.32 * Math.cos((latMid * Math.PI) / 180);
   const km = Math.max(kmLat, kmLng) / 2;
   const nm = km / 1.852;
-  return clamp(Math.round(nm), 15, 220);
+  return clamp(Math.round(nm), 40, 220);
 }
 
 export function liveTrafficCap(zoom: number, kind: 'flight' | 'ship'): number {
@@ -170,10 +213,10 @@ export function capTrafficEntities(
 }
 
 export function formatAltitudeLabel(altitudeM: number | null, onGround?: boolean): string {
-  if (onGround) return 'on ground';
-  if (altitudeM == null || !Number.isFinite(altitudeM)) return 'alt —';
-  const ft = Math.round((altitudeM * 3.28084) / 100) * 100;
-  return `${ft.toLocaleString('en-US')} ft`;
+  if (onGround) return 'GND';
+  if (altitudeM == null || !Number.isFinite(altitudeM)) return '';
+  const m = Math.round(altitudeM / 10) * 10;
+  return `${m.toLocaleString('en-US')}m`;
 }
 
 export function formatSpeedKn(speedKn: number | null): string {
@@ -181,13 +224,26 @@ export function formatSpeedKn(speedKn: number | null): string {
   return `${Math.round(speedKn)} kn`;
 }
 
+export function formatSpeedKmh(speedKn: number | null): string {
+  if (speedKn == null || !Number.isFinite(speedKn)) return '';
+  return `${Math.round(speedKn * 1.852)} km/h`;
+}
+
+export function formatHeading(heading: number | null): string {
+  if (heading == null || !Number.isFinite(heading)) return '';
+  const deg = ((Math.round(heading) % 360) + 360) % 360;
+  return `${deg}°`;
+}
+
 export function trafficTooltipLabel(entity: LiveTrafficEntity): string {
   if (entity.kind === 'flight') {
     const alt = formatAltitudeLabel(entity.altitudeM, entity.onGround);
-    return `${entity.callsign} · ${alt}`;
+    const spd = formatSpeedKmh(entity.speedKn);
+    return [entity.callsign, alt, spd].filter(Boolean).join(' · ');
   }
+  const hdg = formatHeading(entity.heading);
   const spd = formatSpeedKn(entity.speedKn);
-  return spd ? `${entity.callsign} · ${spd}` : entity.callsign;
+  return [entity.callsign, hdg, spd].filter(Boolean).join(' · ');
 }
 
 export function entitiesToGeoJSON(entities: LiveTrafficEntity[]): TrafficGeoJSON {
@@ -213,6 +269,60 @@ export function entitiesToGeoJSON(entities: LiveTrafficEntity[]): TrafficGeoJSON
 
 export function emptyTrafficGeoJSON(): TrafficGeoJSON {
   return EMPTY_FC;
+}
+
+export function emptyTrailGeoJSON(): TrafficTrailGeoJSON {
+  return EMPTY_TRAILS;
+}
+
+export type TrafficTrailTracker = {
+  sync: (entities: LiveTrafficEntity[], kind: 'flight' | 'ship') => TrafficTrailGeoJSON;
+  clear: () => void;
+};
+
+export function createTrailTracker(opts?: {
+  maxPoints?: number;
+  minStepDeg?: number;
+}): TrafficTrailTracker {
+  const maxPoints = opts?.maxPoints ?? 12;
+  const minStepDeg = opts?.minStepDeg ?? 0.00028;
+  const byId = new Map<string, { kind: 'flight' | 'ship'; coords: [number, number][] }>();
+
+  return {
+    sync(entities, kind) {
+      const seen = new Set<string>();
+      for (const e of entities) {
+        seen.add(e.id);
+        const pt: [number, number] = [e.lng, e.lat];
+        const prev = byId.get(e.id);
+        if (!prev) {
+          byId.set(e.id, { kind, coords: [pt] });
+          continue;
+        }
+        const last = prev.coords[prev.coords.length - 1];
+        if (Math.hypot(pt[0] - last[0], pt[1] - last[1]) < minStepDeg) continue;
+        prev.coords.push(pt);
+        if (prev.coords.length > maxPoints) prev.coords.shift();
+      }
+      for (const [id, row] of byId) {
+        if (row.kind === kind && !seen.has(id)) byId.delete(id);
+      }
+      return {
+        type: 'FeatureCollection',
+        features: [...byId.entries()]
+          .filter(([, row]) => row.kind === kind && row.coords.length >= 2)
+          .map(([id, row]) => ({
+            type: 'Feature' as const,
+            id,
+            geometry: { type: 'LineString' as const, coordinates: row.coords },
+            properties: { id, kind: row.kind },
+          })),
+      };
+    },
+    clear() {
+      byId.clear();
+    },
+  };
 }
 
 /** AISStream wants [[lat, lon], [lat, lon]] corners. */
@@ -258,6 +368,21 @@ export function featureToTrafficEntity(
   };
 }
 
+export const LIVE_TRAFFIC_LAYER_ORDER = [
+  LIVE_FLIGHTS_TRAIL_GLOW_LAYER_ID,
+  LIVE_SHIPS_TRAIL_GLOW_LAYER_ID,
+  LIVE_FLIGHTS_TRAIL_LAYER_ID,
+  LIVE_SHIPS_TRAIL_LAYER_ID,
+  LIVE_FLIGHTS_GLOW_LAYER_ID,
+  LIVE_SHIPS_GLOW_LAYER_ID,
+  LIVE_FLIGHTS_CORE_LAYER_ID,
+  LIVE_SHIPS_CORE_LAYER_ID,
+  LIVE_FLIGHTS_ICON_LAYER_ID,
+  LIVE_SHIPS_ICON_LAYER_ID,
+  LIVE_FLIGHTS_LABEL_LAYER_ID,
+  LIVE_SHIPS_LABEL_LAYER_ID,
+] as const;
+
 type ImageMap = {
   hasImage?: (id: string) => boolean;
   addImage?: (
@@ -267,63 +392,70 @@ type ImageMap = {
   ) => void;
 };
 
-function paintTriangle(
+function setPx(
   data: Uint8Array,
   size: number,
-  rgb: [number, number, number]
-): void {
+  x: number,
+  y: number,
+  rgb: [number, number, number],
+  a = 255
+) {
+  if (x < 0 || y < 0 || x >= size || y >= size) return;
+  const i = (y * size + x) * 4;
+  data[i] = rgb[0];
+  data[i + 1] = rgb[1];
+  data[i + 2] = rgb[2];
+  data[i + 3] = a;
+}
+
+/** Top-view airplane, nose-up so icon-rotate heading works. */
+function paintPlane(data: Uint8Array, size: number, rgb: [number, number, number]): void {
   const cx = (size - 1) / 2;
-  const top = 4;
-  const bot = size - 6;
-  const half = size * 0.28;
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const t = (y - top) / (bot - top);
-      if (t < 0 || t > 1) continue;
-      const hw = half * t + 1;
-      if (Math.abs(x - cx) <= hw) {
-        const i = (y * size + x) * 4;
-        const edge = Math.abs(x - cx) > hw - 1.2 || y < top + 1.5;
-        data[i] = rgb[0];
-        data[i + 1] = rgb[1];
-        data[i + 2] = rgb[2];
-        data[i + 3] = edge ? 255 : 230;
-      }
+  for (let y = 6; y < size - 6; y++) {
+    const t = (y - 6) / (size - 12);
+    const fuse = t < 0.12 ? 1.6 + t * 8 : t > 0.82 ? 2.2 : 2.8;
+    for (let x = Math.floor(cx - fuse); x <= Math.ceil(cx + fuse); x++) {
+      setPx(data, size, x, y, rgb, 245);
+    }
+  }
+  const wingY = Math.floor(size * 0.42);
+  for (let y = wingY - 3; y <= wingY + 4; y++) {
+    const spread = 4 + (y - (wingY - 3)) * 3.6;
+    for (let x = Math.floor(cx - spread); x <= Math.ceil(cx + spread); x++) {
+      setPx(data, size, x, y, rgb, 255);
+    }
+  }
+  const tailY = Math.floor(size * 0.78);
+  for (let y = tailY - 2; y <= tailY + 2; y++) {
+    const spread = 6 + Math.abs(y - tailY);
+    for (let x = Math.floor(cx - spread); x <= Math.ceil(cx + spread); x++) {
+      setPx(data, size, x, y, rgb, 255);
     }
   }
 }
 
-function paintDiamond(
-  data: Uint8Array,
-  size: number,
-  rgb: [number, number, number]
-): void {
+/** Bow-up hull so heading/COG rotate the ship. */
+function paintShip(data: Uint8Array, size: number, rgb: [number, number, number]): void {
   const cx = (size - 1) / 2;
-  const cy = (size - 1) / 2;
-  const rx = size * 0.22;
-  const ry = size * 0.38;
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const nx = Math.abs(x - cx) / rx;
-      const ny = Math.abs(y - cy) / ry;
-      if (nx + ny <= 1.05) {
-        const i = (y * size + x) * 4;
-        data[i] = rgb[0];
-        data[i + 1] = rgb[1];
-        data[i + 2] = rgb[2];
-        data[i + 3] = nx + ny > 0.88 ? 255 : 220;
-      }
+  const top = 8;
+  const bot = size - 8;
+  for (let y = top; y <= bot; y++) {
+    const t = (y - top) / (bot - top);
+    const half = t < 0.28 ? 2 + t * 18 : 7.2;
+    for (let x = Math.floor(cx - half); x <= Math.ceil(cx + half); x++) {
+      const edge = Math.abs(x - cx) > half - 1.1 || y < top + 1.5;
+      setPx(data, size, x, y, rgb, edge ? 255 : 230);
     }
   }
 }
 
 export function registerLiveTrafficImages(map: ImageMap | null | undefined): void {
   if (!map?.addImage) return;
-  const size = 64;
+  const size = 80;
   try {
     if (!map.hasImage?.(LIVE_PLANE_IMAGE_ID)) {
       const data = new Uint8Array(size * size * 4);
-      paintTriangle(data, size, [34, 211, 238]);
+      paintPlane(data, size, [134, 239, 172]);
       map.addImage(LIVE_PLANE_IMAGE_ID, { width: size, height: size, data }, { pixelRatio: 2 });
     }
   } catch {
@@ -332,11 +464,10 @@ export function registerLiveTrafficImages(map: ImageMap | null | undefined): voi
   try {
     if (!map.hasImage?.(LIVE_SHIP_IMAGE_ID)) {
       const data = new Uint8Array(size * size * 4);
-      paintDiamond(data, size, [139, 92, 246]);
+      paintShip(data, size, [251, 146, 60]);
       map.addImage(LIVE_SHIP_IMAGE_ID, { width: size, height: size, data }, { pixelRatio: 2 });
     }
   } catch {
     /* ignore */
   }
 }
-

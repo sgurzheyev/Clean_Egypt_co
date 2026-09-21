@@ -170,17 +170,33 @@ import {
 } from '../src/lib/mapFunMode';
 import {
   featureToTrafficEntity,
+  FLIGHT_MARKER_COLOR,
+  FLIGHT_TRAIL_COLOR,
+  FLIGHT_TRAIL_CORE_COLOR,
   LIVE_FLIGHTS_CORE_LAYER_ID,
   LIVE_FLIGHTS_GLOW_LAYER_ID,
   LIVE_FLIGHTS_ICON_LAYER_ID,
+  LIVE_FLIGHTS_LABEL_LAYER_ID,
   LIVE_FLIGHTS_SOURCE_ID,
+  LIVE_FLIGHTS_TRAIL_GLOW_LAYER_ID,
+  LIVE_FLIGHTS_TRAIL_LAYER_ID,
+  LIVE_FLIGHTS_TRAILS_SOURCE_ID,
   LIVE_PLANE_IMAGE_ID,
   LIVE_SHIP_IMAGE_ID,
   LIVE_SHIPS_CORE_LAYER_ID,
   LIVE_SHIPS_GLOW_LAYER_ID,
   LIVE_SHIPS_ICON_LAYER_ID,
+  LIVE_SHIPS_LABEL_LAYER_ID,
   LIVE_SHIPS_SOURCE_ID,
+  LIVE_SHIPS_TRAIL_GLOW_LAYER_ID,
+  LIVE_SHIPS_TRAIL_LAYER_ID,
+  LIVE_SHIPS_TRAILS_SOURCE_ID,
+  LIVE_TRAFFIC_LAYER_ORDER,
+  LIVE_TRAFFIC_SLOT,
   registerLiveTrafficImages,
+  SHIP_MARKER_COLOR,
+  SHIP_TRAIL_COLOR,
+  SHIP_TRAIL_CORE_COLOR,
   trafficTooltipLabel,
 } from '../src/lib/mapLiveTraffic';
 import { useMapLiveTraffic } from '../src/hooks/useMapLiveTraffic';
@@ -1562,7 +1578,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const atmosphereIntervalMsRef = React.useRef(60_000);
 
   const [funMapMode, setFunMapMode] = useState(() => readFunMapMode());
-  const [liveTraffic, setLiveTraffic] = useState(() => readLiveMapTraffic());
+  const [liveTraffic, setLiveTraffic] = useState(
+    () => readFunMapMode() || readLiveMapTraffic()
+  );
   funMapModeRef.current = funMapMode;
 
   /** Auto = Open-Meteo for map center; otherwise manual override. */
@@ -1765,8 +1783,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
         lightPreset: pack.lightPreset,
         ...(funMode
           ? {
-              theme: 'faded' as const,
-              show3dFacades: false,
+              theme: 'default' as const,
+              show3dFacades: true,
               landColors: MAPBOX_STANDARD_FUN_LAND_COLORS,
             }
           : { theme: 'default' as const, show3dFacades: true }),
@@ -1879,7 +1897,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     Math.round(viewState.latitude * 40) * 1_000_000 +
     Math.round(viewState.longitude * 40) * 100 +
     Math.round(viewState.zoom * 2);
-  const trafficEnabled = mapReady && funMapMode && liveTraffic;
+  const trafficEnabled = mapReady && funMapMode;
   const liveTrafficData = useMapLiveTraffic({
     enabled: trafficEnabled,
     map: mapReady ? mapInstanceRef.current : null,
@@ -3203,8 +3221,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
             const trafficLayers = [
               LIVE_FLIGHTS_CORE_LAYER_ID,
               LIVE_FLIGHTS_ICON_LAYER_ID,
+              LIVE_FLIGHTS_LABEL_LAYER_ID,
               LIVE_SHIPS_CORE_LAYER_ID,
               LIVE_SHIPS_ICON_LAYER_ID,
+              LIVE_SHIPS_LABEL_LAYER_ID,
             ].filter((id) => map.getLayer?.(id));
             if (trafficLayers.length > 0) {
               const hits = map.queryRenderedFeatures(bbox, { layers: trafficLayers });
@@ -3419,12 +3439,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const layers = map.getStyle()?.layers;
         if (!layers || layers.length === 0) return;
         const order = [
-          LIVE_FLIGHTS_GLOW_LAYER_ID,
-          LIVE_FLIGHTS_CORE_LAYER_ID,
-          LIVE_FLIGHTS_ICON_LAYER_ID,
-          LIVE_SHIPS_GLOW_LAYER_ID,
-          LIVE_SHIPS_CORE_LAYER_ID,
-          LIVE_SHIPS_ICON_LAYER_ID,
+          ...LIVE_TRAFFIC_LAYER_ORDER,
           'mission-pins-clusters',
           'mission-pins-cluster-count',
           'mission-pins-glow',
@@ -5517,82 +5532,204 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
         {trafficEnabled && (
           <>
+            <Source
+              id={LIVE_FLIGHTS_TRAILS_SOURCE_ID}
+              type="geojson"
+              data={liveTrafficData.flightsTrailsGeoJSON}
+            >
+              <Layer
+                id={LIVE_FLIGHTS_TRAIL_GLOW_LAYER_ID}
+                type="line"
+                minzoom={4}
+                slot={LIVE_TRAFFIC_SLOT}
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                paint={{
+                  'line-color': FLIGHT_TRAIL_COLOR,
+                  'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3.5, 10, 6, 14, 8],
+                  'line-opacity': mapCameraBusy ? 0.28 : 0.45,
+                  'line-blur': mapCameraBusy ? 0.2 : 1.6,
+                }}
+              />
+              <Layer
+                id={LIVE_FLIGHTS_TRAIL_LAYER_ID}
+                type="line"
+                minzoom={4}
+                slot={LIVE_TRAFFIC_SLOT}
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                paint={{
+                  'line-color': FLIGHT_TRAIL_CORE_COLOR,
+                  'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.2, 10, 2, 14, 2.6],
+                  'line-opacity': 0.95,
+                }}
+              />
+            </Source>
+            <Source
+              id={LIVE_SHIPS_TRAILS_SOURCE_ID}
+              type="geojson"
+              data={liveTrafficData.shipsTrailsGeoJSON}
+            >
+              <Layer
+                id={LIVE_SHIPS_TRAIL_GLOW_LAYER_ID}
+                type="line"
+                minzoom={4}
+                slot={LIVE_TRAFFIC_SLOT}
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                paint={{
+                  'line-color': SHIP_TRAIL_COLOR,
+                  'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3.2, 10, 5.5, 14, 7.5],
+                  'line-opacity': mapCameraBusy ? 0.28 : 0.48,
+                  'line-blur': mapCameraBusy ? 0.2 : 1.5,
+                }}
+              />
+              <Layer
+                id={LIVE_SHIPS_TRAIL_LAYER_ID}
+                type="line"
+                minzoom={4}
+                slot={LIVE_TRAFFIC_SLOT}
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                paint={{
+                  'line-color': SHIP_TRAIL_CORE_COLOR,
+                  'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.1, 10, 1.8, 14, 2.4],
+                  'line-opacity': 0.95,
+                }}
+              />
+            </Source>
             <Source id={LIVE_FLIGHTS_SOURCE_ID} type="geojson" data={liveTrafficData.flightsGeoJSON}>
               <Layer
                 id={LIVE_FLIGHTS_GLOW_LAYER_ID}
                 type="circle"
-                minzoom={5}
+                minzoom={4}
+                slot={LIVE_TRAFFIC_SLOT}
                 paint={{
-                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 4, 10, 8, 14, 11],
-                  'circle-color': '#22d3ee',
-                  'circle-blur': mapCameraBusy ? 0.2 : 0.75,
-                  'circle-opacity': mapCameraBusy ? 0.25 : 0.45,
+                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 10, 10, 16, 14, 20],
+                  'circle-color': FLIGHT_TRAIL_COLOR,
+                  'circle-blur': mapCameraBusy ? 0.15 : 0.55,
+                  'circle-opacity': mapCameraBusy ? 0.28 : 0.42,
                 }}
               />
               <Layer
                 id={LIVE_FLIGHTS_CORE_LAYER_ID}
                 type="circle"
-                minzoom={5}
+                minzoom={4}
+                slot={LIVE_TRAFFIC_SLOT}
                 paint={{
-                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 2.2, 10, 3.4, 14, 4.2],
-                  'circle-color': '#67e8f9',
-                  'circle-stroke-width': 1,
-                  'circle-stroke-color': '#ecfeff',
+                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 4.5, 10, 6.5, 14, 8],
+                  'circle-color': FLIGHT_MARKER_COLOR,
+                  'circle-stroke-width': 1.5,
+                  'circle-stroke-color': '#ecfdf5',
                   'circle-opacity': 0.95,
                 }}
               />
               <Layer
                 id={LIVE_FLIGHTS_ICON_LAYER_ID}
                 type="symbol"
-                minzoom={8}
+                minzoom={5}
+                slot={LIVE_TRAFFIC_SLOT}
                 layout={{
                   'icon-image': LIVE_PLANE_IMAGE_ID,
-                  'icon-size': 0.55,
+                  'icon-size': ['interpolate', ['linear'], ['zoom'], 5, 0.72, 10, 0.95, 14, 1.15],
                   'icon-rotate': ['get', 'heading'],
                   'icon-rotation-alignment': 'map',
                   'icon-allow-overlap': true,
                   'icon-ignore-placement': true,
                 }}
-                paint={{ 'icon-opacity': mapCameraBusy ? 0.55 : 0.95 }}
+                paint={{ 'icon-opacity': mapCameraBusy ? 0.7 : 1 }}
+              />
+              <Layer
+                id={LIVE_FLIGHTS_LABEL_LAYER_ID}
+                type="symbol"
+                minzoom={8}
+                slot={LIVE_TRAFFIC_SLOT}
+                layout={{
+                  'text-field': [
+                    'step',
+                    ['zoom'],
+                    ['get', 'callsign'],
+                    11,
+                    ['get', 'label'],
+                  ],
+                  'text-size': ['interpolate', ['linear'], ['zoom'], 8, 10, 13, 11],
+                  'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+                  'text-offset': [0, 1.35],
+                  'text-anchor': 'top',
+                  'text-allow-overlap': false,
+                  'text-ignore-placement': false,
+                  'text-optional': true,
+                }}
+                paint={{
+                  'text-color': '#dcfce7',
+                  'text-halo-color': '#052e16',
+                  'text-halo-width': 1.1,
+                }}
               />
             </Source>
             <Source id={LIVE_SHIPS_SOURCE_ID} type="geojson" data={liveTrafficData.shipsGeoJSON}>
               <Layer
                 id={LIVE_SHIPS_GLOW_LAYER_ID}
                 type="circle"
-                minzoom={5}
+                minzoom={4}
+                slot={LIVE_TRAFFIC_SLOT}
                 paint={{
-                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 4, 10, 7, 14, 10],
-                  'circle-color': '#8b5cf6',
-                  'circle-blur': mapCameraBusy ? 0.2 : 0.7,
-                  'circle-opacity': mapCameraBusy ? 0.22 : 0.42,
+                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 9, 10, 15, 14, 18],
+                  'circle-color': SHIP_TRAIL_COLOR,
+                  'circle-blur': mapCameraBusy ? 0.15 : 0.5,
+                  'circle-opacity': mapCameraBusy ? 0.26 : 0.4,
                 }}
               />
               <Layer
                 id={LIVE_SHIPS_CORE_LAYER_ID}
                 type="circle"
-                minzoom={5}
+                minzoom={4}
+                slot={LIVE_TRAFFIC_SLOT}
                 paint={{
-                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 2, 10, 3.2, 14, 4],
-                  'circle-color': '#c4b5fd',
-                  'circle-stroke-width': 1,
-                  'circle-stroke-color': '#ede9fe',
+                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 4.2, 10, 6, 14, 7.5],
+                  'circle-color': SHIP_MARKER_COLOR,
+                  'circle-stroke-width': 1.5,
+                  'circle-stroke-color': '#fff7ed',
                   'circle-opacity': 0.95,
                 }}
               />
               <Layer
                 id={LIVE_SHIPS_ICON_LAYER_ID}
                 type="symbol"
-                minzoom={8}
+                minzoom={5}
+                slot={LIVE_TRAFFIC_SLOT}
                 layout={{
                   'icon-image': LIVE_SHIP_IMAGE_ID,
-                  'icon-size': 0.5,
+                  'icon-size': ['interpolate', ['linear'], ['zoom'], 5, 0.68, 10, 0.9, 14, 1.08],
                   'icon-rotate': ['get', 'heading'],
                   'icon-rotation-alignment': 'map',
                   'icon-allow-overlap': true,
                   'icon-ignore-placement': true,
                 }}
-                paint={{ 'icon-opacity': mapCameraBusy ? 0.55 : 0.95 }}
+                paint={{ 'icon-opacity': mapCameraBusy ? 0.7 : 1 }}
+              />
+              <Layer
+                id={LIVE_SHIPS_LABEL_LAYER_ID}
+                type="symbol"
+                minzoom={8}
+                slot={LIVE_TRAFFIC_SLOT}
+                layout={{
+                  'text-field': [
+                    'step',
+                    ['zoom'],
+                    ['get', 'callsign'],
+                    11,
+                    ['get', 'label'],
+                  ],
+                  'text-size': ['interpolate', ['linear'], ['zoom'], 8, 10, 13, 11],
+                  'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+                  'text-offset': [0, 1.35],
+                  'text-anchor': 'top',
+                  'text-allow-overlap': false,
+                  'text-ignore-placement': false,
+                  'text-optional': true,
+                }}
+                paint={{
+                  'text-color': '#ffedd5',
+                  'text-halo-color': '#431407',
+                  'text-halo-width': 1.1,
+                }}
               />
             </Source>
           </>
@@ -5815,7 +5952,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             transform: 'translate(-50%, calc(-100% - 12px))',
           }}
         >
-          <div className="rounded-xl border border-cyan-400/35 bg-slate-950/90 px-3 py-2 text-white shadow-[0_0_18px_rgba(34,211,238,0.25)]">
+          <div className="rounded-xl border border-lime-400/35 bg-slate-950/90 px-3 py-2 text-white shadow-[0_0_18px_rgba(74,222,128,0.25)]">
             <p className="text-[10px] font-bold tracking-wide text-cyan-200 leading-snug">
               {trafficTip.label}
             </p>
@@ -5993,10 +6130,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
           onFunMapModeChange={(on) => {
             setFunMapMode(on);
             writeFunMapMode(on);
-            if (on && !liveTraffic) {
-              setLiveTraffic(true);
-              writeLiveMapTraffic(true);
-            }
+            setLiveTraffic(on);
+            writeLiveMapTraffic(on);
+            if (!on) setTrafficTip(null);
             window.requestAnimationFrame(() => restoreLiveMapGestures());
           }}
           onLiveTrafficChange={(on) => {
@@ -6006,10 +6142,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
             window.requestAnimationFrame(() => restoreLiveMapGestures());
           }}
           shipsHint={liveTrafficData.shipsHint}
+          flightsCount={liveTrafficData.flightsCount}
+          shipsCount={liveTrafficData.shipsCount}
+          flightsLoading={liveTrafficData.flightsLoading}
           flightsError={
             liveTrafficData.flightMeta.error
               ? t('liveMapTrafficFlightsOff', {
-                  defaultValue: 'Flights unavailable right now (OpenSky / ADSB.lol).',
+                  defaultValue: 'no planes',
                 })
               : null
           }

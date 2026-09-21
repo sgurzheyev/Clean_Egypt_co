@@ -1,9 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import {
+  ADSB_FETCH_HEADERS,
+  ADSB_NEARBY_HOSTS,
+  isJsonContentType,
+  pickAdsbAircraftList,
+} from './_lib/adsbNearbyFetch';
 
-const ADSB_BASE = 'https://api.adsb.lol/v2/lat';
 const CACHE_MS = 10_000;
+const UPSTREAM_TIMEOUT_MS = 6_000;
 
-type CacheEntry = { at: number; status: number; body: unknown };
+type CacheEntry = { at: number; status: number; body: unknown; source: string };
 const cache = new Map<string, CacheEntry>();
 
 function num(v: unknown): number | null {
@@ -35,28 +41,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (hit && Date.now() - hit.at < CACHE_MS) {
     res.setHeader('Cache-Control', 'public, max-age=8');
     res.setHeader('X-Live-Flights-Cache', 'hit');
+    res.setHeader('X-Live-Flights-Source', hit.source);
     return res.status(hit.status).json(hit.body);
   }
 
-  const url = `${ADSB_BASE}/${lat}/lon/${lon}/dist/${dist}`;
-  try {
-    const upstream = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(12_000),
-    });
-    const text = await upstream.text();
-    let body: unknown = { ac: [] };
+  const errors: string[] = [];
+  for (const host of ADSB_NEARBY_HOSTS) {
+    const url = host.buildUrl(lat, lon, dist);
     try {
-      body = text ? JSON.parse(text) : { ac: [] };
-    } catch {
-      body = { error: 'adsb.lol returned non-JSON', ac: [] };
+      const upstream = await fetch(url, {
+        headers: ADSB_FETCH_HEADERS,
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      });
+      const contentType = upstream.headers.get('content-type');
+      const text = await upstream.text();
+      if (!upstream.ok || !isJsonContentType(contentType)) {
+        errors.push(`${host.id} ${upstream.status}`);
+        continue;
+      }
+      let parsed: unknown;
+      try {
+        parsed = text ? JSON.parse(text) : {};
+      } catch {
+        errors.push(`${host.id} non-JSON`);
+        continue;
+      }
+      const ac = pickAdsbAircraftList(parsed);
+      const body = { ac };
+      // Cache successful JSON only — never cache Cloudflare HTML 403s.
+      cache.set(key, { at: Date.now(), status: 200, body, source: host.id });
+      res.setHeader('Cache-Control', 'public, max-age=8');
+      res.setHeader('X-Live-Flights-Source', host.id);
+      return res.status(200).json(body);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'unreachable';
+      errors.push(`${host.id} ${message}`);
     }
-    cache.set(key, { at: Date.now(), status: upstream.status, body });
-    res.setHeader('Cache-Control', 'public, max-age=8');
-    res.setHeader('X-Live-Flights-Source', 'adsb.lol');
-    return res.status(upstream.ok ? 200 : upstream.status).json(body);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'adsb.lol unreachable';
-    return res.status(502).json({ error: message, ac: [] });
   }
+
+  const body = { error: errors.join('; ') || 'adsb unreachable', ac: [] };
+  res.setHeader('Cache-Control', 'public, max-age=4');
+  res.setHeader('X-Live-Flights-Source', 'none');
+  return res.status(200).json(body);
 }

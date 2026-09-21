@@ -16,6 +16,15 @@ import {
 export const AISSTREAM_WS_URL = 'wss://stream.aisstream.io/v0/stream';
 export const AIS_STALE_MS = 90_000;
 
+type AisPositionFields = {
+  UserID?: number;
+  Latitude?: number;
+  Longitude?: number;
+  Cog?: number;
+  Sog?: number;
+  TrueHeading?: number;
+};
+
 export type AisstreamEnvelope = {
   MessageType?: string;
   MetaData?: {
@@ -25,16 +34,19 @@ export type AisstreamEnvelope = {
     longitude?: number;
   };
   Message?: {
-    PositionReport?: {
-      UserID?: number;
-      Latitude?: number;
-      Longitude?: number;
-      Cog?: number;
-      Sog?: number;
-      TrueHeading?: number;
-    };
+    PositionReport?: AisPositionFields;
+    StandardClassBPositionReport?: AisPositionFields;
+    ExtendedClassBPositionReport?: AisPositionFields;
+    LongRangeAisBroadcastMessage?: AisPositionFields;
   };
 };
+
+export const AIS_POSITION_MESSAGE_TYPES = [
+  'PositionReport',
+  'StandardClassBPositionReport',
+  'ExtendedClassBPositionReport',
+  'LongRangeAisBroadcastMessage',
+] as const;
 
 function finiteNum(v: unknown): number | null {
   if (typeof v === 'number') return Number.isFinite(v) ? v : null;
@@ -45,10 +57,20 @@ function finiteNum(v: unknown): number | null {
   return null;
 }
 
+function pickAisPosition(env: AisstreamEnvelope): AisPositionFields | undefined {
+  const msg = env.Message;
+  return (
+    msg?.PositionReport ||
+    msg?.StandardClassBPositionReport ||
+    msg?.ExtendedClassBPositionReport ||
+    msg?.LongRangeAisBroadcastMessage
+  );
+}
+
 export function parseAisstreamMessage(raw: unknown): LiveTrafficEntity | null {
   if (!raw || typeof raw !== 'object') return null;
   const env = raw as AisstreamEnvelope;
-  const report = env.Message?.PositionReport;
+  const report = pickAisPosition(env);
   const meta = env.MetaData;
   const lat = finiteNum(report?.Latitude) ?? finiteNum(meta?.latitude);
   const lng = finiteNum(report?.Longitude) ?? finiteNum(meta?.longitude);
@@ -78,7 +100,7 @@ export function buildAisstreamSubscribeMessage(apiKey: string, bbox: GeoBbox): s
   return JSON.stringify({
     APIKey: apiKey,
     BoundingBoxes: [bboxToAisstreamBox(bbox)],
-    FilterMessageTypes: ['PositionReport'],
+    FilterMessageTypes: [...AIS_POSITION_MESSAGE_TYPES],
   });
 }
 

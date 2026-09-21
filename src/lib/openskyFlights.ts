@@ -33,6 +33,7 @@ type AdsbAircraft = {
 
 type AdsbResponse = {
   ac?: AdsbAircraft[] | null;
+  aircraft?: AdsbAircraft[] | null;
 };
 
 function finiteNum(v: unknown): number | null {
@@ -79,7 +80,11 @@ export function parseOpenSkyStates(
 }
 
 export function parseAdsbNearby(payload: AdsbResponse | null | undefined): LiveTrafficEntity[] {
-  const rows = Array.isArray(payload?.ac) ? payload!.ac! : [];
+  const rows = Array.isArray(payload?.ac)
+    ? payload!.ac!
+    : Array.isArray(payload?.aircraft)
+      ? payload!.aircraft!
+      : [];
   const out: LiveTrafficEntity[] = [];
   for (const row of rows) {
     const lat = finiteNum(row.lat);
@@ -148,37 +153,71 @@ export async function fetchAdsbViewport(
 }
 
 export type FlightFetchMeta = {
-  source: 'opensky' | 'adsb.lol' | 'none';
+  source: 'opensky' | 'adsb' | 'merged' | 'none';
   error: string | null;
 };
+
+function mergeFlights(
+  primary: LiveTrafficEntity[],
+  secondary: LiveTrafficEntity[]
+): LiveTrafficEntity[] {
+  if (primary.length === 0) return secondary;
+  if (secondary.length === 0) return primary;
+  const byId = new Map<string, LiveTrafficEntity>();
+  for (const e of secondary) byId.set(e.id, e);
+  for (const e of primary) byId.set(e.id, e);
+  return [...byId.values()];
+}
 
 export async function fetchViewportFlights(
   bbox: GeoBbox,
   zoom: number,
   signal?: AbortSignal
 ): Promise<{ entities: LiveTrafficEntity[]; meta: FlightFetchMeta }> {
-  try {
-    const raw = await fetchOpenSkyViewport(bbox, signal);
-    return {
-      entities: capTrafficEntities(raw, zoom, 'flight'),
-      meta: { source: 'opensky', error: null },
-    };
-  } catch (err) {
-    if (signal?.aborted) throw err;
-    try {
-      const raw = await fetchAdsbViewport(bbox, signal);
-      return {
-        entities: capTrafficEntities(raw, zoom, 'flight'),
-        meta: { source: 'adsb.lol', error: null },
-      };
-    } catch (fallbackErr) {
-      if (signal?.aborted) throw fallbackErr;
-      const message =
-        fallbackErr instanceof Error ? fallbackErr.message : 'flights unavailable';
-      return {
-        entities: [],
-        meta: { source: 'none', error: message },
-      };
-    }
+  const [openSkySettled, adsbSettled] = await Promise.allSettled([
+    fetchOpenSkyViewport(bbox, signal),
+    fetchAdsbViewport(bbox, signal),
+  ]);
+
+  if (signal?.aborted) {
+    const abortErr = new Error('aborted');
+    abortErr.name = 'AbortError';
+    throw abortErr;
   }
+
+  const openSky = openSkySettled.status === 'fulfilled' ? openSkySettled.value : [];
+  const adsb = adsbSettled.status === 'fulfilled' ? adsbSettled.value : [];
+  const openSkyErr =
+    openSkySettled.status === 'rejected' && !signal?.aborted
+      ? openSkySettled.reason instanceof Error
+        ? openSkySettled.reason.message
+        : 'opensky failed'
+      : null;
+  const adsbErr =
+    adsbSettled.status === 'rejected' && !signal?.aborted
+      ? adsbSettled.reason instanceof Error
+        ? adsbSettled.reason.message
+        : 'adsb failed'
+      : null;
+
+  const merged = mergeFlights(openSky, adsb);
+  if (merged.length > 0) {
+    const source: FlightFetchMeta['source'] =
+      openSky.length > 0 && adsb.length > 0
+        ? 'merged'
+        : openSky.length > 0
+          ? 'opensky'
+          : 'adsb';
+    return {
+      entities: capTrafficEntities(merged, zoom, 'flight'),
+      meta: { source, error: null },
+    };
+  }
+
+  const error =
+    openSkyErr && adsbErr ? `${openSkyErr}; ${adsbErr}` : openSkyErr || adsbErr || null;
+  return {
+    entities: [],
+    meta: { source: 'none', error },
+  };
 }

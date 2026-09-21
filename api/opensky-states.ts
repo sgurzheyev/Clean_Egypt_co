@@ -4,6 +4,7 @@ const OPENSKY_URL = 'https://opensky-network.org/api/states/all';
 const MAX_LAT_SPAN = 8;
 const MAX_LNG_SPAN = 10;
 const CACHE_MS = 10_000;
+const UPSTREAM_TIMEOUT_MS = 5_000;
 
 type CacheEntry = { at: number; status: number; body: unknown };
 const cache = new Map<string, CacheEntry>();
@@ -61,8 +62,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const url = `${OPENSKY_URL}?lamin=${bbox.lamin}&lomin=${bbox.lomin}&lamax=${bbox.lamax}&lomax=${bbox.lomax}`;
   try {
     const upstream = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(12_000),
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'GarbaGin/1.0 (+https://garbagin.com)',
+      },
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
     const text = await upstream.text();
     let body: unknown = { states: [] };
@@ -71,12 +75,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch {
       body = { error: 'OpenSky returned non-JSON', states: [] };
     }
-    cache.set(key, { at: Date.now(), status: upstream.status, body });
+    if (!upstream.ok) {
+      res.setHeader('X-Live-Flights-Source', 'opensky');
+      return res.status(200).json({
+        error: `OpenSky ${upstream.status}`,
+        states: Array.isArray((body as { states?: unknown }).states)
+          ? (body as { states: unknown[] }).states
+          : [],
+      });
+    }
+    cache.set(key, { at: Date.now(), status: 200, body });
     res.setHeader('Cache-Control', 'public, max-age=8');
     res.setHeader('X-Live-Flights-Source', 'opensky');
-    return res.status(upstream.ok ? 200 : upstream.status).json(body);
+    return res.status(200).json(body);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'OpenSky unreachable';
-    return res.status(502).json({ error: message, states: [] });
+    // Soft 200 so the client can still merge ADSB without treating this as a hard abort.
+    return res.status(200).json({ error: message, states: [] });
   }
 }
