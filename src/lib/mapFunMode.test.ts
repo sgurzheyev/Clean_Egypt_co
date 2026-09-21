@@ -7,6 +7,7 @@ import {
   cycleRushCraftMode,
   isRushCraftMode,
   isRushLandOn,
+  isUsableAisstreamApiKey,
   MAPBOX_STANDARD_FUN_LAND_COLORS,
   FUN_NEON_CYAN,
   FUN_NEON_VIOLET,
@@ -35,6 +36,14 @@ import {
   type LiveTrafficEntity,
 } from './mapLiveTraffic.ts';
 import { parseOpenSkyStates, parseAdsbNearby } from './openskyFlights.ts';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  mergeAdsbAircraft,
+  pickAdsbAircraftList,
+} from '../../api/_lib/adsbNearbyFetch.ts';
+import { queryAdsbNearby as queryAdsbNearbyHandler } from '../../api/adsb-nearby.ts';
 import {
   AIS_POSITION_MESSAGE_TYPES,
   buildAisstreamSubscribeMessage,
@@ -219,6 +228,84 @@ function testAisParseAndTracker() {
   assert(tracker.size() === 0, 'stale prune');
 }
 
+function testAisPlaceholderKeys() {
+  assert(!isUsableAisstreamApiKey(''), 'empty key is off');
+  assert(!isUsableAisstreamApiKey('SUPABASE_SERVICE_ROLE_KEY'), 'env name is not an AIS key');
+  assert(!isUsableAisstreamApiKey('VITE_AISSTREAM_API_KEY'), 'vite name is not an AIS key');
+  assert(!isUsableAisstreamApiKey('undefined'), 'undefined string is off');
+  assert(!isUsableAisstreamApiKey('short'), 'too short');
+  assert(
+    isUsableAisstreamApiKey('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'),
+    'uuid-shaped token is usable'
+  );
+}
+
+function jsonResponse(body: unknown, status = 200, contentType = 'application/json'): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': contentType },
+  });
+}
+
+function testAdsbProxyHelpers() {
+  assert(pickAdsbAircraftList({ ac: [{ hex: 'abc' }] }).length === 1, 'ac key');
+  assert(pickAdsbAircraftList({ aircraft: [{ hex: 'def' }] }).length === 1, 'aircraft key');
+  assert(pickAdsbAircraftList({ ac: 'nope' }).length === 0, 'non-array ac');
+  const merged = mergeAdsbAircraft([
+    [{ hex: 'AAA', flight: 'ONE' }, null as unknown as { hex: string }, { hex: 'bbb', flight: 'TWO' }],
+    [{ hex: 'aaa', flight: 'DUP' }],
+  ]);
+  assert(merged.length === 2, 'hex-dedupe + skip null craft');
+  assert(merged.some((c) => c.hex === 'aaa' && c.flight === 'DUP'), 'later host wins same hex');
+}
+
+async function testAdsbQuerySoftEmpty() {
+  const boom = async () => {
+    throw new Error('network down');
+  };
+  const empty = await queryAdsbNearbyHandler(30.04, 31.23, 150, boom as unknown as typeof fetch, 50);
+  assert(empty.ac.length === 0, 'soft empty ac');
+  assert(typeof empty.error === 'string' && empty.error.length > 0, 'error string on failure');
+  assert(empty.source === 'none', 'no source when both hosts fail');
+}
+
+async function testAdsbQueryMergesFiAircraft() {
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = String(input);
+    if (url.includes('adsb.lol')) {
+      return new Response('<html>cloudflare</html>', {
+        status: 403,
+        headers: { 'content-type': 'text/html' },
+      });
+    }
+    return jsonResponse({
+      aircraft: [
+        { hex: '8963d2', flight: 'UAE5M  ', lat: 30.2, lon: 31.4, alt_geom: 34000, track: 10, gs: 480 },
+        null,
+      ],
+    });
+  };
+  const hit = await queryAdsbNearbyHandler(30.04, 31.23, 150, fetchImpl, 200);
+  assert(hit.ac.length === 1, 'fi aircraft after lol 403');
+  assert(hit.ac[0].hex === '8963d2', 'kept hex');
+  assert(hit.source === 'adsb.fi', 'source fi');
+  assert(!hit.error, 'no error when ac present');
+}
+
+function testAdsbHandlerHasNoRelativeImports() {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const src = readFileSync(join(here, '../../api/adsb-nearby.ts'), 'utf8');
+  const relativeImports = src
+    .split('\n')
+    .filter((line) => /^\s*import\s/.test(line) && /from\s+['"]\.\//.test(line));
+  assert(
+    relativeImports.length === 0,
+    'adsb-nearby must not import ./_lib (Vercel ESM boot crash)'
+  );
+  assert(!src.includes('AbortSignal.timeout'), 'avoid AbortSignal.timeout on the ADSB lambda');
+  assert(!src.includes('ReturnType<'), 'no ReturnType assertions in the handler');
+}
+
 function testGeoJsonAndCaps() {
   const many: LiveTrafficEntity[] = Array.from({ length: 200 }, (_, i) => ({
     id: `flt-${i}`,
@@ -257,4 +344,14 @@ testBboxCaps();
 testOpenSkyParse();
 testAisParseAndTracker();
 testGeoJsonAndCaps();
-console.log('mapFunMode tests ok');
+testAisPlaceholderKeys();
+testAdsbProxyHelpers();
+testAdsbHandlerHasNoRelativeImports();
+void (async () => {
+  await testAdsbQuerySoftEmpty();
+  await testAdsbQueryMergesFiAircraft();
+  console.log('mapFunMode tests ok');
+})().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

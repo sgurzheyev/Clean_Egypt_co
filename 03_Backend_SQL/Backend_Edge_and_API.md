@@ -38,8 +38,8 @@ aliases: [Backend Edge and API]
 - [[api/analyze-mission.ts]] — Wave I: JWT + membership; still read-only
 - [[api/translate.ts]] — Wave I: JWT + max text length
 - [[api/opensky-states.ts]] — RUSH flights proxy (OpenSky; soft-empty on timeout)
-- [[api/adsb-nearby.ts]] — RUSH flights proxy (adsb.lol → adsb.fi; Cloudflare 403 fallback)
-- [[api/_lib/adsbNearbyFetch.ts]]
+- [[api/adsb-nearby.ts]] — RUSH flights proxy (self-contained; adsb.lol + adsb.fi; soft 200 `{ ac, error? }`)
+- [[api/_lib/adsbNearbyFetch.ts]] — test helper copy (do **not** import from the ADSB handler; Vercel ESM + renameTStoJS)
 
 ## Clients
 - [[services/supabase.ts]]

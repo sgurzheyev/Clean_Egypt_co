@@ -317,6 +317,37 @@ export function setFunNeonRoadLayersBusy(
   }
 }
 
+/** Env-var names / dummy values accidentally baked as VITE_AISSTREAM_API_KEY. */
+const AISSTREAM_KEY_PLACEHOLDERS = new Set([
+  '',
+  'undefined',
+  'null',
+  'none',
+  'n/a',
+  'na',
+  'changeme',
+  'your_api_key',
+  'your-api-key',
+  'vite_aisstream_api_key',
+  'supabase_service_role_key',
+  'service_role',
+  'sk_live',
+  'sk_test',
+]);
+
+/**
+ * True when a baked AISStream value is a real key, not an empty string or a
+ * placeholder name (e.g. `SUPABASE_SERVICE_ROLE_KEY` pasted into Vercel).
+ */
+export function isUsableAisstreamApiKey(raw: string): boolean {
+  const key = String(raw || '').trim();
+  if (key.length < 16) return false;
+  if (AISSTREAM_KEY_PLACEHOLDERS.has(key.toLowerCase())) return false;
+  // ALL_CAPS_SNAKE env names pasted as the value (not a UUID/token).
+  if (/^[A-Z][A-Z0-9_]{8,}$/.test(key)) return false;
+  return true;
+}
+
 export function readAisstreamApiKey(): string {
   try {
     const env = (import.meta as { env?: Record<string, unknown> }).env;
@@ -327,5 +358,5 @@ export function readAisstreamApiKey(): string {
 }
 
 export function hasAisstreamApiKey(): boolean {
-  return readAisstreamApiKey().length > 8;
+  return isUsableAisstreamApiKey(readAisstreamApiKey());
 }
