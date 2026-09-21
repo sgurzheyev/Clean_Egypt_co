@@ -135,23 +135,55 @@ import {
   restoreMapInteractions,
   suspendMapInteractions,
 } from '../src/lib/mapInteractions';
-import MapBootSplash from './MapBootSplash';import {
+import MapBootSplash from './MapBootSplash';
+import MapFunModeControls from './MapFunModeControls';
+import {
   applyMapboxStandardBasemapConfig,
   isMapStyleReady,
   MAPBOX_STANDARD_STYLE_WITH_CONFIG,
   normalizeStoreColor,
-  resolveMapboxLightPreset,
   DEFAULT_STORE_COLOR,
   STORE_COVERAGE_FILL_OPACITY,
   STORE_COVERAGE_STROKE_WIDTH,
   STORE_PIN_STROKE,
   whenMapStyleReady,
-} from '../src/lib/mapboxStandardTheme';import {
+} from '../src/lib/mapboxStandardTheme';
+import {
   applyWeatherFog,
   isWeatherDebugEnabled,
   setWeatherDebugEnabled,
   type MapWeatherMode,
 } from '../src/lib/mapWeather';
+import {
+  buildSolarAtmosphere,
+  starIntensitySampleAtZoom,
+} from '../src/lib/mapSolarAtmosphere';
+import {
+  ensureFunNeonRoadLayers,
+  MAPBOX_STANDARD_FUN_LAND_COLORS,
+  readFunMapMode,
+  readLiveMapTraffic,
+  setFunNeonRoadLayersBusy,
+  setFunNeonRoadLayersVisible,
+  writeFunMapMode,
+  writeLiveMapTraffic,
+} from '../src/lib/mapFunMode';
+import {
+  featureToTrafficEntity,
+  LIVE_FLIGHTS_CORE_LAYER_ID,
+  LIVE_FLIGHTS_GLOW_LAYER_ID,
+  LIVE_FLIGHTS_ICON_LAYER_ID,
+  LIVE_FLIGHTS_SOURCE_ID,
+  LIVE_PLANE_IMAGE_ID,
+  LIVE_SHIP_IMAGE_ID,
+  LIVE_SHIPS_CORE_LAYER_ID,
+  LIVE_SHIPS_GLOW_LAYER_ID,
+  LIVE_SHIPS_ICON_LAYER_ID,
+  LIVE_SHIPS_SOURCE_ID,
+  registerLiveTrafficImages,
+  trafficTooltipLabel,
+} from '../src/lib/mapLiveTraffic';
+import { useMapLiveTraffic } from '../src/hooks/useMapLiveTraffic';
 import type { WeatherControlMode } from '../src/lib/openMeteoWeather';
 import { useRealWeather } from '../src/hooks/useRealWeather';
 import WeatherOverlay from '../src/components/WeatherOverlay';
@@ -1526,6 +1558,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
   /** Brief cooldown after pin placement so the same tap cannot re-open the draft flow. */
   const pinPlacementCooldownRef = React.useRef(0);
   const mapWeatherRef = React.useRef<MapWeatherMode>('clear');
+  const funMapModeRef = React.useRef(false);
+  const atmosphereIntervalMsRef = React.useRef(60_000);
+
+  const [funMapMode, setFunMapMode] = useState(() => readFunMapMode());
+  const [liveTraffic, setLiveTraffic] = useState(() => readLiveMapTraffic());
+  funMapModeRef.current = funMapMode;
 
   /** Auto = Open-Meteo for map center; otherwise manual override. */
   const [weatherControl, setWeatherControl] = useState<WeatherControlMode>('auto');
@@ -1647,9 +1685,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const moonSkyPolarDeg = toSkyPolarDeg(moonElevDeg);
     const sunSkyPolarDeg = toSkyPolarDeg(sunAltDeg);
 
-    const isNight = sunAltDeg < -6;
-    const moonFrac = Math.max(0, Math.min(1, Number(moonIll?.fraction ?? 0)));
-
     /** Morning vs evening — solar noon splits dawn vs dusk warm presets. */
     let isMorning = now.getHours() < 12;
     try {
@@ -1662,15 +1697,21 @@ const MapPicker: React.FC<MapPickerProps> = ({
       /* clock fallback */
     }
 
-    /** Moon above horizon: visible disc + scattering; scales with illumination (≈5–10 at full). */
-    const moonAboveHorizon = moonElevDeg > 0.5;
-    const moonSkyDiscIntensity = Math.max(
-      4,
-      Math.min(10, 4.5 + moonFrac * 5.5)
-    );
-    const nightSkyIntensity = moonAboveHorizon
-      ? moonSkyDiscIntensity * (0.55 + 0.45 * Math.min(1, moonElevDeg / 60))
-      : Math.max(2, moonFrac * 4);
+    const camZoom = typeof map.getZoom === 'function' ? map.getZoom() : 11;
+    const camPitch = typeof map.getPitch === 'function' ? map.getPitch() : 60;
+    const moonFrac = Math.max(0, Math.min(1, Number(moonIll?.fraction ?? 0)));
+    const funMode = funMapModeRef.current;
+
+    const pack = buildSolarAtmosphere({
+      sunAltDeg,
+      isMorning,
+      moonFrac,
+      moonElevDeg,
+      camZoom,
+      camPitch,
+      funMode,
+    });
+    atmosphereIntervalMsRef.current = pack.nextIntervalMs;
 
     /** Use moon disc only in deep night; keep sun vector through civil twilight. */
     const skySunVec =
@@ -1678,180 +1719,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
         ? ([moonAziDeg, moonSkyPolarDeg] as [number, number])
         : ([sunAziDeg, sunSkyPolarDeg] as [number, number]);
 
-    /** Civil twilight (−6…0) + golden hour (0…10) → warm dawn/dusk sky & lightPreset. */
-    const golden = sunAltDeg >= -6 && sunAltDeg <= 10;
-
-    /** Moonlit night: sharp, cool micro-glow toward zenith only (high-color), keep horizon band dark. */
-    const moonGlowMix = isNight
-      ? Math.max(
-          0,
-          Math.min(1, moonFrac * Math.max(0, Math.min(1, (moonElevDeg + 8) / 52)))
-        )
-      : 0;
-    const nightFogHigh =
-      moonGlowMix > 0.12
-        ? '#101c32'
-        : moonGlowMix > 0.04
-          ? '#081018'
-          : '#020617';
-    const nightHorizonBlend = Math.min(
-      0.028,
-      0.01 + moonGlowMix * 0.018
-    );
-
-    const camZoom =
-      typeof map.getZoom === 'function' ? map.getZoom() : 11;
-    const camPitch =
-      typeof map.getPitch === 'function' ? map.getPitch() : 60;
-
-    /** Bright moon high in sky washes stars; thin crescent / low moon → dense starfield (cinematic). */
-    const moonElevWash = moonAboveHorizon
-      ? Math.pow(Math.min(1, moonElevDeg / 56), 1.12)
-      : 0;
-    const moonWashStars = moonFrac * (0.12 + moonElevWash * 0.88);
-    const phaseStarBoost = (1 - moonFrac) * 0.18;
-    const pitchStarBoost = Math.min(
-      0.14,
-      Math.max(0, camPitch - 26) * 0.0022
-    );
-    let starNightScalar = Math.min(
-      1,
-      Math.max(
-        0.6,
-        0.98 - moonWashStars * 0.45 + phaseStarBoost + pitchStarBoost
-      )
-    );
-
-    const starIntensityExpr = [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      2,
-      Math.min(1, starNightScalar * 1.14),
-      6,
-      Math.min(1, starNightScalar * 1.08),
-      10,
-      starNightScalar,
-      14,
-      Math.max(0.6, starNightScalar * 0.96),
-      18,
-      Math.max(0.6, starNightScalar * 0.88),
-    ];
-
-    /** Slightly dim moon disc when stars are maximal so halo does not bloom over the starfield. */
-    let nightSkyIntensityUse = nightSkyIntensity;
-    if (
-      isNight &&
-      moonAboveHorizon &&
-      starNightScalar >= 0.88 &&
-      moonWashStars < 0.35
-    ) {
-      nightSkyIntensityUse *= 0.9;
-    }
-
-    const skySunIntensity = isNight
-      ? nightSkyIntensityUse
-      : golden
-        ? Math.max(4, Math.min(12, 6 + Math.max(0, sunAltDeg) * 0.4))
-        : Math.max(5, Math.min(14, 5 + (Math.max(0, sunAltDeg) / 45) * 9));
-
-    /** Sample zoom curve when runtime rejects star-intensity expressions. */
-    const starIntensitySampleAtZoom = (z: number, s: number) => {
-      const tLo = Math.min(1, s * 1.14);
-      const tMid = s;
-      const tHi = Math.max(0.6, s * 0.87);
-      if (z <= 2) return tLo;
-      if (z >= 17.5) return tHi;
-      if (z <= 9.5) {
-        const u = (z - 2) / (9.5 - 2);
-        return tLo + u * (tMid - tLo);
-      }
-      const u = (z - 9.5) / (17.5 - 9.5);
-      return tMid + u * (tHi - tMid);
-    };
-
-    /** Night: procedural stars live in fog; base/space tint #020617 so pinpoints read sharp. */
-    let fogPack: Record<string, unknown>;
-    if (isNight) {
-      fogPack = {
-        range: [0.8, 8],
-        color: '#020617',
-        'high-color': nightFogHigh,
-        'horizon-blend': nightHorizonBlend,
-        'space-color': '#020617',
-        'star-intensity': starIntensityExpr,
-      };
-    } else if (golden) {
-      // Cinematic horizon in the SKY — near-ground fog stays dark so land is not washed.
-      fogPack = isMorning
-        ? {
-            range: [0.8, 8],
-            color: '#161018',
-            'high-color': '#c45a48',
-            'horizon-blend': 0.16,
-            'space-color': '#1a0a12',
-            'star-intensity': sunAltDeg < 0 ? 0.35 : 0.12,
-          }
-        : {
-            range: [0.8, 8],
-            color: '#141018',
-            'high-color': '#c45a28',
-            'horizon-blend': 0.18,
-            'space-color': '#0a0610',
-            'star-intensity': sunAltDeg < 0 ? 0.4 : 0.15,
-          };
-    } else {
-      fogPack = {
-        range: [0.8, 8],
-        color: '#0b0e14',
-        'high-color': '#1e3a5f',
-        'horizon-blend': 0.1,
-        'space-color': '#0f172a',
-        'star-intensity': 0.08,
-      };
-    }
-
-    // Simulated weather overrides (debug / prototype) — sandstorm washes distant buildings.
-    fogPack = applyWeatherFog(mapWeatherRef.current, fogPack);
+    let fogPack = applyWeatherFog(mapWeatherRef.current, pack.fogPack);
 
     try {
       if (map.getLayer?.('sky')) {
         map.setPaintProperty('sky', 'sky-atmosphere-sun', skySunVec);
-        map.setPaintProperty('sky', 'sky-atmosphere-sun-intensity', skySunIntensity);
-        map.setPaintProperty(
-          'sky',
-          'sky-atmosphere-color',
-          isNight ? '#020617' : golden ? (isMorning ? '#2a1420' : '#2a1018') : '#152238'
-        );
+        map.setPaintProperty('sky', 'sky-atmosphere-sun-intensity', pack.skySunIntensity);
+        map.setPaintProperty('sky', 'sky-atmosphere-color', pack.skyAtmosphereColor);
         try {
           map.setPaintProperty('sky', 'sky-opacity', 1);
         } catch {
           /* older runtimes */
         }
         try {
-          if (isNight) {
-            const haloA = Math.max(
-              0.12,
-              Math.min(0.58, 0.16 + moonFrac * 0.44)
-            );
-            map.setPaintProperty(
-              'sky',
-              'sky-atmosphere-halo-color',
-              `rgba(224,248,255,${haloA})`
-            );
-          } else if (golden) {
-            map.setPaintProperty(
-              'sky',
-              'sky-atmosphere-halo-color',
-              isMorning ? 'rgba(255,180,150,0.6)' : 'rgba(255,140,70,0.65)'
-            );
-          } else {
-            map.setPaintProperty(
-              'sky',
-              'sky-atmosphere-halo-color',
-              'rgba(255,220,180,0.4)'
-            );
-          }
+          map.setPaintProperty('sky', 'sky-atmosphere-halo-color', pack.skyHaloColor);
         } catch {
           /* halo optional */
         }
@@ -1863,15 +1744,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
     try {
       map.setFog?.(fogPack as Parameters<typeof map.setFog>[0]);
     } catch {
-      if (isNight) {
+      if (pack.isNight) {
         try {
           map.setFog?.({
             range: [0.8, 8],
             color: '#020617',
-            'high-color': nightFogHigh,
-            'horizon-blend': nightHorizonBlend,
+            'high-color': pack.nightFogHigh,
+            'horizon-blend': pack.nightHorizonBlend,
             'space-color': '#020617',
-            'star-intensity': starIntensitySampleAtZoom(camZoom, starNightScalar),
+            'star-intensity': starIntensitySampleAtZoom(camZoom, pack.starNightScalar),
           });
         } catch {
           /* ignore */
@@ -1880,14 +1761,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
 
     try {
-      // Dynamic Standard light (dawn / day / dusk / night) + locked dark land colors.
       applyMapboxStandardBasemapConfig(map, {
-        lightPreset: resolveMapboxLightPreset({
-          isNight,
-          golden,
-          isMorning,
-          sunAltDeg,
-        }),
+        lightPreset: pack.lightPreset,
+        ...(funMode
+          ? {
+              theme: 'faded' as const,
+              show3dFacades: false,
+              landColors: MAPBOX_STANDARD_FUN_LAND_COLORS,
+            }
+          : { theme: 'default' as const, show3dFacades: true }),
       });
     } catch {
       /* Custom vector style may not expose Standard basemap config */
@@ -1895,25 +1777,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
     try {
       if (map.getLayer?.('terrain-hillshade')) {
-        const t = moonGlowMix;
-        const hillNight =
-          isNight && t > 0.03
-            ? `rgb(${Math.round(30 + (220 - 30) * t)}, ${Math.round(41 + (245 - 41) * t)}, ${Math.round(59 + (255 - 59) * t)})`
-            : isNight
-              ? '#1e293b'
-              : golden
-                ? '#5c4038'
-                : '#334155';
-        map.setPaintProperty('terrain-hillshade', 'hillshade-highlight-color', hillNight);
-        if (isNight && t > 0.08) {
-          map.setPaintProperty(
-            'terrain-hillshade',
-            'hillshade-accent-color',
-            `rgb(${Math.round(8 + 18 * t)}, ${Math.round(47 + 60 * t)}, ${Math.round(73 + 100 * t)})`
-          );
-        } else {
-          map.setPaintProperty('terrain-hillshade', 'hillshade-accent-color', '#022c22');
-        }
+        map.setPaintProperty(
+          'terrain-hillshade',
+          'hillshade-highlight-color',
+          pack.hillshadeHighlight
+        );
+        map.setPaintProperty(
+          'terrain-hillshade',
+          'hillshade-accent-color',
+          pack.hillshadeAccent
+        );
       }
     } catch {
       // ignore
@@ -1924,15 +1797,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, []);
 
   useEffect(() => {
-    updateAtmosphere();
-    // ~1 min keeps dawn/day/dusk/night lighting smooth without thrashing setConfigProperty.
-    const id = window.setInterval(updateAtmosphere, 60 * 1000);
+    let timer: number | undefined;
+    const tick = () => {
+      updateAtmosphere();
+      timer = window.setTimeout(tick, atmosphereIntervalMsRef.current || 60_000);
+    };
+    tick();
     const onVis = () => {
       if (document.visibilityState === 'visible') updateAtmosphere();
     };
     document.addEventListener('visibilitychange', onVis);
     return () => {
-      window.clearInterval(id);
+      if (timer) window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVis);
     };
   }, [updateAtmosphere]);
@@ -1963,6 +1839,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
       (busy) => {
         cameraBusyRef.current = busy;
         setMapCameraBusy(busy);
+        if (funMapModeRef.current) {
+          setFunNeonRoadLayersBusy(map, busy);
+        }
       }
     );
     return () => {
@@ -1983,10 +1862,37 @@ const MapPicker: React.FC<MapPickerProps> = ({
     });
   }, []);
 
-  // Re-apply fog when simulated weather changes.
+  // Re-apply fog when simulated weather or fun-map land tokens change.
   useEffect(() => {
     updateAtmosphere();
-  }, [mapWeather, updateAtmosphere]);
+  }, [mapWeather, funMapMode, updateAtmosphere]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !mapReady) return;
+    ensureFunNeonRoadLayers(map);
+    setFunNeonRoadLayersVisible(map, funMapMode);
+    if (!funMapMode) setFunNeonRoadLayersBusy(map, false);
+  }, [funMapMode, mapReady]);
+
+  const trafficBboxNonce =
+    Math.round(viewState.latitude * 40) * 1_000_000 +
+    Math.round(viewState.longitude * 40) * 100 +
+    Math.round(viewState.zoom * 2);
+  const trafficEnabled = mapReady && funMapMode && liveTraffic;
+  const liveTrafficData = useMapLiveTraffic({
+    enabled: trafficEnabled,
+    map: mapReady ? mapInstanceRef.current : null,
+    cameraBusy: mapCameraBusy,
+    bboxNonce: trafficBboxNonce,
+  });
+  const [trafficTip, setTrafficTip] = useState<{
+    lat: number;
+    lng: number;
+    label: string;
+  } | null>(null);
+  const [trafficTipScreen, setTrafficTipScreen] = useState<{ x: number; y: number } | null>(null);
+
   // SaaS lead-gen: no 3D funding towers.
 
   const [selectedLocation, setSelectedLocation] = useState<
@@ -3287,6 +3193,42 @@ const MapPicker: React.FC<MapPickerProps> = ({
           return;
         }
 
+        if (trafficEnabled && map && point) {
+          try {
+            const pad = 16;
+            const bbox: [mapboxgl.PointLike, mapboxgl.PointLike] = [
+              [point.x - pad, point.y - pad],
+              [point.x + pad, point.y + pad],
+            ];
+            const trafficLayers = [
+              LIVE_FLIGHTS_CORE_LAYER_ID,
+              LIVE_FLIGHTS_ICON_LAYER_ID,
+              LIVE_SHIPS_CORE_LAYER_ID,
+              LIVE_SHIPS_ICON_LAYER_ID,
+            ].filter((id) => map.getLayer?.(id));
+            if (trafficLayers.length > 0) {
+              const hits = map.queryRenderedFeatures(bbox, { layers: trafficLayers });
+              const hit = hits[0];
+              const geom = hit?.geometry as { coordinates?: [number, number] } | undefined;
+              const entity = featureToTrafficEntity(
+                hit?.properties as Record<string, unknown> | undefined,
+                geom?.coordinates
+              );
+              if (entity) {
+                setTrafficTip({
+                  lat: entity.lat,
+                  lng: entity.lng,
+                  label: trafficTooltipLabel(entity),
+                });
+                return;
+              }
+            }
+          } catch {
+            /* traffic layers may be absent */
+          }
+        }
+        setTrafficTip(null);
+
         if (map && point) {
           try {
             const pad = 18;
@@ -3396,6 +3338,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       t,
       taskTypeSelected,
       toast,
+      trafficEnabled,
     ]
   );
 
@@ -3434,6 +3377,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setHoveredPinScreen({ x: rect.left + projected.x, y: rect.top + projected.y });
   }, [viewState, hoveredPinInfo]);
 
+  useEffect(() => {
+    if (!trafficTip) return;
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const projected = map.project([trafficTip.lng, trafficTip.lat]);
+    const rect = map.getContainer().getBoundingClientRect();
+    setTrafficTipScreen({ x: rect.left + projected.x, y: rect.top + projected.y });
+  }, [viewState, trafficTip]);
+
   /**
    * Native canvas click + mousemove listeners.
    * Bound ONCE when the map finishes loading and delegate to the handler refs, so React re-renders
@@ -3467,12 +3419,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const layers = map.getStyle()?.layers;
         if (!layers || layers.length === 0) return;
         const order = [
+          LIVE_FLIGHTS_GLOW_LAYER_ID,
+          LIVE_FLIGHTS_CORE_LAYER_ID,
+          LIVE_FLIGHTS_ICON_LAYER_ID,
+          LIVE_SHIPS_GLOW_LAYER_ID,
+          LIVE_SHIPS_CORE_LAYER_ID,
+          LIVE_SHIPS_ICON_LAYER_ID,
           'mission-pins-clusters',
           'mission-pins-cluster-count',
           'mission-pins-glow',
           'mission-pins-core',
           'mission-pins-icon',
-        ];
+        ].filter((id) => map.getLayer(id));
+        if (order.length === 0) return;
         const topIds = layers.slice(-order.length).map((l: { id: string }) => l.id);
         if (order.every((id, i) => topIds[i] === id)) return;
         for (const id of order) {
@@ -5159,7 +5118,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
             // Emoji pin icons must exist as style images before the symbol layer draws.
             registerEmojiPinImages(readyMap as any);
-            onStyleImageMissing = () => registerEmojiPinImages(readyMap as any);
+            registerLiveTrafficImages(readyMap as any);
+            onStyleImageMissing = () => {
+              registerEmojiPinImages(readyMap as any);
+              registerLiveTrafficImages(readyMap as any);
+            };
             try {
               (readyMap as any).on?.('styleimagemissing', onStyleImageMissing);
             } catch {
@@ -5351,10 +5314,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
             type="circle"
             filter={['!', ['has', 'point_count']]}
             paint={{
-              'circle-radius': MISSION_PIN_GLOW_RADIUS,
+              'circle-radius': funMapMode
+                ? (['*', MISSION_PIN_GLOW_RADIUS, 1.22] as mapboxgl.Expression)
+                : MISSION_PIN_GLOW_RADIUS,
               'circle-color': MISSION_PIN_CORE_COLOR,
-              'circle-blur': mapCameraBusy ? 0.35 : 0.85,
-              'circle-opacity': mapMarkerLayerSuppressed ? 0 : 0.35,
+              'circle-blur': mapCameraBusy ? 0.35 : funMapMode ? 1.05 : 0.85,
+              'circle-opacity': mapMarkerLayerSuppressed ? 0 : funMapMode ? 0.5 : 0.35,
             }}
           />
           <Layer
@@ -5437,7 +5402,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                     selectedStoreAccent,
                     DEFAULT_STORE_COLOR,
                   ],
-                  'fill-opacity': STORE_COVERAGE_FILL_OPACITY,
+                  'fill-opacity': funMapMode ? 0.26 : STORE_COVERAGE_FILL_OPACITY,
                 }}
               />
               <Layer
@@ -5468,16 +5433,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
                   'circle-radius': [
                     'case',
                     ['==', ['get', 'selected'], 1],
-                    22,
-                    16,
+                    funMapMode ? 26 : 22,
+                    funMapMode ? 20 : 16,
                   ],
                   'circle-color': [
                     'coalesce',
                     ['get', 'color'],
                     DEFAULT_STORE_COLOR,
                   ],
-                  'circle-blur': 0.7,
-                  'circle-opacity': 0.55,
+                  'circle-blur': funMapMode ? 0.9 : 0.7,
+                  'circle-opacity': funMapMode ? 0.7 : 0.55,
                 }}
               />
               <Layer
@@ -5549,6 +5514,89 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }}
           />
         </Source>
+
+        {trafficEnabled && (
+          <>
+            <Source id={LIVE_FLIGHTS_SOURCE_ID} type="geojson" data={liveTrafficData.flightsGeoJSON}>
+              <Layer
+                id={LIVE_FLIGHTS_GLOW_LAYER_ID}
+                type="circle"
+                minzoom={5}
+                paint={{
+                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 4, 10, 8, 14, 11],
+                  'circle-color': '#22d3ee',
+                  'circle-blur': mapCameraBusy ? 0.2 : 0.75,
+                  'circle-opacity': mapCameraBusy ? 0.25 : 0.45,
+                }}
+              />
+              <Layer
+                id={LIVE_FLIGHTS_CORE_LAYER_ID}
+                type="circle"
+                minzoom={5}
+                paint={{
+                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 2.2, 10, 3.4, 14, 4.2],
+                  'circle-color': '#67e8f9',
+                  'circle-stroke-width': 1,
+                  'circle-stroke-color': '#ecfeff',
+                  'circle-opacity': 0.95,
+                }}
+              />
+              <Layer
+                id={LIVE_FLIGHTS_ICON_LAYER_ID}
+                type="symbol"
+                minzoom={8}
+                layout={{
+                  'icon-image': LIVE_PLANE_IMAGE_ID,
+                  'icon-size': 0.55,
+                  'icon-rotate': ['get', 'heading'],
+                  'icon-rotation-alignment': 'map',
+                  'icon-allow-overlap': true,
+                  'icon-ignore-placement': true,
+                }}
+                paint={{ 'icon-opacity': mapCameraBusy ? 0.55 : 0.95 }}
+              />
+            </Source>
+            <Source id={LIVE_SHIPS_SOURCE_ID} type="geojson" data={liveTrafficData.shipsGeoJSON}>
+              <Layer
+                id={LIVE_SHIPS_GLOW_LAYER_ID}
+                type="circle"
+                minzoom={5}
+                paint={{
+                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 4, 10, 7, 14, 10],
+                  'circle-color': '#8b5cf6',
+                  'circle-blur': mapCameraBusy ? 0.2 : 0.7,
+                  'circle-opacity': mapCameraBusy ? 0.22 : 0.42,
+                }}
+              />
+              <Layer
+                id={LIVE_SHIPS_CORE_LAYER_ID}
+                type="circle"
+                minzoom={5}
+                paint={{
+                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 2, 10, 3.2, 14, 4],
+                  'circle-color': '#c4b5fd',
+                  'circle-stroke-width': 1,
+                  'circle-stroke-color': '#ede9fe',
+                  'circle-opacity': 0.95,
+                }}
+              />
+              <Layer
+                id={LIVE_SHIPS_ICON_LAYER_ID}
+                type="symbol"
+                minzoom={8}
+                layout={{
+                  'icon-image': LIVE_SHIP_IMAGE_ID,
+                  'icon-size': 0.5,
+                  'icon-rotate': ['get', 'heading'],
+                  'icon-rotation-alignment': 'map',
+                  'icon-allow-overlap': true,
+                  'icon-ignore-placement': true,
+                }}
+                paint={{ 'icon-opacity': mapCameraBusy ? 0.55 : 0.95 }}
+              />
+            </Source>
+          </>
+        )}
 
         {/* SaaS lead-gen: removed crowdfunding/funding 3D pillars. */}
           </>
@@ -5758,6 +5806,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </div>
       )}
 
+      {trafficTip && trafficTipScreen && !selectedMission && (
+        <div
+          className="pointer-events-none fixed z-[150]"
+          style={{
+            left: trafficTipScreen.x,
+            top: trafficTipScreen.y,
+            transform: 'translate(-50%, calc(-100% - 12px))',
+          }}
+        >
+          <div className="rounded-xl border border-cyan-400/35 bg-slate-950/90 px-3 py-2 text-white shadow-[0_0_18px_rgba(34,211,238,0.25)]">
+            <p className="text-[10px] font-bold tracking-wide text-cyan-200 leading-snug">
+              {trafficTip.label}
+            </p>
+          </div>
+        </div>
+      )}
+
       <NotificationBell
         userId={currentUserId}
         onOpenMission={(id, opts) => void openMissionById(id, opts)}
@@ -5919,6 +5984,36 @@ const MapPicker: React.FC<MapPickerProps> = ({
             />
           </span>
         </button>
+      )}
+
+      {showProfileFab && (
+        <MapFunModeControls
+          funMapMode={funMapMode}
+          liveTraffic={liveTraffic}
+          onFunMapModeChange={(on) => {
+            setFunMapMode(on);
+            writeFunMapMode(on);
+            if (on && !liveTraffic) {
+              setLiveTraffic(true);
+              writeLiveMapTraffic(true);
+            }
+            window.requestAnimationFrame(() => restoreLiveMapGestures());
+          }}
+          onLiveTrafficChange={(on) => {
+            setLiveTraffic(on);
+            writeLiveMapTraffic(on);
+            if (!on) setTrafficTip(null);
+            window.requestAnimationFrame(() => restoreLiveMapGestures());
+          }}
+          shipsHint={liveTrafficData.shipsHint}
+          flightsError={
+            liveTrafficData.flightMeta.error
+              ? t('liveMapTrafficFlightsOff', {
+                  defaultValue: 'Flights unavailable right now (OpenSky / ADSB.lol).',
+                })
+              : null
+          }
+        />
       )}
 
       {storeMode && selectedStore && !storeProfileOwnerId && (

@@ -11,7 +11,7 @@ aliases: [Frontend Components, UI Map]
 
 | Surface | Link |
 | --- | --- |
-| Map (create / bid / crowdfund / stores / Hungry-Games sub modal) | [[components/MapPicker.tsx]] · [[src/lib/mapInteractions.ts]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] |
+| Map (create / bid / crowdfund / stores / Hungry-Games sub modal) | [[components/MapPicker.tsx]] · [[src/lib/mapInteractions.ts]] · [[components/MapFunModeControls.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] |
 | Store coverage map (lilac zone) | [[components/StoreCoverageMap.tsx]] |
 | Store pin preview | [[components/MapStorePreviewCard.tsx]] · `.map-store-preview-card` light frost (service zone stays visible through the sheet). Hero swipes all `contractor_stores.store_photos` (cover first); bio expands in-place. |
 | Portaled store profile | [[components/StoreProfileOverlay.tsx]] |
@@ -23,7 +23,7 @@ aliases: [Frontend Components, UI Map]
 | Mission briefing / contribute / bid / reporter-only convert | [[components/MissionBriefing.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Map pin card matches store preview: hero is photos + X / count / dots only; category, price, location, status, token hint, description, and reporter chip sit in the dark body below. |
 | Briefing error boundary | [[components/MissionBriefingErrorBoundary.tsx]] |
 | Filters bottom sheet | [[components/MissionFilterPanel.tsx]] |
-| Store map filters | [[components/StoreMapFilterChips.tsx]] · floating card `left-[4.5rem]` clears the left FAB column (Filter / Alert / Store) so chips stay tappable |
+| Store map filters | [[components/StoreMapFilterChips.tsx]] · floating card `left-[4.5rem]` clears the left FAB column (Filter / Alert / Store / Fun) so chips stay tappable |
 | Feed card | [[components/MissionFeedCard.tsx]] |
 | Create mission | [[components/CreateMission.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] |
 | Report garbage zone | [[components/ReportGarbageZoneModal.tsx]] |
@@ -49,6 +49,8 @@ aliases: [Frontend Components, UI Map]
 | Global CSS (sheets, glass, water, store-pin frost) | [[index.css]] |
 | Steel / profile glass tokens | [[constants.ts]] |
 | Map Egypt theme | [[src/lib/mapEgyptTheme.ts]] |
+| Map Standard / fun mode | [[src/lib/mapboxStandardTheme.ts]] · [[src/lib/mapFunMode.ts]] · [[src/lib/mapSolarAtmosphere.ts]] |
+| Live flights / ships | [[src/lib/openskyFlights.ts]] · [[src/lib/aisShips.ts]] · [[src/lib/mapLiveTraffic.ts]] · [[src/hooks/useMapLiveTraffic.ts]] |
 | Map weather layers | [[src/lib/mapWeather.ts]] |
 | PWA / home-screen app icon | [[public/brand/garbagin-app-icon-1024.png]] · [[scripts/export-app-icons.py]] |
 | Project UI rules | [[.cursorrules]] |
@@ -80,6 +82,11 @@ Wired in `public/manifest.json` and `index.html` (`theme-color` / `background_co
 ## Hooks & helpers
 
 - [[src/lib/mapInteractions.ts]] — restore Mapbox zoom/pan after MissionBriefing close or Store toggle (handlers can stick `_active` when an overlay steals pointerup)
+- [[src/lib/mapFunMode.ts]] — `funMapMode` localStorage toggle (cartoon land + neon `#8b5cf6`/`#22d3ee` roads). No property-price HUD.
+- [[src/lib/mapSolarAtmosphere.ts]] — cinematic dawn/dusk fog/sky from local solar altitude (Egypt / Red Sea). Fun mode only boosts bloom.
+- [[src/lib/openskyFlights.ts]] — OpenSky `/states/all` bbox (same-origin `/api/opensky-states`), ADSB.lol fallback (`/api/adsb-nearby`)
+- [[src/lib/aisShips.ts]] — AISStream WebSocket when `VITE_AISSTREAM_API_KEY` is set (free key: https://aisstream.io/ → sign in with GitHub → API Keys). No key → ships stay off; never fake vessels.
+- [[src/hooks/useMapLiveTraffic.ts]]
 - [[src/hooks/useLocationCatalog.ts]]
 - [[src/hooks/useMissionChat.ts]]
 - [[src/hooks/useMissionTextTranslation.ts]]
@@ -95,6 +102,17 @@ Wired in `public/manifest.json` and `index.html` (`theme-color` / `background_co
 - [[src/lib/missionBids.ts]]
 - [[src/lib/creatorDeleteMission.ts]]
 - [[src/lib/trustBadges.ts]]
+
+### Fun map mode, sunrise/sunset, live traffic
+
+Palette FAB on the map (`components/MapFunModeControls.tsx`) toggles `funMapMode` (persisted as `ce_fun_map_mode`). On: Mapbox Standard `theme: 'faded'`, simplified land contrast, neon roads (`#8b5cf6` / `#22d3ee`), punchier pin/coverage glow. Off: current production steel land. **No property-price / real-estate HUD.**
+
+Dawn/dusk uses [[src/lib/mapSolarAtmosphere.ts]] from SunCalc at the map center (Egypt / Red Sea local solar times). Horizon fog/halo is cinematic in normal mode; fun mode only boosts bloom. Atmosphere ticks every 20s in twilight, 60s otherwise.
+
+Live traffic (fun mode + Live traffic chip):
+
+- **Flights:** OpenSky Network `GET /api/states/all` bbox around the viewport, polled ~12s while the tab is visible. Browser CORS is blocked, so the client calls same-origin [[api/opensky-states.ts]] (Vite dev middleware mirrors this). If OpenSky is down / AWS-blocked, [[api/adsb-nearby.ts]] falls back to free ADSB.lol. Entity counts cap by zoom. These two `/api` routes are public (no JWT) — bbox is clamped, responses cached ~10s.
+- **Ships:** AISStream WebSocket `wss://stream.aisstream.io/v0/stream` when `VITE_AISSTREAM_API_KEY` is set. Free key: sign in at https://aisstream.io/ (GitHub) → API Keys. No key → ship layer stays off with an in-map hint; positions are never invented.
 
 ## Related flows
 

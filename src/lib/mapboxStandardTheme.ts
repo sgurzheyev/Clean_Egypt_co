@@ -45,6 +45,7 @@ export function normalizeStoreColor(value: unknown): string {
   return DEFAULT_STORE_COLOR;
 }
 export type MapboxLightPreset = 'dusk' | 'dawn' | 'day' | 'night';
+export type MapboxStandardThemeName = 'default' | 'faded' | 'monochrome';
 
 /**
  * Clock-band fallback when sun position is not yet available
@@ -109,6 +110,14 @@ export const MAPBOX_STANDARD_DARK_LAND_COLORS = {
   colorTrunks: '#1e2838',
   colorRoadLabels: '#64748b',
 } as const;
+
+/** Optional overrides when applying Standard config (fun map, sun-driven light). */
+export type MapboxBasemapConfigOverrides = {
+  lightPreset?: MapboxLightPreset;
+  theme?: MapboxStandardThemeName;
+  show3dFacades?: boolean;
+  landColors?: Partial<Record<keyof typeof MAPBOX_STANDARD_DARK_LAND_COLORS, string>>;
+};
 
 /**
  * Standard Style configuration for GarbaGin.
@@ -240,7 +249,7 @@ export function removeLegacy3dBuildingsLayer(
  */
 export function applyMapboxStandardBasemapConfig(
   map: MapboxStyleReadyMap | null | undefined,
-  overrides?: { lightPreset?: MapboxLightPreset }
+  overrides?: MapboxBasemapConfigOverrides
 ): boolean {
   if (!map?.setConfigProperty) return false;
   if (!isMapStyleReady(map)) return false;
@@ -251,6 +260,11 @@ export function applyMapboxStandardBasemapConfig(
     ...MAPBOX_STANDARD_BASEMAP_CONFIG,
     lightPreset: overrides?.lightPreset ?? MAPBOX_STANDARD_BASEMAP_CONFIG.lightPreset,
     ...MAPBOX_STANDARD_DARK_LAND_COLORS,
+    ...(overrides?.theme ? { theme: overrides.theme } : {}),
+    ...(typeof overrides?.show3dFacades === 'boolean'
+      ? { show3dFacades: overrides.show3dFacades }
+      : {}),
+    ...(overrides?.landColors ?? {}),
   };
 
   for (const [key, value] of Object.entries(config)) {
