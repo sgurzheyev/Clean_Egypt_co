@@ -45,38 +45,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(hit.status).json(hit.body);
   }
 
-  const errors: string[] = [];
-  for (const host of ADSB_NEARBY_HOSTS) {
-    const url = host.buildUrl(lat, lon, dist);
-    try {
-      const upstream = await fetch(url, {
-        headers: ADSB_FETCH_HEADERS,
-        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-      });
-      const contentType = upstream.headers.get('content-type');
-      const text = await upstream.text();
-      if (!upstream.ok || !isJsonContentType(contentType)) {
-        errors.push(`${host.id} ${upstream.status}`);
-        continue;
-      }
-      let parsed: unknown;
+  const settled = await Promise.all(
+    ADSB_NEARBY_HOSTS.map(async (host) => {
+      const url = host.buildUrl(lat, lon, dist);
       try {
-        parsed = text ? JSON.parse(text) : {};
-      } catch {
-        errors.push(`${host.id} non-JSON`);
-        continue;
+        const upstream = await fetch(url, {
+          headers: ADSB_FETCH_HEADERS,
+          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+        });
+        const contentType = upstream.headers.get('content-type');
+        const text = await upstream.text();
+        if (!upstream.ok || !isJsonContentType(contentType)) {
+          return { id: host.id, ac: [] as ReturnType<typeof pickAdsbAircraftList>, error: `${host.id} ${upstream.status}` };
+        }
+        let parsed: unknown;
+        try {
+          parsed = text ? JSON.parse(text) : {};
+        } catch {
+          return { id: host.id, ac: [] as ReturnType<typeof pickAdsbAircraftList>, error: `${host.id} non-JSON` };
+        }
+        const ac = pickAdsbAircraftList(parsed);
+        return {
+          id: host.id,
+          ac,
+          error: ac.length === 0 ? `${host.id} empty` : null,
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'unreachable';
+        return { id: host.id, ac: [] as ReturnType<typeof pickAdsbAircraftList>, error: `${host.id} ${message}` };
       }
-      const ac = pickAdsbAircraftList(parsed);
-      const body = { ac };
-      // Cache successful JSON only — never cache Cloudflare HTML 403s.
-      cache.set(key, { at: Date.now(), status: 200, body, source: host.id });
-      res.setHeader('Cache-Control', 'public, max-age=8');
-      res.setHeader('X-Live-Flights-Source', host.id);
-      return res.status(200).json(body);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'unreachable';
-      errors.push(`${host.id} ${message}`);
+    })
+  );
+
+  const errors: string[] = [];
+  const merged = new Map<string, ReturnType<typeof pickAdsbAircraftList>[number]>();
+  const sources: string[] = [];
+  for (const row of settled) {
+    if (row.error) errors.push(row.error);
+    if (row.ac.length === 0) continue;
+    sources.push(row.id);
+    for (const craft of row.ac) {
+      const hex = String(craft.hex || '').trim().toLowerCase();
+      if (hex) merged.set(hex, craft);
     }
+  }
+
+  if (merged.size > 0) {
+    const body = { ac: [...merged.values()] };
+    const source = sources.join('+');
+    cache.set(key, { at: Date.now(), status: 200, body, source });
+    res.setHeader('Cache-Control', 'public, max-age=8');
+    res.setHeader('X-Live-Flights-Source', source);
+    return res.status(200).json(body);
   }
 
   const body = { error: errors.join('; ') || 'adsb unreachable', ac: [] };

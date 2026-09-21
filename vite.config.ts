@@ -108,30 +108,40 @@ function liveTrafficDevProxy(): Plugin {
             `https://api.adsb.lol/v2/lat/${encodeURIComponent(lat)}/lon/${encodeURIComponent(lon)}/dist/${encodeURIComponent(dist)}`,
             `https://opendata.adsb.fi/api/v2/lat/${encodeURIComponent(lat)}/lon/${encodeURIComponent(lon)}/dist/${encodeURIComponent(dist)}`,
           ];
-          for (const target of hosts) {
-            try {
-              const upstream = await fetch(target, {
-                headers: ua,
-                signal: AbortSignal.timeout(6_000),
-              });
-              const ct = String(upstream.headers.get('content-type') || '');
-              if (!upstream.ok || !ct.toLowerCase().includes('json')) continue;
-              const parsed = JSON.parse(await upstream.text()) as {
-                ac?: unknown;
-                aircraft?: unknown;
-              };
-              const ac = Array.isArray(parsed.ac)
-                ? parsed.ac
-                : Array.isArray(parsed.aircraft)
-                  ? parsed.aircraft
-                  : [];
-              json(200, { ac });
-              return;
-            } catch {
-              /* try next host */
-            }
-          }
-          json(200, { error: 'adsb unreachable', ac: [] });
+          const merged: unknown[] = [];
+          const seen = new Set<string>();
+          await Promise.all(
+            hosts.map(async (target) => {
+              try {
+                const upstream = await fetch(target, {
+                  headers: ua,
+                  signal: AbortSignal.timeout(6_000),
+                });
+                const ct = String(upstream.headers.get('content-type') || '');
+                if (!upstream.ok || !ct.toLowerCase().includes('json')) return;
+                const parsed = JSON.parse(await upstream.text()) as {
+                  ac?: unknown;
+                  aircraft?: unknown;
+                };
+                const ac = Array.isArray(parsed.ac)
+                  ? parsed.ac
+                  : Array.isArray(parsed.aircraft)
+                    ? parsed.aircraft
+                    : [];
+                for (const row of ac) {
+                  const hex = String((row as { hex?: string })?.hex || '')
+                    .trim()
+                    .toLowerCase();
+                  if (!hex || seen.has(hex)) continue;
+                  seen.add(hex);
+                  merged.push(row);
+                }
+              } catch {
+                /* host failed */
+              }
+            })
+          );
+          json(200, merged.length ? { ac: merged } : { error: 'adsb unreachable', ac: [] });
         } catch (err) {
           res.statusCode = 502;
           res.setHeader('Content-Type', 'application/json');

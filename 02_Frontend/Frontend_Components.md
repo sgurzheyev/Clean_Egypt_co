@@ -111,7 +111,7 @@ Dawn/dusk uses [[src/lib/mapSolarAtmosphere.ts]] from SunCalc at the map center 
 
 Live craft (RUSH on):
 
-- **Flights:** OpenSky + ADSB in parallel via [[api/opensky-states.ts]] / [[api/adsb-nearby.ts]]. ADSB host fallback (`adsb.lol` → `opendata.adsb.fi`) because Vercel IPs often get Cloudflare 403 from adsb.lol. Street-zoom bbox is expanded so Marina Hurghada still sees HRG. Lime markers + lime trails; altitude in meters.
+- **Flights:** OpenSky + ADSB **in parallel** via [[api/opensky-states.ts]] / [[api/adsb-nearby.ts]]. ADSB merges `adsb.lol` + `opendata.adsb.fi` (lol often Cloudflare-403s from Vercel; empty lol must not skip fi). Street-zoom bbox is expanded so Marina Hurghada still sees HRG. Lime markers + lime trails; altitude in meters.
 - **Ships:** AISStream WebSocket when `VITE_AISSTREAM_API_KEY` is set (Class A + Class B). Amber markers + amber trails, rotated to heading. No key → `ships off`; positions are never invented.
 - Empty/loading is a one-word line on the card (`…` / `empty`).
 

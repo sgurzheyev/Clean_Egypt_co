@@ -22,7 +22,7 @@ Short only: **RUSH** / `plane or ship only!` / `press · look · closed` (RU: `�
 - **Planes:** lime markers + lime trails. Label = callsign · altitude m · km/h.
 - **Ships:** amber markers + amber trails, rotated to heading/COG. Label = name · course ° · kn.
 - Viewport bbox is expanded to a **minimum** span so street zoom at Marina Hurghada still queries HRG + Red Sea.
-- Flights poll same-origin [[api/opensky-states.ts]] and [[api/adsb-nearby.ts]] **in parallel**. ADSB tries `adsb.lol` then `opendata.adsb.fi` (normalizes `{ aircraft }` → `{ ac }`) because Vercel datacenter IPs often get Cloudflare HTML 403 from adsb.lol, and OpenSky often `fetch failed` from iad1.
+- Flights poll same-origin [[api/opensky-states.ts]] and [[api/adsb-nearby.ts]] **in parallel**. ADSB merges `adsb.lol` + `opendata.adsb.fi` (normalizes `{ aircraft }` → `{ ac }`) because Vercel datacenter IPs often get Cloudflare HTML 403 from adsb.lol, and OpenSky often `fetch failed` from iad1. Empty lol `ac: []` does not skip fi.
 - Ships: AISStream WebSocket when `VITE_AISSTREAM_API_KEY` is baked at build time. Class A + Class B position reports. No key → `ships off`. Never fake vessels.
 
 ## Land (RUSH on)
