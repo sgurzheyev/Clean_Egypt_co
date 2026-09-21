@@ -43,14 +43,14 @@ function firebaseMessagingSwPlugin(mode: string): Plugin {
   };
 }
 
-function liveTrafficDevProxy(): Plugin {
+function liveTrafficDevProxy(env: Record<string, string>): Plugin {
   return {
     name: 'live-traffic-dev-proxy',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const rawUrl = req.url || '';
         const pathOnly = rawUrl.split('?')[0];
-        if (pathOnly !== '/api/opensky-states' && pathOnly !== '/api/adsb-nearby') {
+        if (pathOnly !== '/api/opensky-states' && pathOnly !== '/api/adsb-nearby' && pathOnly !== '/api/ais-nearby') {
           next();
           return;
         }
@@ -94,6 +94,31 @@ function liveTrafficDevProxy(): Plugin {
             } catch (err) {
               const message = err instanceof Error ? err.message : 'OpenSky unreachable';
               json(200, { error: message, states: [] });
+            }
+            return;
+          }
+          if (pathOnly === '/api/ais-nearby') {
+            const lamin = Number(src.searchParams.get('lamin'));
+            const lomin = Number(src.searchParams.get('lomin'));
+            const lamax = Number(src.searchParams.get('lamax'));
+            const lomax = Number(src.searchParams.get('lomax'));
+            if (![lamin, lomin, lamax, lomax].every(Number.isFinite) || lamin >= lamax) {
+              json(400, { error: 'lamin,lomin,lamax,lomax required', ships: [] });
+              return;
+            }
+            const key = String(env.AISSTREAM_API_KEY || env.VITE_AISSTREAM_API_KEY || '').trim();
+            try {
+              const { queryAisNearby } = await import('./api/ais-nearby.ts');
+              const result = await queryAisNearby({ lamin, lomin, lamax, lomax }, key);
+              json(
+                200,
+                result.ships.length > 0
+                  ? { ships: result.ships }
+                  : { ships: [], error: result.error || 'empty' }
+              );
+            } catch (err) {
+              const message = err instanceof Error ? err.message : 'ws';
+              json(200, { ships: [], error: message });
             }
             return;
           }
@@ -160,7 +185,7 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       host: '0.0.0.0',
     },
-    plugins: [react(), firebaseMessagingSwPlugin(mode), liveTrafficDevProxy()],
+    plugins: [react(), firebaseMessagingSwPlugin(mode), liveTrafficDevProxy(env)],
     define: {
       // Do not embed GEMINI_API_KEY / other secrets into the client bundle.
       global: 'window',

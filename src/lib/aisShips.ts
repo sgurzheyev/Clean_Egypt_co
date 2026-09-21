@@ -1,8 +1,9 @@
 /**
- * Free AIS via AISStream WebSocket (requires VITE_AISSTREAM_API_KEY).
- * No key → ships stay off. Never invent vessel positions.
+ * AIS ships: same-origin `/api/ais-nearby` (server holds AISSTREAM_API_KEY).
+ * AISStream blocks browser WebSockets — do not connect from the client.
+ * Upstream frames are often binary; the proxy UTF-8-decodes before JSON.parse.
  *
- * Get a free key: https://aisstream.io/ (sign in with GitHub → API Keys).
+ * Get a free key: https://aisstream.io/ (GitHub → API Keys). Never commit it.
  * Docs: https://aisstream.io/documentation
  */
 
@@ -13,8 +14,10 @@ import {
   type LiveTrafficEntity,
 } from './mapLiveTraffic';
 
+export const AIS_NEARBY_PATH = '/api/ais-nearby';
 export const AISSTREAM_WS_URL = 'wss://stream.aisstream.io/v0/stream';
 export const AIS_STALE_MS = 90_000;
+export const AIS_POLL_MS = 8_000;
 
 type AisPositionFields = {
   UserID?: number;
@@ -102,6 +105,110 @@ export function buildAisstreamSubscribeMessage(apiKey: string, bbox: GeoBbox): s
     BoundingBoxes: [bboxToAisstreamBox(bbox)],
     FilterMessageTypes: [...AIS_POSITION_MESSAGE_TYPES],
   });
+}
+
+/** UTF-8-decode a WS frame (string | Buffer | ArrayBuffer | TypedArray | Blob). */
+export async function decodeAisstreamFrame(data: unknown): Promise<unknown | null> {
+  try {
+    let text = '';
+    if (typeof data === 'string') text = data;
+    else if (typeof Buffer !== 'undefined' && typeof Buffer.isBuffer === 'function' && Buffer.isBuffer(data)) {
+      text = data.toString('utf8');
+    } else if (data instanceof ArrayBuffer) {
+      text = new TextDecoder().decode(data);
+    } else if (ArrayBuffer.isView(data)) {
+      text = new TextDecoder().decode(data);
+    } else if (typeof Blob !== 'undefined' && data instanceof Blob) {
+      text = await data.text();
+    } else {
+      text = String(data ?? '');
+    }
+    if (!text || text === '[object Blob]' || text === '[object ArrayBuffer]') return null;
+    const trimmed = text.trim();
+    if (!trimmed) return null;
+    return JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+}
+
+export type AisNearbyShip = {
+  mmsi?: string;
+  name?: string;
+  lat?: number;
+  lon?: number;
+  lng?: number;
+  heading?: number | null;
+  sog?: number | null;
+};
+
+export function parseAisNearby(payload: { ships?: unknown } | null | undefined): LiveTrafficEntity[] {
+  const rows = Array.isArray(payload?.ships) ? payload!.ships! : [];
+  const out: LiveTrafficEntity[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    const parsed = parseAisstreamMessage({
+      MessageType: 'PositionReport',
+      MetaData: {
+        MMSI: (row as AisNearbyShip).mmsi,
+        ShipName: (row as AisNearbyShip).name,
+        latitude: (row as AisNearbyShip).lat,
+        longitude: (row as AisNearbyShip).lon ?? (row as AisNearbyShip).lng,
+      },
+      Message: {
+        PositionReport: {
+          UserID: Number((row as AisNearbyShip).mmsi) || undefined,
+          Latitude: (row as AisNearbyShip).lat,
+          Longitude: (row as AisNearbyShip).lon ?? (row as AisNearbyShip).lng,
+          TrueHeading: (row as AisNearbyShip).heading ?? undefined,
+          Sog: (row as AisNearbyShip).sog ?? undefined,
+          Cog: (row as AisNearbyShip).heading ?? undefined,
+        },
+      },
+    });
+    if (parsed) out.push(parsed);
+  }
+  return out;
+}
+
+export type ShipFetchMeta = {
+  source: 'aisstream' | 'none';
+  error: string | null;
+};
+
+export async function fetchViewportShips(
+  bbox: GeoBbox,
+  zoom: number,
+  signal?: AbortSignal
+): Promise<{ entities: LiveTrafficEntity[]; meta: ShipFetchMeta }> {
+  const qs = new URLSearchParams({
+    lamin: bbox.lamin.toFixed(4),
+    lomin: bbox.lomin.toFixed(4),
+    lamax: bbox.lamax.toFixed(4),
+    lomax: bbox.lomax.toFixed(4),
+  });
+  const res = await fetch(`${AIS_NEARBY_PATH}?${qs}`, {
+    method: 'GET',
+    signal,
+    headers: { Accept: 'application/json' },
+  });
+  let payload: { ships?: unknown; error?: string; source?: string } = { ships: [] };
+  try {
+    payload = (await res.json()) as typeof payload;
+  } catch {
+    payload = { ships: [], error: 'ais non-JSON' };
+  }
+  const entities = parseAisNearby(payload);
+  if (entities.length > 0) {
+    return {
+      entities: capTrafficEntities(entities, zoom, 'ship'),
+      meta: { source: 'aisstream', error: null },
+    };
+  }
+  const err =
+    payload.error ||
+    (!res.ok ? `ais ${res.status}` : null);
+  return { entities: [], meta: { source: 'none', error: err } };
 }
 
 export type AisShipTracker = {

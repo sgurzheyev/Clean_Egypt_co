@@ -6,8 +6,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Palette, Plane, Ship } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { cycleRushCraftMode, hasAisstreamApiKey, type RushCraftMode } from '../src/lib/mapFunMode';
-import { formatRushFlightChip } from '../src/lib/mapLiveTraffic';
+import { cycleRushCraftMode, type RushCraftMode } from '../src/lib/mapFunMode';
+import { formatRushFlightChip, formatRushShipChip } from '../src/lib/mapLiveTraffic';
 
 export type MapFunModeControlsProps = {
   mode: RushCraftMode;
@@ -15,6 +15,9 @@ export type MapFunModeControlsProps = {
   flightsCount?: number;
   flightError?: string | null;
   flightsLoading?: boolean;
+  shipsCount?: number;
+  shipError?: string | null;
+  shipsLoading?: boolean;
 };
 
 const LIFT_MS = 280;
@@ -26,6 +29,9 @@ const MapFunModeControls: React.FC<MapFunModeControlsProps> = ({
   flightsCount = 0,
   flightError = null,
   flightsLoading = false,
+  shipsCount = 0,
+  shipError = null,
+  shipsLoading = false,
 }) => {
   const { t } = useTranslation();
   const rushOn = mode !== 'off';
@@ -84,10 +90,11 @@ const MapFunModeControls: React.FC<MapFunModeControlsProps> = ({
     onModeChange(cycleRushCraftMode(mode));
   };
 
-  const shipsLive = hasAisstreamApiKey();
-  const shipChip = shipsLive
-    ? t('liveMapTrafficShip', { defaultValue: 'SHIP' })
-    : t('liveMapTrafficShipsOff', { defaultValue: 'ships off' });
+  const shipChip = formatRushShipChip({
+    count: shipsCount,
+    error: shipError,
+    loading: shipsLoading,
+  });
   const planeChip = formatRushFlightChip({
     count: flightsCount,
     error: flightError,
@@ -111,9 +118,7 @@ const MapFunModeControls: React.FC<MapFunModeControlsProps> = ({
           rushOn
             ? mode === 'planes'
               ? 'border-lime-400 bg-lime-500/90 text-white shadow-[0_0_22px_rgba(74,222,128,0.5)]'
-              : shipsLive
-                ? 'border-amber-400 bg-amber-500/90 text-white shadow-[0_0_22px_rgba(245,158,11,0.5)]'
-                : 'border-amber-400/40 bg-black/70 text-amber-200/80 shadow-[0_0_14px_rgba(245,158,11,0.18)]'
+              : 'border-amber-400 bg-amber-500/90 text-white shadow-[0_0_22px_rgba(245,158,11,0.5)]'
             : 'border-fuchsia-400/50 bg-black/70 text-fuchsia-200 shadow-[0_0_18px_rgba(217,70,239,0.28)]'
         }`}
         aria-label={fabLabel}
@@ -160,9 +165,7 @@ const MapFunModeControls: React.FC<MapFunModeControlsProps> = ({
               className={`whitespace-nowrap rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] ${
                 peekMode === 'planes'
                   ? 'bg-lime-400/20 text-lime-200'
-                  : shipsLive
-                    ? 'bg-amber-400/20 text-amber-200'
-                    : 'bg-white/10 text-slate-200'
+                  : 'bg-amber-400/20 text-amber-200'
               }`}
             >
               {chip}

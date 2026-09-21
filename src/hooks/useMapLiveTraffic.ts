@@ -1,9 +1,7 @@
 /**
  * Live OpenSky / AISStream traffic for the Mapbox viewport.
- * Polls only while enabled + tab visible + map ready. Ships require an AISStream key.
- *
- * Flight poll stays mounted while PLANE is on: cameraBusy / bbox nudges are read
- * from refs inside tick so pan/zoom cannot abort in-flight ADSB.
+ * Polls same-origin `/api/*` while enabled + tab visible. AISStream is
+ * server-proxied (`/api/ais-nearby`) because browsers cannot open that WS.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -19,13 +17,8 @@ import {
   type TrafficTrailGeoJSON,
 } from '../lib/mapLiveTraffic';
 import { fetchViewportFlights, type FlightFetchMeta } from '../lib/openskyFlights';
-import {
-  AISSTREAM_WS_URL,
-  buildAisstreamSubscribeMessage,
-  createAisShipTracker,
-  parseAisstreamMessage,
-} from '../lib/aisShips';
-import { hasAisstreamApiKey, readAisstreamApiKey, type RushCraftMode } from '../lib/mapFunMode';
+import { AIS_POLL_MS, fetchViewportShips, type ShipFetchMeta } from '../lib/aisShips';
+import { type RushCraftMode } from '../lib/mapFunMode';
 
 type MapLike = {
   getBounds?: () => {
@@ -50,7 +43,7 @@ export type UseMapLiveTrafficOptions = {
   getMap?: () => MapLike | null | undefined;
   cameraBusyRef?: { current: boolean };
   fallbackView?: LiveTrafficFallbackView | null;
-  /** Ships only: resubscribe AIS when the camera has moved a coarse step. */
+  /** Ignored for fetch; viewport is re-read each poll tick. Kept so callers can pass it. */
   bboxNonce?: number;
 };
 
@@ -63,12 +56,14 @@ export type UseMapLiveTrafficResult = {
   flightsCount: number;
   shipsCount: number;
   flightsLoading: boolean;
+  shipsLoading: boolean;
   shipsEnabled: boolean;
-  shipsHint: 'need-key' | 'live' | 'off';
+  shipsHint: 'need-key' | 'live' | 'off' | 'ws';
+  shipMeta: ShipFetchMeta;
 };
 
 export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTrafficResult {
-  const { craft, getMap, cameraBusyRef, fallbackView = null, bboxNonce = 0 } = opts;
+  const { craft, getMap, cameraBusyRef, fallbackView = null } = opts;
   const flightsOn = craft === 'planes';
   const shipsOn = craft === 'ships';
   const [flightsGeoJSON, setFlightsGeoJSON] = useState<TrafficGeoJSON>(emptyTrafficGeoJSON);
@@ -80,21 +75,21 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
   const [flightsCount, setFlightsCount] = useState(0);
   const [shipsCount, setShipsCount] = useState(0);
   const [flightsLoading, setFlightsLoading] = useState(false);
+  const [shipsLoading, setShipsLoading] = useState(false);
   const [flightMeta, setFlightMeta] = useState<FlightFetchMeta>({
     source: 'none',
     error: null,
   });
-  const shipsEnabled = hasAisstreamApiKey();
+  const [shipMeta, setShipMeta] = useState<ShipFetchMeta>({
+    source: 'none',
+    error: null,
+  });
 
   const abortRef = useRef<AbortController | null>(null);
-  const bboxRef = useRef<GeoBbox | null>(null);
+  const shipsAbortRef = useRef<AbortController | null>(null);
   const zoomRef = useRef(10);
-  const trackerRef = useRef(createAisShipTracker());
   const flightTrailsRef = useRef(createTrailTracker());
   const shipTrailsRef = useRef(createTrailTracker());
-  const wsRef = useRef<WebSocket | null>(null);
-  const wsRetryRef = useRef(0);
-  const shipsPaintRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const getMapRef = useRef(getMap);
   getMapRef.current = getMap;
   const fallbackViewRef = useRef(fallbackView);
@@ -133,133 +128,87 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
     const bbox = bboxFromCamera({ lat, lng, zoom, bounds });
     if (!bbox) return null;
     zoomRef.current = Number.isFinite(zoom) ? zoom : 10;
-    bboxRef.current = bbox;
     return { bbox, zoom: zoomRef.current };
   }, []);
 
-  const paintShips = useCallback(() => {
-    const list = trackerRef.current.list(zoomRef.current);
-    setShipsGeoJSON(entitiesToGeoJSON(list));
-    setShipsCount(list.length);
-    setShipsTrailsGeoJSON(shipTrailsRef.current.sync(list, 'ship'));
-  }, []);
-
-  const scheduleShipsPaint = useCallback(() => {
-    if (shipsPaintRef.current) return;
-    shipsPaintRef.current = setTimeout(() => {
-      shipsPaintRef.current = null;
-      paintShips();
-    }, 400);
-  }, [paintShips]);
-
   useEffect(() => {
-    if (!shipsOn || !shipsEnabled || typeof window === 'undefined') {
-      try {
-        wsRef.current?.close();
-      } catch {
-        /* ignore */
-      }
-      wsRef.current = null;
-      trackerRef.current.clear();
+    if (!shipsOn) {
+      shipsAbortRef.current?.abort();
       shipTrailsRef.current.clear();
       setShipsGeoJSON(emptyTrafficGeoJSON());
       setShipsTrailsGeoJSON(emptyTrailGeoJSON());
       setShipsCount(0);
+      setShipsLoading(false);
+      setShipMeta({ source: 'none', error: null });
       return;
     }
 
     let cancelled = false;
-    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setShipsLoading(true);
 
-    const connect = () => {
-      if (cancelled || document.visibilityState === 'hidden') return;
-      const apiKey = readAisstreamApiKey();
-      if (!apiKey) return;
-      const vp = readViewport();
-      if (!vp) {
-        retryTimer = setTimeout(connect, 1500);
-        return;
-      }
-
-      let ws: WebSocket;
+    const tick = async () => {
+      if (cancelled) return;
+      let delay = AIS_POLL_MS;
       try {
-        ws = new WebSocket(AISSTREAM_WS_URL);
-      } catch (e) {
-        console.warn('[aisstream] websocket unavailable', e);
-        return;
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+          delay = AIS_POLL_MS;
+        } else if (cameraBusyNow.current?.current) {
+          delay = 1500;
+        } else {
+          const vp = readViewport();
+          if (!vp) {
+            delay = 1500;
+          } else {
+            shipsAbortRef.current?.abort();
+            const ac = new AbortController();
+            shipsAbortRef.current = ac;
+            try {
+              const { entities, meta } = await fetchViewportShips(vp.bbox, vp.zoom, ac.signal);
+              if (!cancelled && !ac.signal.aborted) {
+                setShipsGeoJSON(entitiesToGeoJSON(entities));
+                setShipsCount(entities.length);
+                setShipsTrailsGeoJSON(shipTrailsRef.current.sync(entities, 'ship'));
+                setShipMeta(meta);
+                setShipsLoading(false);
+              }
+            } catch (err) {
+              if (!cancelled && !ac.signal.aborted) {
+                setShipMeta({
+                  source: 'none',
+                  error: err instanceof Error ? err.message : 'ws',
+                });
+                setShipsLoading(false);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setShipMeta({
+            source: 'none',
+            error: err instanceof Error ? err.message : 'ws',
+          });
+          setShipsLoading(false);
+        }
+        delay = 1500;
       }
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        wsRetryRef.current = 0;
-        try {
-          ws.send(buildAisstreamSubscribeMessage(apiKey, vp.bbox));
-        } catch {
-          /* ignore */
-        }
-      };
-
-      ws.onmessage = (ev) => {
-        try {
-          const parsed = parseAisstreamMessage(JSON.parse(String(ev.data)));
-          if (!parsed) return;
-          trackerRef.current.upsert(parsed);
-          scheduleShipsPaint();
-        } catch {
-          /* malformed frame */
-        }
-      };
-
-      ws.onclose = () => {
-        if (cancelled) return;
-        const delay = Math.min(30_000, 1000 * 2 ** Math.min(5, wsRetryRef.current));
-        wsRetryRef.current += 1;
-        retryTimer = setTimeout(connect, delay);
-      };
-
-      ws.onerror = () => {
-        try {
-          ws.close();
-        } catch {
-          /* ignore */
-        }
-      };
+      if (!cancelled) timer = setTimeout(tick, delay);
     };
 
-    connect();
-
-    const pruneTimer = window.setInterval(() => {
-      trackerRef.current.prune();
-      paintShips();
-    }, 20_000);
-
+    void tick();
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void tick();
+      else shipsAbortRef.current?.abort();
+    };
+    document.addEventListener('visibilitychange', onVis);
     return () => {
       cancelled = true;
-      if (retryTimer) clearTimeout(retryTimer);
-      window.clearInterval(pruneTimer);
-      try {
-        wsRef.current?.close();
-      } catch {
-        /* ignore */
-      }
-      wsRef.current = null;
-      trackerRef.current.clear();
-      shipTrailsRef.current.clear();
+      shipsAbortRef.current?.abort();
+      if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVis);
     };
-  }, [shipsOn, shipsEnabled, readViewport, paintShips, scheduleShipsPaint]);
-
-  useEffect(() => {
-    if (!shipsOn || !shipsEnabled) return;
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    const vp = readViewport();
-    if (!vp) return;
-    try {
-      ws.send(buildAisstreamSubscribeMessage(readAisstreamApiKey(), vp.bbox));
-    } catch {
-      /* ignore */
-    }
-  }, [bboxNonce, shipsOn, shipsEnabled, readViewport]);
+  }, [shipsOn, readViewport]);
 
   useEffect(() => {
     if (!flightsOn) {
@@ -343,11 +292,13 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
     };
   }, [flightsOn, readViewport]);
 
-  useEffect(() => {
-    return () => {
-      if (shipsPaintRef.current) clearTimeout(shipsPaintRef.current);
-    };
-  }, []);
+  const shipsHint: UseMapLiveTrafficResult['shipsHint'] = !shipsOn
+    ? 'off'
+    : shipMeta.error && /need-key|no key|missing/i.test(shipMeta.error)
+      ? 'need-key'
+      : shipMeta.error && shipMeta.error !== 'empty' && /ws|socket|401/i.test(shipMeta.error)
+        ? 'ws'
+        : 'live';
 
   return {
     flightsGeoJSON,
@@ -355,10 +306,12 @@ export function useMapLiveTraffic(opts: UseMapLiveTrafficOptions): UseMapLiveTra
     flightsTrailsGeoJSON,
     shipsTrailsGeoJSON,
     flightMeta,
+    shipMeta,
     flightsCount,
     shipsCount,
     flightsLoading,
-    shipsEnabled,
-    shipsHint: !shipsOn ? 'off' : shipsEnabled ? 'live' : 'need-key',
+    shipsLoading,
+    shipsEnabled: shipsOn,
+    shipsHint,
   };
 }

@@ -85,7 +85,7 @@ Wired in `public/manifest.json` and `index.html` (`theme-color` / `background_co
 - [[src/lib/mapFunMode.ts]] — RUSH / fun-map localStorage toggle (H2H night land + cyan roads). No property-price HUD.
 - [[src/lib/mapSolarAtmosphere.ts]] — cinematic dawn/dusk fog/sky from local solar altitude (Egypt / Red Sea). Fun mode only boosts bloom.
 - [[src/lib/openskyFlights.ts]] — OpenSky `/states/all` bbox (same-origin `/api/opensky-states`), ADSB.lol fallback (`/api/adsb-nearby`)
-- [[src/lib/aisShips.ts]] — AISStream WebSocket when `VITE_AISSTREAM_API_KEY` is set (free key: https://aisstream.io/ → sign in with GitHub → API Keys). No key → ships stay off; never fake vessels.
+- [[src/lib/aisShips.ts]] — client poll of [[api/ais-nearby.ts]] (AISStream WS is server-side; browsers are blocked). Never fake vessels.
 - [[src/hooks/useMapLiveTraffic.ts]]
 - [[src/hooks/useLocationCatalog.ts]]
 - [[src/hooks/useMissionChat.ts]]
@@ -112,7 +112,7 @@ Dawn/dusk uses [[src/lib/mapSolarAtmosphere.ts]] from SunCalc at the map center 
 Live craft (RUSH on):
 
 - **Flights** (planes mode only): OpenSky + ADSB **in parallel** via [[api/opensky-states.ts]] / [[api/adsb-nearby.ts]]. ADSB merges `adsb.lol` + `opendata.adsb.fi` (lol often Cloudflare-403s from Vercel; empty lol must not skip fi). Street-zoom bbox is expanded so Marina Hurghada still sees HRG. Lime markers + lime trails; altitude in meters.
-- **Ships** (ships mode only): AISStream WebSocket when `VITE_AISSTREAM_API_KEY` is set (Class A + Class B). Amber markers + amber trails, rotated to heading. Positions are never invented.
+- **Ships** (ships mode only): same-origin `/api/ais-nearby` (Class A + Class B). Amber markers + amber trails, rotated to heading. Positions are never invented.
 - FAB chip: `SHIP` / `PLANE`. Card does not keep empty/error paragraphs.
 
 ## Related flows

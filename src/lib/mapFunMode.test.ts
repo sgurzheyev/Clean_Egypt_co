@@ -30,6 +30,7 @@ import {
   formatAltitudeLabel,
   formatHeading,
   formatRushFlightChip,
+  formatRushShipChip,
   liveTrafficCap,
   padAndClampBbox,
   SHIP_TRAIL_COLOR,
@@ -46,11 +47,14 @@ import {
   pickAdsbAircraftList,
 } from '../../api/_lib/adsbNearbyFetch.ts';
 import { queryAdsbNearby as queryAdsbNearbyHandler } from '../../api/adsb-nearby.ts';
+import { queryAisNearby } from '../../api/ais-nearby.ts';
 import {
   AIS_POSITION_MESSAGE_TYPES,
   buildAisstreamSubscribeMessage,
   createAisShipTracker,
   parseAisstreamMessage,
+  decodeAisstreamFrame,
+  parseAisNearby,
 } from './aisShips.ts';
 
 function assert(cond: unknown, msg: string): asserts cond {
@@ -173,6 +177,12 @@ function testRushFlightChip() {
   assert(formatRushFlightChip({ count: 0, error: null, loading: true }) === '…', 'loading');
   assert(formatRushFlightChip({ count: 0, error: 'live-flights 500', loading: false }) === '500', 'error');
   assert(formatRushFlightChip({ count: 0, error: null, loading: false }) === '0', 'empty');
+  assert(formatRushShipChip({ count: 9, error: null, loading: false }) === '9', 'ship count');
+  assert(formatRushShipChip({ count: 0, error: null, loading: true }) === '…', 'ship loading');
+  assert(formatRushShipChip({ count: 0, error: 'need-key', loading: false }) === 'need-key', 'need-key');
+  assert(formatRushShipChip({ count: 0, error: 'ws', loading: false }) === 'ws', 'ws');
+  assert(formatRushShipChip({ count: 0, error: null, loading: false }) === '0', 'ship empty');
+  assert(formatRushShipChip({ count: 0, error: 'empty', loading: false }) === '0', 'empty alias');
 }
 
 function testFlightPollDoesNotRemountOnBusy() {
@@ -219,7 +229,7 @@ function testOpenSkyParse() {
   assert(fi[0].callsign === 'UAE5M', 'fi callsign');
 }
 
-function testAisParseAndTracker() {
+async function testAisParseAndTracker() {
   const msg = parseAisstreamMessage({
     MessageType: 'PositionReport',
     MetaData: { MMSI: 622123456, ShipName: 'RED SEA STAR', latitude: 27.2, longitude: 33.8 },
@@ -264,6 +274,33 @@ function testAisParseAndTracker() {
   assert(sub.FilterMessageTypes.includes('StandardClassBPositionReport'), 'class B subscribed');
   assert(AIS_POSITION_MESSAGE_TYPES.length >= 3, 'multiple AIS position types');
   assert(sub.BoundingBoxes[0][0][0] === 27, 'lat first in AIS bbox');
+
+  const bosphorus = bboxToAisstreamBox({
+    lamin: 40.9,
+    lomin: 28.8,
+    lamax: 41.3,
+    lomax: 29.2,
+  });
+  assert(bosphorus[0][0] < 41.02 && bosphorus[1][0] > 41.02, 'bosphorus lat covers Istanbul');
+  assert(bosphorus[0][1] < 29.0 && bosphorus[1][1] > 29.0, 'bosphorus lon covers the strait');
+
+  const binary = new TextEncoder().encode(
+    JSON.stringify({
+      MessageType: 'PositionReport',
+      MetaData: { MMSI: 271000111, ShipName: 'BOSPHORUS STAR', latitude: 41.02, longitude: 29.01 },
+      Message: {
+        PositionReport: { UserID: 271000111, Latitude: 41.02, Longitude: 29.01, Cog: 10, Sog: 8 },
+      },
+    })
+  );
+  const decoded = await decodeAisstreamFrame(binary);
+  assert(parseAisstreamMessage(decoded)?.callsign === 'BOSPHORUS STAR', 'binary WS frame decodes');
+  assert((await decodeAisstreamFrame('[object Blob]')) === null, 'stringified Blob is not JSON');
+
+  const fromProxy = parseAisNearby({
+    ships: [{ mmsi: '271000111', name: 'MARMARA', lat: 40.99, lon: 29.05, heading: 180, sog: 7 }],
+  });
+  assert(fromProxy.length === 1 && fromProxy[0].callsign === 'MARMARA', 'proxy ships payload');
 
   const tracker = createAisShipTracker();
   tracker.upsert(msg!, 1_000);
@@ -336,6 +373,26 @@ async function testAdsbQueryMergesFiAircraft() {
   assert(!hit.error, 'no error when ac present');
 }
 
+function testAisHandlerHasNoRelativeImports() {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const src = readFileSync(join(here, '../../api/ais-nearby.ts'), 'utf8');
+  const relativeImports = src
+    .split('\n')
+    .filter((line) => /^\s*import\s/.test(line) && /from\s+['"]\.\//.test(line));
+  assert(relativeImports.length === 0, 'ais-nearby must not import ./_lib (Vercel ESM boot crash)');
+  const hook = readFileSync(join(here, '../hooks/useMapLiveTraffic.ts'), 'utf8');
+  assert(!hook.includes('new WebSocket'), 'browser must not open AISStream WS');
+}
+
+async function testAisProxyNeedKey() {
+  const empty = await queryAisNearby(
+    { lamin: 40.9, lomin: 28.8, lamax: 41.3, lomax: 29.2 },
+    ''
+  );
+  assert(empty.ships.length === 0, 'no ships without key');
+  assert(empty.error === 'need-key', 'need-key when server key missing');
+}
+
 function testAdsbHandlerHasNoRelativeImports() {
   const here = dirname(fileURLToPath(import.meta.url));
   const src = readFileSync(join(here, '../../api/adsb-nearby.ts'), 'utf8');
@@ -388,12 +445,14 @@ testBboxCaps();
 testRushFlightChip();
 testFlightPollDoesNotRemountOnBusy();
 testOpenSkyParse();
-testAisParseAndTracker();
 testGeoJsonAndCaps();
 testAisPlaceholderKeys();
 testAdsbProxyHelpers();
 testAdsbHandlerHasNoRelativeImports();
+testAisHandlerHasNoRelativeImports();
 void (async () => {
+  await testAisParseAndTracker();
+  await testAisProxyNeedKey();
   await testAdsbQuerySoftEmpty();
   await testAdsbQueryMergesFiAircraft();
   console.log('mapFunMode tests ok');

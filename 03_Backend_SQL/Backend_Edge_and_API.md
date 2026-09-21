@@ -40,6 +40,7 @@ aliases: [Backend Edge and API]
 - [[api/opensky-states.ts]] — RUSH flights proxy (OpenSky; soft-empty on timeout)
 - [[api/adsb-nearby.ts]] — RUSH flights proxy (self-contained; adsb.lol + adsb.fi; soft 200 `{ ac, error? }`)
 - [[api/_lib/adsbNearbyFetch.ts]] — test helper copy (do **not** import from the ADSB handler; Vercel ESM + renameTStoJS)
+- [[api/ais-nearby.ts]] — RUSH ships proxy (self-contained AISStream WS; soft 200 `{ ships, error? }`)
 
 ## Clients
 - [[services/supabase.ts]]

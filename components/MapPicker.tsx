@@ -6136,6 +6136,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
           flightsCount={liveTrafficData.flightsCount}
           flightError={liveTrafficData.flightMeta.error}
           flightsLoading={liveTrafficData.flightsLoading}
+          shipsCount={liveTrafficData.shipsCount}
+          shipError={liveTrafficData.shipMeta.error}
+          shipsLoading={liveTrafficData.shipsLoading}
           onModeChange={(next) => {
             setRushCraftMode(next);
             writeRushCraftMode(next);

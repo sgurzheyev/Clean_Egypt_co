@@ -26,7 +26,7 @@ Card: **RUSH** + one-word chip **SHIP** or **PLANE**. No hint paragraphs, no «p
 - Query bbox is **camera-centered**. Globe + high pitch makes `map.getBounds()` world-wide; clamping that recenters on (0,0) so planes never appear over Port Said / Istanbul. `getBounds` span is used only when it is a real viewport.
 - Flight poll does **not** remount on `cameraBusy` / bbox nudges (those are refs inside tick). `moveLayer` is **not** applied to slotted RUSH craft layers (Standard slot `top`); yanking them out of the slot hides them under the globe.
 - PLANE FAB/peek chip shows the live **count** or a short **error** from `flightMeta`.
-- Ships: AISStream WebSocket when `VITE_AISSTREAM_API_KEY` is baked at build time. Class A + Class B position reports. Placeholder values (`SUPABASE_SERVICE_ROLE_KEY`, empty, ALL_CAPS env names) are treated as **no key** → chip **ships off**. Never fake vessels.
+- **Ships** poll same-origin [[api/ais-nearby.ts]] (AISStream WS is **server-side only** — browsers get 401/CORS). Collect ~3s of Class A + Class B position reports, return `{ ships }`. Chip: count / `0` / `…` / `ws` / `need-key`. Never fake vessels. Env: prefer `AISSTREAM_API_KEY` (not inlined); lambda also reads `VITE_AISSTREAM_API_KEY` as a transitional fallback.
 
 ## Land (RUSH on)
 
@@ -34,7 +34,7 @@ H2H Move night: dark navy land `#0a1018`, muted greenspace, cyan road glow. Off 
 
 ## Env
 
-See [[.env.example]] `VITE_AISSTREAM_API_KEY`. Do not commit keys.
+See [[.env.example]] `AISSTREAM_API_KEY` (preferred) / `VITE_AISSTREAM_API_KEY` (fallback). Do not commit keys.
 
 ## Related files
 
@@ -44,3 +44,4 @@ See [[.env.example]] `VITE_AISSTREAM_API_KEY`. Do not commit keys.
 - [[src/hooks/useMapLiveTraffic.ts]]
 - [[src/lib/openskyFlights.ts]]
 - [[src/lib/aisShips.ts]]
+- [[api/ais-nearby.ts]]

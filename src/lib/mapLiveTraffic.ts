@@ -241,6 +241,29 @@ export function formatRushFlightChip(opts: {
   return short || 'err';
 }
 
+/** SHIP chip: count, or 0 / … / ws / need-key. */
+export function formatRushShipChip(opts: {
+  count: number;
+  error: string | null;
+  loading: boolean;
+}): string {
+  if (opts.count > 0) return String(opts.count);
+  if (opts.loading) return '…';
+  const err = String(opts.error || '').trim().toLowerCase();
+  if (!err || err === 'empty') return '0';
+  if (err.includes('need-key') || err.includes('no key') || err.includes('missing')) return 'need-key';
+  if (
+    err === 'ws' ||
+    err.includes('socket') ||
+    err.includes('401') ||
+    err.includes('close') ||
+    err.includes('unreachable')
+  ) {
+    return 'ws';
+  }
+  return err.slice(0, 8);
+}
+
 export function bboxAreaSqDeg(bbox: GeoBbox): number {
   return Math.max(0, bbox.lamax - bbox.lamin) * Math.max(0, bbox.lomax - bbox.lomin);
 }
