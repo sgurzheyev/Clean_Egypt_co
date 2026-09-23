@@ -85,7 +85,7 @@ Wired in `public/manifest.json` and `index.html` (`theme-color` / `background_co
 - [[src/lib/mapFunMode.ts]] — RUSH / fun-map localStorage toggle (H2H night land + cyan roads). No property-price HUD.
 - [[src/lib/mapSolarAtmosphere.ts]] — cinematic dawn/dusk fog/sky from local solar altitude (Egypt / Red Sea). Fun mode only boosts bloom.
 - [[src/lib/openskyFlights.ts]] — OpenSky `/states/all` bbox (same-origin `/api/opensky-states`), ADSB.lol fallback (`/api/adsb-nearby`)
-- [[src/lib/aisShips.ts]] — client poll of [[api/ais-nearby.ts]] (AISStream WS is server-side; browsers are blocked). Never fake vessels.
+- [[src/lib/aisShips.ts]] — client poll of [[api/ais-nearby.ts]] (server `ws` + permessage-deflate; browsers are blocked). Never fake vessels.
 - [[src/hooks/useMapLiveTraffic.ts]]
 - [[src/hooks/useLocationCatalog.ts]]
 - [[src/hooks/useMissionChat.ts]]
