@@ -52,7 +52,7 @@ aliases: [Frontend Components, UI Map]
 | Map Standard / fun mode | [[src/lib/mapboxStandardTheme.ts]] · [[src/lib/mapFunMode.ts]] · [[src/lib/mapSolarAtmosphere.ts]] |
 | Live flights / ships | [[src/lib/openskyFlights.ts]] · [[src/lib/aisShips.ts]] · [[src/lib/mapLiveTraffic.ts]] · [[src/hooks/useMapLiveTraffic.ts]] |
 | Map weather layers | [[src/lib/mapWeather.ts]] |
-| PWA / home-screen app icon | [[public/brand/garbagin-app-icon-1024.png]] · [[scripts/export-app-icons.py]] |
+| PWA / home-screen app icon | [[public/brand/garbagin-app-icon-1024.png]] · [[scripts/export-app-icons.py]] · [[02_Frontend/App_Icon_Fill]] |
 | Project UI rules | [[.cursorrules]] |
 
 ### App icon (PWA install)
@@ -66,7 +66,7 @@ Home-screen / favicon artwork is a 3D glass-metal **G** (same silhouette family 
 | Cyan map accent | `#22d3ee` | Glass neon, service-zone pins, splash gradient |
 | Emerald eco tag | `#10b981` `#34d399` | `--uv-accent`, approve CTAs, history chips |
 
-**Master:** `public/brand/garbagin-app-icon-1024.png` (1024×1024, square, no pre-drawn squircle — iOS/Android apply their own mask).
+**Master:** `public/brand/garbagin-app-icon-1024.png` (1024×1024, square, no pre-drawn squircle — iOS/Android apply their own mask). The G fills ~94% of the navy plate so the home-screen tile matches neighboring apps. Note: [[02_Frontend/App_Icon_Fill]].
 
 **Install copies** (rewritten by `python3 scripts/export-app-icons.py`):
 
@@ -74,7 +74,7 @@ Home-screen / favicon artwork is a 3D glass-metal **G** (same silhouette family 
 | --- | --- |
 | `public/icon-1024.png` | High-res `any` |
 | `public/icon-512.png` / `public/icon-192.png` | Manifest + favicon `any` |
-| `public/icon-512-maskable.png` / `public/icon-192-maskable.png` | Manifest `maskable` (G inset ~72% so a circular crop does not clip the letter) |
+| `public/icon-512-maskable.png` / `public/icon-192-maskable.png` | Manifest `maskable` (master scaled to 0.85 so the ~94% G sits on the 80% safe circle) |
 | `public/apple-touch-icon.png` | 180×180, `index.html` |
 
 Wired in `public/manifest.json` and `index.html` (`theme-color` / `background_color` `#020617`). No Capacitor / Android `mipmap` / iOS `AppIcon` tree exists in this repo yet — when Play packaging lands, reuse the 1024 master. Do not change this mark to Paranoic cyan; keep the violet–magenta body + cyan rim.

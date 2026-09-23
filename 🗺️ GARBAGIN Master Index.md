@@ -65,6 +65,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[vite.config.ts]]
 - [[package.json]]
 - [[README.md]]
+- [[02_Frontend/App_Icon_Fill]] — home-screen G at ~94% fill + maskable scale 0.85
 
 ### Clients & shared libs
 - [[services/supabase.ts]]
@@ -337,6 +338,7 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 | Security / RPCs | [[01_Architecture/Security_and_RPCs]] | [[supabase/migrations/20260719_submit_mission_proof_rpc.sql]] |
 | KYC | [[01_Architecture/KYC_Verification]] | [[components/VerificationModal.tsx]], [[src/lib/kycDocuments.ts]] |
 | Map / glass UI | [[02_Frontend/Frontend_Components]] | [[components/MapPicker.tsx]], [[components/Profile.tsx]] |
+| Home-screen app icon | [[02_Frontend/App_Icon_Fill]] | [[public/brand/garbagin-app-icon-1024.png]], [[scripts/export-app-icons.py]] |
 | Phone privacy audit | [[03_Backend_SQL/AUDIT_phone_missions_access]] | [[supabase/migrations/20260723_hide_client_phone_until_bid_accept.sql]] |
 | Multi-country filter / location facets | [[01_Architecture/Global_Location_Filtering]] | [[src/lib/globalMarketplace.ts]], [[components/MissionFilterPanel.tsx]] |
 

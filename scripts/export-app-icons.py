@@ -24,9 +24,13 @@ ROOT = Path(__file__).resolve().parents[1]
 MASTER = ROOT / "public" / "brand" / "garbagin-app-icon-1024.png"
 PUBLIC = ROOT / "public"
 
-# Android maskable safe zone is the centered 80% circle. Scale the full-bleed
-# master down so the 3D G survives circular / squircle launcher crops.
-MASKABLE_SCALE = 0.72
+# W3C maskable safe zone is a centered circle with diameter 80% of the icon.
+# The 1024 master is already a ~94% G (painted bounds ~92% × 94%), so the old
+# 0.72 scale double-shrinks it to ~68% of the tile — the same "tiny mark"
+# the padded master had on the home screen. 0.85 × ~94% lands the letter on
+# that 80% circle: the metal G stays inside; only the dim floor reflection
+# crosses it. 0.88 starts clipping the cyan rim.
+MASKABLE_SCALE = 0.85
 # Fallback if the master cannot be sampled (matches --uv-bg / html background).
 NAVY_FALLBACK = (0x02, 0x06, 0x17)
 
