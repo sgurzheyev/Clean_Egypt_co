@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { spawnSync } from 'child_process';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -39,6 +40,25 @@ function firebaseMessagingSwPlugin(mode: string): Plugin {
     closeBundle() {
       render(path.join(root, 'dist', 'firebase-messaging-sw.js'));
       render(path.join(root, 'dist', 'firebase-messaging-sw.generated.js'));
+    },
+  };
+}
+
+/** Cold GET /privacy must include the policy text, not only the empty SPA shell. */
+function prerenderPrivacyPlugin(): Plugin {
+  return {
+    name: 'prerender-privacy-html',
+    apply: 'build',
+    closeBundle() {
+      const script = path.join(__dirname, 'scripts', 'prerender-privacy.mjs');
+      const result = spawnSync(process.execPath, [script], {
+        cwd: __dirname,
+        stdio: 'inherit',
+        env: process.env,
+      });
+      if (result.status !== 0) {
+        throw new Error(`prerender-privacy failed (exit ${result.status ?? 'signal'})`);
+      }
     },
   };
 }
@@ -185,7 +205,12 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       host: '0.0.0.0',
     },
-    plugins: [react(), firebaseMessagingSwPlugin(mode), liveTrafficDevProxy(env)],
+    plugins: [
+      react(),
+      firebaseMessagingSwPlugin(mode),
+      liveTrafficDevProxy(env),
+      prerenderPrivacyPlugin(),
+    ],
     define: {
       // Do not embed GEMINI_API_KEY / other secrets into the client bundle.
       global: 'window',
