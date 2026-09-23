@@ -5767,39 +5767,60 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
         <WeatherOverlay weather={mapWeather} />
 
-        {weatherDebugOpen ? (
-          <WeatherDebugPanel
-            control={weatherControl}
-            effectiveWeather={mapWeather}
-            onChange={setWeatherControl}
-            liveLoading={liveWeather.loading}
-            liveError={liveWeather.error}
-            liveHint={
-              liveWeather.current
-                ? `wind ${Math.round(Number(liveWeather.current.windspeed ?? 0))} km/h · code ${liveWeather.current.weathercode ?? '—'}`
-                : weatherFetchCenter
-                  ? `${weatherFetchCenter.lat.toFixed(2)}, ${weatherFetchCenter.lng.toFixed(2)}`
-                  : null
-            }
-            onHide={() => {
-              setWeatherDebugOpen(false);
-              if (!import.meta.env.DEV) setWeatherDebugEnabled(false);
-            }}
-          />
-        ) : (
-          <button
-            type="button"
-            title="Weather debug"
-            aria-label="Weather debug"
-            onClick={() => {
-              setWeatherDebugEnabled(true);
-              setWeatherDebugOpen(true);
-            }}
-            className="pointer-events-auto absolute left-2 bottom-[max(2.25rem,calc(env(safe-area-inset-bottom)+2rem))] z-[40] rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-500/80 opacity-40 hover:opacity-90 hover:text-amber-200"
-          >
-            WX
-          </button>
-        )}
+        {/* Bottom-left debug cluster: Weather Debug + small RUSH control.
+            Narrow screens stack RUSH above the panel so it clears the center avatar. */}
+        <div className="pointer-events-none absolute left-3 bottom-[max(2.25rem,calc(env(safe-area-inset-bottom)+2rem))] z-[40] flex max-w-[calc(100%-4.5rem)] flex-col-reverse items-start gap-2 md:flex-row md:items-end">
+          {weatherDebugOpen ? (
+            <WeatherDebugPanel
+              control={weatherControl}
+              effectiveWeather={mapWeather}
+              onChange={setWeatherControl}
+              liveLoading={liveWeather.loading}
+              liveError={liveWeather.error}
+              liveHint={
+                liveWeather.current
+                  ? `wind ${Math.round(Number(liveWeather.current.windspeed ?? 0))} km/h · code ${liveWeather.current.weathercode ?? '—'}`
+                  : weatherFetchCenter
+                    ? `${weatherFetchCenter.lat.toFixed(2)}, ${weatherFetchCenter.lng.toFixed(2)}`
+                    : null
+              }
+              onHide={() => {
+                setWeatherDebugOpen(false);
+                if (!import.meta.env.DEV) setWeatherDebugEnabled(false);
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              title="Weather debug"
+              aria-label="Weather debug"
+              onClick={() => {
+                setWeatherDebugEnabled(true);
+                setWeatherDebugOpen(true);
+              }}
+              className="pointer-events-auto rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-500/80 opacity-40 hover:opacity-90 hover:text-amber-200"
+            >
+              WX
+            </button>
+          )}
+          {showProfileFab ? (
+            <MapFunModeControls
+              mode={rushCraftMode}
+              flightsCount={liveTrafficData.flightsCount}
+              flightError={liveTrafficData.flightMeta.error}
+              flightsLoading={liveTrafficData.flightsLoading}
+              shipsCount={liveTrafficData.shipsCount}
+              shipError={liveTrafficData.shipMeta.error}
+              shipsLoading={liveTrafficData.shipsLoading}
+              onModeChange={(next) => {
+                setRushCraftMode(next);
+                writeRushCraftMode(next);
+                if (next === 'off') setTrafficTip(null);
+                window.requestAnimationFrame(() => restoreLiveMapGestures());
+              }}
+            />
+          ) : null}
+        </div>
       </div>
 
       <TokenPackModal
@@ -6128,24 +6149,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
             />
           </span>
         </button>
-      )}
-
-      {showProfileFab && (
-        <MapFunModeControls
-          mode={rushCraftMode}
-          flightsCount={liveTrafficData.flightsCount}
-          flightError={liveTrafficData.flightMeta.error}
-          flightsLoading={liveTrafficData.flightsLoading}
-          shipsCount={liveTrafficData.shipsCount}
-          shipError={liveTrafficData.shipMeta.error}
-          shipsLoading={liveTrafficData.shipsLoading}
-          onModeChange={(next) => {
-            setRushCraftMode(next);
-            writeRushCraftMode(next);
-            if (next === 'off') setTrafficTip(null);
-            window.requestAnimationFrame(() => restoreLiveMapGestures());
-          }}
-        />
       )}
 
       {storeMode && selectedStore && !storeProfileOwnerId && (

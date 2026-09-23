@@ -9,7 +9,7 @@ export const FUN_MAP_MODE_STORAGE_KEY = 'ce_fun_map_mode';
 export const LIVE_MAP_TRAFFIC_STORAGE_KEY = 'ce_live_map_traffic';
 export const RUSH_CRAFT_MODE_STORAGE_KEY = 'ce_rush_craft_mode';
 
-/** Pink FAB cycle: off → ships → planes → off. */
+/** Debug-cluster control cycle: off → ships → planes → off. */
 export type RushCraftMode = 'off' | 'ships' | 'planes';
 
 export function isRushCraftMode(value: unknown): value is RushCraftMode {
