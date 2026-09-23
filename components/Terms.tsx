@@ -60,6 +60,14 @@ const Terms: React.FC = () => {
               or policies over time. Continued use after updates means you accept the revised terms.
             </p>
           </section>
+
+          <p className="text-sm text-slate-400">
+            Related:{' '}
+            <Link to="/privacy" className="text-cyan-300 underline underline-offset-2 hover:text-cyan-200">
+              Privacy Policy
+            </Link>
+            .
+          </p>
         </main>
       </div>
     </div>

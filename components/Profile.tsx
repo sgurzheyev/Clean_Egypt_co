@@ -3211,6 +3211,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
 
         {/* Legal footer (Stripe compliance) */}
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[10px] text-cyan-500/50">
+          <a href="/privacy" className="hover:text-orange-400 transition-colors">
+            {t('privacyPolicy')}
+          </a>
           <a
             href="#"
             onClick={(e) => {

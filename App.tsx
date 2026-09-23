@@ -3,7 +3,7 @@
  * App shell: Mapbox map layer, Profile/Auth overlays, lazy AR toggle.
  */
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { useLocation, Routes, Route } from 'react-router-dom';
+import { useLocation, Routes, Route, Navigate } from 'react-router-dom';
 import MapPicker from './components/MapPicker';
 
 // Lazy: keeps three.js/WebXR out of the initial bundle until AR is opened.
@@ -88,6 +88,7 @@ const App: React.FC = () => {
     <Routes>
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
+      <Route path="/privacy-policy" element={<Navigate to="/privacy" replace />} />
       <Route path="/try-free" element={<TryFree />} />
       <Route path="/profile/:id" element={<PublicProfile />} />
       <Route path="/store/:id" element={<StorefrontPage />} />
