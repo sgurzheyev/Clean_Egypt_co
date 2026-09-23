@@ -1,14 +1,36 @@
 /**
  * RUSH control in the bottom-left debug cluster: cycle off → ships → planes → off.
- * Same button size/chrome as Weather Debug («Auto (Live)» / «Clear»).
+ * Idle uses the same chip as the collapsed WX button (padding, type, radius, faint ink).
+ * Ships / planes keep that footprint, then add accent color plus the icon and count.
  * Peek card (title + count chip) lifts then slides back so the map stays visible.
  * Long-press-safe (click/tap only). No property-price HUD.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Palette, Plane, Ship } from 'lucide-react';
+import { Plane, Ship } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cycleRushCraftMode, type RushCraftMode } from '../src/lib/mapFunMode';
 import { formatRushFlightChip, formatRushShipChip } from '../src/lib/mapLiveTraffic';
+
+/**
+ * Collapsed weather chip in MapPicker. Idle RUSH must use this string verbatim
+ * so the two controls share footprint and contrast.
+ */
+export const MAP_DEBUG_CHIP_IDLE_CLASS =
+  'pointer-events-auto rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-500/80 opacity-40 hover:opacity-90 hover:text-amber-200';
+
+const RUSH_CHIP_ACTIVE_SIZE =
+  'pointer-events-auto inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider opacity-100';
+
+/** Active craft chip: same metrics as the WX chip, with mode color and glow. */
+export function rushChipClass(mode: RushCraftMode): string {
+  if (mode === 'planes') {
+    return `${RUSH_CHIP_ACTIVE_SIZE} border-lime-400/60 bg-lime-500/25 text-lime-50 shadow-[0_0_10px_rgba(163,230,53,0.45)]`;
+  }
+  if (mode === 'ships') {
+    return `${RUSH_CHIP_ACTIVE_SIZE} border-amber-400/60 bg-amber-500/25 text-amber-50 shadow-[0_0_10px_rgba(251,191,36,0.4)]`;
+  }
+  return MAP_DEBUG_CHIP_IDLE_CLASS;
+}
 
 export type MapFunModeControlsProps = {
   mode: RushCraftMode;
@@ -113,31 +135,24 @@ const MapFunModeControls: React.FC<MapFunModeControlsProps> = ({
   const rushLabel = t('liveMapTraffic', { defaultValue: 'RUSH' });
 
   return (
-    <div className="pointer-events-auto relative shrink-0 rounded-2xl border border-white/15 bg-slate-950/85 p-2.5 shadow-xl backdrop-blur-md">
+    <div className="pointer-events-auto relative shrink-0">
       <button
         type="button"
         onClick={cycle}
-        className={`inline-flex max-w-full items-center gap-1.5 rounded-xl px-3 py-2 text-left text-[11px] font-semibold transition-colors ${
-          rushOn
-            ? mode === 'planes'
-              ? 'border border-lime-400/40 bg-lime-500/20 text-lime-50'
-              : 'border border-amber-400/40 bg-amber-500/20 text-amber-50'
-            : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
-        }`}
+        data-rush-mode={mode}
+        className={rushChipClass(mode)}
         aria-label={fabLabel}
         aria-pressed={rushOn}
         title={fabLabel}
       >
         {mode === 'planes' ? (
-          <Plane className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} aria-hidden />
+          <Plane className="h-2.5 w-2.5 shrink-0" strokeWidth={2.25} aria-hidden />
         ) : mode === 'ships' ? (
-          <Ship className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} aria-hidden />
-        ) : (
-          <Palette className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} aria-hidden />
-        )}
-        <span className="uppercase tracking-[0.14em]">{rushLabel}</span>
+          <Ship className="h-2.5 w-2.5 shrink-0" strokeWidth={2.25} aria-hidden />
+        ) : null}
+        <span>{rushLabel}</span>
         {rushOn ? (
-          <span className="max-w-[7rem] truncate font-black tabular-nums uppercase tracking-wide">
+          <span className="max-w-[4.5rem] truncate tabular-nums">
             {mode === 'planes' ? planeChip : shipChip}
           </span>
         ) : null}

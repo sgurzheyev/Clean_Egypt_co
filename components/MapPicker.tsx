@@ -136,7 +136,7 @@ import {
   suspendMapInteractions,
 } from '../src/lib/mapInteractions';
 import MapBootSplash from './MapBootSplash';
-import MapFunModeControls from './MapFunModeControls';
+import MapFunModeControls, { MAP_DEBUG_CHIP_IDLE_CLASS } from './MapFunModeControls';
 import {
   applyMapboxStandardBasemapConfig,
   isMapStyleReady,
@@ -5767,8 +5767,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
         <WeatherOverlay weather={mapWeather} />
 
-        {/* Bottom-left debug cluster: Weather Debug + small RUSH control.
-            Narrow screens stack RUSH above the panel so it clears the center avatar. */}
+        {/* Bottom-left debug cluster: collapsed WX chip + RUSH.
+            Idle RUSH uses the same chip as WX. Narrow screens stack RUSH above WX. */}
         <div className="pointer-events-none absolute left-3 bottom-[max(2.25rem,calc(env(safe-area-inset-bottom)+2rem))] z-[40] flex max-w-[calc(100%-4.5rem)] flex-col-reverse items-start gap-2 md:flex-row md:items-end">
           {weatherDebugOpen ? (
             <WeatherDebugPanel
@@ -5798,7 +5798,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 setWeatherDebugEnabled(true);
                 setWeatherDebugOpen(true);
               }}
-              className="pointer-events-auto rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-500/80 opacity-40 hover:opacity-90 hover:text-amber-200"
+              className={MAP_DEBUG_CHIP_IDLE_CLASS}
             >
               WX
             </button>

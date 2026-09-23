@@ -22,7 +22,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 | Edge & API | [[03_Backend_SQL/Backend_Edge_and_API]] |
 | Roadmap | [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] |
 | Lifecycle audit / Wave A–I | [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] · [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] |
-| Map RUSH | [[04_Roadmap_Tasks/Map_Rush_Mode]] |
+| Map RUSH | [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] |
 | Archive | [[05_Archive/Garbagin_Roadmap_Update]] |
 | Field dashboard | [[04_Roadmap_Tasks/00_Dashboard]] |
 
@@ -49,6 +49,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] — SEC-5 push token lock + fail-closed Edge + Hungry-Games subscription
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] — SEC-4 Vercel user JWT on AI / notify APIs
 - [[04_Roadmap_Tasks/Map_Rush_Mode]] — RUSH live planes/ships + H2H night land
+- [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] — idle RUSH chip matches collapsed WX
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `supabase migration repair` for `20260912_*` / `20260917_*`
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games SQL + Edge apply order · Wave I Vercel JWT (no SQL)
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — read-only lifecycle scorecard (PR #2)
@@ -331,7 +332,7 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 | Lifecycle Wave G | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] | [[supabase/migrations/20260917_wave_g_lifecycle_hardening.sql]], [[src/lib/missionBids.ts]] |
 | Lifecycle Wave H / Hungry-Games sub | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] | [[supabase/migrations/20260917_wave_h_surface_hardening.sql]], [[supabase/migrations/20260917_hungry_games_subscription_gate.sql]], [[components/MapPicker.tsx]] |
 | Lifecycle Wave I / SEC-4 | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] | [[api/_lib/requireUser.ts]], [[api/analyze-mission.ts]], [[src/lib/supabaseAuth.ts]] |
-| Map RUSH / live craft | [[04_Roadmap_Tasks/Map_Rush_Mode]] | [[components/MapFunModeControls.tsx]], [[src/lib/mapLiveTraffic.ts]], [[api/opensky-states.ts]], [[api/adsb-nearby.ts]] |
+| Map RUSH / live craft | [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] | [[components/MapFunModeControls.tsx]], [[src/lib/mapLiveTraffic.ts]], [[api/opensky-states.ts]], [[api/adsb-nearby.ts]] |
 | P2P deals (no escrow) | [[01_Architecture/P2P_Deal_Flow]] | [[src/lib/submitMissionProof.ts]], [[src/lib/missionBids.ts]] |
 | Security / RPCs | [[01_Architecture/Security_and_RPCs]] | [[supabase/migrations/20260719_submit_mission_proof_rpc.sql]] |
 | KYC | [[01_Architecture/KYC_Verification]] | [[components/VerificationModal.tsx]], [[src/lib/kycDocuments.ts]] |

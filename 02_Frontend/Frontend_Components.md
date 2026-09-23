@@ -105,7 +105,7 @@ Wired in `public/manifest.json` and `index.html` (`theme-color` / `background_co
 
 ### Fun map mode, sunrise/sunset, RUSH live traffic
 
-Bottom-left debug control (`components/MapFunModeControls.tsx`) is **RUSH**, grouped with Weather Debug and sized like those buttons. Cycle: **ships → planes → off**. Peek card (title + count chip) lifts then slides back. Night land follows whether a craft mode is active. **No property-price HUD.** No explanation copy. Note: [[04_Roadmap_Tasks/Map_Rush_Mode]].
+Bottom-left debug control (`components/MapFunModeControls.tsx`) is **RUSH**, stacked with the collapsed **WX** chip. Idle RUSH uses that chip’s size and faint ink; ships / planes add accent color, icon, and count without growing into the Weather Debug panel buttons. Cycle: **ships → planes → off**. Peek card (title + count chip) lifts then slides back. Night land follows whether a craft mode is active. **No property-price HUD.** No explanation copy. Notes: [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]].
 
 Dawn/dusk uses [[src/lib/mapSolarAtmosphere.ts]] from SunCalc at the map center (Egypt / Red Sea local solar times). Horizon fog/halo is cinematic in normal mode; RUSH only swaps land tokens + cyan road overlay. Atmosphere ticks every 20s in twilight, 60s otherwise.
 

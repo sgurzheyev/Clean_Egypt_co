@@ -11,11 +11,11 @@ aliases: [RUSH, live traffic, fun map]
 
 > Hub: [[🗺️ GARBAGIN Master Index]] · UI: [[02_Frontend/Frontend_Components]] · APIs: [[03_Backend_SQL/Backend_Edge_and_API]] · Field: [[04_Roadmap_Tasks/00_Dashboard]]
 
-Small control in the bottom-left debug cluster on [[components/MapPicker.tsx]], beside [[src/components/WeatherDebugPanel.tsx]]. It cycles **off → ships → planes → off** and uses the same glass chrome and button size as Weather Debug («Auto (Live)» / «Clear») — not a left-stack FAB. Each craft press peeks a tiny **RUSH + count** chip, then the card **slides back** so the map stays visible. Third press turns RUSH off (steel land). Night land tint is on only while ships or planes mode is active. On narrow screens the control stacks above the weather panel so it stays clear of the center avatar.
+Small control in the bottom-left debug cluster on [[components/MapPicker.tsx]], beside the collapsed **WX** chip (and [[src/components/WeatherDebugPanel.tsx]] when that panel is open). It cycles **off → ships → planes → off**. **Idle RUSH matches the WX chip** — same padding, type size, radius, and low-contrast ink. Ships and planes keep that footprint, then add accent color, the craft icon, and the live count. See [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]]. Each craft press still peeks a **RUSH + count** card, then the card **slides back**. Third press turns RUSH off (steel land, faint chip). Night land tint is on only while ships or planes mode is active. On narrow screens the control stacks above WX so it stays clear of the center avatar.
 
 ## Copy
 
-Card: **RUSH** + chip (live count, or a short error). No hint paragraphs, no «press · look · closed», no «нет самолётов». The control itself shows a ship/plane/palette icon, the word RUSH, and the same chip while a mode is active.
+Card: **RUSH** + chip (live count, or a short error). No hint paragraphs, no «press · look · closed», no «нет самолётов». Idle control is the word RUSH only (no icon, no count). While ships or planes mode is active the same chip shows the craft icon, the word RUSH, and the count.
 
 ## Craft
 
@@ -38,6 +38,7 @@ See [[.env.example]] `AISSTREAM_API_KEY` (preferred) / `VITE_AISSTREAM_API_KEY` 
 
 ## Related files
 
+- [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]]
 - [[components/MapFunModeControls.tsx]]
 - [[src/lib/mapFunMode.ts]]
 - [[src/lib/mapLiveTraffic.ts]]

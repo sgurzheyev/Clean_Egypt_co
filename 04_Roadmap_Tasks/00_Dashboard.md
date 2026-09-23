@@ -19,6 +19,7 @@
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] — SEC-5 push token + fail-closed Edge + Hungry-Games subscription
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] — SEC-4 Vercel user JWT on AI / notify APIs
 - [[04_Roadmap_Tasks/Map_Rush_Mode]] — RUSH live planes/ships + H2H night land
+- [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] — idle RUSH chip matches collapsed WX
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `migration repair` for `20260912_*` / `20260917_*` (no `db push`)
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games SQL + Edge apply order · Wave I Vercel JWT (no SQL)
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — canon vs code scorecard (Waves A–I)
@@ -41,6 +42,7 @@
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]: SEC-5 push token / fail-closed Edge / Hungry-Games subscription
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]: SEC-4 Vercel `/api/*` user JWT + membership
 - [[04_Roadmap_Tasks/Map_Rush_Mode]]: RUSH live planes/ships + H2H night land
+- [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]]: idle RUSH matches the WX chip; color and craft count only while ships/planes are on
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]: `supabase migration repair --status applied 20260912` / `20260917`
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]: P0→H + Hungry-Games paste order (live already applied)
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]: аудит стейт-машины
@@ -69,7 +71,7 @@
 - [ ] Wave G: accept bid above raised on an `available` crowd pin stays `funding`; expiry clears `cleaner_id` ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]])
 - [ ] Wave H / Hungry-Games: new bid without subscription opens the MapPicker modal; push token conflict does not hijack; Edge 401s without secret ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]])
 - [ ] Wave I: unauthenticated POST `/api/translate` / `moderate-*` / `analyze-mission` / `notify-*` is 401; non-member cannot analyze/notify ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]])
-- [ ] RUSH: FAB cycles ships → planes → off; peek card slides back; only that mode’s markers; off restores steel land ([[04_Roadmap_Tasks/Map_Rush_Mode]])
+- [ ] RUSH: idle chip matches WX (small, faint); tap cycles ships → planes → off with accent + count; peek slides back; off restores steel land ([[04_Roadmap_Tasks/Map_Rush_Idle_Chip]])
 - [ ] Wave F–H (ops): `migration list` no Local-only `20260917`; Edge secrets `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET` set
 - [ ] KYC: submit → admin signed preview → approve/reject
 - [ ] P2P: bid → proof → creator confirm
