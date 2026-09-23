@@ -1,21 +1,25 @@
 /**
  * Same-origin AISStream proxy. Self-contained: do not import `./_lib/*`.
  *
- * AISStream blocks browser WebSockets (401 / CORS). The map must poll this
- * lambda instead of connecting to wss://stream.aisstream.io from the client.
- * Frames on the upstream socket are often binary — decode UTF-8 before JSON.parse.
+ * AISStream blocks browser WebSockets. The map polls this lambda instead.
+ * Frames are **binary UTF-8 JSON**. Since September 2026, uncompressed
+ * connections are bandwidth-limited and frames are dropped — the official
+ * client is the `ws` package with `{ perMessageDeflate: true }`.
+ * Global/undici `WebSocket` cannot negotiate that extension, so Vercel
+ * collected 0 ships in ~3s (`error: empty`) even with a valid key.
  *
  * Prefer server env `AISSTREAM_API_KEY` (not inlined). Falls back to
- * `VITE_AISSTREAM_API_KEY` so an existing Vercel bake still works. Never 500:
- * always `{ ships, error? }`.
+ * `VITE_AISSTREAM_API_KEY`. Never 500: always `{ ships, error? }`.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import Ws from 'ws';
 
 export const config = { maxDuration: 15 };
 
 const AISSTREAM_WS_URL = 'wss://stream.aisstream.io/v0/stream';
 const CACHE_MS = 8_000;
-const COLLECT_MS = 3_200;
+const EMPTY_CACHE_MS = 2_000;
+const COLLECT_MS = 5_000;
 const OPEN_TIMEOUT_MS = 3_000;
 
 const POSITION_TYPES = [
@@ -34,7 +38,7 @@ type AisShip = {
   sog: number | null;
 };
 
-type CacheEntry = { at: number; status: number; body: unknown };
+type CacheEntry = { at: number; status: number; body: unknown; source: string; frames: number };
 const cache = new Map<string, CacheEntry>();
 
 const KEY_PLACEHOLDERS = new Set([
@@ -51,6 +55,22 @@ const KEY_PLACEHOLDERS = new Set([
   'supabase_service_role_key',
   'service_role',
 ]);
+
+export type AisClientSocket = {
+  readyState: number;
+  on?(event: string, listener: (...args: unknown[]) => void): void;
+  addEventListener?(event: string, listener: (ev?: { data?: unknown }) => void): void;
+  send(data: string): void;
+  close(): void;
+};
+
+export type QueryAisNearbyResult = {
+  ships: AisShip[];
+  error?: string;
+  source: string;
+  frames: number;
+  confirmed: boolean;
+};
 
 function num(v: unknown): number | null {
   const n = typeof v === 'number' ? v : Number(v);
@@ -73,17 +93,21 @@ function readAisKey(): string {
   return '';
 }
 
-function decodeFrame(data: unknown): unknown | null {
+/** Decode a binary (or text) AISStream frame to UTF-8 JSON text. */
+export function decodeAisProxyFrame(data: unknown): unknown | null {
   try {
     let text = '';
     if (typeof data === 'string') text = data;
     else if (typeof Buffer !== 'undefined' && Buffer.isBuffer(data)) text = data.toString('utf8');
-    else if (data instanceof ArrayBuffer) text = new TextDecoder().decode(data);
+    else if (Array.isArray(data) && data.length > 0 && typeof Buffer !== 'undefined' && data.every((p) => Buffer.isBuffer(p))) {
+      text = Buffer.concat(data as Buffer[]).toString('utf8');
+    } else if (data instanceof ArrayBuffer) text = new TextDecoder().decode(data);
     else if (ArrayBuffer.isView(data)) {
-      const view = data as ArrayBufferView;
-      text = new TextDecoder().decode(view);
+      text = new TextDecoder().decode(data as ArrayBufferView);
+    } else if (data && typeof data === 'object' && 'type' in data && (data as { type?: string }).type === 'Buffer' && Array.isArray((data as { data?: unknown }).data)) {
+      text = Buffer.from((data as { data: number[] }).data).toString('utf8');
     } else {
-      text = String(data ?? '');
+      text = '';
     }
     if (!text || text === '[object Blob]' || text === '[object ArrayBuffer]') return null;
     const trimmed = text.trim();
@@ -132,14 +156,34 @@ function parseShip(raw: unknown): AisShip | null {
   };
 }
 
+function defaultCreateSocket(url: string): AisClientSocket {
+  return new Ws(url, { perMessageDeflate: true }) as unknown as AisClientSocket;
+}
+
+function listen(socket: AisClientSocket, event: string, fn: (...args: unknown[]) => void): void {
+  if (typeof socket.on === 'function') {
+    socket.on(event, fn);
+    return;
+  }
+  if (typeof socket.addEventListener === 'function') {
+    socket.addEventListener(event, (ev) => {
+      fn(event === 'message' ? ev?.data : ev);
+    });
+  }
+}
+
 export async function queryAisNearby(
   bbox: { lamin: number; lomin: number; lamax: number; lomax: number },
   apiKey: string,
-  collectMs = COLLECT_MS
-): Promise<{ ships: AisShip[]; error?: string; source: string }> {
+  collectMs = COLLECT_MS,
+  createSocket: (url: string) => AisClientSocket = defaultCreateSocket
+): Promise<QueryAisNearbyResult> {
   if (!usableKey(apiKey)) {
-    return { ships: [], error: 'need-key', source: 'none' };
+    return { ships: [], error: 'need-key', source: 'none', frames: 0, confirmed: false };
   }
+
+  const waitMs = Number(collectMs);
+  const collectFor = Number.isFinite(waitMs) && waitMs > 0 ? waitMs : COLLECT_MS;
 
   const box = [
     [bbox.lamin, bbox.lomin],
@@ -153,10 +197,12 @@ export async function queryAisNearby(
 
   const merged = new Map<string, AisShip>();
   let lastError: string | null = null;
+  let frames = 0;
+  let confirmed = false;
 
   await new Promise<void>((resolve) => {
     let settled = false;
-    let ws: WebSocket;
+    let ws: AisClientSocket;
     let openTimer: ReturnType<typeof setTimeout> | undefined;
     let collectTimer: ReturnType<typeof setTimeout> | undefined;
     const finish = () => {
@@ -173,17 +219,11 @@ export async function queryAisNearby(
     };
 
     try {
-      ws = new WebSocket(AISSTREAM_WS_URL);
+      ws = createSocket(AISSTREAM_WS_URL);
     } catch (err) {
       lastError = err instanceof Error ? err.message : 'ws';
       resolve();
       return;
-    }
-
-    try {
-      (ws as { binaryType?: string }).binaryType = 'arraybuffer';
-    } catch {
-      /* ignore */
     }
 
     openTimer = setTimeout(() => {
@@ -193,9 +233,9 @@ export async function queryAisNearby(
       }
     }, OPEN_TIMEOUT_MS);
 
-    collectTimer = setTimeout(finish, collectMs);
+    collectTimer = setTimeout(finish, collectFor);
 
-    ws.addEventListener('open', () => {
+    listen(ws, 'open', () => {
       try {
         ws.send(sub);
       } catch (err) {
@@ -204,10 +244,15 @@ export async function queryAisNearby(
       }
     });
 
-    ws.addEventListener('message', (ev) => {
-      const parsed = decodeFrame((ev as MessageEvent).data);
+    listen(ws, 'message', (data) => {
+      frames += 1;
+      const parsed = decodeAisProxyFrame(data);
       if (!parsed || typeof parsed !== 'object') return;
       const rec = parsed as { error?: unknown; Error?: unknown; MessageType?: string };
+      if (rec.MessageType === 'SubscriptionConfirmation') {
+        confirmed = true;
+        return;
+      }
       const errText = rec.error ?? rec.Error;
       if (errText) {
         lastError = String(errText).slice(0, 80);
@@ -217,12 +262,12 @@ export async function queryAisNearby(
       if (ship) merged.set(ship.mmsi, ship);
     });
 
-    ws.addEventListener('error', () => {
+    listen(ws, 'error', () => {
       lastError = lastError || 'ws';
     });
 
-    ws.addEventListener('close', () => {
-      if (!settled && merged.size === 0) {
+    listen(ws, 'close', () => {
+      if (!settled && merged.size === 0 && !confirmed) {
         lastError = lastError || 'ws';
       }
       finish();
@@ -230,8 +275,14 @@ export async function queryAisNearby(
   });
 
   const ships = [...merged.values()];
-  if (ships.length > 0) return { ships, source: 'aisstream' };
-  return { ships: [], error: lastError || 'empty', source: 'none' };
+  if (ships.length > 0) {
+    return { ships, source: 'aisstream', frames, confirmed };
+  }
+  // Opened + confirmed but no vessels in the box → honest empty.
+  // No frames at all (typical when deflate is missing) → `ws` so the chip
+  // does not look like "Bosphorus has 0 ships".
+  const error = lastError || (confirmed ? 'empty' : frames > 0 ? 'ws' : 'ws');
+  return { ships: [], error, source: 'none', frames, confirmed };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -266,9 +317,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const key = `${lamin.toFixed(3)}:${lomin.toFixed(3)}:${lamax.toFixed(3)}:${lomax.toFixed(3)}`;
     const hit = cache.get(key);
-    if (hit && Date.now() - hit.at < CACHE_MS) {
+    const ttl = hit && hit.source === 'aisstream' ? CACHE_MS : EMPTY_CACHE_MS;
+    if (hit && Date.now() - hit.at < ttl) {
       res.setHeader('Cache-Control', 'public, max-age=6');
       res.setHeader('X-Live-Ships-Cache', 'hit');
+      res.setHeader('X-Live-Ships-Source', hit.source);
+      res.setHeader('X-Live-Ships-Frames', String(hit.frames));
       return res.status(hit.status).json(hit.body);
     }
 
@@ -277,14 +331,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       result.ships.length > 0
         ? { ships: result.ships }
         : { ships: [] as AisShip[], error: result.error || 'empty' };
-    cache.set(key, { at: Date.now(), status: 200, body });
+    cache.set(key, {
+      at: Date.now(),
+      status: 200,
+      body,
+      source: result.source,
+      frames: result.frames,
+    });
     res.setHeader('Cache-Control', result.ships.length > 0 ? 'public, max-age=6' : 'public, max-age=3');
     res.setHeader('X-Live-Ships-Source', result.source);
+    res.setHeader('X-Live-Ships-Frames', String(result.frames));
     return res.status(200).json(body);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'ais proxy failed';
     res.setHeader('Cache-Control', 'public, max-age=3');
     res.setHeader('X-Live-Ships-Source', 'none');
+    res.setHeader('X-Live-Ships-Frames', '0');
     return res.status(200).json({ ships: [], error: message });
   }
 }

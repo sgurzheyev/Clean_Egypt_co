@@ -2,7 +2,7 @@
 title: Map RUSH Mode
 type: architecture
 status: shipped
-updated: 2026-09-21
+updated: 2026-09-23
 tags: [garbagin, map, rush, live-traffic, opensky, aisstream]
 aliases: [RUSH, live traffic, fun map]
 ---
@@ -26,7 +26,7 @@ Card: **RUSH** + one-word chip **SHIP** or **PLANE**. No hint paragraphs, no «p
 - Query bbox is **camera-centered**. Globe + high pitch makes `map.getBounds()` world-wide; clamping that recenters on (0,0) so planes never appear over Port Said / Istanbul. `getBounds` span is used only when it is a real viewport.
 - Flight poll does **not** remount on `cameraBusy` / bbox nudges (those are refs inside tick). `moveLayer` is **not** applied to slotted RUSH craft layers (Standard slot `top`); yanking them out of the slot hides them under the globe.
 - PLANE FAB/peek chip shows the live **count** or a short **error** from `flightMeta`.
-- **Ships** poll same-origin [[api/ais-nearby.ts]] (AISStream WS is **server-side only** — browsers get 401/CORS). Collect ~3s of Class A + Class B position reports, return `{ ships }`. Chip: count / `0` / `…` / `ws` / `need-key`. Never fake vessels. Env: prefer `AISSTREAM_API_KEY` (not inlined); lambda also reads `VITE_AISSTREAM_API_KEY` as a transitional fallback.
+- **Ships** poll same-origin [[api/ais-nearby.ts]] (AISStream WS is **server-side only** — browsers get 401/CORS). The lambda uses the `ws` package with **`perMessageDeflate: true`**. AISStream sends binary UTF-8 JSON; since September 2026 uncompressed connections are bandwidth-limited and frames are dropped (prod symptom: 200 `{ ships: [], error: "empty" }` after ~3s). Collect ~5s of Class A + Class B, return `{ ships }`. Chip: count / `0` / `…` / `ws` / `need-key` — no frames after open is `ws`, not a fake `0`. Never fake vessels. Env: prefer `AISSTREAM_API_KEY` (not inlined); lambda also reads `VITE_AISSTREAM_API_KEY` as a transitional fallback.
 
 ## Land (RUSH on)
 

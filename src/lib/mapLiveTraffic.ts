@@ -254,9 +254,12 @@ export function formatRushShipChip(opts: {
   if (err.includes('need-key') || err.includes('no key') || err.includes('missing')) return 'need-key';
   if (
     err === 'ws' ||
+    err === 'silent' ||
+    err === 'parse' ||
     err.includes('socket') ||
     err.includes('401') ||
     err.includes('close') ||
+    err.includes('deflate') ||
     err.includes('unreachable')
   ) {
     return 'ws';

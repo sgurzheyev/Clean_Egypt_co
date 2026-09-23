@@ -47,7 +47,7 @@ import {
   pickAdsbAircraftList,
 } from '../../api/_lib/adsbNearbyFetch.ts';
 import { queryAdsbNearby as queryAdsbNearbyHandler } from '../../api/adsb-nearby.ts';
-import { queryAisNearby } from '../../api/ais-nearby.ts';
+import { decodeAisProxyFrame, queryAisNearby, type AisClientSocket } from '../../api/ais-nearby.ts';
 import {
   AIS_POSITION_MESSAGE_TYPES,
   buildAisstreamSubscribeMessage,
@@ -183,6 +183,8 @@ function testRushFlightChip() {
   assert(formatRushShipChip({ count: 0, error: 'ws', loading: false }) === 'ws', 'ws');
   assert(formatRushShipChip({ count: 0, error: null, loading: false }) === '0', 'ship empty');
   assert(formatRushShipChip({ count: 0, error: 'empty', loading: false }) === '0', 'empty alias');
+  assert(formatRushShipChip({ count: 0, error: 'silent', loading: false }) === 'ws', 'silent is ws');
+  assert(formatRushShipChip({ count: 0, error: 'parse', loading: false }) === 'ws', 'parse is ws');
 }
 
 function testFlightPollDoesNotRemountOnBusy() {
@@ -380,8 +382,34 @@ function testAisHandlerHasNoRelativeImports() {
     .split('\n')
     .filter((line) => /^\s*import\s/.test(line) && /from\s+['"]\.\//.test(line));
   assert(relativeImports.length === 0, 'ais-nearby must not import ./_lib (Vercel ESM boot crash)');
+  assert(/from\s+['"]ws['"]/.test(src), 'ais-nearby must use the ws package');
+  assert(src.includes('perMessageDeflate: true'), 'AISStream requires permessage-deflate since 2026-09');
   const hook = readFileSync(join(here, '../hooks/useMapLiveTraffic.ts'), 'utf8');
   assert(!hook.includes('new WebSocket'), 'browser must not open AISStream WS');
+}
+
+function fakeAisSocket(frames: unknown[], opts?: { confirmOnly?: boolean }): AisClientSocket {
+  const handlers: Record<string, (...args: unknown[]) => void> = {};
+  const sock: AisClientSocket = {
+    readyState: 0,
+    on(event, listener) {
+      handlers[event] = listener;
+    },
+    send() {
+      /* subscription accepted */
+    },
+    close() {
+      sock.readyState = 3;
+      handlers.close?.();
+    },
+  };
+  queueMicrotask(() => {
+    sock.readyState = 1;
+    handlers.open?.();
+    for (const frame of frames) handlers.message?.(frame);
+    if (opts?.confirmOnly) return;
+  });
+  return sock;
 }
 
 async function testAisProxyNeedKey() {
@@ -391,6 +419,57 @@ async function testAisProxyNeedKey() {
   );
   assert(empty.ships.length === 0, 'no ships without key');
   assert(empty.error === 'need-key', 'need-key when server key missing');
+}
+
+async function testAisProxyDecodesBinaryAndPaints() {
+  const report = {
+    MessageType: 'PositionReport',
+    MetaData: { MMSI: 271000111, ShipName: 'BOSPHORUS STAR', latitude: 41.02, longitude: 29.01 },
+    Message: {
+      PositionReport: {
+        UserID: 271000111,
+        Latitude: 41.02,
+        Longitude: 29.01,
+        Cog: 10,
+        Sog: 8,
+        TrueHeading: 12,
+      },
+    },
+  };
+  const buf = Buffer.from(JSON.stringify(report), 'utf8');
+  const decoded = decodeAisProxyFrame(buf);
+  assert((decoded as { MetaData?: { ShipName?: string } })?.MetaData?.ShipName === 'BOSPHORUS STAR', 'proxy Buffer decode');
+  assert(decodeAisProxyFrame('[object Blob]') === null, 'stringified Blob dropped');
+
+  const painted = await queryAisNearby(
+    { lamin: 40.9, lomin: 28.8, lamax: 41.3, lomax: 29.2 },
+    'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+    80,
+    () =>
+      fakeAisSocket([
+        Buffer.from(
+          JSON.stringify({
+            MessageType: 'SubscriptionConfirmation',
+            Message: { CompressionEnabled: true },
+          }),
+          'utf8'
+        ),
+        buf,
+      ])
+  );
+  assert(painted.ships.length === 1, 'binary PositionReport upserts');
+  assert(painted.ships[0].name === 'BOSPHORUS STAR', 'ship name');
+  assert(painted.source === 'aisstream', 'source aisstream');
+  assert(painted.confirmed, 'subscription confirmed');
+
+  const silent = await queryAisNearby(
+    { lamin: 40.9, lomin: 28.8, lamax: 41.3, lomax: 29.2 },
+    'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+    40,
+    () => fakeAisSocket([])
+  );
+  assert(silent.ships.length === 0, 'no invented ships');
+  assert(silent.error === 'ws', 'no frames after open is ws, not empty');
 }
 
 function testAdsbHandlerHasNoRelativeImports() {
@@ -453,6 +532,7 @@ testAisHandlerHasNoRelativeImports();
 void (async () => {
   await testAisParseAndTracker();
   await testAisProxyNeedKey();
+  await testAisProxyDecodesBinaryAndPaints();
   await testAdsbQuerySoftEmpty();
   await testAdsbQueryMergesFiAircraft();
   console.log('mapFunMode tests ok');
