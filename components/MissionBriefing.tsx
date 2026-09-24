@@ -906,7 +906,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   return (
     <>
     <div
-      className="absolute inset-0 z-[10030] flex items-end justify-center pt-[env(safe-area-inset-top)] isolate pointer-events-auto"
+      className="ce-viewport-overlay z-[10030] flex items-end justify-center pt-[env(safe-area-inset-top)] isolate pointer-events-auto"
       aria-hidden="false"
       onClick={onClose}
     >

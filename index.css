@@ -7,16 +7,14 @@ html,
 body,
 #root {
   position: fixed;
-  top: 0;
+  top: var(--vv-offset-top, 0px);
   left: 0;
   right: 0;
-  bottom: 0;
   width: 100%;
   width: 100vw;
-  height: 100%;
-  height: 100dvh;
+  height: var(--vv-height, 100dvh);
   max-width: 100%;
-  max-height: 100dvh;
+  max-height: var(--vv-height, 100dvh);
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -601,17 +599,37 @@ select,
 }
 
 /**
+ * Full-screen overlay pinned to the visual viewport (not the layout viewport).
+ * Use instead of `absolute inset-0` for map sheets so the first open on iOS /
+ * Telegram is not shifted under the notch or below the home indicator.
+ */
+.ce-viewport-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--vv-offset-top, 0px);
+  height: var(--vv-height, 100dvh);
+  max-height: var(--vv-height, 100dvh);
+  width: 100%;
+}
+
+/**
  * Canonical mobile bottom-sheet shell.
  * Parent MUST be a column flex box with a bounded max-height so the body can
  * scroll while the footer stays pinned and reachable above the home indicator.
- * Cap with `svh` first so the sheet never extends under the browser toolbar.
+ * Height is capped by the visual viewport so the footer stays above the notch
+ * and the home indicator on the first open.
  */
 .ce-bottom-sheet {
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 100%;
-  max-height: min(85svh, 85dvh, 85vh);
+  max-height: min(
+    85svh,
+    85dvh,
+    calc(var(--vv-height, 100dvh) - env(safe-area-inset-top, 0px) - 0.5rem)
+  );
   overflow: hidden;
   overscroll-behavior: contain;
   /* Liquid Glass shell */

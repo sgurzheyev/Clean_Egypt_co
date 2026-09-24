@@ -6,8 +6,8 @@
  * → { upload_url, object_key, method, headers, expires_in, max_bytes }
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
-import { PutObjectCommand } from 'npm:@aws-sdk/client-s3@3.699.0';
-import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3.699.0';
+import { PutObjectCommand } from 'npm:@aws-sdk/client-s3@3.750.0';
+import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3.750.0';
 import {
   ALLOWED_PROOF_CONTENT_TYPES,
   buildProofObjectKey,
@@ -148,15 +148,12 @@ Deno.serve(async (req) => {
     });
 
     const client = createR2Client(r2);
+    // Content-Type only. See r2-presign-media: signed Content-Length / metadata
+    // makes mobile PUT fail before the browser can read the R2 error.
     const command = new PutObjectCommand({
       Bucket: r2.bucket,
       Key: objectKey,
       ContentType: contentType,
-      ...(byteSize != null ? { ContentLength: byteSize } : {}),
-      Metadata: {
-        mission_id: missionId,
-        worker_id: user.id,
-      },
     });
 
     const uploadUrl = await getSignedUrl(client, command, { expiresIn: R2_PUT_TTL_SEC });
@@ -164,9 +161,6 @@ Deno.serve(async (req) => {
     const headers: Record<string, string> = {
       'Content-Type': contentType,
     };
-    if (byteSize != null) {
-      headers['Content-Length'] = String(byteSize);
-    }
 
     return jsonOk({
       upload_url: uploadUrl,

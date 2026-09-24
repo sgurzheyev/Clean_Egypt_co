@@ -8,7 +8,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, BadgeCheck, Calendar, ShieldCheck, Star } from 'lucide-react';
 import { supabase } from '../services/supabase';
-import { getProfileReviews, type ProfileReviewRow } from '../src/lib/reviews';
+import {
+  getProfileReviews,
+  reviewMissionLabelKey,
+  type ProfileReviewRow,
+} from '../src/lib/reviews';
 import { formatSubmittedRelative } from '../src/lib/missionFilterSort';
 import {
   getClientPhoneIfContracted,
@@ -65,6 +69,7 @@ const PublicProfile: React.FC = () => {
   const { t, i18n } = useTranslation();
   const [profile, setProfile] = useState<PublicProfileData | null>(null);
   const [reviews, setReviews] = useState<ProfileReviewRow[]>([]);
+  const [reviewsError, setReviewsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [contractPhone, setContractPhone] = useState<string | null>(null);
@@ -82,6 +87,7 @@ const PublicProfile: React.FC = () => {
     setError(null);
     setContractPhone(null);
     setPhoneChecked(false);
+    setReviewsError(null);
     (async () => {
       const { data, error: rpcErr } = await supabase.rpc('get_public_profile', { p_id: id });
       if (cancelled) return;
@@ -97,6 +103,7 @@ const PublicProfile: React.FC = () => {
         if (!cancelled) setReviews(rows);
       } catch (err) {
         console.warn('getProfileReviews failed:', err);
+        if (!cancelled) setReviewsError(t('reviewsLoadFailed'));
       }
 
       // Phase 3: only returns a phone when viewer has an accepted/assigned private contract.
@@ -279,7 +286,11 @@ const PublicProfile: React.FC = () => {
               <h2 className="mb-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
                 {t('reviewsTitle', { defaultValue: 'Reviews' })}
               </h2>
-              {reviews.length === 0 ? (
+              {reviewsError && reviews.length === 0 ? (
+                <p className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-6 text-center text-xs text-red-200">
+                  {reviewsError}
+                </p>
+              ) : reviews.length === 0 ? (
                 <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-center text-xs text-slate-500">
                   {t('reviewsEmpty', { defaultValue: 'No reviews yet.' })}
                 </p>
@@ -350,6 +361,16 @@ const PublicProfile: React.FC = () => {
                             ))}
                           </div>
                         </div>
+                        {r.mission_label ? (
+                          <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300/80">
+                            {t('reviewMissionContext', {
+                              label: (() => {
+                                const key = reviewMissionLabelKey(r.mission_label);
+                                return key ? t(key) : r.mission_label;
+                              })(),
+                            })}
+                          </p>
+                        ) : null}
                         {r.comment?.trim() ? (
                           <p className="mt-2.5 text-sm leading-relaxed text-slate-200">
                             {r.comment.trim()}

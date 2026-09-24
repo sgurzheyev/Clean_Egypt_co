@@ -16,6 +16,12 @@ import { coerceMissionGalleryUrls, coerceStoredMediaUrls, firstStoredMediaUrl, r
 import { uploadPinVideoProofToR2 } from '../src/lib/pinVideoProof';
 import { notifyMissionEvent } from '../src/lib/notifications';
 import { resolveMissionCleanerId, submitReview } from '../src/lib/reviews';
+import { userFacingRequestMessage } from '../src/lib/requestError';
+import {
+  clampTooltipAnchor,
+  readSafeAreaTopPx,
+  syncVisualViewport,
+} from '../src/lib/visualViewport';
 import { Navigation, Camera, Video, X, User, Plus, Minus, Crosshair, Loader2, TriangleAlert, Store } from 'lucide-react';
 import LiveMarketFeed, { type LiveMarketMission } from './LiveMarketFeed';
 import NotificationBell from './NotificationBell';
@@ -2167,6 +2173,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     trigger: FormTrigger,
     prefill?: { serviceType?: ServiceType; expectedPrice?: number }
   ) => {
+    syncVisualViewport();
     setShowLiveMarketFeed(false);
     setShowMyOrdersPanel(false);
     setDraftPinMenuExpanded(false);
@@ -2964,7 +2971,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
       const projected = map.project([job.location_lng, job.location_lat]);
       const rect = map.getContainer().getBoundingClientRect();
-      setHoveredPinScreen({ x: rect.left + projected.x, y: rect.top + projected.y });
+      const vv = window.visualViewport;
+      setHoveredPinScreen(
+        clampTooltipAnchor(
+          { x: rect.left + projected.x, y: rect.top + projected.y },
+          {
+            left: vv?.offsetLeft ?? 0,
+            top: vv?.offsetTop ?? 0,
+            width: vv?.width ?? window.innerWidth,
+            height: vv?.height ?? window.innerHeight,
+          },
+          { width: 200, height: 72 },
+          readSafeAreaTopPx()
+        )
+      );
       setHoveredPinInfo({
         lat: job.location_lat,
         lng: job.location_lng,
@@ -3009,6 +3029,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [applyMissionPinHover]);
 
   const handleMarkerClick = useCallback((job: JobOnMap) => {
+    syncVisualViewport();
     clearMissionPinHover();
     setMapDraftPin(null);
     setSelectedMission(job);
@@ -3396,7 +3417,20 @@ const MapPicker: React.FC<MapPickerProps> = ({
     if (!map) return;
     const projected = map.project([hoveredPinInfo.lng, hoveredPinInfo.lat]);
     const rect = map.getContainer().getBoundingClientRect();
-    setHoveredPinScreen({ x: rect.left + projected.x, y: rect.top + projected.y });
+    const vv = window.visualViewport;
+    setHoveredPinScreen(
+      clampTooltipAnchor(
+        { x: rect.left + projected.x, y: rect.top + projected.y },
+        {
+          left: vv?.offsetLeft ?? 0,
+          top: vv?.offsetTop ?? 0,
+          width: vv?.width ?? window.innerWidth,
+          height: vv?.height ?? window.innerHeight,
+        },
+        { width: 200, height: 72 },
+        readSafeAreaTopPx()
+      )
+    );
   }, [viewState, hoveredPinInfo]);
 
   useEffect(() => {
@@ -4426,7 +4460,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     } catch (err) {
       console.error('Job submit exception:', err);
       setOrderError(
-        err instanceof Error ? err.message : t('unexpectedErrorTryAgain')
+        userFacingRequestMessage(err, t('networkRequestFailed'))
       );
     } finally {
       setUploadingProof(false);
@@ -5174,6 +5208,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
             // Unlock GeoJSON Sources / pin layers only after Standard is ready.
             setMapReady(true);
+            syncVisualViewport();
+            try {
+              (readyMap as { resize?: () => void }).resize?.();
+            } catch {
+              /* map disposing */
+            }
           });
 
           mapOnLoadCleanupRef.current = () => {
@@ -5850,7 +5890,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Worker subscription gate — blurred map stays visible behind slide-up */}
       {showWorkerSubscriptionGate && (
         <div
-          className="absolute inset-0 z-[10060] flex items-end justify-center pt-[env(safe-area-inset-top)] pointer-events-none isolate"
+          className="ce-viewport-overlay z-[10060] flex items-end justify-center pt-[env(safe-area-inset-top)] pointer-events-none isolate"
           aria-hidden="false"
         >
           <div
@@ -6289,7 +6329,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Adaptive form — slides up from bottom only after City or Home selected */}
       {taskTypeSelected && (
         <div
-          className="absolute inset-0 z-[10050] flex items-end justify-center px-4 pt-[env(safe-area-inset-top)] pointer-events-none isolate"
+          className="ce-viewport-overlay z-[10050] flex items-end justify-center px-4 pt-[env(safe-area-inset-top)] pointer-events-none isolate"
           aria-hidden="false"
         >
           <div
@@ -6708,7 +6748,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
       {/* Hall of Fame modal for completed missions */}
       {hallOfFameMission && (
         <div
-          className="absolute inset-0 z-[10050] flex items-center justify-center pt-[env(safe-area-inset-top)] isolate"
+          className="ce-viewport-overlay z-[10050] flex items-center justify-center pt-[env(safe-area-inset-top)] isolate"
           aria-hidden="false"
         >
           <div

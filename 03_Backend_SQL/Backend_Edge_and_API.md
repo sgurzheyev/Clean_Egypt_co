@@ -20,6 +20,11 @@ aliases: [Backend Edge and API]
 - [[supabase/functions/stripe-intent/index.ts]]
 - [[supabase/functions/create-payment-intent/index.ts]]
 
+## Media uploads
+- [[supabase/functions/r2-presign-media/index.ts]] — presign Content-Type only; phone proxy `file_base64` when browser PUT to R2 is `Failed to fetch`. Note: [[04_Roadmap_Tasks/Phone_Prod_Reviews_Pin_Sheet]]
+- [[supabase/functions/r2-presign-proof/index.ts]] — same signed-header fix for proof video
+- [[supabase/functions/_shared/r2.ts]] — R2 checksum `WHEN_REQUIRED`
+
 ## KYC / city / push
 - [[supabase/functions/kyc-admin-signed-urls/index.ts]] — Wave H: no TG fallback
 - [[supabase/functions/city-notification-pipeline/index.ts]] — Wave H fail-closed auth (`CITY_NOTIFICATION_WEBHOOK_SECRET` or service-role)

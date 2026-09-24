@@ -19,6 +19,7 @@
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] — SEC-1 `platform_admins` + SEC-2 mission column freeze
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] — LIFE-1 underfund accept + LIFE-2 reject RPC + LIFE-3 expiry unlock
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] — SEC-5 push token + fail-closed Edge + Hungry-Games subscription
+- [[04_Roadmap_Tasks/Phone_Prod_Reviews_Pin_Sheet]] — профиль ОТЗЫВЫ, presign R2 «Failed to fetch», visual viewport шита
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `migration repair` for `20260912_*` / `20260917_*` (no `db push`)
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games SQL + Edge apply order
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — lifecycle audit scorecard

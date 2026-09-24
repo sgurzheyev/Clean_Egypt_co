@@ -3,6 +3,7 @@
  * Never sends R2 credentials to the browser.
  */
 import { supabase } from '../../services/supabase';
+import { presignedBrowserPutHeaders, userIdFromAccessToken } from './r2PutHeaders';
 import { resolveAccessToken } from './supabaseAuth';
 import { throwIfInvokeFailed } from './supabaseFunctionError';
 
@@ -62,10 +63,15 @@ export async function uploadCrowdfundingProofToR2(
     throw new Error('R2 upload URL missing');
   }
 
-  const putHeaders: Record<string, string> = {
-    ...(payload.headers || {}),
-    'Content-Type': payload.headers?.['Content-Type'] || contentType,
-  };
+  const putHeaders = presignedBrowserPutHeaders({
+    uploadUrl,
+    serverHeaders: payload.headers,
+    contentType,
+    metadata: {
+      mission_id: missionId,
+      worker_id: userIdFromAccessToken(accessToken),
+    },
+  });
 
   onPhase?.('uploading');
   const putRes = await fetch(uploadUrl, {

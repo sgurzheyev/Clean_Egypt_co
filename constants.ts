@@ -57,7 +57,8 @@ export const GLASS_TEXT = 'glass-text';
  * in `index.css` — body scrolls, footer stays pinned above chrome.
  */
 export const BOTTOM_SHEET_MAX_HEIGHT_STYLE = {
-  maxHeight: 'min(85svh, 85dvh, 85vh)',
+  maxHeight:
+    'min(85svh, 85dvh, calc(var(--vv-height, 100dvh) - env(safe-area-inset-top, 0px) - 0.5rem))',
 } as const;
 
 /** Tailwind twin of `.ce-bottom-sheet` for one-off sheets that need the classes inline. */

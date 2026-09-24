@@ -190,6 +190,10 @@ const resources = {
       reviewSkip: 'Skip',
       reviewsTitle: 'Reviews',
       reviewsEmpty: 'No reviews yet.',
+      reviewsLoadFailed: 'Could not load reviews. Pull to refresh and try again.',
+      reviewMissionContext: 'About: {{label}}',
+      networkRequestFailed:
+        'The network blocked this request. Check your connection and try again.',
       publicProfileNoRating: 'No rating yet',
       notifications: 'Notifications',
       notifMarkAllRead: 'Mark all read',
@@ -1603,6 +1607,10 @@ const resources = {
       reviewSkip: 'Пропустить',
       reviewsTitle: 'Отзывы',
       reviewsEmpty: 'Пока нет отзывов.',
+      reviewsLoadFailed: 'Не удалось загрузить отзывы. Обновите экран и попробуйте снова.',
+      reviewMissionContext: 'По заданию: {{label}}',
+      networkRequestFailed:
+        'Сеть оборвала запрос. Проверьте связь и попробуйте снова.',
       publicProfileNoRating: 'Пока без рейтинга',
       notifications: 'Уведомления',
       notifMarkAllRead: 'Прочитать все',

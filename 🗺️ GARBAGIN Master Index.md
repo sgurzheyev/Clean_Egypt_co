@@ -48,6 +48,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] — LIFE-1 underfund accept + LIFE-2 reject RPC + LIFE-3 expiry unlock
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] — SEC-5 push token lock + fail-closed Edge + Hungry-Games subscription
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] — SEC-4 Vercel user JWT on AI / notify APIs
+- [[04_Roadmap_Tasks/Phone_Prod_Reviews_Pin_Sheet]] — пустые ОТЗЫВЫ, Failed to fetch на пине, первый шит за экраном
 - [[04_Roadmap_Tasks/Map_Rush_Mode]] — RUSH live planes/ships + H2H night land
 - [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] — idle RUSH chip matches collapsed WX
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `supabase migration repair` for `20260912_*` / `20260917_*`

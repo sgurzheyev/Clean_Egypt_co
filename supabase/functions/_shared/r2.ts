@@ -4,7 +4,7 @@
  *
  * AWS SDK v3 checksums break R2 unless forced to WHEN_REQUIRED.
  */
-import { S3Client } from 'npm:@aws-sdk/client-s3@3.699.0';
+import { S3Client } from 'npm:@aws-sdk/client-s3@3.750.0';
 
 export const R2_PUT_TTL_SEC = 15 * 60;
 export const R2_GET_TTL_SEC = 10 * 60;
@@ -105,6 +105,16 @@ export function readR2Env(): R2Env | { error: string } {
 }
 
 export function createR2Client(env: R2Env): S3Client {
+  // SDK 3.729+ adds CRC32 checksums by default. R2 rejects them, and a browser
+  // PUT that cannot echo the signed checksum header fails as "Failed to fetch"
+  // when the bucket error has no CORS headers. WHEN_REQUIRED must be set on
+  // the client AND via env — the client option is a no-op on older SDKs.
+  try {
+    Deno.env.set('AWS_REQUEST_CHECKSUM_CALCULATION', 'WHEN_REQUIRED');
+    Deno.env.set('AWS_RESPONSE_CHECKSUM_VALIDATION', 'WHEN_REQUIRED');
+  } catch {
+    /* env may be immutable outside Deno */
+  }
   return new S3Client({
     region: 'auto',
     endpoint: env.endpoint,
@@ -112,7 +122,6 @@ export function createR2Client(env: R2Env): S3Client {
       accessKeyId: env.accessKeyId,
       secretAccessKey: env.secretAccessKey,
     },
-    // R2 does not implement AWS flexible checksums used by newer SDK defaults.
     requestChecksumCalculation: 'WHEN_REQUIRED',
     responseChecksumValidation: 'WHEN_REQUIRED',
   } as ConstructorParameters<typeof S3Client>[0]);

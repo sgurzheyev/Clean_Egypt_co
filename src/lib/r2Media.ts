@@ -3,8 +3,13 @@
  * Presign via Edge Function → direct PUT → store object key (or public URL).
  */
 import { supabase } from '../../services/supabase';
+import { isBrowserNetworkFailure } from './requestError';
+import { presignedBrowserPutHeaders, userIdFromAccessToken } from './r2PutHeaders';
 import { resolveAccessToken } from './supabaseAuth';
 import { throwIfInvokeFailed } from './supabaseFunctionError';
+
+/** Photos fit; long proof videos stay on direct PUT. */
+const R2_PROXY_MAX_BYTES = 4 * 1024 * 1024;
 
 export type R2MediaFolder =
   | 'kyc'
@@ -284,9 +289,33 @@ export type UploadToR2Options = {
   preferPublicUrl?: boolean;
 };
 
+async function blobToBase64(file: Blob): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function invokePresign(
+  accessToken: string,
+  body: Record<string, unknown>
+): Promise<Partial<R2PresignMediaResult> & { uploaded?: boolean }> {
+  const res = await supabase.functions.invoke('r2-presign-media', {
+    body,
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  await throwIfInvokeFailed('r2-presign-media', res);
+  return (res.data || {}) as Partial<R2PresignMediaResult> & { uploaded?: boolean };
+}
+
 /**
  * Presign + PUT to R2.
  * Returns object_key by default; for public folders may return public_url when preferPublicUrl.
+ * If the phone cannot PUT to R2 (CORS / signed header mismatch → "Failed to fetch"),
+ * small files are written by the Edge Function instead.
  */
 export async function uploadToR2(opts: UploadToR2Options): Promise<{
   objectKey: string;
@@ -304,54 +333,96 @@ export async function uploadToR2(opts: UploadToR2Options): Promise<{
     throw new Error('Not authenticated');
   }
 
-  const res = await supabase.functions.invoke('r2-presign-media', {
-    body: {
-      folder,
-      content_type: contentType,
-      byte_size: file.size,
-      ...(subpath ? { subpath } : {}),
-    },
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  await throwIfInvokeFailed('r2-presign-media', res);
+  const baseBody: Record<string, unknown> = {
+    folder,
+    content_type: contentType,
+    byte_size: file.size,
+    ...(subpath ? { subpath } : {}),
+  };
 
-  const payload = (res.data || {}) as Partial<R2PresignMediaResult>;
+  const finish = (
+    objectKey: string,
+    publicUrlRaw: string | null | undefined
+  ): { objectKey: string; publicUrl: string | null; displayUrl: string } => {
+    const publicUrl =
+      typeof publicUrlRaw === 'string' && publicUrlRaw.trim()
+        ? publicUrlRaw.trim()
+        : resolveR2PublicUrl(objectKey) || null;
+    const displayUrl =
+      preferPublicUrl && publicUrl && /^https?:\/\//i.test(publicUrl)
+        ? publicUrl
+        : objectKey;
+    return { objectKey, publicUrl, displayUrl };
+  };
+
+  const proxyUpload = async () => {
+    const payload = await invokePresign(accessToken, {
+      ...baseBody,
+      file_base64: await blobToBase64(file),
+    });
+    const objectKey = String(payload.object_key || '').trim();
+    if (!payload.uploaded || !objectKey) {
+      throw new Error('NETWORK_UNREACHABLE');
+    }
+    return finish(objectKey, payload.public_url);
+  };
+
+  let payload: Partial<R2PresignMediaResult> & { uploaded?: boolean };
+  try {
+    payload = await invokePresign(accessToken, baseBody);
+  } catch (err) {
+    if (isBrowserNetworkFailure(err) && file.size <= R2_PROXY_MAX_BYTES) {
+      return proxyUpload();
+    }
+    throw err;
+  }
+
+  if (payload.uploaded && payload.object_key) {
+    return finish(String(payload.object_key).trim(), payload.public_url);
+  }
+
   const uploadUrl = String(payload.upload_url || '');
   const objectKey = String(payload.object_key || '').trim();
   if (!uploadUrl || !objectKey) {
     throw new Error('R2 upload URL missing');
   }
 
-  const putHeaders: Record<string, string> = {
-    ...(payload.headers || {}),
-    'Content-Type': payload.headers?.['Content-Type'] || contentType,
-  };
-
-  const putRes = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: putHeaders,
-    body: file,
+  const putHeaders = presignedBrowserPutHeaders({
+    uploadUrl,
+    serverHeaders: payload.headers,
+    contentType,
+    metadata: {
+      user_id: userIdFromAccessToken(accessToken),
+      folder,
+    },
   });
-  if (!putRes.ok) {
-    const detail = await putRes.text().catch(() => '');
-    throw new Error(
-      detail
-        ? `R2 upload failed (${putRes.status}): ${detail.slice(0, 180)}`
-        : `R2 upload failed (${putRes.status})`
-    );
+
+  try {
+    const putRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: putHeaders,
+      body: file,
+    });
+    if (!putRes.ok) {
+      const detail = await putRes.text().catch(() => '');
+      const httpError = new Error(
+        detail
+          ? `R2 upload failed (${putRes.status}): ${detail.slice(0, 180)}`
+          : `R2 upload failed (${putRes.status})`
+      );
+      if (file.size <= R2_PROXY_MAX_BYTES && (putRes.status === 403 || putRes.status === 0)) {
+        return proxyUpload();
+      }
+      throw httpError;
+    }
+  } catch (err) {
+    if (isBrowserNetworkFailure(err) && file.size <= R2_PROXY_MAX_BYTES) {
+      return proxyUpload();
+    }
+    throw err;
   }
 
-  const publicUrl =
-    typeof payload.public_url === 'string' && payload.public_url.trim()
-      ? payload.public_url.trim()
-      : resolveR2PublicUrl(objectKey) || null;
-
-  const displayUrl =
-    preferPublicUrl && publicUrl && /^https?:\/\//i.test(publicUrl)
-      ? publicUrl
-      : objectKey;
-
-  return { objectKey, publicUrl, displayUrl };
+  return finish(objectKey, payload.public_url);
 }
 
 /** Store object key in DB; resolve with {@link resolveR2PublicUrl} when rendering. */

@@ -6,8 +6,8 @@
  * → { upload_url, object_key, method, headers, expires_in, max_bytes, public_url? }
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
-import { PutObjectCommand } from 'npm:@aws-sdk/client-s3@3.699.0';
-import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3.699.0';
+import { PutObjectCommand } from 'npm:@aws-sdk/client-s3@3.750.0';
+import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3.750.0';
 import {
   ALLOWED_MEDIA_CONTENT_TYPES,
   buildMediaObjectKey,
@@ -41,6 +41,15 @@ function jsonOk(body: Record<string, unknown>, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+/** Browser PUT fallback: the phone cannot CORS-PUT to R2, so the function writes. */
+function decodeBase64(b64: string): Uint8Array {
+  const clean = b64.replace(/\s/g, '');
+  const bin = atob(clean);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
 /** Folders that may be served via public custom domain (not KYC). */
@@ -79,6 +88,8 @@ Deno.serve(async (req) => {
       content_type?: unknown;
       byte_size?: unknown;
       subpath?: unknown;
+      /** When set, the function PutObject's the bytes (no browser→R2 CORS). */
+      file_base64?: unknown;
     };
     try {
       body = (await req.json()) as typeof body;
@@ -184,15 +195,53 @@ Deno.serve(async (req) => {
     });
 
     const client = createR2Client(r2);
+
+    const fileBase64 = typeof body.file_base64 === 'string' ? body.file_base64.trim() : '';
+    if (fileBase64) {
+      let bytes: Uint8Array;
+      try {
+        bytes = decodeBase64(fileBase64);
+      } catch {
+        return jsonError('Invalid file_base64', 400);
+      }
+      if (bytes.byteLength < 1) return jsonError('Empty file', 400);
+      if (bytes.byteLength > maxBytes) {
+        return jsonError('File exceeds max size', 413, { max_bytes: maxBytes });
+      }
+      // Server-side write. Do not sign metadata or content-length — phones
+      // cannot send those headers, and a mismatched signature is "Failed to fetch".
+      await client.send(
+        new PutObjectCommand({
+          Bucket: r2.bucket,
+          Key: objectKey,
+          ContentType: contentType,
+          Body: bytes,
+        })
+      );
+      const publicBaseEarly = String(Deno.env.get('R2_PUBLIC_BASE_URL') || '')
+        .trim()
+        .replace(/\/$/, '');
+      const uploadedPublic =
+        PUBLIC_FOLDERS.has(folder) && publicBaseEarly
+          ? `${publicBaseEarly}/${objectKey}`
+          : null;
+      return jsonOk({
+        uploaded: true,
+        object_key: objectKey,
+        public_url: uploadedPublic,
+        folder,
+        max_bytes: maxBytes,
+      });
+    }
+
+    // Presign Content-Type only. Metadata (x-amz-meta-*) and Content-Length
+    // become signed headers the browser must echo. fetch() forbids setting
+    // Content-Length, and missing meta headers 403. Without bucket CORS that
+    // 403 is a TypeError: Failed to fetch — the pin form never reaches the RPC.
     const command = new PutObjectCommand({
       Bucket: r2.bucket,
       Key: objectKey,
       ContentType: contentType,
-      ...(byteSize != null ? { ContentLength: byteSize } : {}),
-      Metadata: {
-        user_id: user.id,
-        folder,
-      },
     });
 
     const uploadUrl = await getSignedUrl(client, command, { expiresIn: R2_PUT_TTL_SEC });
@@ -200,9 +249,6 @@ Deno.serve(async (req) => {
     const headers: Record<string, string> = {
       'Content-Type': contentType,
     };
-    if (byteSize != null) {
-      headers['Content-Length'] = String(byteSize);
-    }
 
     const publicBase = String(Deno.env.get('R2_PUBLIC_BASE_URL') || '')
       .trim()

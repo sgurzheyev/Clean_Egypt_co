@@ -156,7 +156,7 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
   const canAddMore = photos.length < MAX_GARBAGE_ZONE_REPORT_PHOTOS;
 
   return (
-    <div className="absolute inset-0 z-[10075] flex items-end justify-center pointer-events-auto">
+    <div className="ce-viewport-overlay z-[10075] flex items-end justify-center pointer-events-auto">
       <button
         type="button"
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"

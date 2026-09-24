@@ -31,7 +31,7 @@ aliases: [Frontend Components, UI Map]
 | Bids terminal | [[components/BidsTerminal.tsx]] |
 | Profile floating glass card / P2P confirm + donor vote + approved history | [[components/Profile.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] |
 | Donor proof review (approve / reject-retry) | [[components/DonorProofReview.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] |
-| Public profile | [[components/PublicProfile.tsx]] |
+| Public profile | [[components/PublicProfile.tsx]] · отзывы об этом человеке: [[04_Roadmap_Tasks/Phone_Prod_Reviews_Pin_Sheet]] |
 | Auth overlay | [[components/AuthOverlay.tsx]] |
 | Notification bell | [[components/NotificationBell.tsx]] |
 | KYC modal | [[components/VerificationModal.tsx]] |
@@ -46,7 +46,7 @@ aliases: [Frontend Components, UI Map]
 
 | Concern | Link |
 | --- | --- |
-| Global CSS (sheets, glass, water, store-pin frost) | [[index.css]] |
+| Global CSS (sheets, glass, water, store-pin frost, visual viewport) | [[index.css]] · [[src/lib/visualViewport.ts]] · [[04_Roadmap_Tasks/Phone_Prod_Reviews_Pin_Sheet]] |
 | Steel / profile glass tokens | [[constants.ts]] |
 | Map Egypt theme | [[src/lib/mapEgyptTheme.ts]] |
 | Map Standard / fun mode | [[src/lib/mapboxStandardTheme.ts]] · [[src/lib/mapFunMode.ts]] · [[src/lib/mapSolarAtmosphere.ts]] |

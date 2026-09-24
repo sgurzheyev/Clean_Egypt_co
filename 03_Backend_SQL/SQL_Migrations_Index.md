@@ -69,6 +69,7 @@ Chronological — June–July 2026 token / crowdfunding / privacy stack.
 | 2026-09-17 | [[20260917_wave_g_lifecycle_hardening.sql]] | Wave G: `accept_mission_bid` underfund → `funding`; `reject_mission_bid` promoted; expiry clears `cleaner_id` + rejects bids + backfill. Same CLI version `20260917`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]. |
 | 2026-09-17 | [[20260917_wave_h_surface_hardening.sql]] | Wave H: `upsert_user_push_token` blocks hijack. Same CLI version `20260917`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]. |
 | 2026-09-17 | [[20260917_hungry_games_subscription_gate.sql]] | Hungry-Games: active subscription required for **new** bids (admins exempt; pending updates skip re-debit). Apply **after** Wave F. Filename sorts before `wave_f_*` — do not `db push`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]. |
+| 2026-09-24 | [[20260924_profile_reviews_about_user.sql]] | Профиль ОТЗЫВЫ: отзывы **об** пользователе (`reviewee_id`, иначе legacy `cleaner_id`); уведомление `new_review` с именем и комментарием. Note: [[04_Roadmap_Tasks/Phone_Prod_Reviews_Pin_Sheet]]. |
 
 > Full marketplace architecture write-up: [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]]
 
