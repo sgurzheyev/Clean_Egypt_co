@@ -1,7 +1,9 @@
 /**
- * Admin Console — 3 pillars: Analytics · Users & Stores · Platform Control
+ * Admin Console — Analytics · Users & Stores · Platform Control · Audit
+ * Lazy-loaded from Profile and portaled full-screen.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -12,8 +14,7 @@ import {
   whenMapStyleReady,
 } from '../lib/mapboxStandardTheme';
 import { runMissionAiAnalysis } from '../lib/openai';
-import { adminDeleteMission } from '../lib/adminMission';
-import { isPlatformAdmin } from '../lib/platformAdmin';
+import { adminHideMission } from '../lib/adminMission';
 import { YEARLY_SUBSCRIPTION } from '../lib/tokenPricing';
 import KYCReviewDashboard from './KYCReviewDashboard';
 import { ADMIN_FORCE_RELEASE_PAYMENT_BTN } from '../../constants';
@@ -83,14 +84,25 @@ interface MissionRow {
   after_photo_urls?: string[] | null;
   ai_confidence_score?: number | null;
   ai_verdict?: string | null;
+  hidden_at?: string | null;
 }
 
-interface PendingApprovalRow {
+interface AuditRow {
   id: string;
-  amount_target: number;
-  cleaner_id: string | null;
-  status?: string;
-  after_photo_urls?: string[] | null;
+  actor_id: string | null;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  before_state: unknown;
+  after_state: unknown;
+  created_at: string;
+}
+
+interface ConfirmRequest {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  tone?: 'danger' | 'default';
 }
 
 interface TransactionRow {
@@ -116,7 +128,7 @@ interface MarketplacePulse {
   completed_missions: number;
 }
 
-type PillarId = 'analytics' | 'users' | 'control';
+type PillarId = 'analytics' | 'users' | 'control' | 'audit';
 type UsersSub = 'people' | 'stores' | 'kyc';
 type ControlSub = 'stuck' | 'missions' | 'disputes';
 
@@ -129,21 +141,98 @@ const PILLAR_BTN =
 const SUB_BTN =
   'px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.14em] border transition-all';
 
-async function withAdminPhones(rows: ProfileRow[]): Promise<ProfileRow[]> {
-  if (!rows.length) return rows;
-  const ids = rows.map((r) => r.id).filter(Boolean);
-  const { data, error } = await supabase.rpc('admin_get_profile_phones', {
-    p_user_ids: ids,
-  });
-  if (error) {
-    console.warn('admin_get_profile_phones', error.message);
-    return rows;
-  }
-  const phoneById = new globalThis.Map<string, string | null>();
-  for (const row of (data || []) as { user_id: string; phone_number: string | null }[]) {
-    phoneById.set(row.user_id, row.phone_number);
-  }
-  return rows.map((r) => ({ ...r, phone_number: phoneById.get(r.id) ?? null }));
+const PAGE_SIZE = 25;
+
+/** Every status the state machine and legacy aliases use. Blank filter = all of them. */
+const MISSION_STATUSES = [
+  'pending_payment',
+  'pending',
+  'open',
+  'available',
+  'funding',
+  'in_progress',
+  'review',
+  'pending_approval',
+  'awaiting_approval',
+  'pending_verification',
+  'disputed',
+  'dispute',
+  'completed',
+  'finished',
+  'approved',
+  'failed',
+  'cancelled',
+  'expired',
+] as const;
+
+function parseSearchPayload<T>(data: unknown): { rows: T[]; total: number } {
+  if (!data || typeof data !== 'object') return { rows: [], total: 0 };
+  const obj = data as { rows?: unknown; total?: unknown };
+  const rows = Array.isArray(obj.rows) ? (obj.rows as T[]) : [];
+  const total = Number(obj.total ?? 0);
+  return { rows, total: Number.isFinite(total) ? total : 0 };
+}
+
+function useDebounced(value: string, ms = 300): string {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(value.trim()), ms);
+    return () => window.clearTimeout(id);
+  }, [value, ms]);
+  return debounced;
+}
+
+function AdminShell({ children }: { children: React.ReactNode }) {
+  return createPortal(
+    <div className="fixed inset-0 z-[10050] overflow-y-auto overscroll-contain bg-[#05080f] text-white">
+      {children}
+    </div>,
+    document.body
+  );
+}
+
+function Pager({
+  page,
+  pageSize,
+  total,
+  onPage,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPage: (next: number) => void;
+}) {
+  const pages = Math.max(1, Math.ceil(total / pageSize) || 1);
+  const from = total === 0 ? 0 : page * pageSize + 1;
+  const to = Math.min(total, (page + 1) * pageSize);
+  return (
+    <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-slate-400">
+      <span>
+        {from}–{to} of {total}
+      </span>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={page <= 0}
+          onClick={() => onPage(page - 1)}
+          className={`${SUB_BTN} border-white/15 bg-white/5 text-slate-200 disabled:opacity-40`}
+        >
+          Prev
+        </button>
+        <span className="self-center tabular-nums">
+          {page + 1}/{pages}
+        </span>
+        <button
+          type="button"
+          disabled={page + 1 >= pages}
+          onClick={() => onPage(page + 1)}
+          className={`${SUB_BTN} border-white/15 bg-white/5 text-slate-200 disabled:opacity-40`}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function parseFirstGpsTrack(value: unknown): { lat: number; lng: number } | null {
@@ -215,9 +304,37 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [grantTokens, setGrantTokens] = useState('100');
   const [grantBusy, setGrantBusy] = useState(false);
 
-  const [pendingApprovals, setPendingApprovals] = useState<PendingApprovalRow[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<MissionRow[]>([]);
   const [pendingApprovalsError, setPendingApprovalsError] = useState<string | null>(null);
+  const [stuckPage, setStuckPage] = useState(0);
+  const [stuckTotal, setStuckTotal] = useState(0);
   const [adminDeleteLoadingId, setAdminDeleteLoadingId] = useState<string | null>(null);
+
+  const [userPage, setUserPage] = useState(0);
+  const [userTotal, setUserTotal] = useState(0);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const userQueryDebounced = useDebounced(userSearch);
+
+  const [missionQuery, setMissionQuery] = useState('');
+  const [missionStatus, setMissionStatus] = useState('');
+  const [missionHidden, setMissionHidden] = useState<'all' | 'visible' | 'hidden'>('all');
+  const [missionPage, setMissionPage] = useState(0);
+  const [missionTotal, setMissionTotal] = useState(0);
+  const missionQueryDebounced = useDebounced(missionQuery);
+
+  const [disputeQuery, setDisputeQuery] = useState('');
+  const [disputePage, setDisputePage] = useState(0);
+  const [disputeTotal, setDisputeTotal] = useState(0);
+  const disputeQueryDebounced = useDebounced(disputeQuery);
+
+  const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [auditQuery, setAuditQuery] = useState('');
+  const [auditPage, setAuditPage] = useState(0);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditOpenId, setAuditOpenId] = useState<string | null>(null);
+  const auditQueryDebounced = useDebounced(auditQuery);
 
   const [missions, setMissions] = useState<MissionRow[]>([]);
   const [missionsLoading, setMissionsLoading] = useState(false);
@@ -228,11 +345,29 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [disputesError, setDisputesError] = useState<string | null>(null);
   const [aiRunningMissionId, setAiRunningMissionId] = useState<string | null>(null);
   const [nukeBusy, setNukeBusy] = useState(false);
+  const [nukeOpen, setNukeOpen] = useState(false);
+  const [nukeText, setNukeText] = useState('');
+  const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null);
+  const confirmRef = useRef<{ resolve: (ok: boolean) => void } | null>(null);
   const [adminToast, setAdminToast] = useState<{
     message: string;
     kind: 'success' | 'error';
   } | null>(null);
   const adminToastTimerRef = useRef<number | null>(null);
+
+  const askConfirm = useCallback((req: ConfirmRequest) => {
+    return new Promise<boolean>((resolve) => {
+      confirmRef.current?.resolve(false);
+      confirmRef.current = { resolve };
+      setConfirmReq(req);
+    });
+  }, []);
+
+  const settleConfirm = (ok: boolean) => {
+    confirmRef.current?.resolve(ok);
+    confirmRef.current = null;
+    setConfirmReq(null);
+  };
 
   const showAdminToast = useCallback((message: string, kind: 'success' | 'error') => {
     setAdminToast({ message, kind });
@@ -252,7 +387,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     try {
       const [saasRes, pulseRes, txRes] = await Promise.all([
         supabase.rpc('admin_saas_overview_metrics'),
-        supabase.rpc('admin_financial_metrics'),
+        supabase.rpc('admin_marketplace_counts'),
         supabase
           .from('transactions')
           .select('id, user_id, mission_id, amount, type, gateway, created_at')
@@ -275,6 +410,15 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           active_missions: Number(prow?.active_missions ?? 0),
           completed_missions: Number(prow?.completed_missions ?? 0),
         });
+      } else {
+        const legacy = await supabase.rpc('admin_financial_metrics');
+        if (!legacy.error) {
+          const prow = Array.isArray(legacy.data) ? legacy.data[0] : legacy.data;
+          setPulse({
+            active_missions: Number(prow?.active_missions ?? 0),
+            completed_missions: Number(prow?.completed_missions ?? 0),
+          });
+        }
       }
       setTransactions((txRes.data || []) as TransactionRow[]);
     } catch (e: unknown) {
@@ -287,20 +431,26 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   }, []);
 
   const loadUsers = useCallback(async () => {
-    setLoading(true);
+    setUsersLoading(true);
     setError(null);
     try {
-      const { data, error: err } = await supabase.rpc('admin_list_profiles_finance', {
-        p_limit: 100,
+      const { data, error: err } = await supabase.rpc('admin_search_profiles', {
+        p_query: userQueryDebounced || null,
+        p_limit: PAGE_SIZE,
+        p_offset: userPage * PAGE_SIZE,
       });
       if (err) throw err;
-      setProfiles(await withAdminPhones((data || []) as ProfileRow[]));
+      const parsed = parseSearchPayload<ProfileRow>(data);
+      setProfiles(parsed.rows);
+      setUserTotal(parsed.total);
     } catch (e: unknown) {
       setError(formatUnknownError(e, 'Failed to load users.'));
+      setProfiles([]);
+      setUserTotal(0);
     } finally {
-      setLoading(false);
+      setUsersLoading(false);
     }
-  }, []);
+  }, [userPage, userQueryDebounced]);
 
   const loadStores = useCallback(async () => {
     setLoading(true);
@@ -320,106 +470,130 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
   const fetchPendingApprovals = useCallback(async () => {
     setPendingApprovalsError(null);
-    const { data, error: err } = await supabase
-      .from('missions')
-      .select('id, amount_target, cleaner_id, status, after_photo_urls')
-      .in('status', ['completed', 'in_progress', 'disputed'])
-      .not('cleaner_id', 'is', null)
-      .order('created_at', { ascending: false });
+    const { data, error: err } = await supabase.rpc('admin_search_missions', {
+      p_query: null,
+      p_status: null,
+      p_hidden: 'visible',
+      p_queue: 'stuck',
+      p_limit: PAGE_SIZE,
+      p_offset: stuckPage * PAGE_SIZE,
+    });
     if (err) {
       setPendingApprovalsError(err.message || 'Failed to load stuck missions.');
+      setPendingApprovals([]);
+      setStuckTotal(0);
       return;
     }
-    const rows = (data || []) as PendingApprovalRow[];
-    setPendingApprovals(
-      rows.filter(
-        (m) =>
-          m.status === 'completed' ||
-          (m.after_photo_urls && m.after_photo_urls.length > 0)
-      )
-    );
-  }, []);
+    const parsed = parseSearchPayload<MissionRow>(data);
+    setPendingApprovals(parsed.rows);
+    setStuckTotal(parsed.total);
+  }, [stuckPage]);
 
   const loadMissionControl = useCallback(async () => {
     setMissionsLoading(true);
     setMissionsError(null);
     try {
-      const { data, error: err } = await supabase
-        .from('missions')
-        .select(
-          'id, status, creator_id, cleaner_id, category, amount_target, description, created_at, photo_urls, after_photo_urls'
-        )
-        .in('status', [
-          'pending_payment',
-          'pending',
-          'available',
-          'funding',
-          'in_progress',
-          'completed',
-          'disputed',
-          'pending_verification',
-          'review',
-          'dispute',
-        ])
-        .order('created_at', { ascending: false })
-        .limit(50);
+      const { data, error: err } = await supabase.rpc('admin_search_missions', {
+        p_query: missionQueryDebounced || null,
+        p_status: missionStatus || null,
+        p_hidden: missionHidden,
+        p_queue: null,
+        p_limit: PAGE_SIZE,
+        p_offset: missionPage * PAGE_SIZE,
+      });
       if (err) throw err;
-      setMissions((data || []) as MissionRow[]);
+      const parsed = parseSearchPayload<MissionRow>(data);
+      setMissions(parsed.rows);
+      setMissionTotal(parsed.total);
     } catch (e: unknown) {
       setMissionsError(formatUnknownError(e, 'Failed to load missions.'));
+      setMissions([]);
+      setMissionTotal(0);
     } finally {
       setMissionsLoading(false);
     }
-  }, []);
+  }, [missionHidden, missionPage, missionQueryDebounced, missionStatus]);
 
   const loadDisputes = useCallback(async () => {
     setDisputesLoading(true);
     setDisputesError(null);
     try {
-      const { data, error: err } = await supabase
-        .from('missions')
-        .select(
-          'id, status, creator_id, cleaner_id, category, amount_target, description, created_at, photo_urls, after_photo_urls, ai_confidence_score, ai_verdict'
-        )
-        .in('status', ['disputed', 'pending_verification', 'review', 'dispute'])
-        .order('created_at', { ascending: false })
-        .limit(30);
+      const { data, error: err } = await supabase.rpc('admin_search_missions', {
+        p_query: disputeQueryDebounced || null,
+        p_status: null,
+        p_hidden: 'visible',
+        p_queue: 'disputes',
+        p_limit: PAGE_SIZE,
+        p_offset: disputePage * PAGE_SIZE,
+      });
       if (err) throw err;
-      setDisputes((data || []) as MissionRow[]);
+      const parsed = parseSearchPayload<MissionRow>(data);
+      setDisputes(parsed.rows);
+      setDisputeTotal(parsed.total);
     } catch (e: unknown) {
       setDisputesError(formatUnknownError(e, 'Failed to load disputes.'));
+      setDisputes([]);
+      setDisputeTotal(0);
     } finally {
       setDisputesLoading(false);
     }
-  }, []);
+  }, [disputePage, disputeQueryDebounced]);
+
+  const loadAudit = useCallback(async () => {
+    setAuditLoading(true);
+    setAuditError(null);
+    try {
+      const from = auditPage * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      let query = supabase
+        .from('admin_audit_log')
+        .select('id, actor_id, action, target_type, target_id, before_state, after_state, created_at', {
+          count: 'exact',
+        })
+        .order('created_at', { ascending: false })
+        .range(from, to);
+      const term = auditQueryDebounced.replace(/[%_,]/g, '').trim();
+      if (term) {
+        query = query.or(
+          `action.ilike.%${term}%,target_type.ilike.%${term}%,target_id.ilike.%${term}%`
+        );
+      }
+      const { data, error: err, count } = await query;
+      if (err) throw err;
+      setAuditRows((data || []) as AuditRow[]);
+      setAuditTotal(count ?? 0);
+    } catch (e: unknown) {
+      setAuditError(formatUnknownError(e, 'Failed to load the audit log.'));
+      setAuditRows([]);
+      setAuditTotal(0);
+    } finally {
+      setAuditLoading(false);
+    }
+  }, [auditPage, auditQueryDebounced]);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        const user = session?.user ?? null;
-        let role: string | null = null;
-        let telegramUsername: string | null = null;
-        if (user?.id) {
-          const [{ data: profile }, { data: priv }] = await Promise.all([
-            supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
-            supabase.rpc('get_own_private_profile'),
-          ]);
-          role = (profile as { role?: string | null } | null)?.role ?? null;
-          const row = (priv && typeof priv === 'object' ? priv : {}) as Record<string, unknown>;
-          telegramUsername = row.telegram_username ? String(row.telegram_username) : null;
+        const uid = session?.user?.id;
+        if (!uid) {
+          if (!cancelled) setIsAllowedAdmin(false);
+          return;
         }
-        setIsAllowedAdmin(
-          !!isPlatformAdmin({ email: user?.email, telegramUsername, role })
-        );
+        const { data, error: rpcErr } = await supabase.rpc('is_platform_admin', { p_uid: uid });
+        if (!cancelled) setIsAllowedAdmin(!rpcErr && data === true);
       } catch {
-        setIsAllowedAdmin(false);
+        if (!cancelled) setIsAllowedAdmin(false);
       } finally {
-        setAdminChecked(true);
+        if (!cancelled) setAdminChecked(true);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -430,6 +604,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     if (pillar === 'control' && controlSub === 'stuck') void fetchPendingApprovals();
     if (pillar === 'control' && controlSub === 'missions') void loadMissionControl();
     if (pillar === 'control' && controlSub === 'disputes') void loadDisputes();
+    if (pillar === 'audit') void loadAudit();
   }, [
     adminChecked,
     isAllowedAdmin,
@@ -442,24 +617,8 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     fetchPendingApprovals,
     loadMissionControl,
     loadDisputes,
+    loadAudit,
   ]);
-
-  const filteredProfiles = useMemo(() => {
-    const q = userSearch.trim().toLowerCase();
-    if (!q) return profiles;
-    return profiles.filter((p) => {
-      const blob = [
-        p.full_name,
-        p.telegram_username,
-        p.contact_email,
-        p.phone_number,
-        p.id,
-      ]
-        .join(' ')
-        .toLowerCase();
-      return blob.includes(q);
-    });
-  }, [profiles, userSearch]);
 
   const toggleVerify = async (userId: string, nextValue: boolean) => {
     setVerifyLoadingUserId(userId);
@@ -476,13 +635,22 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         prev?.id === userId ? { ...prev, is_verified: nextValue } : prev
       );
     } catch (e: unknown) {
-      alert(formatUnknownError(e, 'Failed to update verification.'));
+      showAdminToast(formatUnknownError(e, 'Failed to update verification.'), 'error');
     } finally {
       setVerifyLoadingUserId(null);
     }
   };
 
   const toggleBan = async (userId: string, nextValue: boolean) => {
+    const ok = await askConfirm({
+      title: nextValue ? 'Ban user' : 'Unban user',
+      body: nextValue
+        ? 'This user will be marked banned.'
+        : 'This user will be allowed back on the platform.',
+      confirmLabel: nextValue ? 'Ban' : 'Unban',
+      tone: nextValue ? 'danger' : 'default',
+    });
+    if (!ok) return;
     try {
       const { error: updErr } = await supabase.rpc('admin_set_profile_banned', {
         p_user_id: userId,
@@ -495,9 +663,9 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       setSelectedUser((prev) =>
         prev?.id === userId ? { ...prev, is_banned: nextValue } : prev
       );
-      alert(nextValue ? 'User banned.' : 'User unbanned.');
+      showAdminToast(nextValue ? 'User banned.' : 'User unbanned.', 'success');
     } catch (e: unknown) {
-      alert(formatUnknownError(e, 'Failed to update ban status.'));
+      showAdminToast(formatUnknownError(e, 'Failed to update ban status.'), 'error');
     }
   };
 
@@ -505,7 +673,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     if (!grantUser) return;
     const n = Math.floor(Number(grantTokens));
     if (!Number.isFinite(n) || n === 0) {
-      alert('Enter a non-zero token amount.');
+      showAdminToast('Enter a non-zero token amount.', 'error');
       return;
     }
     setGrantBusy(true);
@@ -529,54 +697,63 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           : prev
       );
       setGrantUser(null);
-      alert(`Token balance updated → ${next}`);
+      showAdminToast(`Token balance updated → ${next}`, 'success');
     } catch (e: unknown) {
-      alert(formatUnknownError(e, 'Failed to grant tokens.'));
+      showAdminToast(formatUnknownError(e, 'Failed to grant tokens.'), 'error');
     } finally {
       setGrantBusy(false);
     }
   };
 
   const cleanGhostPins = async () => {
-    if (!window.confirm('Clean ghost pins older than 24h?')) return;
+    const ok = await askConfirm({
+      title: 'Hide ghost pins',
+      body: 'Hide pending-payment pins older than 24 hours? They stay in the database and can be unhidden.',
+      confirmLabel: 'Hide pins',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
-      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { error: delErr } = await supabase
-        .from('missions')
-        .delete()
-        .eq('status', 'pending_payment')
-        .lt('created_at', cutoff);
-      if (delErr) throw delErr;
-      alert('Ghost pins cleaned.');
+      const { data, error: rpcErr } = await supabase.rpc('admin_hide_stale_ghost_pins');
+      if (rpcErr) throw rpcErr;
+      showAdminToast(`Hid ${Number(data ?? 0)} ghost pins.`, 'success');
       await loadMissionControl();
     } catch (e: unknown) {
-      alert(formatUnknownError(e, 'Failed to clean ghost pins.'));
+      showAdminToast(formatUnknownError(e, 'Failed to hide ghost pins.'), 'error');
     }
   };
 
   const forceCancelMission = async (missionId: string) => {
-    if (!window.confirm('Force cancel this mission?')) return;
+    const ok = await askConfirm({
+      title: 'Force cancel',
+      body: 'Cancel this mission? The legacy refund path is unchanged.',
+      confirmLabel: 'Cancel mission',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       const { error: rpcErr } = await supabase.rpc('force_cancel_mission', {
         p_mission_id: missionId,
       });
       if (rpcErr) throw rpcErr;
-      alert('Mission cancelled.');
+      showAdminToast('Mission cancelled.', 'success');
       await loadMissionControl();
     } catch (e: unknown) {
-      alert(formatUnknownError(e, 'Failed to cancel mission.'));
+      showAdminToast(formatUnknownError(e, 'Failed to cancel mission.'), 'error');
     }
   };
 
   const resolveDispute = async (missionId: string, decision: 'approve' | 'reject') => {
-    if (
-      !window.confirm(
+    const ok = await askConfirm({
+      title: decision === 'approve' ? 'Approve dispute' : 'Reject dispute',
+      body:
         decision === 'approve'
-          ? 'Approve moderation (mark completed, no payout)?'
-          : 'Reject dispute?'
-      )
-    )
-      return;
+          ? 'Approve moderation and mark the mission completed? No payout is sent.'
+          : 'Reject this dispute?',
+      confirmLabel: decision === 'approve' ? 'Approve' : 'Reject',
+      tone: decision === 'approve' ? 'default' : 'danger',
+    });
+    if (!ok) return;
     try {
       const mission = disputes.find((d) => d.id === missionId) ?? null;
       const { error: err } = await supabase.rpc('resolve_mission_dispute', {
@@ -590,10 +767,10 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         p_supervisor_user_id: null,
       });
       if (err) throw err;
-      alert(decision === 'approve' ? 'Approved (P2P, no escrow).' : 'Rejected.');
+      showAdminToast(decision === 'approve' ? 'Approved (P2P, no escrow).' : 'Rejected.', 'success');
       await loadDisputes();
     } catch (e: unknown) {
-      alert(formatUnknownError(e, 'Failed to resolve dispute.'));
+      showAdminToast(formatUnknownError(e, 'Failed to resolve dispute.'), 'error');
     }
   };
 
@@ -609,24 +786,34 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         p_confidence: result.score,
       });
       if (updErr) throw updErr;
-      alert('AI analysis saved.');
+      showAdminToast('AI analysis saved.', 'success');
       await loadDisputes();
     } catch (e: unknown) {
-      alert(formatUnknownError(e, 'AI analysis failed.'));
+      showAdminToast(formatUnknownError(e, 'AI analysis failed.'), 'error');
     } finally {
       setAiRunningMissionId(null);
     }
   };
 
-  const handleAdminDeleteStuckMission = async (mission: PendingApprovalRow) => {
-    if (!window.confirm('Permanently delete this mission?')) return;
-    setAdminDeleteLoadingId(mission.id);
+  const updateMissionVisibility = async (missionId: string, hidden: boolean) => {
+    const ok = await askConfirm({
+      title: hidden ? 'Hide mission' : 'Unhide mission',
+      body: hidden
+        ? 'Hide this mission from the map and public feeds? You can unhide it later.'
+        : 'Show this mission on the map and public feeds again?',
+      confirmLabel: hidden ? 'Hide' : 'Unhide',
+      tone: hidden ? 'danger' : 'default',
+    });
+    if (!ok) return;
+    setAdminDeleteLoadingId(missionId);
     try {
-      await adminDeleteMission(mission.id);
-      await fetchPendingApprovals();
-      alert('Mission deleted.');
+      await adminHideMission(missionId, hidden);
+      showAdminToast(hidden ? 'Mission hidden.' : 'Mission visible again.', 'success');
+      if (controlSub === 'stuck') await fetchPendingApprovals();
+      if (controlSub === 'missions') await loadMissionControl();
+      if (controlSub === 'disputes') await loadDisputes();
     } catch (e: unknown) {
-      alert(formatUnknownError(e, 'Failed to delete mission.'));
+      showAdminToast(formatUnknownError(e, 'Failed to update visibility.'), 'error');
     } finally {
       setAdminDeleteLoadingId(null);
     }
@@ -635,15 +822,12 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const handleFactoryReset = async () => {
     if (!FACTORY_RESET_ENABLED) return;
     if (nukeBusy) return;
-    const typed = window.prompt(
-      'This deletes ALL missions, bids, contributions, reviews, and transactions across the platform.\n' +
-        'The server also refuses unless private.app_config allow_factory_reset = true.\n\n' +
-        'Type NUKE to continue:'
-    );
-    if (typed?.trim() !== 'NUKE') {
-      if (typed !== null) showAdminToast('Factory reset cancelled (confirmation text did not match).', 'error');
+    if (nukeText.trim() !== 'NUKE') {
+      showAdminToast('Factory reset cancelled (confirmation text did not match).', 'error');
       return;
     }
+    setNukeOpen(false);
+    setNukeText('');
     setNukeBusy(true);
     try {
       const { error: rpcErr } = await supabase.rpc('admin_factory_reset');
@@ -666,14 +850,17 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
   if (!adminChecked) {
     return (
-      <div className="flex justify-center py-16">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/40 border-t-cyan-300" />
-      </div>
+      <AdminShell>
+        <div className="flex justify-center py-16">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/40 border-t-cyan-300" />
+        </div>
+      </AdminShell>
     );
   }
 
   if (!isAllowedAdmin) {
     return (
+      <AdminShell>
       <div className="mx-auto w-full max-w-4xl p-6 text-white">
         <button
           type="button"
@@ -686,6 +873,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           <p className="text-sm text-slate-300">Access denied.</p>
         </div>
       </div>
+      </AdminShell>
     );
   }
 
@@ -694,7 +882,8 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 text-white sm:px-6">
+    <AdminShell>
+    <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col gap-5 px-4 py-6 pb-28 text-white sm:px-6">
       <button
         type="button"
         onClick={onBack}
@@ -708,7 +897,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           Admin Console
         </h2>
         <p className="mt-1 text-[11px] text-slate-500">
-          SaaS overview · user directory · platform controls
+          SaaS overview · user directory · platform controls · audit
         </p>
       </div>
 
@@ -718,6 +907,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             { id: 'analytics' as const, label: 'Analytics & Overview' },
             { id: 'users' as const, label: 'Users & Stores' },
             { id: 'control' as const, label: 'Platform Control' },
+            { id: 'audit' as const, label: 'Audit' },
           ] as const
         ).map((tab) => {
           const active = pillar === tab.id;
@@ -740,7 +930,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
       {error && <p className="text-sm font-medium text-red-400">{error}</p>}
 
-      {loading && pillar !== 'control' ? (
+      {loading && pillar === 'analytics' ? (
         <div className="flex justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/50 border-t-cyan-300" />
         </div>
@@ -866,7 +1056,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             ))}
           </div>
 
-          {usersSub === 'people' && !loading && (
+          {usersSub === 'people' ? (
             <section className="rounded-2xl border border-cyan-500/25 bg-slate-950/80 p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300/90">
@@ -883,15 +1073,23 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               <input
                 type="search"
                 value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
+                onChange={(e) => {
+                  setUserSearch(e.target.value);
+                  setUserPage(0);
+                }}
+                aria-label="Search users"
                 placeholder="Search name, email, phone, telegram…"
                 className="mb-3 w-full rounded-2xl border border-cyan-500/25 bg-black/40 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-cyan-500/30"
               />
               <div className="max-h-[28rem] space-y-2 overflow-y-auto [scrollbar-width:thin]">
-                {filteredProfiles.length === 0 ? (
+                {usersLoading ? (
+                  <div className="flex justify-center py-8">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/50 border-t-cyan-300" />
+                  </div>
+                ) : profiles.length === 0 ? (
                   <p className="py-8 text-center text-sm italic text-slate-500">No users.</p>
                 ) : (
-                  filteredProfiles.map((p) => {
+                  profiles.map((p) => {
                     const period = formatSubPeriod(p.subscription_expires_at);
                     return (
                       <button
@@ -944,10 +1142,11 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   })
                 )}
               </div>
+              <Pager page={userPage} pageSize={PAGE_SIZE} total={userTotal} onPage={setUserPage} />
             </section>
-          )}
+          ) : null}
 
-          {usersSub === 'stores' && !loading && (
+          {usersSub === 'stores' && !loading ? (
             <section className="rounded-2xl border border-violet-500/25 bg-slate-950/80 p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-300">
@@ -1001,9 +1200,17 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 )}
               </div>
             </section>
-          )}
+          ) : null}
 
-          {usersSub === 'kyc' && <KYCReviewDashboard isAllowedAdmin={isAllowedAdmin} />}
+          {usersSub === 'kyc' ? (
+            <KYCReviewDashboard
+              isAllowedAdmin={isAllowedAdmin}
+              notify={showAdminToast}
+              confirmAction={(title, body, confirmLabel) =>
+                askConfirm({ title, body, confirmLabel })
+              }
+            />
+          ) : null}
         </div>
       )}
 
@@ -1036,9 +1243,14 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           {controlSub === 'stuck' && (
             <section className="rounded-2xl border border-red-500/30 bg-black/40 p-4">
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-400/90">
-                  Stuck missions
-                </h3>
+                <div>
+                  <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-400/90">
+                    Stuck missions
+                  </h3>
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    Review, dispute, or in-progress with proof photos. Completed missions are excluded.
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => void fetchPendingApprovals()}
@@ -1065,6 +1277,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                         <span className="text-slate-500">
                           Cleaner: {String(m.cleaner_id || '').slice(0, 8)}
                         </span>
+                        <span className="uppercase text-amber-200/90">{m.status}</span>
                         <span className="text-slate-400">
                           {formatTokens(Number(m.amount_target))}
                         </span>
@@ -1072,15 +1285,16 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                       <button
                         type="button"
                         disabled={adminDeleteLoadingId === m.id}
-                        onClick={() => void handleAdminDeleteStuckMission(m)}
+                        onClick={() => void updateMissionVisibility(m.id, true)}
                         className={ADMIN_FORCE_RELEASE_PAYMENT_BTN}
                       >
-                        {adminDeleteLoadingId === m.id ? 'Processing…' : 'Delete Mission'}
+                        {adminDeleteLoadingId === m.id ? 'Processing…' : 'Hide mission'}
                       </button>
                     </div>
                   ))
                 )}
               </div>
+              <Pager page={stuckPage} pageSize={PAGE_SIZE} total={stuckTotal} onPage={setStuckPage} />
             </section>
           )}
 
@@ -1096,7 +1310,7 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     onClick={() => void cleanGhostPins()}
                     className={`${SUB_BTN} border-red-500/50 bg-red-500/10 text-red-200`}
                   >
-                    Clean Ghost Pins
+                    Hide ghost pins
                   </button>
                   <button
                     type="button"
@@ -1107,6 +1321,48 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     {missionsLoading ? '…' : 'Refresh'}
                   </button>
                 </div>
+              </div>
+              <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                <input
+                  type="search"
+                  value={missionQuery}
+                  onChange={(e) => {
+                    setMissionQuery(e.target.value);
+                    setMissionPage(0);
+                  }}
+                  aria-label="Search missions"
+                  placeholder="Search id, description, status, user…"
+                  className="w-full rounded-2xl border border-cyan-500/25 bg-black/40 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500"
+                />
+                <select
+                  value={missionStatus}
+                  onChange={(e) => {
+                    setMissionStatus(e.target.value);
+                    setMissionPage(0);
+                  }}
+                  aria-label="Filter by status"
+                  className="rounded-2xl border border-white/15 bg-slate-950 px-3 py-2 text-[11px] uppercase text-slate-200"
+                >
+                  <option value="">All statuses</option>
+                  {MISSION_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={missionHidden}
+                  onChange={(e) => {
+                    setMissionHidden(e.target.value as 'all' | 'visible' | 'hidden');
+                    setMissionPage(0);
+                  }}
+                  aria-label="Filter by visibility"
+                  className="rounded-2xl border border-white/15 bg-slate-950 px-3 py-2 text-[11px] uppercase text-slate-200"
+                >
+                  <option value="all">Visible and hidden</option>
+                  <option value="visible">Visible only</option>
+                  <option value="hidden">Hidden only</option>
+                </select>
               </div>
               {missionsError && <p className="mb-2 text-xs text-red-300">{missionsError}</p>}
               <div className="max-h-[28rem] space-y-2 overflow-y-auto">
@@ -1122,19 +1378,39 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                         <p className="font-mono text-sm text-slate-100">#{m.id.slice(0, 8)}</p>
                         <p className="text-[11px] uppercase tracking-[0.12em] text-slate-400">
                           {m.status}
+                          {m.hidden_at ? ' · hidden' : ''}
                         </p>
+                        {m.description ? (
+                          <p className="mt-1 max-w-md truncate text-[11px] text-slate-500">{m.description}</p>
+                        ) : null}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void forceCancelMission(m.id)}
-                        className={`${SUB_BTN} border-red-500/40 bg-red-500/10 text-red-200`}
-                      >
-                        Force Cancel
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={adminDeleteLoadingId === m.id}
+                          onClick={() => void updateMissionVisibility(m.id, !m.hidden_at)}
+                          className={`${SUB_BTN} border-violet-400/40 bg-violet-500/10 text-violet-100`}
+                        >
+                          {m.hidden_at ? 'Unhide' : 'Hide'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void forceCancelMission(m.id)}
+                          className={`${SUB_BTN} border-red-500/40 bg-red-500/10 text-red-200`}
+                        >
+                          Force Cancel
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}
               </div>
+              <Pager
+                page={missionPage}
+                pageSize={PAGE_SIZE}
+                total={missionTotal}
+                onPage={setMissionPage}
+              />
             </section>
           )}
 
@@ -1153,6 +1429,17 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   {disputesLoading ? '…' : 'Refresh'}
                 </button>
               </div>
+              <input
+                type="search"
+                value={disputeQuery}
+                onChange={(e) => {
+                  setDisputeQuery(e.target.value);
+                  setDisputePage(0);
+                }}
+                aria-label="Search disputes"
+                placeholder="Search id or description…"
+                className="mb-3 w-full rounded-2xl border border-amber-500/25 bg-black/40 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500"
+              />
               {disputesError && <p className="mb-2 text-xs text-red-300">{disputesError}</p>}
               <div className="space-y-4">
                 {disputes.map((m) => (
@@ -1240,6 +1527,12 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   <p className="py-6 text-center text-sm italic text-slate-500">No disputes.</p>
                 )}
               </div>
+              <Pager
+                page={disputePage}
+                pageSize={PAGE_SIZE}
+                total={disputeTotal}
+                onPage={setDisputePage}
+              />
             </section>
           )}
 
@@ -1255,7 +1548,10 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               <button
                 type="button"
                 disabled={nukeBusy}
-                onClick={() => void handleFactoryReset()}
+                onClick={() => {
+                  setNukeText('');
+                  setNukeOpen(true);
+                }}
                 className="mt-4 w-full rounded-full border border-rose-400/70 bg-rose-600/90 px-4 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-white shadow-[0_0_20px_rgba(244,63,94,0.45)] transition-transform hover:bg-rose-500 disabled:cursor-wait disabled:opacity-60 active:scale-[0.98]"
               >
                 {nukeBusy ? 'Nuking…' : 'Nuke Database (Factory Reset)'}
@@ -1264,6 +1560,74 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           )}
         </div>
       )}
+
+      {pillar === 'audit' ? (
+        <section className="rounded-2xl border border-cyan-500/20 bg-slate-950 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
+              Admin audit log
+            </h3>
+            <button
+              type="button"
+              onClick={() => void loadAudit()}
+              className={`${SUB_BTN} border-cyan-500/40 bg-cyan-500/10 text-cyan-200`}
+            >
+              Refresh
+            </button>
+          </div>
+          <input
+            type="search"
+            value={auditQuery}
+            onChange={(e) => {
+              setAuditQuery(e.target.value);
+              setAuditPage(0);
+            }}
+            aria-label="Search audit log"
+            placeholder="Search action, target type, or id…"
+            className="mb-3 w-full rounded-2xl border border-cyan-500/25 bg-black/40 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500"
+          />
+          {auditError ? <p className="mb-2 text-xs text-red-300">{auditError}</p> : null}
+          {auditLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/50 border-t-cyan-300" />
+            </div>
+          ) : auditRows.length === 0 ? (
+            <p className="py-6 text-center text-sm italic text-slate-500">No audit rows yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {auditRows.map((row) => {
+                const open = auditOpenId === row.id;
+                return (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => setAuditOpenId(open ? null : row.id)}
+                    className="w-full rounded-2xl border border-white/10 bg-cyan-950/20 px-3 py-3 text-left"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-mono text-[11px] text-cyan-200">{row.action}</span>
+                      <span className="text-[10px] text-slate-500">
+                        {new Date(row.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      {row.target_type}
+                      {row.target_id ? ` · ${row.target_id}` : ''}
+                      {row.actor_id ? ` · actor ${row.actor_id.slice(0, 8)}` : ''}
+                    </p>
+                    {open ? (
+                      <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all text-[10px] text-slate-300">
+                        {JSON.stringify({ before: row.before_state, after: row.after_state }, null, 2)}
+                      </pre>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <Pager page={auditPage} pageSize={PAGE_SIZE} total={auditTotal} onPage={setAuditPage} />
+        </section>
+      ) : null}
 
       {adminToast && (
         <div
@@ -1513,7 +1877,92 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           </div>
         </div>
       )}
+
+      {confirmReq ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="admin-confirm-title"
+        >
+          <div className="w-full max-w-md rounded-3xl border border-white/15 bg-slate-950 p-5 shadow-2xl">
+            <h4 id="admin-confirm-title" className="text-sm font-black uppercase tracking-[0.14em] text-white">
+              {confirmReq.title}
+            </h4>
+            <p className="mt-2 text-sm leading-relaxed text-slate-300">{confirmReq.body}</p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => settleConfirm(false)}
+                className="flex-1 rounded-full border border-white/15 px-3 py-2 text-[10px] font-black uppercase text-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => settleConfirm(true)}
+                className={`flex-1 rounded-full px-3 py-2 text-[10px] font-black uppercase ${
+                  confirmReq.tone === 'danger'
+                    ? 'border border-rose-400/50 bg-rose-500/20 text-rose-100'
+                    : 'border border-cyan-400/50 bg-cyan-500/20 text-cyan-100'
+                }`}
+              >
+                {confirmReq.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {nukeOpen ? (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="admin-nuke-title"
+        >
+          <div className="w-full max-w-md rounded-3xl border border-rose-500/40 bg-slate-950 p-5">
+            <h4 id="admin-nuke-title" className="text-sm font-black uppercase tracking-[0.14em] text-rose-200">
+              Factory reset
+            </h4>
+            <p className="mt-2 text-sm leading-relaxed text-rose-100/80">
+              This deletes all missions, bids, contributions, reviews, and transactions. The server
+              also refuses unless private.app_config allow_factory_reset is true. Type NUKE to continue.
+            </p>
+            <input
+              value={nukeText}
+              onChange={(e) => setNukeText(e.target.value)}
+              autoFocus
+              aria-label="Type NUKE to confirm factory reset"
+              className="mt-3 w-full rounded-2xl border border-rose-500/40 bg-black/40 px-3 py-2.5 text-sm text-white outline-none"
+              placeholder="NUKE"
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setNukeOpen(false);
+                  setNukeText('');
+                }}
+                className="flex-1 rounded-full border border-white/15 px-3 py-2 text-[10px] font-black uppercase text-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={nukeBusy}
+                onClick={() => void handleFactoryReset()}
+                className="flex-1 rounded-full border border-rose-400/50 bg-rose-600/80 px-3 py-2 text-[10px] font-black uppercase text-white disabled:opacity-50"
+              >
+                {nukeBusy ? '…' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
+    </AdminShell>
   );
 };
 

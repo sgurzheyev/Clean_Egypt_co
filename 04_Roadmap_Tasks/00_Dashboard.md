@@ -20,6 +20,7 @@
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] — SEC-4 Vercel user JWT on AI / notify APIs
 - [[04_Roadmap_Tasks/Phone_Prod_Reviews_Pin_Sheet]] — пустые ОТЗЫВЫ, Failed to fetch на пине, первый шит за экраном
 - [[04_Roadmap_Tasks/Admin_P0_Hardening]] — Admin P0: RPC guards, AI verdict lock, factory reset off on prod
+- [[04_Roadmap_Tasks/Admin_P1_Upgrade]] — Admin P1: audit log, soft-hide, server search, lazy full-screen panel
 - [[04_Roadmap_Tasks/Map_Rush_Mode]] — RUSH live planes/ships + H2H night land
 - [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] — idle RUSH chip matches collapsed WX
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `migration repair` for `20260912_*` / `20260917_*` (no `db push`)
@@ -43,6 +44,7 @@
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]: LIFE-1 accept-underfund / LIFE-2 reject RPC / LIFE-3 expiry unlock
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]: SEC-5 push token / fail-closed Edge / Hungry-Games subscription
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]: SEC-4 Vercel `/api/*` user JWT + membership
+- [[04_Roadmap_Tasks/Admin_P1_Upgrade]]: audit log, soft-hide, server search, lazy full-screen admin panel
 - [[04_Roadmap_Tasks/Map_Rush_Mode]]: RUSH live planes/ships + H2H night land
 - [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]]: idle RUSH matches the WX chip; color and craft count only while ships/planes are on
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]: `supabase migration repair --status applied 20260912` / `20260917`

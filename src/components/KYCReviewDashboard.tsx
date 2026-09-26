@@ -25,9 +25,15 @@ type KycMediaUrls = {
 type KYCReviewDashboardProps = {
   /** Parent AdminDashboard already gates access; this is a second guard. */
   isAllowedAdmin: boolean;
+  notify: (message: string, kind: 'success' | 'error') => void;
+  confirmAction: (title: string, body: string, confirmLabel: string) => Promise<boolean>;
 };
 
-const KYCReviewDashboard: React.FC<KYCReviewDashboardProps> = ({ isAllowedAdmin }) => {
+const KYCReviewDashboard: React.FC<KYCReviewDashboardProps> = ({
+  isAllowedAdmin,
+  notify,
+  confirmAction,
+}) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingKycProfile[]>([]);
@@ -81,14 +87,19 @@ const KYCReviewDashboard: React.FC<KYCReviewDashboardProps> = ({ isAllowedAdmin 
       }));
     } catch (e: any) {
       console.error('loadMediaForUser', e);
-      alert(e?.message || 'Failed to load KYC media (signed URLs).');
+      notify(e?.message || 'Failed to load KYC media (signed URLs).', 'error');
     } finally {
       setMediaLoadingId(null);
     }
   };
 
   const handleApprove = async (row: PendingKycProfile) => {
-    if (!window.confirm(`Approve KYC for ${row.full_name || row.id.slice(0, 8)}?`)) return;
+    const ok = await confirmAction(
+      'Approve KYC',
+      `Approve KYC for ${row.full_name || row.id.slice(0, 8)}?`,
+      'Approve'
+    );
+    if (!ok) return;
     setActionLoadingId(row.id);
     try {
       const { error: rpcErr } = await supabase.rpc('moderate_kyc_verification', {
@@ -104,7 +115,7 @@ const KYCReviewDashboard: React.FC<KYCReviewDashboardProps> = ({ isAllowedAdmin 
         return next;
       });
     } catch (e: any) {
-      alert(e?.message || 'Failed to approve KYC.');
+      notify(e?.message || 'Failed to approve KYC.', 'error');
     } finally {
       setActionLoadingId(null);
     }
@@ -129,7 +140,7 @@ const KYCReviewDashboard: React.FC<KYCReviewDashboardProps> = ({ isAllowedAdmin 
       setRejectTarget(null);
       setRejectReason('');
     } catch (e: any) {
-      alert(e?.message || 'Failed to reject KYC.');
+      notify(e?.message || 'Failed to reject KYC.', 'error');
     } finally {
       setActionLoadingId(null);
     }

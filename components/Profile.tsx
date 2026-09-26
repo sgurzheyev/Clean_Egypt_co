@@ -2,7 +2,7 @@
  * [[Architecture_Overview.md]]
  * Profile floating glass card — wallet/tokens, missions, accordions, Top Up.
  */
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { supabase } from '../services/supabase';
@@ -19,7 +19,7 @@ import {
 } from '../src/lib/r2Media';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import AdminDashboard from '../src/components/AdminDashboard';
+const AdminDashboard = lazy(() => import('../src/components/AdminDashboard'));
 import TokenPackModal from '../src/components/TokenPackModal';
 import SubscriptionModal from '../src/components/SubscriptionModal';
 import LivenessCheck from '../src/components/LivenessCheck';
@@ -72,7 +72,7 @@ import { userIsMissionDonor } from '../src/lib/escrowProofVotes';
 import { formatTokens, formatWorkBudgetUsd } from '../src/lib/formatMoney';
 import { missionWorkBudgetUsd, missionTokenBid } from '../src/lib/missionBudget';
 import {
-  isPlatformAdmin,
+  useIsPlatformAdmin,
   isArchivedMissionStatus,
   isWorkerActiveMissionStatus,
   WORKER_PROFILE_STATUSES,
@@ -325,6 +325,15 @@ function JobTimer({ startedAt }: { startedAt: string }) {
   return <span className="tabular-nums text-emerald-400 font-bold">{elapsed}</span>;
 }
 
+function AdminPanelFallback() {
+  return createPortal(
+    <div className="fixed inset-0 z-[10050] flex items-center justify-center bg-slate-950">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500/40 border-t-cyan-300" />
+    </div>,
+    document.body
+  );
+}
+
 const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, onNavigateToJob, onOpenAR }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -373,11 +382,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [marketError, setMarketplaceError] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<ProfileRow | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const isAdmin = isPlatformAdmin({
-    email: userEmail ?? _session?.user?.email,
-    telegramUsername: userProfile?.telegram_username,
-    role: userProfile?.role,
-  });
+  const isAdmin = useIsPlatformAdmin(_session?.user?.id ?? null);
   const [adminDeleteMissionId, setAdminDeleteMissionId] = useState<string | null>(null);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [paymentSyncing, setPaymentSyncing] = useState(false);
@@ -1827,10 +1832,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             className="flex max-w-full min-h-0 flex-1 flex-col gap-4 overflow-x-hidden scrollable-sheet-content p-4 pb-[max(9rem,calc(env(safe-area-inset-bottom,0px)+5rem))]"
           >
           <div className="w-full max-w-md mx-auto flex flex-col gap-3 min-w-0">
-        {showAdmin ? (
-          <AdminDashboard onBack={() => setShowAdmin(false)} />
-        ) : (
-          <>
         {/* HEADER: Avatar + rating + actions (name is ONLY in the sticky title). */}
         <header className="mb-2 text-white">
           <div className="flex items-center gap-4 min-w-0">
@@ -3242,12 +3243,16 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           </a>
         </div>
 
-          </>
-        )}
           </div>
         </div>
         </div>
       </motion.div>
+
+      {showAdmin ? (
+        <Suspense fallback={<AdminPanelFallback />}>
+          <AdminDashboard onBack={() => setShowAdmin(false)} />
+        </Suspense>
+      ) : null}
 
       {/* Floating back-to-map — portal to <body>, above map chrome.
           Exact center via 5-col grid column 3. Plain <button> (no framer
