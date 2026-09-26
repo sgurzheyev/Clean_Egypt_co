@@ -10,6 +10,9 @@
 -- 2. missions.hidden_at / hidden_by — soft-hide. Public SELECT excludes them.
 --    admin_delete_mission stays a hard delete (audited) but the panel does not
 --    call it. force_cancel_mission refund body is unchanged.
+--    Drift-checked against live on 2026-09-27: every replaced function keeps
+--    the live body and live search_path; only admin guard / audit / before-state
+--    reads / grants are added.
 -- 3. admin_financial_metrics is NOT replaced (live still returns
 --    pending_payouts / pending_withdrawals). Pulse counts are a new RPC.
 --
@@ -793,7 +796,7 @@ CREATE OR REPLACE FUNCTION public.admin_grant_tokens(p_user_id uuid, p_tokens in
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = public, extensions, net, pg_temp  -- Admin P1: keep live search_path
 AS $fn$
 DECLARE
   v_prev integer;
@@ -837,7 +840,7 @@ CREATE OR REPLACE FUNCTION public.admin_set_token_balance(p_user_id uuid, p_bala
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = public, extensions, net, pg_temp  -- Admin P1: keep live search_path
 AS $fn$
 DECLARE
   v_prev integer;
@@ -888,7 +891,7 @@ CREATE OR REPLACE FUNCTION public.admin_set_wallet_balance(p_user_id uuid, p_bal
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = public, extensions, net, pg_temp  -- Admin P1: keep live search_path
 AS $fn$
 DECLARE
   v_prev numeric;
@@ -927,7 +930,7 @@ CREATE OR REPLACE FUNCTION public.admin_set_profile_banned(p_user_id uuid, p_ban
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = public, extensions, net, pg_temp  -- Admin P1: keep live search_path
 AS $fn$
 DECLARE
   v_prev boolean;
@@ -966,7 +969,7 @@ CREATE OR REPLACE FUNCTION public.admin_set_profile_verified(p_user_id uuid, p_v
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = public, extensions, net, pg_temp  -- Admin P1: keep live search_path
 AS $fn$
 DECLARE
   v_prev boolean;
@@ -1019,7 +1022,7 @@ CREATE OR REPLACE FUNCTION public.moderate_kyc_verification(
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = public, extensions, net, pg_temp  -- Admin P1: keep live search_path
 AS $fn$
 DECLARE
   v_uid uuid := auth.uid();
@@ -1109,7 +1112,7 @@ CREATE OR REPLACE FUNCTION public.resolve_mission_dispute(
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = public, extensions, net, pg_temp  -- Admin P1: keep live search_path
 AS $fn$
 DECLARE
   v_mission record;
@@ -1233,7 +1236,7 @@ CREATE OR REPLACE FUNCTION public.admin_delete_mission(p_mission_id uuid)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = public, extensions, net, pg_temp  -- Admin P1: keep live search_path
 AS $fn$
 DECLARE
   v_uid uuid := auth.uid();
