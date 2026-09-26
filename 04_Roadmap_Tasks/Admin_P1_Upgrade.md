@@ -107,5 +107,5 @@ The `npm run build` passes. `tsc` shows only the 2 known `LiveMarketFeed.tsx` er
 
 **Left open**
 
-- A legacy overload, `resolve_mission_dispute(p_mission_id uuid, p_verdict boolean, p_supervisor_comment text)`, is still live with **no auth check** and EXECUTE for PUBLIC/anon. It writes `profiles.balance_egp` / `frozen_balance` and reads `public.bids`. This migration does not touch it. Revoke or drop it in a follow-up once confirmed unused.
+- A legacy overload, `resolve_mission_dispute(p_mission_id uuid, p_verdict boolean, p_supervisor_comment text)`, is still live with **no auth check** and EXECUTE for PUBLIC/anon. It writes `profiles.balance_egp` / `frozen_balance` and reads `public.bids`. This migration does not touch it. **Closed 2026-09-27:** dropped by [[20260927110000_drop_legacy_resolve_dispute.sql]], see [[04_Roadmap_Tasks/Legacy_Dispute_RPC_Closed]].
 - `sum(profiles.frozen_balance)` on live is negative (−4113). This was already the case before P1 and has not been investigated.
