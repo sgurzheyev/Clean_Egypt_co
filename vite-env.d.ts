@@ -16,6 +16,8 @@ interface ImportMetaEnv {
   readonly VITE_VAPID_PUBLIC_KEY?: string;
   readonly VITE_APP_ORIGIN?: string;
   readonly VITE_R2_PUBLIC_BASE_URL?: string;
+  /** 'true' shows the Admin Danger zone (factory reset). Leave unset on prod. */
+  readonly VITE_ENABLE_FACTORY_RESET?: string;
   readonly DEV: boolean;
 }
 

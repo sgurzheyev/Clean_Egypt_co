@@ -70,6 +70,7 @@ Chronological — June–July 2026 token / crowdfunding / privacy stack.
 | 2026-09-17 | [[20260917_wave_h_surface_hardening.sql]] | Wave H: `upsert_user_push_token` blocks hijack. Same CLI version `20260917`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]. |
 | 2026-09-17 | [[20260917_hungry_games_subscription_gate.sql]] | Hungry-Games: active subscription required for **new** bids (admins exempt; pending updates skip re-debit). Apply **after** Wave F. Filename sorts before `wave_f_*` — do not `db push`. Note: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]. |
 | 2026-09-24 | [[20260924_profile_reviews_about_user.sql]] | Профиль ОТЗЫВЫ: отзывы **об** пользователе (`reviewee_id`, иначе legacy `cleaner_id`); уведомление `new_review` с именем и комментарием. Note: [[04_Roadmap_Tasks/Phone_Prod_Reviews_Pin_Sheet]]. |
+| 2026-09-26 | [[20260926_admin_p0_hardening.sql]] | Admin P0: admin guard + no PUBLIC/anon EXECUTE on `force_cancel_mission`, `admin_financial_metrics`, `admin_factory_reset`; `ai_verdict`/`ai_confidence_score` UPDATE revoked + trigger + `admin_set_ai_verdict`; factory reset refuses unless `private.app_config` `allow_factory_reset='true'`. Live applied via `db query`; history repaired `20260926`. Note: [[04_Roadmap_Tasks/Admin_P0_Hardening]]. |
 
 > Full marketplace architecture write-up: [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]]
 

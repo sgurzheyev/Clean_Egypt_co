@@ -21,7 +21,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 | Backend / SQL | [[03_Backend_SQL/SQL_Migrations_Index]] |
 | Edge & API | [[03_Backend_SQL/Backend_Edge_and_API]] |
 | Roadmap | [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] |
-| Lifecycle audit / Wave A–I | [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] · [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] |
+| Lifecycle audit / Wave A–I | [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · [[04_Roadmap_Tasks/Admin_P0_Hardening]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] · [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] |
 | Map RUSH | [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] |
 | Archive | [[05_Archive/Garbagin_Roadmap_Update]] |
 | Field dashboard | [[04_Roadmap_Tasks/00_Dashboard]] |
@@ -49,6 +49,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] — SEC-5 push token lock + fail-closed Edge + Hungry-Games subscription
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] — SEC-4 Vercel user JWT on AI / notify APIs
 - [[04_Roadmap_Tasks/Phone_Prod_Reviews_Pin_Sheet]] — пустые ОТЗЫВЫ, Failed to fetch на пине, первый шит за экраном
+- [[04_Roadmap_Tasks/Admin_P0_Hardening]] — Admin P0: `force_cancel_mission` / `admin_financial_metrics` guards, AI verdict lock + `admin_set_ai_verdict`, factory reset off on prod
 - [[04_Roadmap_Tasks/Map_Rush_Mode]] — RUSH live planes/ships + H2H night land
 - [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] — idle RUSH chip matches collapsed WX
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `supabase migration repair` for `20260912_*` / `20260917_*`

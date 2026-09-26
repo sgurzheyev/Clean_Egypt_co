@@ -121,6 +121,8 @@ type UsersSub = 'people' | 'stores' | 'kyc';
 type ControlSub = 'stuck' | 'missions' | 'disputes';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
+/** Danger zone (factory reset) is hidden unless this build opts in; the DB also refuses by default. */
+const FACTORY_RESET_ENABLED = import.meta.env.VITE_ENABLE_FACTORY_RESET === 'true';
 
 const PILLAR_BTN =
   'px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-[0.16em] border transition-all active:scale-95';
@@ -600,13 +602,12 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     setAiRunningMissionId(m.id);
     try {
       const result = await runMissionAiAnalysis(m.id);
-      const { error: updErr } = await supabase
-        .from('missions')
-        .update({
-          ai_confidence_score: result.score,
-          ai_verdict: result.verdict,
-        })
-        .eq('id', m.id);
+      // ai_* columns are admin-only on the server (Admin P0 hardening): write via RPC.
+      const { error: updErr } = await supabase.rpc('admin_set_ai_verdict', {
+        p_mission_id: m.id,
+        p_verdict: result.verdict,
+        p_confidence: result.score,
+      });
       if (updErr) throw updErr;
       alert('AI analysis saved.');
       await loadDisputes();
@@ -632,14 +633,17 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   };
 
   const handleFactoryReset = async () => {
-    if (
-      !window.confirm(
-        'Are you absolutely sure? This will delete ALL missions, bids, and transactions across the platform!'
-      )
-    ) {
+    if (!FACTORY_RESET_ENABLED) return;
+    if (nukeBusy) return;
+    const typed = window.prompt(
+      'This deletes ALL missions, bids, contributions, reviews, and transactions across the platform.\n' +
+        'The server also refuses unless private.app_config allow_factory_reset = true.\n\n' +
+        'Type NUKE to continue:'
+    );
+    if (typed?.trim() !== 'NUKE') {
+      if (typed !== null) showAdminToast('Factory reset cancelled (confirmation text did not match).', 'error');
       return;
     }
-    if (nukeBusy) return;
     setNukeBusy(true);
     try {
       const { error: rpcErr } = await supabase.rpc('admin_factory_reset');
@@ -1239,23 +1243,25 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             </section>
           )}
 
-          <section className="rounded-2xl border-2 border-rose-500/50 bg-rose-950/40 p-4 shadow-[0_0_28px_rgba(244,63,94,0.18)]">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.22em] text-rose-300">
-              Danger zone
-            </h3>
-            <p className="mt-2 text-xs leading-relaxed text-rose-100/80">
-              Factory reset wipes all missions, bids, contributions, notifications, reviews, and
-              transactions. User profiles are kept.
-            </p>
-            <button
-              type="button"
-              disabled={nukeBusy}
-              onClick={() => void handleFactoryReset()}
-              className="mt-4 w-full rounded-full border border-rose-400/70 bg-rose-600/90 px-4 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-white shadow-[0_0_20px_rgba(244,63,94,0.45)] transition-transform hover:bg-rose-500 disabled:cursor-wait disabled:opacity-60 active:scale-[0.98]"
-            >
-              {nukeBusy ? 'Nuking…' : 'Nuke Database (Factory Reset)'}
-            </button>
-          </section>
+          {FACTORY_RESET_ENABLED && (
+            <section className="rounded-2xl border-2 border-rose-500/50 bg-rose-950/40 p-4 shadow-[0_0_28px_rgba(244,63,94,0.18)]">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.22em] text-rose-300">
+                Danger zone
+              </h3>
+              <p className="mt-2 text-xs leading-relaxed text-rose-100/80">
+                Factory reset wipes all missions, bids, contributions, notifications, reviews, and
+                transactions. User profiles are kept.
+              </p>
+              <button
+                type="button"
+                disabled={nukeBusy}
+                onClick={() => void handleFactoryReset()}
+                className="mt-4 w-full rounded-full border border-rose-400/70 bg-rose-600/90 px-4 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-white shadow-[0_0_20px_rgba(244,63,94,0.45)] transition-transform hover:bg-rose-500 disabled:cursor-wait disabled:opacity-60 active:scale-[0.98]"
+              >
+                {nukeBusy ? 'Nuking…' : 'Nuke Database (Factory Reset)'}
+              </button>
+            </section>
+          )}
         </div>
       )}
 
