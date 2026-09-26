@@ -303,6 +303,8 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [grantUser, setGrantUser] = useState<ProfileRow | null>(null);
   const [grantTokens, setGrantTokens] = useState('100');
   const [grantBusy, setGrantBusy] = useState(false);
+  const [resetTokensValue, setResetTokensValue] = useState('100');
+  const [resetTokensBusy, setResetTokensBusy] = useState(false);
 
   const [pendingApprovals, setPendingApprovals] = useState<MissionRow[]>([]);
   const [pendingApprovalsError, setPendingApprovalsError] = useState<string | null>(null);
@@ -705,6 +707,34 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     }
   };
 
+  const resetAllTokens = async () => {
+    const n = Math.floor(Number(resetTokensValue));
+    if (!Number.isFinite(n) || n < 0 || n > 1000000) {
+      showAdminToast('Enter a token amount between 0 and 1,000,000.', 'error');
+      return;
+    }
+    const ok = await askConfirm({
+      title: 'Reset all tokens',
+      body: `Set EVERY account's token balance to ${n}? This overwrites all current token balances (wallet and money balances are not touched). The action is written to the audit log.`,
+      confirmLabel: `Reset to ${n}`,
+      tone: 'danger',
+    });
+    if (!ok) return;
+    setResetTokensBusy(true);
+    try {
+      const { data, error: rpcErr } = await supabase.rpc('admin_reset_all_tokens', { p_tokens: n });
+      if (rpcErr) throw rpcErr;
+      setProfiles((prev) => prev.map((p) => ({ ...p, token_balance: n })));
+      setSelectedUser((prev) => (prev ? { ...prev, token_balance: n } : prev));
+      showAdminToast(`Reset ${Number(data ?? 0)} accounts to ${n} tokens.`, 'success');
+      await loadUsers();
+    } catch (e: unknown) {
+      showAdminToast(formatUnknownError(e, 'Failed to reset tokens.'), 'error');
+    } finally {
+      setResetTokensBusy(false);
+    }
+  };
+
   const cleanGhostPins = async () => {
     const ok = await askConfirm({
       title: 'Hide ghost pins',
@@ -1081,6 +1111,32 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 placeholder="Search name, email, phone, telegram…"
                 className="mb-3 w-full rounded-2xl border border-cyan-500/25 bg-black/40 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-cyan-500/30"
               />
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-amber-500/25 bg-amber-950/20 px-3 py-2.5">
+                <span className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-300/90">
+                  All accounts
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  max={1000000}
+                  step={1}
+                  inputMode="numeric"
+                  value={resetTokensValue}
+                  onChange={(e) => setResetTokensValue(e.target.value)}
+                  aria-label="Token balance for every account"
+                  className="w-24 rounded-xl border border-amber-500/30 bg-black/40 px-2 py-1.5 text-sm text-white outline-none focus:ring-2 focus:ring-amber-500/30"
+                />
+                <button
+                  type="button"
+                  disabled={resetTokensBusy}
+                  onClick={() => void resetAllTokens()}
+                  className={`${SUB_BTN} border-amber-500/40 bg-amber-500/10 text-amber-200 disabled:opacity-50`}
+                >
+                  {resetTokensBusy
+                    ? '…'
+                    : `Reset all tokens to ${Number.isFinite(Math.floor(Number(resetTokensValue))) ? Math.floor(Number(resetTokensValue)) : '?'}`}
+                </button>
+              </div>
               <div className="max-h-[28rem] space-y-2 overflow-y-auto [scrollbar-width:thin]">
                 {usersLoading ? (
                   <div className="flex justify-center py-8">
