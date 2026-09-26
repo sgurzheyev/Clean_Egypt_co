@@ -1,12 +1,29 @@
-/** Matches server-side admin checks (platform_admins / email / role). */
-export function isPlatformAdmin(input: {
-  email?: string | null;
-  telegramUsername?: string | null;
-  role?: string | null;
-}): boolean {
-  if (String(input.role ?? '').toLowerCase() === 'admin') return true;
-  const email = String(input.email ?? '').toLowerCase();
-  return email === 'sgurzheyev@gmail.com' || email.includes('tg_6618910143');
+import { useEffect, useState } from 'react';
+import { supabase } from '../../services/supabase';
+
+/**
+ * Browser gate for admin UI. The server function is the source of truth
+ * (platform_admins / founder email / profiles.role). Do not hardcode identities here.
+ */
+export function useIsPlatformAdmin(userId: string | null | undefined): boolean {
+  const [allowed, setAllowed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!userId) {
+      setAllowed(false);
+      return;
+    }
+    (async () => {
+      const { data, error } = await supabase.rpc('is_platform_admin', { p_uid: userId });
+      if (!cancelled) setAllowed(!error && data === true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  return allowed;
 }
 
 /** Worker Orders — still in flight (P2P review + crowd awaiting_approval). */

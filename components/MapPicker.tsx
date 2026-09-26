@@ -78,7 +78,7 @@ import {
   type MissionSortMode,
 } from '../src/lib/missionFilterSort';
 import MissionFilterPanel from './MissionFilterPanel';
-import { isPlatformAdmin } from '../src/lib/platformAdmin';
+import { useIsPlatformAdmin } from '../src/lib/platformAdmin';
 import { adminDeleteMission } from '../src/lib/adminMission';
 import { floorUsd, parseIntegerUsdFromInput, sanitizeIntegerUsdDigits } from '../src/lib/integerUsdInput';
 import ModeratedMissionPhoto from './ModeratedMissionPhoto';
@@ -2322,15 +2322,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     return Number.isFinite(exp) && Date.now() < exp;
   }, [viewerProfile?.subscription_expires_at]);
 
-  const isPlatformAdminViewer = useMemo(
-    () =>
-      isPlatformAdmin({
-        email: authEmail,
-        telegramUsername: viewerProfile?.telegram_username,
-        role: viewerProfile?.role,
-      }),
-    [authEmail, viewerProfile?.telegram_username, viewerProfile?.role]
-  );
+  const isPlatformAdminViewer = useIsPlatformAdmin(currentUserId);
 
   const [adminDeleteMissionId, setAdminDeleteMissionId] = useState<string | null>(null);
 

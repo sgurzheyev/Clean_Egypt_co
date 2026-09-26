@@ -28,7 +28,7 @@ Legacy aliases still seen in UI/data: `pending` ≈ available, `pending_approval
 | Map create / bid | [[../components/MapPicker.tsx]] |
 | Briefing | [[../components/MissionBriefing.tsx]] |
 | Profile orders / review | [[../components/Profile.tsx]] |
-| Admin / supervisor | [[../src/components/AdminDashboard.tsx]], [[../components/SupervisorDashboard.tsx]] |
+| Admin | [[../src/components/AdminDashboard.tsx]] (Disputes tab calls `resolve_mission_dispute`). The unused `SupervisorDashboard` screen was removed — [[../04_Roadmap_Tasks/Admin_P1_Upgrade]]. |
 
 ## Money display
 
