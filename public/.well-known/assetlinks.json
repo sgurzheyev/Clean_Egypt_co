@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.garbagin.app",
+      "sha256_cert_fingerprints": [
+        "0B:3B:8A:57:A2:D0:9A:5C:D0:4D:4C:B1:79:FD:94:85:9E:BB:AE:7A:69:CC:1F:D0:D9:80:D5:4A:E8:E1:55:FE",
+        "05:B9:DA:87:87:86:61:D4:4C:90:B7:9F:47:B5:64:C0:38:4C:F9:72:C8:26:EA:A1:09:0E:B4:BC:37:0D:D9:FE"
+      ]
+    }
+  }
+]

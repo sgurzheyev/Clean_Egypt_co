@@ -21,7 +21,7 @@
       "destination": "/privacy.html"
     },
     {
-      "source": "/((?!api/)(?!privacy\\.html$).*)",
+      "source": "/((?!api/)(?!privacy\\.html$)(?!\\.well-known/).*)",
       "destination": "/index.html"
     }
   ],
@@ -44,6 +44,15 @@
         {
           "key": "Strict-Transport-Security",
           "value": "max-age=31536000; includeSubDomains; preload"
+        }
+      ]
+    },
+    {
+      "source": "/.well-known/assetlinks.json",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
         }
       ]
     }
