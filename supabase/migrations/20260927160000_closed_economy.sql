@@ -586,45 +586,48 @@ BEGIN
     v_event_id := NULL;
 
     IF v_raised <= 0 THEN
-      -- Bonus-refund first. If the status update loses the race, roll it back
-      -- so a still-live pin does not pay the expiry bonus.
-      SAVEPOINT closed_economy_pin;
-      v_token_credit := public.refund_held_token_donations_with_bonus(v_row.id);
+      -- Bonus-refund BEFORE the status change. A nested block rolls that
+      -- credit back when the UPDATE matches 0 rows (CE001). The hidden-status
+      -- trigger would otherwise refund 1:1.
+      BEGIN
+        v_token_credit := public.refund_held_token_donations_with_bonus(v_row.id);
 
-      UPDATE public.missions
-      SET
-        status = 'hidden',
-        cleaner_id = NULL,
-        crowdfunding_expires_at = COALESCE(crowdfunding_expires_at, v_expires),
-        history_public_until = NULL
-      WHERE id = v_row.id
-        AND lower(coalesce(status::text, '')) IN ('reported', 'funding')
-        AND coalesce(current_funding, 0) <= 0;
+        UPDATE public.missions
+        SET
+          status = 'hidden',
+          cleaner_id = NULL,
+          crowdfunding_expires_at = COALESCE(crowdfunding_expires_at, v_expires),
+          history_public_until = NULL
+        WHERE id = v_row.id
+          AND lower(coalesce(status::text, '')) IN ('reported', 'funding')
+          AND coalesce(current_funding, 0) <= 0;
 
-      GET DIAGNOSTICS v_updated = ROW_COUNT;
-      IF v_updated = 0 THEN
-        ROLLBACK TO SAVEPOINT closed_economy_pin;
-        RELEASE SAVEPOINT closed_economy_pin;
-        CONTINUE;
-      END IF;
+        GET DIAGNOSTICS v_updated = ROW_COUNT;
+        IF v_updated = 0 THEN
+          RAISE EXCEPTION 'closed economy pin lost the race'
+            USING ERRCODE = 'CE001';
+        END IF;
 
-      UPDATE public.mission_bids
-      SET status = 'rejected'
-      WHERE mission_id = v_row.id
-        AND lower(coalesce(status::text, '')) IN ('pending', 'accepted');
+        UPDATE public.mission_bids
+        SET status = 'rejected'
+        WHERE mission_id = v_row.id
+          AND lower(coalesce(status::text, '')) IN ('pending', 'accepted');
 
-      IF v_token_credit > 0 THEN
-        INSERT INTO public.closed_economy_expiries (
-          mission_id, raised_usd, report_count, token_refund_credited
-        )
-        VALUES (
-          v_row.id, 0, public.closed_economy_report_count(v_row.id), v_token_credit
-        )
-        ON CONFLICT (mission_id) DO NOTHING;
-      END IF;
+        IF v_token_credit > 0 THEN
+          INSERT INTO public.closed_economy_expiries (
+            mission_id, raised_usd, report_count, token_refund_credited
+          )
+          VALUES (
+            v_row.id, 0, public.closed_economy_report_count(v_row.id), v_token_credit
+          )
+          ON CONFLICT (mission_id) DO NOTHING;
+        END IF;
 
-      RELEASE SAVEPOINT closed_economy_pin;
-      v_count := v_count + 1;
+        v_count := v_count + 1;
+      EXCEPTION
+        WHEN SQLSTATE 'CE001' THEN
+          NULL;
+      END;
       CONTINUE;
     END IF;
 
@@ -632,81 +635,88 @@ BEGIN
       CONTINUE;
     END IF;
 
-    SAVEPOINT closed_economy_pin;
-    v_token_credit := public.refund_held_token_donations_with_bonus(v_row.id);
-    v_stripe_credit := public.credit_stripe_expiry_tokens(v_row.id);
-    v_reports := public.closed_economy_report_count(v_row.id);
-    v_photos := public.closed_economy_notice_photos(v_row.id);
+    -- Restored to 0 if CE001 rolls the block back, so a prior row cannot leak.
+    v_updated := 0;
+    BEGIN
+      v_token_credit := public.refund_held_token_donations_with_bonus(v_row.id);
+      v_stripe_credit := public.credit_stripe_expiry_tokens(v_row.id);
+      v_reports := public.closed_economy_report_count(v_row.id);
+      v_photos := public.closed_economy_notice_photos(v_row.id);
 
-    UPDATE public.missions
-    SET
-      status = 'expired',
-      cleaner_id = NULL,
-      crowdfunding_expires_at = COALESCE(crowdfunding_expires_at, v_expires),
-      history_public_until = COALESCE(history_public_until, now() + interval '7 days')
-    WHERE id = v_row.id
-      AND lower(coalesce(status::text, '')) = 'funding'
-      AND coalesce(current_funding, 0) > 0
-      AND (
-        coalesce(expected_price, 0) < 1
-        OR coalesce(current_funding, 0) < coalesce(expected_price, 0)
-      );
+      UPDATE public.missions
+      SET
+        status = 'expired',
+        cleaner_id = NULL,
+        crowdfunding_expires_at = COALESCE(crowdfunding_expires_at, v_expires),
+        history_public_until = COALESCE(history_public_until, now() + interval '7 days')
+      WHERE id = v_row.id
+        AND lower(coalesce(status::text, '')) = 'funding'
+        AND coalesce(current_funding, 0) > 0
+        AND (
+          coalesce(expected_price, 0) < 1
+          OR coalesce(current_funding, 0) < coalesce(expected_price, 0)
+        );
 
-    GET DIAGNOSTICS v_updated = ROW_COUNT;
+      GET DIAGNOSTICS v_updated = ROW_COUNT;
+      IF v_updated = 0 THEN
+        RAISE EXCEPTION 'closed economy pin lost the race'
+          USING ERRCODE = 'CE001';
+      END IF;
+
+      UPDATE public.mission_bids
+      SET status = 'rejected'
+      WHERE mission_id = v_row.id
+        AND lower(coalesce(status::text, '')) IN ('pending', 'accepted');
+
+      INSERT INTO public.city_notification_events (mission_id, event_type, payload, pdf_status)
+      VALUES (
+        v_row.id,
+        'crowdfunding_expired',
+        jsonb_build_object(
+          'service_type', v_row.service_type,
+          'location_lat', v_row.location_lat,
+          'location_lng', v_row.location_lng,
+          'city', v_row.city,
+          'country', v_row.country,
+          'target_budget', v_row.expected_price,
+          'raised', v_raised,
+          'description', v_row.description,
+          'created_at', v_row.created_at,
+          'funding_expires_at', v_expires,
+          'expired_at', now(),
+          'history_public_until', now() + interval '7 days',
+          'report_count', v_reports,
+          'photo_urls', to_jsonb(coalesce(v_photos, ARRAY[]::text[]))
+        ),
+        'pending'
+      )
+      RETURNING id INTO v_event_id;
+
+      INSERT INTO public.closed_economy_expiries (
+        mission_id,
+        raised_usd,
+        report_count,
+        notice_event_id,
+        stripe_tokens_credited,
+        token_refund_credited
+      )
+      VALUES (
+        v_row.id,
+        v_raised,
+        v_reports,
+        v_event_id,
+        v_stripe_credit,
+        v_token_credit
+      )
+      ON CONFLICT (mission_id) DO NOTHING;
+    EXCEPTION
+      WHEN SQLSTATE 'CE001' THEN
+        NULL;
+    END;
+
     IF v_updated = 0 THEN
-      ROLLBACK TO SAVEPOINT closed_economy_pin;
-      RELEASE SAVEPOINT closed_economy_pin;
       CONTINUE;
     END IF;
-
-    UPDATE public.mission_bids
-    SET status = 'rejected'
-    WHERE mission_id = v_row.id
-      AND lower(coalesce(status::text, '')) IN ('pending', 'accepted');
-
-    INSERT INTO public.city_notification_events (mission_id, event_type, payload, pdf_status)
-    VALUES (
-      v_row.id,
-      'crowdfunding_expired',
-      jsonb_build_object(
-        'service_type', v_row.service_type,
-        'location_lat', v_row.location_lat,
-        'location_lng', v_row.location_lng,
-        'city', v_row.city,
-        'country', v_row.country,
-        'target_budget', v_row.expected_price,
-        'raised', v_raised,
-        'description', v_row.description,
-        'created_at', v_row.created_at,
-        'funding_expires_at', v_expires,
-        'expired_at', now(),
-        'history_public_until', now() + interval '7 days',
-        'report_count', v_reports,
-        'photo_urls', to_jsonb(coalesce(v_photos, ARRAY[]::text[]))
-      ),
-      'pending'
-    )
-    RETURNING id INTO v_event_id;
-
-    INSERT INTO public.closed_economy_expiries (
-      mission_id,
-      raised_usd,
-      report_count,
-      notice_event_id,
-      stripe_tokens_credited,
-      token_refund_credited
-    )
-    VALUES (
-      v_row.id,
-      v_raised,
-      v_reports,
-      v_event_id,
-      v_stripe_credit,
-      v_token_credit
-    )
-    ON CONFLICT (mission_id) DO NOTHING;
-
-    RELEASE SAVEPOINT closed_economy_pin;
 
     BEGIN
       PERFORM private.write_admin_audit(
@@ -739,6 +749,7 @@ $$;
 REVOKE ALL ON FUNCTION public.process_expired_crowdfunding_missions() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.process_expired_crowdfunding_missions() FROM anon;
 REVOKE ALL ON FUNCTION public.process_expired_crowdfunding_missions() FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.process_expired_crowdfunding_missions() TO postgres;
 GRANT EXECUTE ON FUNCTION public.process_expired_crowdfunding_missions() TO service_role;
 
 COMMENT ON FUNCTION public.process_expired_crowdfunding_missions() IS
@@ -796,6 +807,13 @@ BEGIN
   END IF;
   IF NOT has_function_privilege('service_role', 'public.process_expired_crowdfunding_missions()', 'EXECUTE') THEN
     RAISE EXCEPTION 'Post-flight failed: service_role cannot execute process_expired_crowdfunding_missions';
+  END IF;
+  IF has_function_privilege('anon', 'public.process_expired_crowdfunding_missions()', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'public.process_expired_crowdfunding_missions()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Post-flight failed: process_expired_crowdfunding_missions is executable by anon or authenticated';
+  END IF;
+  IF position('SAVEPOINT' IN pg_get_functiondef('public.process_expired_crowdfunding_missions()'::regprocedure)) > 0 THEN
+    RAISE EXCEPTION 'Post-flight failed: process_expired_crowdfunding_missions still uses SAVEPOINT';
   END IF;
   IF EXISTS (
     SELECT 1

@@ -1,6 +1,8 @@
 /**
  * Crowdfunding escrow: signed R2 playback + donor vote RPC.
- * Approve (first yes) → approved. Reject → in_progress retry (P1-1).
+ * A vote is weighted by what that donor gave. One no does not close the pot.
+ * Yes-weight over half of all donations releases immediately. Otherwise the
+ * review stays open until the window ends.
  */
 import { supabase } from '../../services/supabase';
 import { resolveAccessToken } from './supabaseAuth';
@@ -65,16 +67,27 @@ export async function userIsMissionDonor(
   missionId: string,
   userId: string
 ): Promise<boolean> {
-  const { data, error } = await supabase
+  const stripe = await supabase
     .from('contributions')
     .select('id')
     .eq('mission_id', missionId)
     .eq('contributor_id', userId)
     .limit(1)
     .maybeSingle();
-  if (error) {
-    console.warn('userIsMissionDonor', error.message);
+  if (!stripe.error && stripe.data) return true;
+  if (stripe.error) console.warn('userIsMissionDonor', stripe.error.message);
+
+  const gift = await supabase
+    .from('token_donations')
+    .select('id')
+    .eq('mission_id', missionId)
+    .eq('donor_id', userId)
+    .eq('status', 'held')
+    .limit(1)
+    .maybeSingle();
+  if (gift.error) {
+    console.warn('userIsMissionDonor', gift.error.message);
     return false;
   }
-  return !!data;
+  return !!gift.data;
 }

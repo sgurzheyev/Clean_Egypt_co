@@ -287,7 +287,7 @@ UI countdown: [[../src/lib/crowdfunding.ts]] (`getCrowdfundingExpiresAt`, compac
 | Overfund race | Loser Checkout → auto Stripe refund (confirm + webhook, идемпотентно) (P0-3) | OK. Expiry **с деньгами** по-прежнему без card-refund |
 | Rolling +30d | Да, `apply_stripe_contribution` | OK |
 | Цель собрана → work | Да, `available` / `in_progress` если cleaner locked. Accept выше raised **остаётся `funding`** (LIFE-1). 24h abandon sweep **не** трогает crowd (P1-2) | OK |
-| Donor reject proof | `process_proof_vote(false)` → `in_progress` retry, cleaner kept, pot intact (P1-1) | OK. `failed` больше не пишется. Старые `failed` с cleaner backfill-нуты |
+| Donor reject proof | Weighted vote in [[20260927170000_donor_vote_release.sql]]. One no is not final. No majority → one re-upload, then not cleaned (PDF + tokens +20%) | Wave B first-no retry is superseded |
 | P2P confirm RPC | `confirm_mission_work_done` в active tree (P3-3) | OK для greenfield |
 | Expiry без рефанда (есть сбор) | Да — 0 < raised < target → `expired` + city queue; **`cleaner_id` NULL** (LIFE-3) | OK vs оферта. Не путать с P0-3 |
 | Gov Notice PDF + Telegram | Да, `city-notification-pipeline` → R2 `city-pdfs/` | Назвать/обогатить фото+видео в PDF; официальный канал муниципалитета |

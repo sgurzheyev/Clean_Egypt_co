@@ -9,7 +9,14 @@ aliases: [Garba-Vortex, Garba Vortex Heatmap]
 
 Macro waste heatmap on the existing Mapbox globe, with server-side free-pin anti-spam, 200 m cleanup squares, and storm mode. Migrations: [[20260927120000_garba_vortex.sql]] then [[20260927130000_garba_vortex_storm.sql]]. Client: [[src/lib/garbaVortex.ts]] · [[src/hooks/useGarbaVortexOverlay.ts]] · [[components/MapPicker.tsx]] · [[api/garba-vortex-heatmap.ts]]. Admin indicator: [[src/components/AdminVortexStormCard.tsx]] on the Analytics pillar.
 
-Apply on prod by hand (do not `db push`), base file first:
+`20260927120000`, `20260927130000`, `20260927140000`, and `20260927150000` are already applied on prod. Do not edit them. Apply the next two by hand (do not `db push`), closed economy first:
+
+```bash
+supabase db query --linked -f supabase/migrations/20260927160000_closed_economy.sql
+supabase db query --linked -f supabase/migrations/20260927170000_donor_vote_release.sql
+```
+
+The full chain, if a database does not have the earlier files yet:
 
 ```bash
 supabase db query --linked -f supabase/migrations/20260927120000_garba_vortex.sql
@@ -20,7 +27,7 @@ supabase db query --linked -f supabase/migrations/20260927160000_closed_economy.
 supabase db query --linked -f supabase/migrations/20260927170000_donor_vote_release.sql
 ```
 
-Safe to re-run. Re-runs do **not** reset a tuned `garba_vortex_config` row and do **not** clear an active storm flag. `token_donation_config` and `closed_economy_config` insert only when the singleton row is missing, so a re-run does not reset the caps or the bonus rate. Stage 5 is the second file. Apply `20260927150000`, then `20260927160000`, then `20260927170000` after the three vortex files. Do not edit those three; they are the ones already in flight for prod.
+Safe to re-run. Re-runs do **not** reset a tuned `garba_vortex_config` row and do **not** clear an active storm flag. `token_donation_config` and `closed_economy_config` insert only when the singleton row is missing, so a re-run does not reset the caps, the bonus rate, the 24-hour vote window, or the one-reupload limit. New columns on that config row use a constant default, so they do not rewrite mission rows.
 
 ## What you see
 
@@ -115,15 +122,30 @@ Defaults: `floor(5000 * 120 / 9900) = 60`, so **$100 → 6000 tokens**. A $99 do
 
 `20260927170000_donor_vote_release.sql` is the release rule. Regular missions are SaaS: the client pays the worker off-platform, and `confirm_mission_work_done` only sets `completed`. It does not move donated USD or tokens.
 
-Crowdfund donations stay held until a donor approves the proof with `process_proof_vote(true)` (`mission_proof_votes.is_approved = true`, status `approved`, `auto_approved = false`). That is the only release:
+Crowdfund donations stay held until donors release the proof. Weight is in token-units at the closed-economy rate (default 60 per dollar, not the shop 5000-for-$99 rate): card gifts plus held token gifts. $10 weighs 600. A 120-token gift weighs 120. One donor's no is not final.
+
+Inside `proof_vote_window_hours` (default 24) after `report_submitted_at`:
+
+- Release immediately only when yes-weight is already more than half of every donation on the pin (`approve * 2 > total`).
+- Any other vote, including a no, stays open.
+
+When the window ends, only votes that were cast count (`auto_approve_escrow_proofs` keeps its cron name and does this tally; it never sets `auto_approved`):
+
+- Yes-weight greater than no-weight → `approved`, `auto_approved = false`, and that is the release.
+- No votes → not cleaned. No re-upload.
+- No-weight greater than yes-weight, and `retry_count` is still under `proof_reupload_limit` (default 1) → one re-upload. Status goes back to `in_progress`, the proof and the votes are cleared, the worker stays locked, and nothing is refunded. The next `submit_mission_proof` sets `report_submitted_at` and opens a new window.
+- A tie, or a no majority after that one re-upload, → not cleaned.
+- A granted re-upload that is not sent again before the same number of hours (`status_changed_at`, and a `proof_reupload_granted` event) is not cleaned. A first `in_progress` attempt is not closed by this sweep.
+
+Release, when it happens:
 
 - Token gifts pay `cleaner_id` 1:1 (`paid_out`). No +20%.
 - Donated USD is recorded in `crowdfund_donation_releases` as `floor(current_funding)` payable to that worker. There is no Stripe transfer in this repo. `current_funding` stays the amount raised. `donation_settlement` becomes `released`.
 - A success city PDF (`mission_completed`) queues only on that approve.
 
-`status = completed` does not release. The old 24-hour auto-approve does not release.
+`status = completed` does not release.
 
-If a donor votes no, or nobody approves within 24 hours of `report_submitted_at`, the cleanup is not done. `auto_approve_escrow_proofs` keeps its cron name and now calls that unwind. Cards are not refunded. Stripe donors receive the same token credit ($100 → 6000 at the defaults). Held token gifts refund at `floor(tokens * 120 / 100)`. `crowdfunding_expired` queues the municipal PDF. Status becomes `expired`, `donation_settlement = retained`, and the worker is unlocked.
+Not cleaned keeps the cards, credits Stripe donors ($100 → 6000 at the defaults), and refunds held token gifts at `floor(tokens * 120 / 100)`. The bonus credit is written before the status change, so the status trigger does not refund 1:1 first. `crowdfunding_expired` queues the municipal PDF. Status becomes `expired`, `donation_settlement = retained`, and the worker is unlocked. The column default is `held`, so backfill does not rewrite every mission.
 
 An underfunded campaign that never leaves `funding` before the funding clock still uses the same not-cleaned economics. Cancel, archive, and admin delete refund token donations 1:1. There is no token cash-out. The Stripe form says, in RU and EN, that an uncleaned pin funds an official report and returns tokens (+20%) to spend in GarbaGin.
 

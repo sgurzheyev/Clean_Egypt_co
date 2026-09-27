@@ -21,7 +21,7 @@ aliases: [Security and RPCs, RPC lock]
 | `submit_mission_proof` | Worker | `in_progress` → `review`; **PostGIS GPS ≤200m**; no wallet debit. [[../supabase/migrations/20260720_proof_of_work_lifecycle_security.sql]] |
 | `creator_reject_proof` | Creator | `review` → `in_progress`; clears proof; stores `rejection_reason` |
 | `confirm_mission_work_done` / `confirm_mission_direct_payment` | Creator | P2P “work done”: `review` / `pending_approval` → `completed`. Active tree (P3-3) — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] |
-| `process_proof_vote` | Donor | First **approve** → `approved`. First **reject** → `in_progress` retry (not `failed`) — P1-1 |
+| `process_proof_vote` | Donor | One vote, weighted by that donor's gifts. Yes-weight over half of all donations → `approved` and release. A single no stays open. Window tally is `auto_approve_escrow_proofs` (one re-upload, then not cleaned) |
 | `process_abandoned_missions` | Cron / service_role | **P2P only:** `in_progress` idle >24h → `available` (clears `cleaner_id`). Crowdfunding excluded (P1-2) |
 | `process_stuck_reviews` | Cron / service_role | `review` idle >3d → `completed` + `auto_approved` |
 | `apply_stripe_contribution` | **service_role only** | Idempotent on `stripe_checkout_session_id`; writes `amount_usd` only; optional `p_target_usd` wakes `reported` (P0-2) |

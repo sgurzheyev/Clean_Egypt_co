@@ -29,7 +29,7 @@ Two worlds still share `missions`. Wave B touches **crowdfunding proof / abandon
 
 Today the first donor who votes **no** on a funded video sets `status = failed` forever. The cleaner cannot re-upload. The pot is not refunded. Gov Notice does not fire. The job dies with money sitting on it.
 
-**Superseded for crowdfund settlement by [[20260927170000_donor_vote_release.sql]].** A donor yes is the only release of donated USD and tokens. A donor no, or 24 hours in `awaiting_approval` with no yes, closes the cleanup as not done (Gov Notice PDF, token credits +20%, USD retained). The historical retry rule below is what Wave B shipped; it is not the live release rule.
+**Superseded for crowdfund settlement by [[20260927170000_donor_vote_release.sql]].** Donated USD and tokens release only on a donation-weighted yes: immediately when yes-weight is more than half of all donations, or at the end of the review window (default 24 hours) when yes-weight beats no-weight among votes cast. One no is not final. A no majority grants the worker one re-upload and a new window. No votes, a tie, or a second no closes the cleanup as not done (Gov Notice PDF, token credits +20%, USD retained). The historical retry rule below is what Wave B shipped; it is not the live release rule.
 
 **Chosen rule (safer + product-consistent):** treat donor reject like P2P `creator_reject_proof`.
 

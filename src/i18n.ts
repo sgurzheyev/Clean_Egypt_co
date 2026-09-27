@@ -787,17 +787,22 @@ const resources = {
       proofSubmitVideoCta: 'Submit video report',
       escrowDonorReviewTitle: 'Review worker video',
       escrowDonorReviewHint:
-        'Approve releases donated funds to the worker. Reject closes the cleanup as not done: an official report is filed and donors receive tokens (+20%).',
+        'Your vote is weighted by what you donated. If yes-votes already cover more than half of every donation, the worker is paid now. Otherwise the review stays open for 24 hours, and the heavier side of the votes cast wins. A no majority lets the worker upload proof once more. No votes, a tie, or a second no closes the cleanup as not done: an official report is filed and donors receive tokens (+20%).',
       escrowApproveCta: 'Approve work',
-      escrowRejectCta: 'Reject — not cleaned',
+      escrowRejectCta: 'Vote no',
       escrowVoteRecorded: 'Your vote has been recorded.',
+      escrowVoteRecordedYes:
+        'Your yes is recorded. Funds stay held until yes-votes cover more than half of all donations, or the 24-hour review ends with more yes weight than no.',
+      escrowVoteRecordedNo:
+        'Your no is recorded. One no does not close the cleanup. At the end of 24 hours the heavier side of the votes cast decides.',
+      escrowVoteReleased: 'Approved. Donated funds are released to the worker.',
       escrowVoteRejectedRetry:
-        'Rejected. The cleanup is closed as not done. Donors receive tokens (+20%). Donated funds are not paid to the worker.',
+        'Your no is recorded. One no does not close the cleanup. At the end of 24 hours the heavier side of the votes cast decides.',
       escrowVoteFailed: 'Could not record vote.',
       escrowVideoExpired: 'Video expired / unavailable. Storage window is 7 days.',
       escrowWaitingDonors: 'Waiting for a donor to review the video report.',
       escrowWaitingDonorsWorker:
-        'Video submitted. Donated funds are paid only if a donor approves. A reject, or no approval within 24 hours, closes the cleanup as not done.',
+        'Video submitted. Donors have 24 hours, and each vote weighs what that donor gave. Yes-weight over half of all donations pays you now. At the deadline the heavier side of the votes cast wins. A no majority lets you upload proof once more. No votes or a tie closes the cleanup as not done.',
       proofUploadSuccess: 'Proof uploaded! Tokens will be credited after quick review.',
       proofAfterSubmitClientReview:
         'After you submit, the client will review and confirm the work is done.',
@@ -2217,17 +2222,22 @@ const resources = {
       proofSubmitVideoCta: 'Отправить видеоотчёт',
       escrowDonorReviewTitle: 'Проверка видео исполнителя',
       escrowDonorReviewHint:
-        'Одобрение переводит пожертвования исполнителю. Отклонение закрывает уборку как невыполненную: уходит официальный отчёт, а доноры получают токены (+20%).',
+        'Голос весит столько, сколько вы пожертвовали. Если «за» уже больше половины всех пожертвований, исполнитель получает выплату сразу. Иначе проверка открыта 24 часа, и побеждает более тяжёлая сторона поданных голосов. Большинство «против» даёт одну новую загрузку доказательства. Нет голосов, ничья или второй отказ закрывают уборку как невыполненную: уходит официальный отчёт, а доноры получают токены (+20%).',
       escrowApproveCta: 'Одобрить работу',
-      escrowRejectCta: 'Отклонить — не убрано',
+      escrowRejectCta: 'Голос против',
       escrowVoteRecorded: 'Ваш голос учтён.',
+      escrowVoteRecordedYes:
+        'Ваш голос «за» учтён. Выплата ждёт, пока «за» не превысит половину всех пожертвований, или пока за 24 часа вес «за» не станет больше веса «против».',
+      escrowVoteRecordedNo:
+        'Ваш голос «против» учтён. Один отказ не закрывает уборку. В конце 24 часов решает более тяжёлая сторона поданных голосов.',
+      escrowVoteReleased: 'Одобрено. Пожертвования переведены исполнителю.',
       escrowVoteRejectedRetry:
-        'Отклонено. Уборка закрыта как невыполненная. Доноры получают токены (+20%). Пожертвования исполнителю не выплачиваются.',
+        'Ваш голос «против» учтён. Один отказ не закрывает уборку. В конце 24 часов решает более тяжёлая сторона поданных голосов.',
       escrowVoteFailed: 'Не удалось записать голос.',
       escrowVideoExpired: 'Видео недоступно или срок хранения истёк.',
       escrowWaitingDonors: 'Ждём, пока донор проверит видеоотчёт.',
       escrowWaitingDonorsWorker:
-        'Видео отправлено. Пожертвования выплачиваются только после одобрения донора. Отклонение или отсутствие одобрения в течение 24 часов закрывает уборку как невыполненную.',
+        'Видео отправлено. У доноров 24 часа, и каждый голос весит столько, сколько этот донор внёс. Если «за» больше половины всех пожертвований, выплата сразу. В конце срока побеждает более тяжёлая сторона поданных голосов. Большинство «против» даёт одну новую загрузку. Нет голосов или ничья закрывают уборку как невыполненную.',
       proofUploadSuccess: 'Фотоотчёт загружен! Токены будут начислены после проверки.',
       proofAfterSubmitClientReview:
         'После отправки заказчик проверит и подтвердит выполнение работы.',
