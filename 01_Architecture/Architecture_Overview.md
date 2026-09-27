@@ -24,6 +24,7 @@
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games SQL + Edge apply order
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — lifecycle audit scorecard
 - [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] — macro heatmap, free-pin anti-spam, 200 m cleanup sectors, storm mode
+- [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]] — weather, RUSH planes/ships, and AR left GarbaGin for Paranoic
 - [[01_Architecture/Global_Location_Filtering]] — `location_catalog`, autofill trigger, multi-country filter + facets
 - Frontend map: [[02_Frontend/Frontend_Components]]
 - Field dashboard: [[04_Roadmap_Tasks/00_Dashboard]]
@@ -32,8 +33,7 @@
 ## Stack
 
 - **Frontend:** React 19 + Vite + Tailwind (neon / glassmorphism)
-- **Map:** Mapbox via `react-map-gl` ([[../components/MapPicker.tsx]])
-- **AR:** WebXR via `@react-three/xr` ([[../src/components/AROverlay.tsx]])
+- **Map:** Mapbox via `react-map-gl` ([[../components/MapPicker.tsx]]). Weather, RUSH live craft, and WebXR AR were removed — [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]
 - **Backend:** Supabase (PostgreSQL + RLS + Edge Functions)
 - **Economy:** USD-only fiat + platform tokens (no EGP) — [[01_Architecture/Stripe_USD_Flow]], [[01_Architecture/Security_and_RPCs]]
 - **Master index:** [[🗺️ GARBAGIN Master Index]]
@@ -44,7 +44,7 @@
 
 | Concern | Link |
 | --- | --- |
-| App shell / routes / AR toggle | [[../App.tsx]] |
+| App shell / routes | [[../App.tsx]] |
 | Bootstrap | [[../index.tsx]] |
 | Project rules | [[../.cursorrules]] |
 | Field dashboard | [[04_Roadmap_Tasks/00_Dashboard]] |
@@ -64,7 +64,6 @@
 | Profile sidebar | [[../components/Profile.tsx]] |
 | Auth overlay | [[../components/AuthOverlay.tsx]] |
 | Live market feed | [[../components/LiveMarketFeed.tsx]] |
-| WebXR AR overlay | [[../src/components/AROverlay.tsx]] |
 | Admin moderation + [[01_Architecture/KYC_Verification]] queue | [[../src/components/AdminDashboard.tsx]], [[../src/components/KYCReviewDashboard.tsx]] |
 | KYC modal | [[../components/VerificationModal.tsx]] |
 
@@ -170,11 +169,10 @@ missions
 1. **Standard ([[P2P_Deal_Flow]]):** `available` → bid → work → proof → confirm (no platform escrow)
 2. **Crowdfunding ([[Stripe_USD_Flow]], [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]):** free pin 7d → first Stripe donate → `funding` + rolling +30d; target met → work; underfunded with money → eco-ultimatum (Gov Notice, n8n, 7-day history, R2 archive); $0 at 7d → hide/delete
 3. **KYC ([[KYC_Verification]]):** docs + liveness → `pending` → admin approve → home missions unlocked
-4. **AR:** GPS origin + mission lat/lng → local ENU → neon markers ([[../src/components/AROverlay.tsx]])
-5. **Location ([[Global_Location_Filtering]]):** pin → Mapbox reverse geocode → `country`/`city` (trigger fills gaps from `location_catalog`) → multi-country filter + facet counts
+4. **Location ([[Global_Location_Filtering]]):** pin → Mapbox reverse geocode → `country`/`city` (trigger fills gaps from `location_catalog`) → multi-country filter + facet counts
 
 ## Graph convention
 
 - Central hub: [[🗺️ GARBAGIN Master Index]]; also open [[04_Roadmap_Tasks/00_Dashboard]]
 - Prefer folder wiki links: `[[01_Architecture/KYC_Verification]]`, `[[01_Architecture/Security_and_RPCs]]`, `[[01_Architecture/P2P_Deal_Flow]]`, `[[01_Architecture/Stripe_USD_Flow]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]`, `[[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]`, `[[04_Roadmap_Tasks/Ops_Migration_History_Repair]]`, `[[docs/GARBAGIN_LIFECYCLE_AUDIT]]`
-- Source paths relative to vault root folders (e.g. `[[../src/components/AROverlay.tsx]]` from `01_Architecture/`)
+- Source paths relative to vault root folders (e.g. `[[../components/MapPicker.tsx]]` from `01_Architecture/`)

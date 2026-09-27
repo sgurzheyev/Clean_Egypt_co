@@ -63,19 +63,14 @@ function prerenderPrivacyPlugin(): Plugin {
   };
 }
 
-function liveTrafficDevProxy(env: Record<string, string>): Plugin {
+function vortexDevProxy(env: Record<string, string>): Plugin {
   return {
-    name: 'live-traffic-dev-proxy',
+    name: 'garba-vortex-dev-proxy',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const rawUrl = req.url || '';
         const pathOnly = rawUrl.split('?')[0];
-        if (
-          pathOnly !== '/api/opensky-states' &&
-          pathOnly !== '/api/adsb-nearby' &&
-          pathOnly !== '/api/ais-nearby' &&
-          pathOnly !== '/api/garba-vortex-heatmap'
-        ) {
+        if (pathOnly !== '/api/garba-vortex-heatmap') {
           next();
           return;
         }
@@ -86,138 +81,22 @@ function liveTrafficDevProxy(env: Record<string, string>): Plugin {
         }
         try {
           const src = new URL(rawUrl, 'http://localhost');
-          const json = (status: number, body: unknown) => {
-            res.statusCode = status;
-            res.setHeader('Content-Type', 'application/json');
-            res.setHeader('Cache-Control', 'public, max-age=8');
-            res.end(JSON.stringify(body));
-          };
-          const ua = { Accept: 'application/json', 'User-Agent': 'GarbaGin/1.0 (+https://garbagin.com)' };
-          if (pathOnly === '/api/opensky-states') {
-            const lamin = src.searchParams.get('lamin');
-            const lomin = src.searchParams.get('lomin');
-            const lamax = src.searchParams.get('lamax');
-            const lomax = src.searchParams.get('lomax');
-            if (!lamin || !lomin || !lamax || !lomax) {
-              json(400, { error: 'lamin,lomin,lamax,lomax required', states: [] });
-              return;
-            }
-            const target = `https://opensky-network.org/api/states/all?lamin=${encodeURIComponent(lamin)}&lomin=${encodeURIComponent(lomin)}&lamax=${encodeURIComponent(lamax)}&lomax=${encodeURIComponent(lomax)}`;
-            try {
-              const upstream = await fetch(target, {
-                headers: ua,
-                signal: AbortSignal.timeout(5_000),
-              });
-              const text = await upstream.text();
-              let body: unknown = { states: [] };
-              try {
-                body = text ? JSON.parse(text) : { states: [] };
-              } catch {
-                body = { error: 'OpenSky returned non-JSON', states: [] };
-              }
-              json(200, body);
-            } catch (err) {
-              const message = err instanceof Error ? err.message : 'OpenSky unreachable';
-              json(200, { error: message, states: [] });
-            }
-            return;
-          }
-          if (pathOnly === '/api/garba-vortex-heatmap') {
-            try {
-              const { queryGarbaVortexHeatmap } = await import('./api/garba-vortex-heatmap.ts');
-              const result = await queryGarbaVortexHeatmap({
-                searchParams: src.searchParams,
-                supabaseUrl: env.SUPABASE_URL || env.VITE_SUPABASE_URL,
-                anonKey: env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY,
-              });
-              res.statusCode = result.status;
-              res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.setHeader('Cache-Control', result.cacheControl);
-              res.end(req.method === 'HEAD' ? undefined : JSON.stringify(result.body));
-            } catch (err) {
-              const message = err instanceof Error ? err.message : 'heatmap';
-              res.statusCode = 503;
-              res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.setHeader('Cache-Control', 'private, no-store');
-              res.end(JSON.stringify({ storm: false, cache_seconds: 0, cells: [], error: message }));
-            }
-            return;
-          }
-          if (pathOnly === '/api/ais-nearby') {
-            const lamin = Number(src.searchParams.get('lamin'));
-            const lomin = Number(src.searchParams.get('lomin'));
-            const lamax = Number(src.searchParams.get('lamax'));
-            const lomax = Number(src.searchParams.get('lomax'));
-            if (![lamin, lomin, lamax, lomax].every(Number.isFinite) || lamin >= lamax) {
-              json(400, { error: 'lamin,lomin,lamax,lomax required', ships: [] });
-              return;
-            }
-            const key = String(env.AISSTREAM_API_KEY || env.VITE_AISSTREAM_API_KEY || '').trim();
-            try {
-              const { queryAisNearby } = await import('./api/ais-nearby.ts');
-              const result = await queryAisNearby({ lamin, lomin, lamax, lomax }, key);
-              json(
-                200,
-                result.ships.length > 0
-                  ? { ships: result.ships }
-                  : { ships: [], error: result.error || 'empty' }
-              );
-            } catch (err) {
-              const message = err instanceof Error ? err.message : 'ws';
-              json(200, { ships: [], error: message });
-            }
-            return;
-          }
-          const lat = src.searchParams.get('lat');
-          const lon = src.searchParams.get('lon');
-          const dist = src.searchParams.get('dist') || '80';
-          if (!lat || !lon) {
-            json(400, { error: 'lat,lon required', ac: [] });
-            return;
-          }
-          const hosts = [
-            `https://api.adsb.lol/v2/lat/${encodeURIComponent(lat)}/lon/${encodeURIComponent(lon)}/dist/${encodeURIComponent(dist)}`,
-            `https://opendata.adsb.fi/api/v2/lat/${encodeURIComponent(lat)}/lon/${encodeURIComponent(lon)}/dist/${encodeURIComponent(dist)}`,
-          ];
-          const merged: unknown[] = [];
-          const seen = new Set<string>();
-          await Promise.all(
-            hosts.map(async (target) => {
-              try {
-                const upstream = await fetch(target, {
-                  headers: ua,
-                  signal: AbortSignal.timeout(6_000),
-                });
-                const ct = String(upstream.headers.get('content-type') || '');
-                if (!upstream.ok || !ct.toLowerCase().includes('json')) return;
-                const parsed = JSON.parse(await upstream.text()) as {
-                  ac?: unknown;
-                  aircraft?: unknown;
-                };
-                const ac = Array.isArray(parsed.ac)
-                  ? parsed.ac
-                  : Array.isArray(parsed.aircraft)
-                    ? parsed.aircraft
-                    : [];
-                for (const row of ac) {
-                  const hex = String((row as { hex?: string })?.hex || '')
-                    .trim()
-                    .toLowerCase();
-                  if (!hex || seen.has(hex)) continue;
-                  seen.add(hex);
-                  merged.push(row);
-                }
-              } catch {
-                /* host failed */
-              }
-            })
-          );
-          json(200, merged.length ? { ac: merged } : { error: 'adsb unreachable', ac: [] });
+          const { queryGarbaVortexHeatmap } = await import('./api/garba-vortex-heatmap.ts');
+          const result = await queryGarbaVortexHeatmap({
+            searchParams: src.searchParams,
+            supabaseUrl: env.SUPABASE_URL || env.VITE_SUPABASE_URL,
+            anonKey: env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY,
+          });
+          res.statusCode = result.status;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Cache-Control', result.cacheControl);
+          res.end(req.method === 'HEAD' ? undefined : JSON.stringify(result.body));
         } catch (err) {
-          res.statusCode = 502;
-          res.setHeader('Content-Type', 'application/json');
-          const message = err instanceof Error ? err.message : 'upstream failed';
-          res.end(JSON.stringify({ error: message }));
+          const message = err instanceof Error ? err.message : 'heatmap';
+          res.statusCode = 503;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Cache-Control', 'private, no-store');
+          res.end(JSON.stringify({ storm: false, cache_seconds: 0, cells: [], error: message }));
         }
       });
     },
@@ -234,7 +113,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       firebaseMessagingSwPlugin(mode),
-      liveTrafficDevProxy(env),
+      vortexDevProxy(env),
       prerenderPrivacyPlugin(),
     ],
     define: {

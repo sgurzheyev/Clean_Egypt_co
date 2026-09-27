@@ -1,33 +1,15 @@
 /**
  * GarbaGin fun / cartoon map mode — stylized land, neon roads, punchier glow.
- * Persisted in localStorage. Does NOT add property-price / real-estate HUD.
+ * Persisted in localStorage. Independent of sunrise/sunset lighting.
+ * Does NOT add property-price / real-estate HUD.
  */
 
 import { isMapStyleReady, type MapboxStyleReadyMap } from './mapboxStandardTheme';
 
 export const FUN_MAP_MODE_STORAGE_KEY = 'ce_fun_map_mode';
-export const LIVE_MAP_TRAFFIC_STORAGE_KEY = 'ce_live_map_traffic';
-export const RUSH_CRAFT_MODE_STORAGE_KEY = 'ce_rush_craft_mode';
-
-/** Debug-cluster control cycle: off → ships → planes → off. */
-export type RushCraftMode = 'off' | 'ships' | 'planes';
-
-export function isRushCraftMode(value: unknown): value is RushCraftMode {
-  return value === 'off' || value === 'ships' || value === 'planes';
-}
-
-export function cycleRushCraftMode(current: RushCraftMode): RushCraftMode {
-  if (current === 'off') return 'ships';
-  if (current === 'ships') return 'planes';
-  return 'off';
-}
-
-export function isRushLandOn(mode: RushCraftMode): boolean {
-  return mode !== 'off';
-}
 
 export const FUN_NEON_CYAN = '#22d3ee';
-/** Motorways stay cyan-forward (H2H night) so they do not compete with amber ships. */
+/** Motorways stay cyan-forward (H2H night). */
 export const FUN_NEON_VIOLET = '#67e8f9';
 
 export const FUN_STREETS_SOURCE_ID = 'fun-map-streets';
@@ -36,7 +18,7 @@ export const FUN_ROADS_CORE_LAYER_ID = 'fun-roads-core';
 export const FUN_ROADS_MAJOR_LAYER_ID = 'fun-roads-major';
 
 /**
- * RUSH / fun-mode land tokens — cinematic night (H2H Move): dark navy land,
+ * Fun-mode land tokens — cinematic night (H2H Move): dark navy land,
  * muted mountain greens, cyan road glow. Off-mode uses Standard dark slate.
  */
 export const MAPBOX_STANDARD_FUN_LAND_COLORS = {
@@ -74,49 +56,11 @@ function writeFlag(key: string, value: boolean): void {
 }
 
 export function readFunMapMode(): boolean {
-  return isRushLandOn(readRushCraftMode());
+  return readFlag(FUN_MAP_MODE_STORAGE_KEY, false);
 }
 
 export function writeFunMapMode(on: boolean): void {
   writeFlag(FUN_MAP_MODE_STORAGE_KEY, on);
-}
-
-export function readLiveMapTraffic(): boolean {
-  return isRushLandOn(readRushCraftMode());
-}
-
-export function writeLiveMapTraffic(on: boolean): void {
-  writeFlag(LIVE_MAP_TRAFFIC_STORAGE_KEY, on);
-}
-
-function readStoredString(key: string): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-export function readRushCraftMode(): RushCraftMode {
-  const stored = readStoredString(RUSH_CRAFT_MODE_STORAGE_KEY);
-  if (isRushCraftMode(stored)) return stored;
-  // Pre-cycle RUSH used two booleans; treat "on" as ships (first step).
-  if (readFlag(FUN_MAP_MODE_STORAGE_KEY, false) || readFlag(LIVE_MAP_TRAFFIC_STORAGE_KEY, false)) {
-    return 'ships';
-  }
-  return 'off';
-}
-
-export function writeRushCraftMode(mode: RushCraftMode): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(RUSH_CRAFT_MODE_STORAGE_KEY, mode);
-  } catch {
-    /* private mode / quota */
-  }
-  writeFunMapMode(isRushLandOn(mode));
-  writeLiveMapTraffic(isRushLandOn(mode));
 }
 
 type FunRoadMap = MapboxStyleReadyMap & {
@@ -315,48 +259,4 @@ export function setFunNeonRoadLayersBusy(
     safePaint(map, FUN_ROADS_GLOW_LAYER_ID, 'line-opacity', 0.42);
     safePaint(map, FUN_ROADS_CORE_LAYER_ID, 'line-opacity', 0.88);
   }
-}
-
-/** Env-var names / dummy values accidentally baked as VITE_AISSTREAM_API_KEY. */
-const AISSTREAM_KEY_PLACEHOLDERS = new Set([
-  '',
-  'undefined',
-  'null',
-  'none',
-  'n/a',
-  'na',
-  'changeme',
-  'your_api_key',
-  'your-api-key',
-  'vite_aisstream_api_key',
-  'supabase_service_role_key',
-  'service_role',
-  'sk_live',
-  'sk_test',
-]);
-
-/**
- * True when a baked AISStream value is a real key, not an empty string or a
- * placeholder name (e.g. `SUPABASE_SERVICE_ROLE_KEY` pasted into Vercel).
- */
-export function isUsableAisstreamApiKey(raw: string): boolean {
-  const key = String(raw || '').trim();
-  if (key.length < 16) return false;
-  if (AISSTREAM_KEY_PLACEHOLDERS.has(key.toLowerCase())) return false;
-  // ALL_CAPS_SNAKE env names pasted as the value (not a UUID/token).
-  if (/^[A-Z][A-Z0-9_]{8,}$/.test(key)) return false;
-  return true;
-}
-
-export function readAisstreamApiKey(): string {
-  try {
-    const env = (import.meta as { env?: Record<string, unknown> }).env;
-    return String(env?.VITE_AISSTREAM_API_KEY || '').trim();
-  } catch {
-    return '';
-  }
-}
-
-export function hasAisstreamApiKey(): boolean {
-  return isUsableAisstreamApiKey(readAisstreamApiKey());
 }

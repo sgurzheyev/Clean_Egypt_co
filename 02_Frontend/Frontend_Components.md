@@ -5,7 +5,7 @@ aliases: [Frontend Components, UI Map]
 
 # Frontend Components
 
-> ← [[🗺️ GARBAGIN Master Index]] · Architecture: [[01_Architecture/Architecture_Overview]] · Roadmap: [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · Wave I: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · RUSH: [[04_Roadmap_Tasks/Map_Rush_Mode]] · Vortex: [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] · Play payments: [[04_Roadmap_Tasks/Payments_Play_Policy]]
+> ← [[🗺️ GARBAGIN Master Index]] · Architecture: [[01_Architecture/Architecture_Overview]] · Roadmap: [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · Wave I: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · Weather/RUSH/AR removed: [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]] · Vortex: [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] · Play payments: [[04_Roadmap_Tasks/Payments_Play_Policy]]
 
 ## Primary surfaces
 
@@ -24,7 +24,7 @@ aliases: [Frontend Components, UI Map]
 | Mission briefing / contribute / bid / reporter-only convert | [[components/MissionBriefing.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · Map pin card matches store preview: hero is photos + X / count / dots only; category, price, location, status, token hint, description, and reporter chip sit in the dark body below. |
 | Briefing error boundary | [[components/MissionBriefingErrorBoundary.tsx]] |
 | Filters bottom sheet | [[components/MissionFilterPanel.tsx]] |
-| Store map filters | [[components/StoreMapFilterChips.tsx]] · floating card `left-[4.5rem]` clears the left FAB column (Filter / Alert / Store / RUSH) so chips stay tappable |
+| Store map filters | [[components/StoreMapFilterChips.tsx]] · floating card `left-[4.5rem]` clears the left FAB column (Filter / Alert / Store) so chips stay tappable |
 | Feed card | [[components/MissionFeedCard.tsx]] |
 | Create mission | [[components/CreateMission.tsx]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] |
 | Report garbage zone | [[components/ReportGarbageZoneModal.tsx]] |
@@ -38,7 +38,6 @@ aliases: [Frontend Components, UI Map]
 | KYC modal | [[components/VerificationModal.tsx]] |
 | Rating / review | [[components/RatingReviewModal.tsx]] |
 | Impact card | [[components/ImpactCardModal.tsx]] |
-| WebXR AR overlay | [[src/components/AROverlay.tsx]] |
 | Mission chat | [[src/components/chat/MissionChatPanel.tsx]] |
 | Admin + KYC queue | [[src/components/AdminDashboard.tsx]], [[src/components/KYCReviewDashboard.tsx]] |
 | Token / subscription modals | [[src/components/TokenPackModal.tsx]], [[src/components/SubscriptionModal.tsx]] · TWA detection [[src/lib/twaContext.ts]] · Play Billing (flag off) [[src/lib/playBilling.ts]] · [[04_Roadmap_Tasks/Payments_Play_Policy]] |
@@ -51,8 +50,7 @@ aliases: [Frontend Components, UI Map]
 | Steel / profile glass tokens | [[constants.ts]] |
 | Map Egypt theme | [[src/lib/mapEgyptTheme.ts]] |
 | Map Standard / fun mode | [[src/lib/mapboxStandardTheme.ts]] · [[src/lib/mapFunMode.ts]] · [[src/lib/mapSolarAtmosphere.ts]] |
-| Live flights / ships | [[src/lib/openskyFlights.ts]] · [[src/lib/aisShips.ts]] · [[src/lib/mapLiveTraffic.ts]] · [[src/hooks/useMapLiveTraffic.ts]] |
-| Map weather layers | [[src/lib/mapWeather.ts]] |
+| Weather / RUSH / AR removed | [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]] |
 | PWA / home-screen app icon | [[public/brand/garbagin-app-icon-1024.png]] · [[scripts/export-app-icons.py]] · [[02_Frontend/App_Icon_Fill]] |
 | Project UI rules | [[.cursorrules]] |
 
@@ -83,16 +81,12 @@ Wired in `public/manifest.json` and `index.html` (`theme-color` / `background_co
 ## Hooks & helpers
 
 - [[src/lib/mapInteractions.ts]] — restore Mapbox zoom/pan after MissionBriefing close or Store toggle (handlers can stick `_active` when an overlay steals pointerup)
-- [[src/lib/mapFunMode.ts]] — RUSH / fun-map localStorage toggle (H2H night land + cyan roads). No property-price HUD.
-- [[src/lib/mapSolarAtmosphere.ts]] — cinematic dawn/dusk fog/sky from local solar altitude (Egypt / Red Sea). Fun mode only boosts bloom.
-- [[src/lib/openskyFlights.ts]] — OpenSky `/states/all` bbox (same-origin `/api/opensky-states`), ADSB.lol fallback (`/api/adsb-nearby`)
-- [[src/lib/aisShips.ts]] — client poll of [[api/ais-nearby.ts]] (AISStream WS is server-side; browsers are blocked). Never fake vessels.
-- [[src/hooks/useMapLiveTraffic.ts]]
+- [[src/lib/mapFunMode.ts]] — fun / cartoon map localStorage toggle (H2H night land + cyan roads). No property-price HUD. Live craft removed: [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]
+- [[src/lib/mapSolarAtmosphere.ts]] — cinematic dawn/dusk fog/sky from local solar altitude (Egypt / Red Sea). Fun mode only boosts bloom. Independent of weather.
 - [[src/hooks/useLocationCatalog.ts]]
 - [[src/hooks/useMissionChat.ts]]
 - [[src/hooks/useMissionTextTranslation.ts]]
 - [[src/hooks/usePushNotifications.ts]]
-- [[src/hooks/useRealWeather.ts]]
 - [[src/lib/missionFilterSort.ts]]
 - [[src/lib/missionFeedVisuals.ts]]
 - [[src/lib/garbageZoneReport.ts]]
@@ -104,17 +98,13 @@ Wired in `public/manifest.json` and `index.html` (`theme-color` / `background_co
 - [[src/lib/creatorDeleteMission.ts]]
 - [[src/lib/trustBadges.ts]]
 
-### Fun map mode, sunrise/sunset, RUSH live traffic
+### Fun map mode and sunrise/sunset
 
-Bottom-left debug control (`components/MapFunModeControls.tsx`) is **RUSH**, stacked with the collapsed **WX** chip. Idle RUSH uses that chip’s size and faint ink; ships / planes add accent color, icon, and count without growing into the Weather Debug panel buttons. Cycle: **ships → planes → off**. Peek card (title + count chip) lifts then slides back. Night land follows whether a craft mode is active. **No property-price HUD.** No explanation copy. Notes: [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]].
+Bottom-left control (`components/MapFunModeControls.tsx`) is **FUN** — cartoon land and neon roads only. It does not fetch weather or live craft. **No property-price HUD.**
 
-Dawn/dusk uses [[src/lib/mapSolarAtmosphere.ts]] from SunCalc at the map center (Egypt / Red Sea local solar times). Horizon fog/halo is cinematic in normal mode; RUSH only swaps land tokens + cyan road overlay. Atmosphere ticks every 20s in twilight, 60s otherwise.
+Dawn/dusk uses [[src/lib/mapSolarAtmosphere.ts]] from SunCalc at the map center (Egypt / Red Sea local solar times). Horizon fog/halo is cinematic in normal mode; FUN only swaps land tokens + cyan road overlay and boosts bloom. Atmosphere ticks every 20s in twilight, 60s otherwise.
 
-Live craft (RUSH on):
-
-- **Flights** (planes mode only): OpenSky + ADSB **in parallel** via [[api/opensky-states.ts]] / [[api/adsb-nearby.ts]]. ADSB merges `adsb.lol` + `opendata.adsb.fi` (lol often Cloudflare-403s from Vercel; empty lol must not skip fi). Street-zoom bbox is expanded so Marina Hurghada still sees HRG. Lime markers + lime trails; altitude in meters.
-- **Ships** (ships mode only): same-origin `/api/ais-nearby` (Class A + Class B). Amber markers + amber trails, rotated to heading. Positions are never invented.
-- FAB chip: `SHIP` / `PLANE`. Card does not keep empty/error paragraphs.
+Weather, RUSH planes/ships, and AR were removed: [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]. Historical: [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]].
 
 ## Related flows
 
@@ -129,7 +119,7 @@ Live craft (RUSH on):
 - Underfund accept / reject bid RPC / expiry unlock → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]]
 - Push token lock / fail-closed Edge / Hungry-Games subscription → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
 - Vercel `/api/*` user JWT (translate / moderate / analyze / notify) → [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]
-- RUSH live craft / H2H night land → [[04_Roadmap_Tasks/Map_Rush_Mode]]
+- Weather / RUSH / AR removed → [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]
 - P2P briefing CTAs → [[01_Architecture/P2P_Deal_Flow]]
 - Country / city filter + map camera sync → [[01_Architecture/Global_Location_Filtering]]
 - KYC gate → [[01_Architecture/KYC_Verification]]

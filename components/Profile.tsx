@@ -155,8 +155,6 @@ interface ProfileProps {
   onClose: () => void;
   session: any;
   onNavigateToJob?: (lat: number, lng: number) => void;
-  /** Opens the WebXR AR mission view (state lives in App.tsx). */
-  onOpenAR?: () => void;
 }
 
 interface Job {
@@ -338,7 +336,7 @@ function AdminPanelFallback() {
   );
 }
 
-const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, onNavigateToJob, onOpenAR }) => {
+const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, onNavigateToJob }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const isRu = (i18n.language || '').toLowerCase().startsWith('ru');
@@ -1889,7 +1887,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
             </div>
           </div>
 
-          {/* Top up + AR toggle + language — always visible header actions */}
+          {/* Top up + language — always visible header actions */}
           <div className="mt-2 flex flex-wrap items-center justify-end gap-2" ref={langMenuRef}>
             <button
               type="button"
@@ -1899,17 +1897,6 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               <Coins className="h-3.5 w-3.5 shrink-0 text-lime-300" aria-hidden />
               {t('topUpShort')}
             </button>
-            {onOpenAR && (
-              <button
-                type="button"
-                onClick={onOpenAR}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-cyan-400/45 bg-cyan-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.2)] hover:bg-cyan-500/25 hover:border-cyan-300/55 transition-all"
-                title="AR mission view"
-              >
-                <Target className="h-3.5 w-3.5 shrink-0 text-cyan-300" aria-hidden />
-                AR
-              </button>
-            )}
             <div className="relative shrink-0">
               <button
                 type="button"
