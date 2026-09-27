@@ -144,7 +144,7 @@ i18n keys: `marketplaceWorldAll`, `marketplaceAllCities`, `marketplaceAddCountry
 
 [[../services/supabase.ts]] creates an **untyped** client (no generated `Database` types), so an omitted column is `undefined` at runtime with **no compile error**. Any select feeding a filter, card, or location badge must list `country` and `city` explicitly.
 
-Selects currently carrying both: map pin fetch and deep-link/refresh in [[../components/MapPicker.tsx]], [[../components/LiveMarketFeed.tsx]], all four mission queries in [[../components/Profile.tsx]], [[../src/components/AROverlay.tsx]], and the PDF fetch in [[../supabase/functions/city-notification-pipeline/index.ts]]. Admin mission lists go through `admin_search_missions` ([[../04_Roadmap_Tasks/Admin_P1_Upgrade]]), not a location select.
+Selects currently carrying both: map pin fetch and deep-link/refresh in [[../components/MapPicker.tsx]], [[../components/LiveMarketFeed.tsx]], all four mission queries in [[../components/Profile.tsx]], and the PDF fetch in [[../supabase/functions/city-notification-pipeline/index.ts]]. AR overlay was removed ([[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]). Admin mission lists go through `admin_search_missions` ([[../04_Roadmap_Tasks/Admin_P1_Upgrade]]), not a location select.
 
 Deliberately excluded (no location UI): admin pending-approvals and overview counts, the hall-of-fame cleaner join, Stripe checkout validation, and [[../api/analyze-mission.ts]].
 

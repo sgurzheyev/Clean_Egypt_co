@@ -75,7 +75,7 @@ Use this as the floor — do **not** rebuild what works.
 - [x] In-app notification bell (DB-backed; FCM Edge scaffold exists, secrets not live)
 - [x] Hungry-Games: 1 token / bid + phone locked until accept + **active subscription** for new bids (admins exempt) — [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]]
 - [x] In-app P2P chat (`mission_chats` + MissionChatPanel)
-- [x] Lazy WebXR [[../src/components/AROverlay]] (field-unvalidated)
+- [x] WebXR AR removed from GarbaGin (moved to Paranoic) — [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]
 
 **Gap to Play:** AR field proof, FCM secrets + expiry pings, Android packaging / Play Console. Lifecycle SQL (P0→H) is on live and on `main` (`cbf5c62`). SEC-4 Vercel `/api/*` auth still open.
 

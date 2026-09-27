@@ -9,6 +9,8 @@ aliases: [RUSH idle chip, RUSH WX chip]
 
 # RUSH idle chip matches WX
 
+> **Removed from GarbaGin (2026-09-27).** The RUSH chip and WX weather control are gone. See [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]. This note is historical.
+
 > Hub: [[🗺️ GARBAGIN Master Index]] · Map: [[04_Roadmap_Tasks/Map_Rush_Mode]] · UI: [[02_Frontend/Frontend_Components]] · Field: [[04_Roadmap_Tasks/00_Dashboard]] · Control: [[components/MapFunModeControls.tsx]]
 
 The bottom-left **RUSH** control on [[components/MapPicker.tsx]] had been a glass pill (`rounded-2xl`, padded shell, 11px type) sized like the open Weather Debug buttons. The collapsed weather control is a much smaller **WX** chip. Idle RUSH now uses that chip. **WX is not enlarged.**

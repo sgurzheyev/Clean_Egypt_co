@@ -159,7 +159,7 @@ import {
   suspendMapInteractions,
 } from '../src/lib/mapInteractions';
 import MapBootSplash from './MapBootSplash';
-import MapFunModeControls, { MAP_DEBUG_CHIP_IDLE_CLASS } from './MapFunModeControls';
+import MapFunModeControls from './MapFunModeControls';
 import {
   applyMapboxStandardBasemapConfig,
   isMapStyleReady,
@@ -172,60 +172,17 @@ import {
   whenMapStyleReady,
 } from '../src/lib/mapboxStandardTheme';
 import {
-  applyWeatherFog,
-  isWeatherDebugEnabled,
-  setWeatherDebugEnabled,
-  type MapWeatherMode,
-} from '../src/lib/mapWeather';
-import {
   buildSolarAtmosphere,
   starIntensitySampleAtZoom,
 } from '../src/lib/mapSolarAtmosphere';
 import {
   ensureFunNeonRoadLayers,
-  isRushLandOn,
   MAPBOX_STANDARD_FUN_LAND_COLORS,
-  readRushCraftMode,
+  readFunMapMode,
   setFunNeonRoadLayersBusy,
   setFunNeonRoadLayersVisible,
-  writeRushCraftMode,
-  type RushCraftMode,
+  writeFunMapMode,
 } from '../src/lib/mapFunMode';
-import {
-  featureToTrafficEntity,
-  FLIGHT_MARKER_COLOR,
-  FLIGHT_TRAIL_COLOR,
-  FLIGHT_TRAIL_CORE_COLOR,
-  LIVE_FLIGHTS_CORE_LAYER_ID,
-  LIVE_FLIGHTS_GLOW_LAYER_ID,
-  LIVE_FLIGHTS_ICON_LAYER_ID,
-  LIVE_FLIGHTS_LABEL_LAYER_ID,
-  LIVE_FLIGHTS_SOURCE_ID,
-  LIVE_FLIGHTS_TRAIL_GLOW_LAYER_ID,
-  LIVE_FLIGHTS_TRAIL_LAYER_ID,
-  LIVE_FLIGHTS_TRAILS_SOURCE_ID,
-  LIVE_PLANE_IMAGE_ID,
-  LIVE_SHIP_IMAGE_ID,
-  LIVE_SHIPS_CORE_LAYER_ID,
-  LIVE_SHIPS_GLOW_LAYER_ID,
-  LIVE_SHIPS_ICON_LAYER_ID,
-  LIVE_SHIPS_LABEL_LAYER_ID,
-  LIVE_SHIPS_SOURCE_ID,
-  LIVE_SHIPS_TRAIL_GLOW_LAYER_ID,
-  LIVE_SHIPS_TRAIL_LAYER_ID,
-  LIVE_SHIPS_TRAILS_SOURCE_ID,
-  LIVE_TRAFFIC_SLOT,
-  registerLiveTrafficImages,
-  SHIP_MARKER_COLOR,
-  SHIP_TRAIL_COLOR,
-  SHIP_TRAIL_CORE_COLOR,
-  trafficTooltipLabel,
-} from '../src/lib/mapLiveTraffic';
-import { useMapLiveTraffic } from '../src/hooks/useMapLiveTraffic';
-import type { WeatherControlMode } from '../src/lib/openMeteoWeather';
-import { useRealWeather } from '../src/hooks/useRealWeather';
-import WeatherOverlay from '../src/components/WeatherOverlay';
-import WeatherDebugPanel from '../src/components/WeatherDebugPanel';
 import { confirmContributionCheckout, startContributionCheckout } from '../src/lib/contributions';
 import { isTwaContext } from '../src/lib/twaContext';
 import { isEdgeFunctionUnreachable } from '../src/lib/supabaseFunctionError';
@@ -1599,32 +1556,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const mapMoveHandlerRef = React.useRef<(event: any) => void>(() => {});
   /** Brief cooldown after pin placement so the same tap cannot re-open the draft flow. */
   const pinPlacementCooldownRef = React.useRef(0);
-  const mapWeatherRef = React.useRef<MapWeatherMode>('clear');
   const funMapModeRef = React.useRef(false);
   const atmosphereIntervalMsRef = React.useRef(60_000);
-
-  const [rushCraftMode, setRushCraftMode] = useState<RushCraftMode>(() => readRushCraftMode());
-  const funMapMode = isRushLandOn(rushCraftMode);
+  const [funMapMode, setFunMapMode] = useState(() => readFunMapMode());
   funMapModeRef.current = funMapMode;
-
-  /** Auto = Open-Meteo for map center; otherwise manual override. */
-  const [weatherControl, setWeatherControl] = useState<WeatherControlMode>('auto');
-  const [weatherDebugOpen, setWeatherDebugOpen] = useState(() => isWeatherDebugEnabled());
-  const [weatherFetchCenter, setWeatherFetchCenter] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
-
-  const liveWeather = useRealWeather({
-    enabled: weatherControl === 'auto',
-    latitude: weatherFetchCenter?.lat ?? null,
-    longitude: weatherFetchCenter?.lng ?? null,
-    debounceMs: 1000,
-  });
-
-  const mapWeather: MapWeatherMode =
-    weatherControl === 'auto' ? liveWeather.mode : weatherControl;
-  mapWeatherRef.current = mapWeather;
 
   const [viewState, setViewState] = useState<{
     latitude: number;
@@ -1672,7 +1607,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
         bearing: demoCam ? 0 : fromGps ? MAP_BOOT_GPS_VIEW.bearing : MAP_INITIAL_VIEW.bearing,
       };
       setViewState(nextView);
-      setWeatherFetchCenter({ lat: origin.lat, lng: origin.lng });
       if (fromGps) {
         setUserLocation({
           lat: origin.lat,
@@ -1762,7 +1696,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         ? ([moonAziDeg, moonSkyPolarDeg] as [number, number])
         : ([sunAziDeg, sunSkyPolarDeg] as [number, number]);
 
-    let fogPack = applyWeatherFog(mapWeatherRef.current, pack.fogPack);
+    const fogPack = pack.fogPack;
 
     try {
       if (map.getLayer?.('sky')) {
@@ -1905,10 +1839,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
     });
   }, []);
 
-  // Re-apply fog when simulated weather or fun-map land tokens change.
+  // Re-apply fog when fun-map land tokens change. Sunrise/sunset lighting is solar, not weather.
   useEffect(() => {
     updateAtmosphere();
-  }, [mapWeather, funMapMode, updateAtmosphere]);
+  }, [funMapMode, updateAtmosphere]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -1917,29 +1851,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     setFunNeonRoadLayersVisible(map, funMapMode);
     if (!funMapMode) setFunNeonRoadLayersBusy(map, false);
   }, [funMapMode, mapReady]);
-
-  const trafficBboxNonce =
-    Math.round(viewState.latitude * 40) * 1_000_000 +
-    Math.round(viewState.longitude * 40) * 100 +
-    Math.round(viewState.zoom * 2);
-  const trafficEnabled = mapReady && rushCraftMode !== 'off';
-  const liveTrafficData = useMapLiveTraffic({
-    craft: mapReady ? rushCraftMode : 'off',
-    getMap: () => mapRef.current?.getMap?.() ?? mapInstanceRef.current,
-    cameraBusyRef,
-    fallbackView: {
-      lat: viewState.latitude,
-      lng: viewState.longitude,
-      zoom: viewState.zoom,
-    },
-    bboxNonce: trafficBboxNonce,
-  });
-  const [trafficTip, setTrafficTip] = useState<{
-    lat: number;
-    lng: number;
-    label: string;
-  } | null>(null);
-  const [trafficTipScreen, setTrafficTipScreen] = useState<{ x: number; y: number } | null>(null);
 
   // SaaS lead-gen: no 3D funding towers.
 
@@ -3267,44 +3178,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
           return;
         }
 
-        if (trafficEnabled && map && point) {
-          try {
-            const pad = 16;
-            const bbox: [mapboxgl.PointLike, mapboxgl.PointLike] = [
-              [point.x - pad, point.y - pad],
-              [point.x + pad, point.y + pad],
-            ];
-            const trafficLayers = [
-              LIVE_FLIGHTS_CORE_LAYER_ID,
-              LIVE_FLIGHTS_ICON_LAYER_ID,
-              LIVE_FLIGHTS_LABEL_LAYER_ID,
-              LIVE_SHIPS_CORE_LAYER_ID,
-              LIVE_SHIPS_ICON_LAYER_ID,
-              LIVE_SHIPS_LABEL_LAYER_ID,
-            ].filter((id) => map.getLayer?.(id));
-            if (trafficLayers.length > 0) {
-              const hits = map.queryRenderedFeatures(bbox, { layers: trafficLayers });
-              const hit = hits[0];
-              const geom = hit?.geometry as { coordinates?: [number, number] } | undefined;
-              const entity = featureToTrafficEntity(
-                hit?.properties as Record<string, unknown> | undefined,
-                geom?.coordinates
-              );
-              if (entity) {
-                setTrafficTip({
-                  lat: entity.lat,
-                  lng: entity.lng,
-                  label: trafficTooltipLabel(entity),
-                });
-                return;
-              }
-            }
-          } catch {
-            /* traffic layers may be absent */
-          }
-        }
-        setTrafficTip(null);
-
         if (map && point) {
           try {
             const pad = 18;
@@ -3444,7 +3317,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
       t,
       taskTypeSelected,
       toast,
-      trafficEnabled,
       vortexOverlay.ready,
     ]
   );
@@ -3459,16 +3331,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
       'mission-pins-core',
       'mission-pins-icon',
       'mission-pins-crowd-label',
-      LIVE_FLIGHTS_TRAIL_GLOW_LAYER_ID,
-      LIVE_FLIGHTS_TRAIL_LAYER_ID,
-      LIVE_FLIGHTS_GLOW_LAYER_ID,
-      LIVE_FLIGHTS_CORE_LAYER_ID,
-      LIVE_FLIGHTS_ICON_LAYER_ID,
-      LIVE_SHIPS_TRAIL_GLOW_LAYER_ID,
-      LIVE_SHIPS_TRAIL_LAYER_ID,
-      LIVE_SHIPS_GLOW_LAYER_ID,
-      LIVE_SHIPS_CORE_LAYER_ID,
-      LIVE_SHIPS_ICON_LAYER_ID,
     ];
     const sync = () => {
       try {
@@ -3570,15 +3432,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     );
   }, [viewState, hoveredPinInfo]);
 
-  useEffect(() => {
-    if (!trafficTip) return;
-    const map = mapRef.current?.getMap();
-    if (!map) return;
-    const projected = map.project([trafficTip.lng, trafficTip.lat]);
-    const rect = map.getContainer().getBoundingClientRect();
-    setTrafficTipScreen({ x: rect.left + projected.x, y: rect.top + projected.y });
-  }, [viewState, trafficTip]);
-
   /**
    * Native canvas click + mousemove listeners.
    * Bound ONCE when the map finishes loading and delegate to the handler refs, so React re-renders
@@ -3607,8 +3460,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     };
 
     // Pins must render above Standard 3D buildings/labels at zoom 13+.
-    // Do NOT moveLayer live-traffic layers: they use Standard `slot: 'top'`.
-    // moveLayer yanks slotted layers out of the slot and they vanish under the globe.
     const keepPinLayersOnTop = () => {
       try {
         const layers = map.getStyle()?.layers;
@@ -3638,25 +3489,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const onIdle = () => {
       bindLayerHandlers();
       keepPinLayersOnTop();
-      try {
-        const c = map.getCenter?.();
-        const lat = Number(c?.lat);
-        const lng = Number(c?.lng);
-        if (Number.isFinite(lat) && Number.isFinite(lng)) {
-          setWeatherFetchCenter((prev) => {
-            if (
-              prev &&
-              Math.abs(prev.lat - lat) < 0.0001 &&
-              Math.abs(prev.lng - lng) < 0.0001
-            ) {
-              return prev;
-            }
-            return { lat, lng };
-          });
-        }
-      } catch {
-        /* ignore */
-      }
     };
     onIdle();
     map.on('idle', onIdle);
@@ -5013,7 +4845,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
         setUserLocation({ lat: latitude, lng: longitude, accuracy });
-        setWeatherFetchCenter({ lat: latitude, lng: longitude });
         flyMapTo(mapRef.current?.getMap?.(), [longitude, latitude], { ...MAP_CINEMATIC_FLY });
         setGeolocating(false);
       },
@@ -5333,10 +5164,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
             // Emoji pin icons must exist as style images before the symbol layer draws.
             registerEmojiPinImages(readyMap as any);
-            registerLiveTrafficImages(readyMap as any);
             onStyleImageMissing = () => {
               registerEmojiPinImages(readyMap as any);
-              registerLiveTrafficImages(readyMap as any);
             };
             try {
               (readyMap as any).on?.('styleimagemissing', onStyleImageMissing);
@@ -5886,215 +5715,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
           />
         </Source>
 
-        {mapReady && rushCraftMode === 'planes' && (
-          <>
-            <Source
-              id={LIVE_FLIGHTS_TRAILS_SOURCE_ID}
-              type="geojson"
-              data={liveTrafficData.flightsTrailsGeoJSON}
-            >
-              <Layer
-                id={LIVE_FLIGHTS_TRAIL_GLOW_LAYER_ID}
-                type="line"
-                minzoom={4}
-                slot={LIVE_TRAFFIC_SLOT}
-                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-                paint={{
-                  'line-color': FLIGHT_TRAIL_COLOR,
-                  'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3.5, 10, 6, 14, 8],
-                  'line-opacity': mapCameraBusy ? 0.28 : 0.45,
-                  'line-blur': mapCameraBusy ? 0.2 : 1.6,
-                }}
-              />
-              <Layer
-                id={LIVE_FLIGHTS_TRAIL_LAYER_ID}
-                type="line"
-                minzoom={4}
-                slot={LIVE_TRAFFIC_SLOT}
-                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-                paint={{
-                  'line-color': FLIGHT_TRAIL_CORE_COLOR,
-                  'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.2, 10, 2, 14, 2.6],
-                  'line-opacity': 0.95,
-                }}
-              />
-            </Source>
-            <Source id={LIVE_FLIGHTS_SOURCE_ID} type="geojson" data={liveTrafficData.flightsGeoJSON}>
-              <Layer
-                id={LIVE_FLIGHTS_GLOW_LAYER_ID}
-                type="circle"
-                minzoom={4}
-                slot={LIVE_TRAFFIC_SLOT}
-                paint={{
-                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 10, 10, 16, 14, 20],
-                  'circle-color': FLIGHT_TRAIL_COLOR,
-                  'circle-blur': mapCameraBusy ? 0.15 : 0.55,
-                  'circle-opacity': mapCameraBusy ? 0.28 : 0.42,
-                }}
-              />
-              <Layer
-                id={LIVE_FLIGHTS_CORE_LAYER_ID}
-                type="circle"
-                minzoom={4}
-                slot={LIVE_TRAFFIC_SLOT}
-                paint={{
-                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 4.5, 10, 6.5, 14, 8],
-                  'circle-color': FLIGHT_MARKER_COLOR,
-                  'circle-stroke-width': 1.5,
-                  'circle-stroke-color': '#ecfdf5',
-                  'circle-opacity': 0.95,
-                }}
-              />
-              <Layer
-                id={LIVE_FLIGHTS_ICON_LAYER_ID}
-                type="symbol"
-                minzoom={5}
-                slot={LIVE_TRAFFIC_SLOT}
-                layout={{
-                  'icon-image': LIVE_PLANE_IMAGE_ID,
-                  'icon-size': ['interpolate', ['linear'], ['zoom'], 5, 0.72, 10, 0.95, 14, 1.15],
-                  'icon-rotate': ['get', 'heading'],
-                  'icon-rotation-alignment': 'map',
-                  'icon-allow-overlap': true,
-                  'icon-ignore-placement': true,
-                }}
-                paint={{ 'icon-opacity': mapCameraBusy ? 0.7 : 1 }}
-              />
-              <Layer
-                id={LIVE_FLIGHTS_LABEL_LAYER_ID}
-                type="symbol"
-                minzoom={8}
-                slot={LIVE_TRAFFIC_SLOT}
-                layout={{
-                  'text-field': [
-                    'step',
-                    ['zoom'],
-                    ['get', 'callsign'],
-                    11,
-                    ['get', 'label'],
-                  ],
-                  'text-size': ['interpolate', ['linear'], ['zoom'], 8, 10, 13, 11],
-                  'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-                  'text-offset': [0, 1.35],
-                  'text-anchor': 'top',
-                  'text-allow-overlap': false,
-                  'text-ignore-placement': false,
-                  'text-optional': true,
-                }}
-                paint={{
-                  'text-color': '#dcfce7',
-                  'text-halo-color': '#052e16',
-                  'text-halo-width': 1.1,
-                }}
-              />
-            </Source>
-          </>
-        )}
-        {mapReady && rushCraftMode === 'ships' && (
-          <>
-            <Source
-              id={LIVE_SHIPS_TRAILS_SOURCE_ID}
-              type="geojson"
-              data={liveTrafficData.shipsTrailsGeoJSON}
-            >
-              <Layer
-                id={LIVE_SHIPS_TRAIL_GLOW_LAYER_ID}
-                type="line"
-                minzoom={4}
-                slot={LIVE_TRAFFIC_SLOT}
-                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-                paint={{
-                  'line-color': SHIP_TRAIL_COLOR,
-                  'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3.2, 10, 5.5, 14, 7.5],
-                  'line-opacity': mapCameraBusy ? 0.28 : 0.48,
-                  'line-blur': mapCameraBusy ? 0.2 : 1.5,
-                }}
-              />
-              <Layer
-                id={LIVE_SHIPS_TRAIL_LAYER_ID}
-                type="line"
-                minzoom={4}
-                slot={LIVE_TRAFFIC_SLOT}
-                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-                paint={{
-                  'line-color': SHIP_TRAIL_CORE_COLOR,
-                  'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.1, 10, 1.8, 14, 2.4],
-                  'line-opacity': 0.95,
-                }}
-              />
-            </Source>
-            <Source id={LIVE_SHIPS_SOURCE_ID} type="geojson" data={liveTrafficData.shipsGeoJSON}>
-              <Layer
-                id={LIVE_SHIPS_GLOW_LAYER_ID}
-                type="circle"
-                minzoom={4}
-                slot={LIVE_TRAFFIC_SLOT}
-                paint={{
-                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 9, 10, 15, 14, 18],
-                  'circle-color': SHIP_TRAIL_COLOR,
-                  'circle-blur': mapCameraBusy ? 0.15 : 0.5,
-                  'circle-opacity': mapCameraBusy ? 0.26 : 0.4,
-                }}
-              />
-              <Layer
-                id={LIVE_SHIPS_CORE_LAYER_ID}
-                type="circle"
-                minzoom={4}
-                slot={LIVE_TRAFFIC_SLOT}
-                paint={{
-                  'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 4.2, 10, 6, 14, 7.5],
-                  'circle-color': SHIP_MARKER_COLOR,
-                  'circle-stroke-width': 1.5,
-                  'circle-stroke-color': '#fff7ed',
-                  'circle-opacity': 0.95,
-                }}
-              />
-              <Layer
-                id={LIVE_SHIPS_ICON_LAYER_ID}
-                type="symbol"
-                minzoom={5}
-                slot={LIVE_TRAFFIC_SLOT}
-                layout={{
-                  'icon-image': LIVE_SHIP_IMAGE_ID,
-                  'icon-size': ['interpolate', ['linear'], ['zoom'], 5, 0.68, 10, 0.9, 14, 1.08],
-                  'icon-rotate': ['get', 'heading'],
-                  'icon-rotation-alignment': 'map',
-                  'icon-allow-overlap': true,
-                  'icon-ignore-placement': true,
-                }}
-                paint={{ 'icon-opacity': mapCameraBusy ? 0.7 : 1 }}
-              />
-              <Layer
-                id={LIVE_SHIPS_LABEL_LAYER_ID}
-                type="symbol"
-                minzoom={8}
-                slot={LIVE_TRAFFIC_SLOT}
-                layout={{
-                  'text-field': [
-                    'step',
-                    ['zoom'],
-                    ['get', 'callsign'],
-                    11,
-                    ['get', 'label'],
-                  ],
-                  'text-size': ['interpolate', ['linear'], ['zoom'], 8, 10, 13, 11],
-                  'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-                  'text-offset': [0, 1.35],
-                  'text-anchor': 'top',
-                  'text-allow-overlap': false,
-                  'text-ignore-placement': false,
-                  'text-optional': true,
-                }}
-                paint={{
-                  'text-color': '#ffedd5',
-                  'text-halo-color': '#431407',
-                  'text-halo-width': 1.1,
-                }}
-              />
-            </Source>
-          </>
-        )}
-
         {/* SaaS lead-gen: removed crowdfunding/funding 3D pillars. */}
           </>
         )}
@@ -6118,62 +5738,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
         </MapGL>
         ) : null}
 
-        <WeatherOverlay weather={mapWeather} />
-
-        {/* Bottom-left debug cluster: collapsed WX chip + RUSH.
-            Idle RUSH uses the same chip as WX. Narrow screens stack RUSH above WX. */}
-        <div className="pointer-events-none absolute left-3 bottom-[max(2.25rem,calc(env(safe-area-inset-bottom)+2rem))] z-[40] flex max-w-[calc(100%-4.5rem)] flex-col-reverse items-start gap-2 md:flex-row md:items-end">
-          {weatherDebugOpen ? (
-            <WeatherDebugPanel
-              control={weatherControl}
-              effectiveWeather={mapWeather}
-              onChange={setWeatherControl}
-              liveLoading={liveWeather.loading}
-              liveError={liveWeather.error}
-              liveHint={
-                liveWeather.current
-                  ? `wind ${Math.round(Number(liveWeather.current.windspeed ?? 0))} km/h · code ${liveWeather.current.weathercode ?? '—'}`
-                  : weatherFetchCenter
-                    ? `${weatherFetchCenter.lat.toFixed(2)}, ${weatherFetchCenter.lng.toFixed(2)}`
-                    : null
-              }
-              onHide={() => {
-                setWeatherDebugOpen(false);
-                if (!import.meta.env.DEV) setWeatherDebugEnabled(false);
-              }}
-            />
-          ) : (
-            <button
-              type="button"
-              title="Weather debug"
-              aria-label="Weather debug"
-              onClick={() => {
-                setWeatherDebugEnabled(true);
-                setWeatherDebugOpen(true);
-              }}
-              className={MAP_DEBUG_CHIP_IDLE_CLASS}
-            >
-              WX
-            </button>
-          )}
-          {showProfileFab ? (
+        {showProfileFab ? (
+          <div className="pointer-events-none absolute left-3 bottom-[max(2.25rem,calc(env(safe-area-inset-bottom)+2rem))] z-[40] flex max-w-[calc(100%-4.5rem)] items-end">
             <MapFunModeControls
-              mode={rushCraftMode}
-              flightsCount={liveTrafficData.flightsCount}
-              flightError={liveTrafficData.flightMeta.error}
-              flightsLoading={liveTrafficData.flightsLoading}
-              shipsCount={liveTrafficData.shipsCount}
-              shipError={liveTrafficData.shipMeta.error}
-              shipsLoading={liveTrafficData.shipsLoading}
-              onModeChange={(next) => {
-                setRushCraftMode(next);
-                writeRushCraftMode(next);
-                if (next === 'off') setTrafficTip(null);
+              on={funMapMode}
+              onChange={(next) => {
+                setFunMapMode(next);
+                writeFunMapMode(next);
                 window.requestAnimationFrame(() => restoreLiveMapGestures());
               }}
             />
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
 
       <TokenPackModal
@@ -6327,23 +5903,6 @@ const MapPicker: React.FC<MapPickerProps> = ({
             <p className="text-[10px] text-slate-300 mt-1 font-semibold">{hoveredPinInfo.priceLabel}</p>
             <p className="text-[10px] text-slate-400 mt-0.5 capitalize">
               Status: {hoveredPinInfo.status}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {trafficTip && trafficTipScreen && !selectedMission && (
-        <div
-          className="pointer-events-none fixed z-[150]"
-          style={{
-            left: trafficTipScreen.x,
-            top: trafficTipScreen.y,
-            transform: 'translate(-50%, calc(-100% - 12px))',
-          }}
-        >
-          <div className="rounded-xl border border-lime-400/35 bg-slate-950/90 px-3 py-2 text-white shadow-[0_0_18px_rgba(74,222,128,0.25)]">
-            <p className="text-[10px] font-bold tracking-wide text-cyan-200 leading-snug">
-              {trafficTip.label}
             </p>
           </div>
         </div>

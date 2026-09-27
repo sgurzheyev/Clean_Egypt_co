@@ -22,7 +22,8 @@ Every major note below links back here. Source paths are wiki-linked so they app
 | Edge & API | [[03_Backend_SQL/Backend_Edge_and_API]] |
 | Roadmap | [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] |
 | Lifecycle audit / Wave A–I | [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · [[04_Roadmap_Tasks/Admin_P0_Hardening]] · [[04_Roadmap_Tasks/Admin_P1_Upgrade]] · [[04_Roadmap_Tasks/Field_Test_Token_Reset]] · [[04_Roadmap_Tasks/Legacy_Dispute_RPC_Closed]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] · [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] |
-| Map RUSH | [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] |
+| Map weather / RUSH / AR removed | [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]] |
+| Map RUSH (historical) | [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] |
 | Garba-Vortex | [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] |
 | Play payments | [[04_Roadmap_Tasks/Payments_Play_Policy]] |
 | Archive | [[05_Archive/Garbagin_Roadmap_Update]] |
@@ -130,7 +131,6 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[src/hooks/useMissionTextTranslation.ts]]
 - [[src/hooks/useMutedCreators.ts]]
 - [[src/hooks/usePushNotifications.ts]]
-- [[src/hooks/useRealWeather.ts]]
 - [[src/hooks/useTelegram.ts]]
 - [[hooks/useLocalization.ts]]
 
@@ -175,30 +175,21 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[components/Privacy.tsx]]
 - [[components/Terms.tsx]]
 
-### Verification, admin, AR, weather, commerce
+### Verification, admin, commerce
 - [[components/VerificationModal.tsx]]
 - [[src/components/AdminDashboard.tsx]] — full-screen admin console (lazy). SupervisorDashboard was removed in [[04_Roadmap_Tasks/Admin_P1_Upgrade]].
 - [[src/components/KYCReviewDashboard.tsx]]
 - [[src/components/LivenessCheck.tsx]]
 - [[src/components/PhantomCapture.tsx]]
-- [[src/components/AROverlay.tsx]]
-- [[src/components/WeatherOverlay.tsx]]
-- [[src/components/WeatherDebugPanel.tsx]]
 - [[src/components/SubscriptionModal.tsx]]
 - [[src/components/TokenPackModal.tsx]]
 - [[src/components/chat/MissionChatPanel.tsx]]
 
-### Map / weather libs
+### Map libs
 - [[src/lib/mapEgyptTheme.ts]]
-- [[src/lib/mapFunMode.ts]]
-- [[src/lib/mapLiveTraffic.ts]]
-- [[src/lib/openskyFlights.ts]]
-- [[src/lib/aisShips.ts]]
+- [[src/lib/mapFunMode.ts]] — cartoon land; live craft removed in [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]
 - [[src/lib/mapSolarAtmosphere.ts]]
-- [[src/lib/mapWeather.ts]]
 - [[src/lib/mapboxReverseGeocode.ts]]
-- [[src/lib/openMeteoWeather.ts]]
-- [[src/hooks/useMapLiveTraffic.ts]]
 - [[components/MapFunModeControls.tsx]]
 - [[src/services/pushNotifications.ts]]
 
@@ -236,8 +227,9 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[api/moderate-mission-photo-safety.ts]]
 - [[api/analyze-mission.ts]]
 - [[api/translate.ts]]
-- [[api/opensky-states.ts]] — RUSH OpenSky proxy
-- [[api/adsb-nearby.ts]] — RUSH ADSB proxy
+- [[api/opensky-states.ts]] — leftover RUSH OpenSky proxy (client removed; delete after Paranoic). See [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]
+- [[api/adsb-nearby.ts]] — leftover RUSH ADSB proxy
+- [[api/ais-nearby.ts]] — leftover RUSH AIS proxy
 - [[api/_lib/adsbNearbyFetch.ts]]
 
 ### Manual SQL / ops
@@ -341,7 +333,7 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 | Lifecycle Wave G | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] | [[supabase/migrations/20260917_wave_g_lifecycle_hardening.sql]], [[src/lib/missionBids.ts]] |
 | Lifecycle Wave H / Hungry-Games sub | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] | [[supabase/migrations/20260917_wave_h_surface_hardening.sql]], [[supabase/migrations/20260917_hungry_games_subscription_gate.sql]], [[components/MapPicker.tsx]] |
 | Lifecycle Wave I / SEC-4 | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] | [[api/_lib/requireUser.ts]], [[api/analyze-mission.ts]], [[src/lib/supabaseAuth.ts]] |
-| Map RUSH / live craft | [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] | [[components/MapFunModeControls.tsx]], [[src/lib/mapLiveTraffic.ts]], [[api/opensky-states.ts]], [[api/adsb-nearby.ts]] |
+| Weather / RUSH / AR removed | [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]] | [[components/MapFunModeControls.tsx]], [[components/Profile.tsx]], [[api/opensky-states.ts]] (proxy kept) |
 | P2P deals (no escrow) | [[01_Architecture/P2P_Deal_Flow]] | [[src/lib/submitMissionProof.ts]], [[src/lib/missionBids.ts]] |
 | Security / RPCs | [[01_Architecture/Security_and_RPCs]] | [[supabase/migrations/20260719_submit_mission_proof_rpc.sql]] |
 | KYC | [[01_Architecture/KYC_Verification]] | [[components/VerificationModal.tsx]], [[src/lib/kycDocuments.ts]] |

@@ -9,6 +9,8 @@ aliases: [RUSH, live traffic, fun map]
 
 # Map RUSH mode (live planes + ships)
 
+> **Removed from GarbaGin (2026-09-27).** Planes, ships, and the RUSH cycle moved to Paranoic. See [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]. This note is historical.
+
 > Hub: [[🗺️ GARBAGIN Master Index]] · UI: [[02_Frontend/Frontend_Components]] · APIs: [[03_Backend_SQL/Backend_Edge_and_API]] · Field: [[04_Roadmap_Tasks/00_Dashboard]]
 
 Small control in the bottom-left debug cluster on [[components/MapPicker.tsx]], beside the collapsed **WX** chip (and [[src/components/WeatherDebugPanel.tsx]] when that panel is open). It cycles **off → ships → planes → off**. **Idle RUSH matches the WX chip** — same padding, type size, radius, and low-contrast ink. Ships and planes keep that footprint, then add accent color, the craft icon, and the live count. See [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]]. Each craft press still peeks a **RUSH + count** card, then the card **slides back**. Third press turns RUSH off (steel land, faint chip). Night land tint is on only while ships or planes mode is active. On narrow screens the control stacks above WX so it stays clear of the center avatar.

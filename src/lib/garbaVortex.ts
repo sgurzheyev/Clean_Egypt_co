@@ -150,7 +150,7 @@ export function isDissolvedMissionPin(
   return false;
 }
 
-/** Bottom-most style layer among pins / RUSH. Vortex layers use it as beforeId. */
+/** Bottom-most style layer among mission pins. Vortex layers use it as beforeId. */
 export function lowestOverlayAnchor(styleLayerIds: string[], candidates: readonly string[]): string | undefined {
   const want = new Set(candidates);
   for (const id of styleLayerIds) {

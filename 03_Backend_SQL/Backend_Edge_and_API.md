@@ -5,7 +5,7 @@ aliases: [Backend Edge and API]
 
 # Backend — Edge Functions & API
 
-> ← [[🗺️ GARBAGIN Master Index]] · Migrations: [[03_Backend_SQL/SQL_Migrations_Index]] · Security: [[01_Architecture/Security_and_RPCs]] · Stripe: [[01_Architecture/Stripe_USD_Flow]] · Wave I: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · Play payments: [[04_Roadmap_Tasks/Payments_Play_Policy]]
+> ← [[🗺️ GARBAGIN Master Index]] · Migrations: [[03_Backend_SQL/SQL_Migrations_Index]] · Security: [[01_Architecture/Security_and_RPCs]] · Stripe: [[01_Architecture/Stripe_USD_Flow]] · Wave I: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · Play payments: [[04_Roadmap_Tasks/Payments_Play_Policy]] · Weather/RUSH/AR removed: [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]
 
 ## Stripe / payments
 - [[supabase/functions/stripe-contribution-checkout/index.ts]]
@@ -43,10 +43,10 @@ aliases: [Backend Edge and API]
 - [[api/moderate-mission-photo-safety.ts]] — Wave I: JWT + image size cap
 - [[api/analyze-mission.ts]] — Wave I: JWT + membership; still read-only
 - [[api/translate.ts]] — Wave I: JWT + max text length
-- [[api/opensky-states.ts]] — RUSH flights proxy (OpenSky; soft-empty on timeout)
-- [[api/adsb-nearby.ts]] — RUSH flights proxy (self-contained; adsb.lol + adsb.fi; soft 200 `{ ac, error? }`)
+- [[api/opensky-states.ts]] — leftover RUSH flights proxy (OpenSky). Client no longer calls it. Delete after Paranoic has its own proxy. [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]
+- [[api/adsb-nearby.ts]] — leftover RUSH flights proxy (self-contained; adsb.lol + adsb.fi; soft 200 `{ ac, error? }`)
 - [[api/_lib/adsbNearbyFetch.ts]] — test helper copy (do **not** import from the ADSB handler; Vercel ESM + renameTStoJS)
-- [[api/ais-nearby.ts]] — RUSH ships proxy (self-contained AISStream WS; soft 200 `{ ships, error? }`)
+- [[api/ais-nearby.ts]] — leftover RUSH ships proxy (self-contained AISStream WS; soft 200 `{ ships, error? }`)
 
 ## Clients
 - [[services/supabase.ts]]

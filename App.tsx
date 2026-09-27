@@ -1,13 +1,10 @@
 /**
  * [[Architecture_Overview.md]]
- * App shell: Mapbox map layer, Profile/Auth overlays, lazy AR toggle.
+ * App shell: Mapbox map layer, Profile/Auth overlays.
  */
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, Routes, Route, Navigate } from 'react-router-dom';
 import MapPicker from './components/MapPicker';
-
-// Lazy: keeps three.js/WebXR out of the initial bundle until AR is opened.
-const AROverlay = lazy(() => import('./src/components/AROverlay'));
 import Profile from './components/Profile';
 import AuthOverlay from './components/AuthOverlay';
 import Terms from './components/Terms';
@@ -28,7 +25,6 @@ const App: React.FC = () => {
   const [flyToTarget, setFlyToTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [showAuthOverlay, setShowAuthOverlay] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showAROverlay, setShowAROverlay] = useState(false);
   const [paymentSuccessType, setPaymentSuccessType] = useState<'pin' | 'tokens' | 'subscription'>('pin');
 
   // Phase 5: register FCM / Web Push token after auth (no-op until secrets configured).
@@ -110,14 +106,6 @@ const App: React.FC = () => {
         />
       </div>
 
-      {/* AR overlay — sibling of the map, unmount fully ends the XR session.
-          Toggled from Profile (state lifted here); no floating map button. */}
-      {showAROverlay && (
-        <Suspense fallback={null}>
-          <AROverlay onClose={() => setShowAROverlay(false)} />
-        </Suspense>
-      )}
-
       {/* Profile floating glass card */}
       <Profile
         isOpen={showProfileOverlay}
@@ -126,10 +114,6 @@ const App: React.FC = () => {
         onNavigateToJob={(lat, lng) => {
           setFlyToTarget({ lat, lng });
           handleCloseProfile();
-        }}
-        onOpenAR={() => {
-          handleCloseProfile();
-          setShowAROverlay(true);
         }}
       />
 

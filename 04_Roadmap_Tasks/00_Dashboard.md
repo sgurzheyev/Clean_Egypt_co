@@ -24,8 +24,9 @@
 - [[04_Roadmap_Tasks/Admin_P1_Upgrade]] — Admin P1: audit log, soft-hide, server search, lazy full-screen panel · **applied to prod 2026-09-27**
 - [[04_Roadmap_Tasks/Field_Test_Token_Reset]] — field test 2026-09-27: all accounts → 100 tokens, admin "Reset all tokens" button, Stripe live-mode check
 - [[04_Roadmap_Tasks/Legacy_Dispute_RPC_Closed]] — security: dropped legacy `resolve_mission_dispute(uuid, boolean, text)` (no auth, anon could move balances) · **applied to prod 2026-09-27**
-- [[04_Roadmap_Tasks/Map_Rush_Mode]] — RUSH live planes/ships + H2H night land
-- [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] — idle RUSH chip matches collapsed WX
+- [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]] — weather, RUSH planes/ships, and AR moved to Paranoic; FUN map + solar lighting stay
+- [[04_Roadmap_Tasks/Map_Rush_Mode]] — historical RUSH note (removed from the app)
+- [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] — historical idle-chip note
 - [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] — macro heatmap, 200 m bump, cleanup sectors, storm mode
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `migration repair` for `20260912_*` / `20260917_*` (no `db push`)
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games SQL + Edge apply order · Wave I Vercel JWT (no SQL)
@@ -36,7 +37,7 @@
 - [[03_Backend_SQL/Backend_Edge_and_API]] — edge functions & API routes
 
 ## 1. Активная разработка
-- [[AROverlay]]: Статус внедрения WebXR → [[01_Architecture/Architecture_Overview]]
+- [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]: погода, RUSH и AR убраны из GarbaGin (переехали в Paranoic)
 - [[01_Architecture/Stripe_USD_Flow]]: Экономика в USD + crowdfunding timer (`crowdfunding_expires_at`)
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]]: Эко-ультиматум, Gov Notice, «История мусора»
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]]: P0-3 refund / P1-4 convert lock
@@ -51,8 +52,7 @@
 - [[04_Roadmap_Tasks/Admin_P1_Upgrade]]: audit log, soft-hide, server search, lazy full-screen admin panel
 - [[04_Roadmap_Tasks/Field_Test_Token_Reset]]: all accounts reset to 100 tokens + Stripe payment path check
 - [[04_Roadmap_Tasks/Legacy_Dispute_RPC_Closed]]: legacy unauthenticated dispute RPC dropped
-- [[04_Roadmap_Tasks/Map_Rush_Mode]]: RUSH live planes/ships + H2H night land
-- [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]]: idle RUSH matches the WX chip; color and craft count only while ships/planes are on
+- [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]: клиент больше не зовёт Open-Meteo / OpenSky / ADSB / AIS и не показывает AR
 - [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]]: zoom 0–11 heatmap, free-pin cap, cleanup squares, storm snapshot
 - [[04_Roadmap_Tasks/Payments_Play_Policy]]: Bubblewrap TWA hides token packs, the $9.99 subscription, and token-bonus Stripe donations. Crowdfund donations release on a weighted donor vote (one no is not final).
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]: `supabase migration repair --status applied 20260912` / `20260917`
@@ -69,10 +69,7 @@
 - **Key libs**: [[src/lib/contributions]], [[src/lib/crowdfunding]], [[src/lib/kycDocuments]], [[src/lib/supabaseAuth]]
 
 ## 3. План действий (Полевой тест)
-- [ ] Тест AR в Хургаде:
-    - [ ] Запуск сессии WebXR
-    - [ ] GPS-позиционирование маркеров
-    - [ ] Корректность отображения прогресса сбора средств
+- [x] AR / weather / RUSH сняты с GarbaGin — [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]
 - [ ] Crowdfunding: Stripe contribute → funding bar → expiry countdown → `expired` + city queue
 - [ ] Wave A: two Checkouts for last `$N` → loser auto-refund; neighbor cannot unpaid-convert another user’s report ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]])
 - [ ] Wave B: donor reject on crowd proof → cleaner re-uploads (`in_progress`); funded crowd survives 24h abandon; Profile P2P confirm RPC exists ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]])
@@ -83,7 +80,7 @@
 - [ ] Wave G: accept bid above raised on an `available` crowd pin stays `funding`; expiry clears `cleaner_id` ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]])
 - [ ] Wave H / Hungry-Games: new bid without subscription opens the MapPicker modal; push token conflict does not hijack; Edge 401s without secret ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]])
 - [ ] Wave I: unauthenticated POST `/api/translate` / `moderate-*` / `analyze-mission` / `notify-*` is 401; non-member cannot analyze/notify ([[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]])
-- [ ] RUSH: idle chip matches WX (small, faint); tap cycles ships → planes → off with accent + count; peek slides back; off restores steel land ([[04_Roadmap_Tasks/Map_Rush_Idle_Chip]])
+- [x] RUSH cycle and WX chip removed — [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]
 - [ ] Wave F–H (ops): `migration list` no Local-only `20260917`; Edge secrets `PUSH_WEBHOOK_SECRET` / `CITY_NOTIFICATION_WEBHOOK_SECRET` set
 - [ ] KYC: submit → admin signed preview → approve/reject
 - [ ] P2P: bid → proof → creator confirm
