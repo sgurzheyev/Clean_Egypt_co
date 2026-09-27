@@ -17,6 +17,7 @@ supabase db query --linked -f supabase/migrations/20260927130000_garba_vortex_st
 supabase db query --linked -f supabase/migrations/20260927140000_free_pin_expiry.sql
 supabase db query --linked -f supabase/migrations/20260927150000_token_donations.sql
 supabase db query --linked -f supabase/migrations/20260927160000_closed_economy.sql
+supabase db query --linked -f supabase/migrations/20260927170000_donor_vote_release.sql
 ```
 
 Safe to re-run. Re-runs do **not** reset a tuned `garba_vortex_config` row and do **not** clear an active storm flag. `token_donation_config` and `closed_economy_config` insert only when the singleton row is missing, so a re-run does not reset the caps or the bonus rate. Stage 5 is the second file. Apply `20260927150000` and then `20260927160000` after the three vortex files. Do not edit those three; they are the ones already in flight for prod.
@@ -112,7 +113,19 @@ credited       = amount_usd * tokens_per_usd
 
 Defaults: `floor(5000 * 120 / 9900) = 60`, so **$100 → 6000 tokens**. A $99 donation → 5940. Buying the $99 pack in the shop is still 5000; the bonus is only for an unfinished cleanup. Held token donations on that expiry are refunded with their own bonus: `floor(tokens * 120 / 100)` (100 → 120). Both writes are unique on `(source, source_id)` in `closed_economy_token_credits`, and the expiry is also written to `admin_audit_log` when that writer exists.
 
-A completed cleanup still pays the cleaner the held tokens with no bonus, and Stripe funds follow the existing mission payout. Cancel, archive, and admin delete refund token donations 1:1. There is no token cash-out. The Stripe form says, in RU and EN, that an uncleaned pin funds an official report and returns tokens (+20%) to spend in GarbaGin.
+`20260927170000_donor_vote_release.sql` is the release rule. Regular missions are SaaS: the client pays the worker off-platform, and `confirm_mission_work_done` only sets `completed`. It does not move donated USD or tokens.
+
+Crowdfund donations stay held until a donor approves the proof with `process_proof_vote(true)` (`mission_proof_votes.is_approved = true`, status `approved`, `auto_approved = false`). That is the only release:
+
+- Token gifts pay `cleaner_id` 1:1 (`paid_out`). No +20%.
+- Donated USD is recorded in `crowdfund_donation_releases` as `floor(current_funding)` payable to that worker. There is no Stripe transfer in this repo. `current_funding` stays the amount raised. `donation_settlement` becomes `released`.
+- A success city PDF (`mission_completed`) queues only on that approve.
+
+`status = completed` does not release. The old 24-hour auto-approve does not release.
+
+If a donor votes no, or nobody approves within 24 hours of `report_submitted_at`, the cleanup is not done. `auto_approve_escrow_proofs` keeps its cron name and now calls that unwind. Cards are not refunded. Stripe donors receive the same token credit ($100 → 6000 at the defaults). Held token gifts refund at `floor(tokens * 120 / 100)`. `crowdfunding_expired` queues the municipal PDF. Status becomes `expired`, `donation_settlement = retained`, and the worker is unlocked.
+
+An underfunded campaign that never leaves `funding` before the funding clock still uses the same not-cleaned economics. Cancel, archive, and admin delete refund token donations 1:1. There is no token cash-out. The Stripe form says, in RU and EN, that an uncleaned pin funds an official report and returns tokens (+20%) to spend in GarbaGin.
 
 ## Cleanup sectors
 

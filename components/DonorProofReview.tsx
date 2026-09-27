@@ -1,7 +1,7 @@
 /**
  * Donor escrow review: play R2 proof video.
- * Approve (first yes) closes the job. Reject sends work back to in_progress
- * so the locked cleaner can re-upload — not a terminal `failed`.
+ * Approve (first yes) releases donated funds to the worker.
+ * Reject closes the cleanup as not done.
  */
 import React, { useEffect, useState } from 'react';
 import { Check, Loader2, ShieldAlert, X } from 'lucide-react';
@@ -75,7 +75,7 @@ const DonorProofReview: React.FC<DonorProofReviewProps> = ({
           ? t('escrowVoteRecorded', { defaultValue: 'Your vote has been recorded.' })
           : t('escrowVoteRejectedRetry', {
               defaultValue:
-                'Rejected. The cleaner can re-upload. The pot stays intact.',
+                'Rejected. The cleanup is closed as not done. Donors receive tokens (+20%). Donated funds are not paid to the worker.',
             })
       );
       onVoted?.(result.status);
@@ -95,7 +95,7 @@ const DonorProofReview: React.FC<DonorProofReviewProps> = ({
       <p className="text-xs text-slate-300">
         {t('escrowDonorReviewHint', {
           defaultValue:
-            'Approve closes the job. Reject sends it back so the cleaner can re-upload — the pot is not refunded.',
+            'Approve releases donated funds to the worker. Reject closes the cleanup as not done: an official report is filed and donors receive tokens (+20%).',
         })}
       </p>
 
@@ -155,7 +155,7 @@ const DonorProofReview: React.FC<DonorProofReviewProps> = ({
           ) : (
             <X className="h-4 w-4" aria-hidden />
           )}
-          {t('escrowRejectCta', { defaultValue: 'Reject — ask for a new video' })}
+          {t('escrowRejectCta', { defaultValue: 'Reject — not cleaned' })}
         </button>
       </div>
     </div>

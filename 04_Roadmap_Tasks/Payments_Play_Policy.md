@@ -10,6 +10,14 @@ updated: 2026-09-27
 
 The Android app is a Bubblewrap Trusted Web Activity of `www.garbagin.com`, package `com.garbagin.app`. Inside that shell, digital goods are not sold with Stripe. The website keeps Stripe exactly as it is.
 
+## Business model
+
+GarbaGin is SaaS. On a regular mission the client pays the worker directly, outside the platform. `confirm_mission_work_done` sets `completed` and moves no donated money.
+
+The platform holds money only for crowdfunded public-cleanup donations. Donated USD (`current_funding`) and donated tokens (`token_donations` held) are released to the locked worker only after a donor approves the proof with `process_proof_vote` (`mission_proof_votes`). `completed` does not release them. If donors reject, or nobody approves within 24 hours of the proof, the cleanup is not done: the municipal PDF is queued and donors receive tokens at the closed-economy +20% rate. Card payments are not refunded. Detail: [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] and [[../supabase/migrations/20260927170000_donor_vote_release.sql]].
+
+That held-donation release is not a digital-goods purchase. The TWA rules below still hide token packs, the subscription, and Stripe crowdfunding checkouts. Spending tokens the user already holds stays allowed.
+
 Play Billing code exists and is **off**. Neither `VITE_PLAY_BILLING_ENABLED` nor `PLAY_BILLING_ENABLED` is set.
 
 ## 1. Detecting the TWA

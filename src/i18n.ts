@@ -787,17 +787,17 @@ const resources = {
       proofSubmitVideoCta: 'Submit video report',
       escrowDonorReviewTitle: 'Review worker video',
       escrowDonorReviewHint:
-        'Approve closes the job. Reject sends it back so the cleaner can re-upload — the pot is not refunded.',
+        'Approve releases donated funds to the worker. Reject closes the cleanup as not done: an official report is filed and donors receive tokens (+20%).',
       escrowApproveCta: 'Approve work',
-      escrowRejectCta: 'Reject — ask for a new video',
+      escrowRejectCta: 'Reject — not cleaned',
       escrowVoteRecorded: 'Your vote has been recorded.',
       escrowVoteRejectedRetry:
-        'Rejected. The cleaner can re-upload. The pot stays intact.',
+        'Rejected. The cleanup is closed as not done. Donors receive tokens (+20%). Donated funds are not paid to the worker.',
       escrowVoteFailed: 'Could not record vote.',
       escrowVideoExpired: 'Video expired / unavailable. Storage window is 7 days.',
       escrowWaitingDonors: 'Waiting for a donor to review the video report.',
       escrowWaitingDonorsWorker:
-        'Video submitted. A donor approve closes the job; a reject lets you re-upload.',
+        'Video submitted. Donated funds are paid only if a donor approves. A reject, or no approval within 24 hours, closes the cleanup as not done.',
       proofUploadSuccess: 'Proof uploaded! Tokens will be credited after quick review.',
       proofAfterSubmitClientReview:
         'After you submit, the client will review and confirm the work is done.',
@@ -2217,17 +2217,17 @@ const resources = {
       proofSubmitVideoCta: 'Отправить видеоотчёт',
       escrowDonorReviewTitle: 'Проверка видео исполнителя',
       escrowDonorReviewHint:
-        'Одобрение закрывает работу. Отклонение возвращает её клинеру на повторную загрузку — банк не возвращается.',
+        'Одобрение переводит пожертвования исполнителю. Отклонение закрывает уборку как невыполненную: уходит официальный отчёт, а доноры получают токены (+20%).',
       escrowApproveCta: 'Одобрить работу',
-      escrowRejectCta: 'Отклонить — запросить новое видео',
+      escrowRejectCta: 'Отклонить — не убрано',
       escrowVoteRecorded: 'Ваш голос учтён.',
       escrowVoteRejectedRetry:
-        'Отклонено. Клинер может загрузить отчёт снова. Сбор остаётся на месте.',
+        'Отклонено. Уборка закрыта как невыполненная. Доноры получают токены (+20%). Пожертвования исполнителю не выплачиваются.',
       escrowVoteFailed: 'Не удалось записать голос.',
       escrowVideoExpired: 'Видео недоступно или срок хранения истёк.',
       escrowWaitingDonors: 'Ждём, пока донор проверит видеоотчёт.',
       escrowWaitingDonorsWorker:
-        'Видео отправлено. Одобрение донора закрывает работу; отклонение даёт вам перезалить отчёт.',
+        'Видео отправлено. Пожертвования выплачиваются только после одобрения донора. Отклонение или отсутствие одобрения в течение 24 часов закрывает уборку как невыполненную.',
       proofUploadSuccess: 'Фотоотчёт загружен! Токены будут начислены после проверки.',
       proofAfterSubmitClientReview:
         'После отправки заказчик проверит и подтвердит выполнение работы.',

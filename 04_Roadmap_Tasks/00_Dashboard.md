@@ -54,7 +54,7 @@
 - [[04_Roadmap_Tasks/Map_Rush_Mode]]: RUSH live planes/ships + H2H night land
 - [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]]: idle RUSH matches the WX chip; color and craft count only while ships/planes are on
 - [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]]: zoom 0–11 heatmap, free-pin cap, cleanup squares, storm snapshot
-- [[04_Roadmap_Tasks/Payments_Play_Policy]]: Bubblewrap TWA hides token packs, the $9.99 subscription, and token-bonus Stripe donations
+- [[04_Roadmap_Tasks/Payments_Play_Policy]]: Bubblewrap TWA hides token packs, the $9.99 subscription, and token-bonus Stripe donations. Crowdfund donations release only after a donor approves the proof.
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]: `supabase migration repair --status applied 20260912` / `20260917`
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]: P0→H + Hungry-Games paste order (live already applied)
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]: аудит стейт-машины
