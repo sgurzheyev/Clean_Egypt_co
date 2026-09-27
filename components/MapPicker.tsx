@@ -46,6 +46,7 @@ import {
 } from '../src/lib/contractorStore';
 import {
   filterStoresForMap,
+  storeOffersSelectedServices,
   supplyLooksEco,
   type StoreMapFilterId,
 } from '../src/lib/storeMapFilter';
@@ -77,6 +78,11 @@ import {
   DEFAULT_MISSION_SORT,
   type MissionSortMode,
 } from '../src/lib/missionFilterSort';
+import {
+  filterMissionsByServiceTypes,
+  useMissionServiceFilter,
+} from '../src/lib/missionServiceFilter';
+import { freeGarbagePinExpired } from '../src/lib/freeGarbagePin';
 import MissionFilterPanel from './MissionFilterPanel';
 import { useIsPlatformAdmin } from '../src/lib/platformAdmin';
 import { adminDeleteMission } from '../src/lib/adminMission';
@@ -477,6 +483,7 @@ function missionEligibleForMapPin(job: JobOnMap): boolean {
   const statusKey = String(job.status || '').toLowerCase();
   if (statusKey === 'hidden' || statusKey === 'archived') return false;
   if (statusKey === 'expired') return isPublicGarbageHistory(job);
+  if ((job.status === 'reported' || job.is_report) && freeGarbagePinExpired(job)) return false;
   if (job.status === 'reported' || job.is_report) return true;
   if (job.status === 'pending') return true;
   if (job.status === 'available') return true;
@@ -1578,6 +1585,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const orderFormRef = React.useRef<HTMLFormElement>(null);
   const jobsRef = React.useRef<JobOnMap[]>([]);
   const selectedMissionTagsRef = React.useRef<string[]>([]);
+  const selectedServiceTypesRef = React.useRef<string[]>([]);
   const marketCountryIdsRef = React.useRef<string[]>([]);
   const marketCityIdRef = React.useRef<string>(MARKETPLACE_ALL_CITIES_ID);
   const showFreeReportsRef = React.useRef(true);
@@ -1969,6 +1977,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [marketCountryIds, setMarketCountryIds] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_CITIES_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
+  const { selectedServiceTypes, toggleServiceType, clearServiceTypes } = useMissionServiceFilter();
   const vortexOverlay = useGarbaVortexOverlay({
     mapReady,
     cameraBusy: mapCameraBusy,
@@ -1992,6 +2001,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   useEffect(() => {
     selectedMissionTagsRef.current = selectedMissionTags;
   }, [selectedMissionTags]);
+  useEffect(() => {
+    selectedServiceTypesRef.current = selectedServiceTypes;
+  }, [selectedServiceTypes]);
   useEffect(() => {
     marketCountryIdsRef.current = marketCountryIds;
   }, [marketCountryIds]);
@@ -2149,8 +2161,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const filteredStores = useMemo(
     () =>
-      filterStoresForMap(publishedStores, selectedStoreFilter, { ecoStoreIds }),
-    [publishedStores, selectedStoreFilter, ecoStoreIds]
+      filterStoresForMap(publishedStores, selectedStoreFilter, { ecoStoreIds }).filter((store) =>
+        storeOffersSelectedServices(store, selectedServiceTypes)
+      ),
+    [publishedStores, selectedStoreFilter, ecoStoreIds, selectedServiceTypes]
   );
 
   // Drop selection when the active chip filters the store out.
@@ -3090,7 +3104,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const visibleJobs = filterMissionsByMutedCreators(
         filterMissionsByFreeReports(
           filterMissionsByCountriesCity(
-            filterMissionsByTags(jobsRef.current || [], selectedMissionTagsRef.current),
+            filterMissionsByServiceTypes(
+              filterMissionsByTags(jobsRef.current || [], selectedMissionTagsRef.current),
+              selectedServiceTypesRef.current
+            ),
             marketCountryIdsRef.current,
             marketCityIdRef.current,
             locationCatalogRef.current
@@ -4640,7 +4657,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const features = filterMissionsByMutedCreators(
       filterMissionsByFreeReports(
         filterMissionsByCountriesCity(
-          filterMissionsByTags(jobs || [], selectedMissionTags),
+          filterMissionsByServiceTypes(
+            filterMissionsByTags(jobs || [], selectedMissionTags),
+            selectedServiceTypes
+          ),
           marketCountryIds,
           marketCityId,
           locationCatalog
@@ -4692,6 +4712,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [
     jobs,
     selectedMissionTags,
+    selectedServiceTypes,
     marketCountryIds,
     marketCityId,
     locationCatalog,
@@ -5599,8 +5620,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           data={missionPinsForMap}
           promoteId="mission_id"
           cluster
-          clusterMaxZoom={12}
-          clusterRadius={52}
+          clusterMaxZoom={14}
+          clusterRadius={64}
           clusterProperties={{
             paid_count: ['+', ['case', ['==', ['get', 'is_report'], 1], 0, 1]],
           }}
@@ -5610,17 +5631,19 @@ const MapPicker: React.FC<MapPickerProps> = ({
             id="mission-pins-clusters"
             type="circle"
             filter={['has', 'point_count']}
-            maxzoom={13}
+            maxzoom={15}
             paint={{
               'circle-color': '#22d3ee',
               'circle-radius': [
                 'step',
                 ['get', 'point_count'],
-                16,
-                8,
-                20,
-                25,
+                18,
+                5,
                 26,
+                12,
+                36,
+                30,
+                48,
               ],
               'circle-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0 : 0.75, vortexPinFade) as never,
               'circle-stroke-width': 2,
@@ -5632,7 +5655,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             id="mission-pins-cluster-count"
             type="symbol"
             filter={['has', 'point_count']}
-            maxzoom={13}
+            maxzoom={15}
             layout={{
               'text-field': ['get', 'point_count_abbreviated'],
               'text-size': 12,
@@ -6372,6 +6395,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
           selectedTags={selectedMissionTags}
           onToggleTag={toggleMissionTag}
           onClearTags={clearMissionTags}
+          selectedServiceTypes={selectedServiceTypes}
+          onToggleServiceType={toggleServiceType}
+          onClearServiceTypes={clearServiceTypes}
           resultCount={missionPinsGeoJSON.features.length}
           countryIds={marketCountryIds}
           onCountryIdsChange={setMarketCountryIds}

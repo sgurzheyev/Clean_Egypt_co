@@ -14,6 +14,7 @@ Apply on prod by hand (do not `db push`), base file first:
 ```bash
 supabase db query --linked -f supabase/migrations/20260927120000_garba_vortex.sql
 supabase db query --linked -f supabase/migrations/20260927130000_garba_vortex_storm.sql
+supabase db query --linked -f supabase/migrations/20260927140000_free_pin_expiry.sql
 ```
 
 Safe to re-run. Re-runs do **not** reset a tuned `garba_vortex_config` row and do **not** clear an active storm flag. Stage 5 is the second file. Neither file has been applied to prod.
@@ -62,7 +63,13 @@ Enforced in `place_free_vortex_pin` (`SECURITY DEFINER`, `auth.uid()`). `create_
 | Closed square | — | New free pin inside the polygon raises `cleanup_sector_closed`. |
 | High-risk tokens | **0** | When `high_risk_token_cost` > 0 and the cell already has `high_risk_min_pins` free pins, that many tokens are deducted inside the same RPC. Default 0 leaves the token balance alone. |
 
-Paid pins (`create_lead_mission_with_token`, including the photo pin) are unchanged.
+Paid pins (`create_lead_mission_with_token`, including the photo pin) are unchanged. On the map they stay individual points at street zoom (above 14). Zooming out clusters nearby pins into one larger cyan dot with a count; tapping the dot expands it back into points. The existing pin click still opens the mission once the points are split.
+
+## Free pin lifetime
+
+A $0 free report lives until `crowdfunding_expires_at` (stamped at create as now()+7 days). After that, heatmap, sector, and bump reads treat it as gone, and the map / market list do the same even if the row is still `reported`. `expire_stale_free_garbage_pins()` sets `status=hidden`. The migration looks for `pg_cron` in `pg_extension` and schedules an hourly job when the extension can be created. If it cannot, the function stays callable by `service_role` or a platform admin.
+
+A Stripe contribution does not use this file. `apply_stripe_contribution` already sets the clock to at least now()+30 days on every successful payment, so each later donation extends it again. Crowdfunding amounts are USD (`current_funding`), not the bid token. The first paid dollar still wakes the report into a funding campaign, which is an explicit contribution, not an automatic mission from a sector threshold.
 
 ## Cleanup sectors
 

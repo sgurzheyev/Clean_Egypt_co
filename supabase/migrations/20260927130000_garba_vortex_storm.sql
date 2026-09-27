@@ -413,7 +413,9 @@ BEGIN
         m.created_at,
         m.current_funding,
         m.history_public_until,
-        m.media_purged_at
+        m.media_purged_at,
+        m.is_report,
+        m.crowdfunding_expires_at
       )
     GROUP BY 1, 2
   ),
@@ -627,7 +629,9 @@ BEGIN
       m.created_at,
       m.current_funding,
       m.history_public_until,
-      m.media_purged_at
+      m.media_purged_at,
+      m.is_report,
+      m.crowdfunding_expires_at
     )
     AND (
       coalesce(p_include_reports, true)
@@ -800,6 +804,9 @@ BEGIN
   WHERE coalesce(m.is_report, false) = true
     AND m.hidden_at IS NULL
     AND lower(coalesce(m.status::text, '')) IN ('reported', 'pending', 'available', 'funding', 'open')
+    AND public.garba_free_pin_still_live(
+      m.is_report, m.status::text, m.current_funding, m.created_at, m.crowdfunding_expires_at
+    )
     AND m.created_at >= now() - make_interval(days => v_cfg.bump_recency_days)
     AND ST_DWithin(
       coalesce(m.location, public.garba_vortex_point(m.location_lat, m.location_lng)),
@@ -819,6 +826,9 @@ BEGIN
     WHERE coalesce(m.is_report, false) = true
       AND m.hidden_at IS NULL
       AND lower(coalesce(m.status::text, '')) IN ('reported', 'pending', 'available', 'funding', 'open')
+    AND public.garba_free_pin_still_live(
+      m.is_report, m.status::text, m.current_funding, m.created_at, m.crowdfunding_expires_at
+    )
       AND m.created_at >= now() - make_interval(days => v_cfg.bump_recency_days)
       AND ST_DWithin(
         coalesce(m.location, public.garba_vortex_point(m.location_lat, m.location_lng)),
@@ -838,6 +848,9 @@ BEGIN
       AND coalesce(m.is_report, false) = true
       AND m.hidden_at IS NULL
       AND lower(coalesce(m.status::text, '')) IN ('reported', 'pending', 'available', 'funding', 'open')
+    AND public.garba_free_pin_still_live(
+      m.is_report, m.status::text, m.current_funding, m.created_at, m.crowdfunding_expires_at
+    )
       AND m.created_at >= now() - make_interval(days => v_cfg.bump_recency_days)
       AND ST_DWithin(
         coalesce(m.location, public.garba_vortex_point(m.location_lat, m.location_lng)),
@@ -909,6 +922,9 @@ BEGIN
   WHERE coalesce(m.is_report, false) = true
     AND m.hidden_at IS NULL
     AND lower(coalesce(m.status::text, '')) IN ('reported', 'pending', 'available', 'funding', 'open')
+    AND public.garba_free_pin_still_live(
+      m.is_report, m.status::text, m.current_funding, m.created_at, m.crowdfunding_expires_at
+    )
     AND (SELECT c.grid_key FROM public.garba_vortex_cell(m.location_lat, m.location_lng, v_cfg.sector_grid_m) AS c)
       = (SELECT c.grid_key FROM public.garba_vortex_cell(p_location_lat, p_location_lng, v_cfg.sector_grid_m) AS c);
 

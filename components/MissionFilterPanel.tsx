@@ -18,6 +18,7 @@ import {
   isReportFilterTag,
   type MissionSortMode,
 } from '../src/lib/missionFilterSort';
+import { ALL_SECTOR_SERVICES } from '../src/lib/serviceSectors';
 import {
   MARKETPLACE_ALL_CITIES_ID,
   QUICK_REGION_COUNTRIES,
@@ -77,6 +78,13 @@ export interface MissionFilterPanelProps {
   showFreeReports?: boolean;
   onShowFreeReportsChange?: (show: boolean) => void;
   /**
+   * Exact service_type multi-select. Empty = All.
+   * Rendered inside the sheet, not the compact bar (that bar overflowed the All chip).
+   */
+  selectedServiceTypes?: string[];
+  onToggleServiceType?: (serviceType: string) => void;
+  onClearServiceTypes?: () => void;
+  /**
    * `inline` (default) = compact expandable bar for list views.
    * `floating`        = round FAB + bottom-sheet for the map overlay.
    */
@@ -97,6 +105,9 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
   locationCatalog,
   showFreeReports = true,
   onShowFreeReportsChange,
+  selectedServiceTypes = [],
+  onToggleServiceType,
+  onClearServiceTypes,
   variant = 'inline',
 }) => {
   const { t } = useTranslation();
@@ -113,6 +124,8 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
     else if (el.scrollLeft > max) el.scrollLeft = max;
   }, []);
   const activeCount = selectedTags.length;
+  const serviceCount = selectedServiceTypes.length;
+  const showServiceFilter = typeof onToggleServiceType === 'function';
   const showLocationFilter =
     typeof onCountryIdsChange === 'function' || typeof onCityChange === 'function';
   const selectedCountries = useMemo(() => toCountrySelection(countryIds), [countryIds]);
@@ -122,6 +135,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
   const reportsMuted = showReportsToggle && !showFreeReports;
   const badgeCount =
     activeCount +
+    serviceCount +
     (selectedCountries.length || (!isAllCitiesFilter(cityValue) ? 1 : 0)) +
     (reportsMuted ? 1 : 0);
 
@@ -441,6 +455,60 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
     return [...reportButtons, ...standardButtons];
   };
 
+  const renderServiceButtons = () => {
+    if (!showServiceFilter) return null;
+    const allActive = selectedServiceTypes.length === 0;
+    const chip = (active: boolean) =>
+      `inline-flex min-h-[2rem] items-center justify-center rounded-full border px-3 py-1.5 text-[11px] font-bold tracking-wide transition-colors ${
+        active
+          ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100'
+          : 'border-white/12 bg-white/5 text-slate-300 hover:border-white/25 hover:text-slate-100'
+      }`;
+    return (
+      <section>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className={`${SECTION_LABEL} mb-0`}>
+            {t('filterByService', { defaultValue: 'Service' })}
+          </p>
+          {serviceCount > 0 && (
+            <button
+              type="button"
+              onClick={onClearServiceTypes}
+              className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 hover:text-slate-200"
+            >
+              <X className="h-3 w-3" strokeWidth={2.5} />
+              {t('clearFilters')}
+            </button>
+          )}
+        </div>
+        <div className="flex max-w-full flex-wrap gap-2">
+          <button
+            type="button"
+            aria-pressed={allActive}
+            onClick={onClearServiceTypes}
+            className={chip(allActive)}
+          >
+            {t('filterAllServices', { defaultValue: 'All' })}
+          </button>
+          {ALL_SECTOR_SERVICES.map((service) => {
+            const active = selectedServiceTypes.includes(service.id);
+            return (
+              <button
+                key={service.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onToggleServiceType?.(service.id)}
+                className={chip(active)}
+              >
+                {t(service.labelKey)}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    );
+  };
+
   const renderFreeReportsToggle = () => {
     if (!showReportsToggle) return null;
     const active = showFreeReports;
@@ -561,6 +629,8 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                       <div className="grid grid-cols-2 gap-2">{renderSortButtons()}</div>
                     </section>
 
+                    {renderServiceButtons()}
+
                     <section>
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <p className={`${SECTION_LABEL} mb-0`}>{t('filterByTags')}</p>
@@ -661,6 +731,7 @@ const MissionFilterPanel: React.FC<MissionFilterPanelProps> = ({
                 <p className={SECTION_LABEL}>{t('sortByLabel')}</p>
                 <div className="grid grid-cols-2 gap-2">{renderSortButtons()}</div>
               </section>
+              {renderServiceButtons()}
               <section>
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className={`${SECTION_LABEL} mb-0`}>{t('filterByTags')}</p>

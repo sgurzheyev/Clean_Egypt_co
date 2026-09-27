@@ -77,6 +77,16 @@ function bundleText(store: ContractorStore): string {
     .join(' ');
 }
 
+/** Empty selection matches every store. Otherwise the store must offer one selected service. */
+export function storeOffersSelectedServices(
+  store: ContractorStore,
+  serviceIds: readonly string[]
+): boolean {
+  if (!serviceIds.length) return true;
+  const offered = storeServiceIds(store);
+  return serviceIds.some((id) => offered.has(id));
+}
+
 export function storeOffersSubscription(store: ContractorStore): boolean {
   if (store.supported_recurrence_types.some((r) => r !== 'one_time')) return true;
   if (store.recurrence_type !== 'one_time') return true;

@@ -76,6 +76,7 @@ Chronological — June–July 2026 token / crowdfunding / privacy stack.
 | 2026-09-27 | [[20260927110000_drop_legacy_resolve_dispute.sql]] | Security: `DROP FUNCTION IF EXISTS resolve_mission_dispute(uuid, boolean, text)` — legacy overload with no auth, EXECUTE for PUBLIC/anon, wrote `balance_egp` / `frozen_balance`. No callers (app uses the 5-arg overload). Post-check: legacy gone, 5-arg present, anon denied. Live applied via `db query`; history repaired `20260927110000`. Note: [[04_Roadmap_Tasks/Legacy_Dispute_RPC_Closed]]. |
 | 2026-09-27 | [[20260927120000_garba_vortex.sql]] | Garba-Vortex: `severity_score` / `is_isolated` (default false) / `cleanup_sectors` / `garba_vortex_contributions`. Threshold marks an unfunded Cleanup Sector; `open_cleanup_sector_mission` creates the order. Heatmap + sector reads are STABLE. Do not `db push`. Note: [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]]. |
 | 2026-09-27 | [[20260927130000_garba_vortex_storm.sql]] | Garba-Vortex storm: write ledger, averaged heatmap snapshot, tighter free-pin cap, public status + admin get/set. Apply after `20260927120000`. Do not `db push`. Note: [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]]. |
+| 2026-09-27 | [[20260927140000_free_pin_expiry.sql]] | Hide $0 free reports past 7 days. Schedules `pg_cron` when `pg_extension` has it; otherwise reads omit them and `expire_stale_free_garbage_pins()` is for service_role or a platform admin. Do not `db push`. |
 
 > Full marketplace architecture write-up: [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]]
 
