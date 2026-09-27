@@ -20,7 +20,7 @@ supabase db query --linked -f supabase/migrations/20260927160000_closed_economy.
 supabase db query --linked -f supabase/migrations/20260927170000_donor_vote_release.sql
 ```
 
-Safe to re-run. Re-runs do **not** reset a tuned `garba_vortex_config` row and do **not** clear an active storm flag. `token_donation_config` and `closed_economy_config` insert only when the singleton row is missing, so a re-run does not reset the caps or the bonus rate. Stage 5 is the second file. Apply `20260927150000` and then `20260927160000` after the three vortex files. Do not edit those three; they are the ones already in flight for prod.
+Safe to re-run. Re-runs do **not** reset a tuned `garba_vortex_config` row and do **not** clear an active storm flag. `token_donation_config` and `closed_economy_config` insert only when the singleton row is missing, so a re-run does not reset the caps or the bonus rate. Stage 5 is the second file. Apply `20260927150000`, then `20260927160000`, then `20260927170000` after the three vortex files. Do not edit those three; they are the ones already in flight for prod.
 
 ## What you see
 
