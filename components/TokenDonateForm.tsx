@@ -152,6 +152,7 @@ export default function TokenDonateForm({
               <button
                 key={preset}
                 type="button"
+                aria-pressed={amount === String(preset)}
                 onClick={() => setAmount(String(preset))}
                 className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
                   amount === String(preset)
