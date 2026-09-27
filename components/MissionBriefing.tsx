@@ -61,6 +61,7 @@ import {
   isGarbageZoneReport,
 } from '../src/lib/garbageZoneReport';
 import { CITY_MIN_PRICE, BOTTOM_SHEET_MAX_HEIGHT_STYLE } from '../constants';
+import TokenDonateForm from './TokenDonateForm';
 import MissionChatPanel from '../src/components/chat/MissionChatPanel';
 import EcoHeroesRibbon from './EcoHeroesRibbon';
 import ImpactCardModal from './ImpactCardModal';
@@ -117,6 +118,7 @@ export type MissionBriefingMission = {
   video_proof_url?: string | null;
   completion_distance_meters?: number | null;
   is_report?: boolean | null;
+  token_donation_pool?: number | null;
   recurrence_type?: RecurrenceType | string | null;
 };
 
@@ -143,6 +145,11 @@ export type MissionBriefingProps = {
   canContribute?: boolean;
   contributeSubmitting?: boolean;
   onContribute?: (amountUsd: number, extras?: { targetUsd?: number }) => void;
+  onTokenDonated?: (patch: {
+    token_donation_pool: number;
+    crowdfunding_expires_at: string;
+    token_balance: number;
+  }) => void;
   assignedWorker?: AssignedWorkerProfile | null;
   gpsDistanceMeters: number | null;
   gpsDistanceError: string | null;
@@ -279,6 +286,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
   canContribute = false,
   contributeSubmitting = false,
   onContribute,
+  onTokenDonated,
   assignedWorker,
   gpsDistanceMeters,
   gpsDistanceError,
@@ -1330,6 +1338,15 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       </div>
                     </form>
                   )}
+                  {!crowdfundingOpen && (
+                    <TokenDonateForm
+                      missionId={mission.id}
+                      signedIn={!!currentUserId}
+                      isCreator={isMissionCreator}
+                      expiresAt={mission.crowdfunding_expires_at}
+                      onDonated={onTokenDonated}
+                    />
+                  )}
                   {!canContribute && !isMissionCreator && (
                     <p className="mt-3 text-xs italic text-slate-500">
                       {t('signInToContribute', {
@@ -1489,6 +1506,13 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       </button>
                     </form>
                   )}
+                  <TokenDonateForm
+                    missionId={mission.id}
+                    signedIn={!!currentUserId}
+                    isCreator={isMissionCreator}
+                    expiresAt={mission.crowdfunding_expires_at}
+                    onDonated={onTokenDonated}
+                  />
                   {!canContribute && !isMissionCreator && (
                     <p className="mt-3 text-xs italic text-slate-500">{t('signInToContribute')}</p>
                   )}

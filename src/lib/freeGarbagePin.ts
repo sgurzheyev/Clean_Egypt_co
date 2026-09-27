@@ -1,8 +1,11 @@
 /**
- * $0 free garbage pins live 7 days from crowdfunding_expires_at
- * (or created_at when the clock was not stamped). Any Stripe contribution
- * that raises current_funding keeps the pin, and apply_stripe_contribution
- * moves the clock to at least now()+30 days.
+ * $0 free garbage pins live until crowdfunding_expires_at
+ * (or created_at + 7 days when the clock was not stamped). A Stripe
+ * contribution that raises current_funding keeps the pin, and
+ * apply_stripe_contribution moves the clock to at least now()+30 days.
+ * Token donations do the same clock extension without raising
+ * current_funding, so a token-only pin stays a free report until the
+ * new deadline.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;

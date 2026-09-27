@@ -474,6 +474,7 @@ interface JobOnMap {
     is_verified?: boolean | null;
   } | null;
   recurrence_type?: RecurrenceType | string | null;
+  token_donation_pool?: number | null;
 }
 
 /** Same filter as mission markers — heatmap aligns with visible pins. */
@@ -6962,6 +6963,33 @@ const MapPicker: React.FC<MapPickerProps> = ({
           }
           contributeSubmitting={briefingBidSubmitting}
           onContribute={handleBriefingContribute}
+          onTokenDonated={(patch) => {
+            setSelectedMission((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    crowdfunding_expires_at: patch.crowdfunding_expires_at,
+                    token_donation_pool: patch.token_donation_pool,
+                  }
+                : prev
+            );
+            setJobs((prev) =>
+              prev.map((job) =>
+                job.id === selectedMission.id
+                  ? {
+                      ...job,
+                      crowdfunding_expires_at: patch.crowdfunding_expires_at,
+                      token_donation_pool: patch.token_donation_pool,
+                    }
+                  : job
+              )
+            );
+            if (Number.isFinite(patch.token_balance)) {
+              setViewerProfile((profile) =>
+                profile ? { ...profile, token_balance: patch.token_balance } : profile
+              );
+            }
+          }}
           assignedWorker={assignedWorker}
           gpsDistanceMeters={gpsDistanceMeters}
           gpsDistanceError={gpsDistanceError}

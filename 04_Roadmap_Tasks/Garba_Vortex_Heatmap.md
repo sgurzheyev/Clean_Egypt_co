@@ -15,9 +15,10 @@ Apply on prod by hand (do not `db push`), base file first:
 supabase db query --linked -f supabase/migrations/20260927120000_garba_vortex.sql
 supabase db query --linked -f supabase/migrations/20260927130000_garba_vortex_storm.sql
 supabase db query --linked -f supabase/migrations/20260927140000_free_pin_expiry.sql
+supabase db query --linked -f supabase/migrations/20260927150000_token_donations.sql
 ```
 
-Safe to re-run. Re-runs do **not** reset a tuned `garba_vortex_config` row and do **not** clear an active storm flag. Stage 5 is the second file. Neither file has been applied to prod.
+Safe to re-run. Re-runs do **not** reset a tuned `garba_vortex_config` row and do **not** clear an active storm flag. `token_donation_config` inserts only when the singleton row is missing, so a re-run does not reset the caps. Stage 5 is the second file. Apply `20260927150000` after the three vortex files. Do not edit those three; they are the ones already in flight for prod.
 
 ## What you see
 
@@ -70,6 +71,30 @@ Paid pins (`create_lead_mission_with_token`, including the photo pin) are unchan
 A $0 free report lives until `crowdfunding_expires_at` (stamped at create as now()+7 days). After that, heatmap, sector, and bump reads treat it as gone, and the map / market list do the same even if the row is still `reported`. `expire_stale_free_garbage_pins()` sets `status=hidden`. The migration looks for `pg_cron` in `pg_extension` and schedules an hourly job when the extension can be created. If it cannot, the function stays callable by `service_role` or a platform admin.
 
 A Stripe contribution does not use this file. `apply_stripe_contribution` already sets the clock to at least now()+30 days on every successful payment, so each later donation extends it again. Crowdfunding amounts are USD (`current_funding`), not the bid token. The first paid dollar still wakes the report into a funding campaign, which is an explicit contribution, not an automatic mission from a sector threshold.
+
+## Token donations
+
+`20260927150000_token_donations.sql` adds `donate_tokens_to_pin(mission_id, tokens)` for authenticated users. Anon cannot execute it. The creator cannot donate (same rule as Stripe on a free report, `token_donation_own_pin`).
+
+Escrow is a new hold, not the old wallets:
+
+- `profiles.token_balance` is the spendable wallet. The RPC locks that row and debits it.
+- `missions.amount_target` is a burned listing bid, not a payout.
+- `profiles.frozen_balance` is the legacy fiat hold. Live completion does not move it.
+- `missions.current_funding` is Stripe USD. Token gifts do not touch it, do not clear `is_report`, and do not create a mission.
+
+Each gift inserts `token_donations` (`held`) and adds the same amount to `missions.token_donation_pool`. `crowdfunding_expires_at` becomes `greatest(current, now() + 30 days)`. Caps live in `token_donation_config` (default 100 per gift, 10 gifts per hour, 300 tokens per day). The client loads the pool with `get_mission_token_donation_summary` so the map query does not select the new column before this file is applied.
+
+Settlement:
+
+- Status `completed` with a `cleaner_id` credits that cleaner's `token_balance` and marks the rows `paid_out`. No cleaner, or no profile, refunds the donors instead.
+- Status `hidden`, `expired`, `archived`, or `cancelled` refunds each held row to its donor.
+- `expire_stale_free_garbage_pins()` is replaced in this file (the 140000 file stays untouched). It refunds, then sets `status=hidden`. The status trigger refunds again and finds nothing left. The same trigger covers other hide paths, including city-notice expiry, without editing those functions.
+- Admin hard-delete refunds in a BEFORE DELETE trigger, then `ON DELETE CASCADE` drops the ledger with the mission. The token balances return. The row trail does not survive the delete.
+
+`private.write_admin_audit` stays for admin RPCs. A user donation is recorded only in `token_donations`.
+
+The briefing shows **Donate tokens** beside the Stripe amount on a free report and on an open crowdfunding card, with the pool total and days left. Copy is RU and EN.
 
 ## Cleanup sectors
 
