@@ -1,20 +1,22 @@
 /**
  * Leftover RUSH proxies stay until Paranoic has its own.
  * They must stay self-contained (no ./_lib import) so Vercel does not crash on boot.
- * Run: npx tsx api/liveCraftProxy.test.ts
+ * This test lives outside api/: every other file there is a Serverless Function,
+ * and a 13th function fails Hobby deploys (main ships exactly 12).
+ * Run: npx tsx src/lib/liveCraftProxy.test.ts
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { queryAdsbNearby } from './adsb-nearby.ts';
-import { mergeAdsbAircraft, pickAdsbAircraftList } from './_lib/adsbNearbyFetch.ts';
-import { queryAisNearby } from './ais-nearby.ts';
+import { queryAdsbNearby } from '../../api/adsb-nearby.ts';
+import { mergeAdsbAircraft, pickAdsbAircraftList } from '../../api/_lib/adsbNearbyFetch.ts';
+import { queryAisNearby } from '../../api/ais-nearby.ts';
 
-const here = dirname(fileURLToPath(import.meta.url));
+const apiDir = join(dirname(fileURLToPath(import.meta.url)), '../../api');
 
 function noRelativeImports(file: string) {
-  const src = readFileSync(join(here, file), 'utf8');
+  const src = readFileSync(join(apiDir, file), 'utf8');
   const relativeImports = src
     .split('\n')
     .filter((line) => /^\s*import\s/.test(line) && /from\s+['"]\.\//.test(line));
