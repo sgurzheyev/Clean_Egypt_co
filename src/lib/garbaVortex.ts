@@ -138,14 +138,50 @@ export function isDissolvedMissionPin(
   missionId: string,
   lng: number,
   lat: number,
-  sectors: VortexSector[]
+  sectors: VortexSector[],
+  isFreeReport = false
 ): boolean {
+  if (!isFreeReport) return false;
   for (const sector of sectors) {
     if (sector.status !== 'cleanup') continue;
     if (sector.missionId && sector.missionId === missionId) return false;
     if (pointInRing(lng, lat, sector.ring)) return true;
   }
   return false;
+}
+
+/** Bottom-most style layer among pins / RUSH. Vortex layers use it as beforeId. */
+export function lowestOverlayAnchor(styleLayerIds: string[], candidates: readonly string[]): string | undefined {
+  const want = new Set(candidates);
+  for (const id of styleLayerIds) {
+    if (want.has(id)) return id;
+  }
+  return undefined;
+}
+
+/**
+ * Report pins and report-only clusters fade with the heatmap.
+ * Paid / bounty pins (and any cluster that contains one) keep `full`.
+ */
+export function vortexPinPaintOpacity(full: number, fade: number): unknown[] {
+  const faded = full * fade;
+  return [
+    'case',
+    ['has', 'point_count'],
+    ['case', ['>', ['to-number', ['coalesce', ['get', 'paid_count'], 0]], 0], full, faded],
+    ['==', ['to-number', ['get', 'is_report']], 1],
+    faded,
+    full,
+  ];
+}
+
+/** Pulse lives in feature-state so React paint props stay still. */
+export function blackHolePulseRadius(): unknown[] {
+  return ['+', 16, ['*', ['coalesce', ['feature-state', 'pulse'], 0.35], 26]];
+}
+
+export function blackHolePulseOpacity(strength: number): unknown[] {
+  return ['*', strength, ['+', 0.28, ['*', ['coalesce', ['feature-state', 'pulse'], 0.35], 0.42]]];
 }
 
 function dist2(a: VortexLngLat, b: VortexLngLat): number {
@@ -196,6 +232,7 @@ export function cellsToBlackHoles(
         severity: c.maxSeverity,
         weight: c.weight,
       },
+      id: `${c.lng.toFixed(5)}:${c.lat.toFixed(5)}`,
       geometry: { type: 'Point' as const, coordinates: [c.lng, c.lat] as [number, number] },
     })),
   };
@@ -313,16 +350,13 @@ export function parseVortexHeatmapQuery(
   };
 }
 
+/** PGRST202 / 42883 only. Other "does not exist" text is a different failure. */
 export function isMissingRpcError(error: { code?: string; message?: string } | null | undefined): boolean {
   if (!error) return false;
-  const text = `${error.code || ''} ${error.message || ''}`.toLowerCase();
-  return (
-    text.includes('pgrst202') ||
-    text.includes('42883') ||
-    text.includes('could not find the function') ||
-    text.includes('schema cache') ||
-    text.includes('does not exist')
-  );
+  const code = String(error.code || '').toUpperCase();
+  if (code === 'PGRST202' || code === '42883') return true;
+  const message = String(error.message || '').toLowerCase();
+  return message.includes('pgrst202') || message.includes('42883');
 }
 
 export function isVortexLowEndDevice(): boolean {

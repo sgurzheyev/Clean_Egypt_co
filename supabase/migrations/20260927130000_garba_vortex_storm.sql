@@ -325,7 +325,9 @@ BEGIN
   DELETE FROM public.garba_vortex_write_events
   WHERE created_at < now() - interval '15 minutes';
 
-  PERFORM public.garba_vortex_evaluate_storm();
+  IF public.garba_vortex_evaluate_storm() THEN
+    PERFORM public.refresh_garba_vortex_heatmap_snapshot(false);
+  END IF;
 END;
 $$;
 
@@ -470,8 +472,9 @@ COMMENT ON FUNCTION public.refresh_garba_vortex_heatmap_snapshot(boolean) IS
   'Owner-only. Rebuilds the averaged storm heatmap. Skips work inside the TTL unless p_force. Isolated-spike weights are not used.';
 
 -- ---------------------------------------------------------------------------
--- Heatmap. DEFINER so anon can trip evaluate/refresh without EXECUTE on them.
--- hidden_at rows stay excluded (same visible set as the invoker version).
+-- Heatmap. STABLE and read-only. Storm state is written only by record_write
+-- and admin_set. DEFINER so anon can read the snapshot without table grants.
+-- hidden_at rows stay excluded.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_garba_vortex_heatmap(
   p_min_lng double precision,
@@ -491,13 +494,12 @@ RETURNS TABLE (
   black_hole boolean
 )
 LANGUAGE plpgsql
-VOLATILE
+STABLE
 SECURITY DEFINER
 SET search_path = public, extensions, net, pg_temp
 AS $$
 DECLARE
   v_active boolean := false;
-  v_eval timestamptz;
   v_have boolean := false;
   v_meters double precision;
   v_mid_lat double precision;
@@ -511,18 +513,13 @@ BEGIN
     RETURN;
   END IF;
 
-  SELECT s.active, s.evaluated_at
-    INTO v_active, v_eval
+  SELECT s.active
+    INTO v_active
   FROM public.garba_vortex_storm_state s
   WHERE s.id = 1;
-
-  IF v_eval IS NULL OR v_eval < now() - interval '5 seconds' THEN
-    v_active := public.garba_vortex_evaluate_storm();
-  END IF;
   v_active := coalesce(v_active, false);
 
   IF v_active THEN
-    PERFORM public.refresh_garba_vortex_heatmap_snapshot(false);
     SELECT EXISTS (SELECT 1 FROM public.garba_vortex_heatmap_snapshot) INTO v_have;
     IF v_have THEN
       RETURN QUERY
@@ -657,12 +654,12 @@ GRANT EXECUTE ON FUNCTION public.get_garba_vortex_heatmap(
 COMMENT ON FUNCTION public.get_garba_vortex_heatmap(
   double precision, double precision, double precision, double precision, double precision, boolean
 ) IS
-  'Zoom-binned cells. During storm mode returns the averaged snapshot with isolated=false and black_hole=false. hidden_at rows are excluded. Does not move tokens.';
+  'Read-only zoom-binned cells. Storm reads the snapshot and never writes. hidden_at rows are excluded. Does not move tokens.';
 
 CREATE OR REPLACE FUNCTION public.get_garba_vortex_public_status()
 RETURNS jsonb
 LANGUAGE sql
-VOLATILE
+STABLE
 SECURITY DEFINER
 SET search_path = public, extensions, net, pg_temp
 AS $$
@@ -867,25 +864,17 @@ BEGIN
       );
     END IF;
 
-    UPDATE public.missions m
-       SET severity_score = v_bump_score,
-           photo_urls = coalesce(
-             (
-               SELECT array_agg(shot.u)
-               FROM (
-                 SELECT u
-                 FROM unnest(
-                   coalesce(m.photo_urls, ARRAY[]::text[])
-                   || coalesce(p_photo_urls, ARRAY[]::text[])
-                 ) AS u
-                 WHERE nullif(btrim(u), '') IS NOT NULL
-                 LIMIT 9
-               ) AS shot
-             ),
-             m.photo_urls
-           ),
-           video_proof_url = coalesce(m.video_proof_url, v_video)
-     WHERE m.id = v_bump_id;
+    UPDATE public.missions
+       SET severity_score = v_bump_score
+     WHERE id = v_bump_id;
+
+    INSERT INTO public.garba_vortex_contributions (mission_id, reporter_id, photo_urls, video_proof_url)
+    VALUES (
+      v_bump_id,
+      v_uid,
+      coalesce(p_photo_urls[1:9], ARRAY[]::text[]),
+      v_video
+    );
 
     PERFORM public.garba_vortex_refresh_isolation(p_location_lat, p_location_lng);
     PERFORM public.garba_vortex_record_write(v_uid, p_location_lat, p_location_lng, 'bump');
@@ -1000,7 +989,7 @@ BEGIN
     v_city,
     now() + interval '7 days',
     1,
-    true
+    false
   )
   RETURNING id INTO v_id;
 
@@ -1047,7 +1036,7 @@ COMMENT ON FUNCTION public.place_free_vortex_pin(
 CREATE OR REPLACE FUNCTION public.admin_get_garba_vortex_storm()
 RETURNS jsonb
 LANGUAGE plpgsql
-VOLATILE
+STABLE
 SECURITY DEFINER
 SET search_path = public, extensions, net, pg_temp
 AS $$
@@ -1063,8 +1052,6 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
   END IF;
-
-  PERFORM public.garba_vortex_evaluate_storm();
 
   SELECT * INTO v_cfg FROM public.garba_vortex_config WHERE id = 1;
   SELECT * INTO v_state FROM public.garba_vortex_storm_state WHERE id = 1;

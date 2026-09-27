@@ -8,9 +8,14 @@ import {
   capBlackHoles,
   classifyVortexPinError,
   heatmapOpacityForZoom,
+  blackHolePulseOpacity,
+  blackHolePulseRadius,
   isDissolvedMissionPin,
+  isMissingRpcError,
+  lowestOverlayAnchor,
   parseVortexHeatmapQuery,
   pinFadeForZoom,
+  vortexPinPaintOpacity,
   pointInRing,
   readVortexDemoCamera,
   squareRing,
@@ -45,11 +50,28 @@ assert.equal(pointInRing(31.2755, 30.0365, ring), true);
 assert.equal(pointInRing(31.29, 30.05, ring), false);
 
 const sector = demoVortexSectors()[0];
-assert.equal(isDissolvedMissionPin('member-pin', sector.centerLng, sector.centerLat, [sector]), true);
 assert.equal(
-  isDissolvedMissionPin(sector.missionId || '', sector.centerLng, sector.centerLat, [sector]),
+  isDissolvedMissionPin('member-pin', sector.centerLng, sector.centerLat, [sector], true),
+  true
+);
+assert.equal(
+  isDissolvedMissionPin('paid-pin', sector.centerLng, sector.centerLat, [sector], false),
   false
 );
+assert.equal(
+  isDissolvedMissionPin(sector.missionId || '', sector.centerLng, sector.centerLat, [sector], true),
+  false
+);
+
+assert.equal(isMissingRpcError({ code: 'PGRST202', message: 'Could not find the function' }), true);
+assert.equal(isMissingRpcError({ code: '42883', message: 'function does not exist' }), true);
+assert.equal(isMissingRpcError({ message: 'column foo does not exist' }), false);
+assert.equal(isMissingRpcError({ code: 'PGRST204', message: 'schema cache' }), false);
+assert.equal(lowestOverlayAnchor(['basemap', 'mission-pins-glow', 'weather-rain'], ['mission-pins-glow', 'live-flights']), 'mission-pins-glow');
+assert.equal(lowestOverlayAnchor(['basemap'], ['mission-pins-glow']), undefined);
+assert.equal(JSON.stringify(vortexPinPaintOpacity(1, 0)).includes('is_report'), true);
+assert.equal(JSON.stringify(blackHolePulseRadius()).includes('feature-state'), true);
+assert.equal(JSON.stringify(blackHolePulseOpacity(0.5)).includes('feature-state'), true);
 
 const holes = capBlackHoles(
   [

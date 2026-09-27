@@ -16,29 +16,31 @@ supabase db query --linked -f supabase/migrations/20260927120000_garba_vortex.sq
 supabase db query --linked -f supabase/migrations/20260927130000_garba_vortex_storm.sql
 ```
 
-Safe to re-run. Re-runs do **not** reset a tuned `garba_vortex_config` row and do **not** clear an active storm flag. The first file's header still says storm was left out; stage 5 is the second file.
+Safe to re-run. Re-runs do **not** reset a tuned `garba_vortex_config` row and do **not** clear an active storm flag. Stage 5 is the second file. Neither file has been applied to prod.
 
 ## What you see
 
 | Zoom | Map |
 | --- | --- |
-| 0–11 | Heatmap only. Dense cities stay a crimson/purple mass. A lone pin in an empty region is a bright spike. |
-| 11–12 | Heatmap opacity falls to 0 while mission pins (and the existing cluster circles) fade in. |
-| 12–20 | Pins only, same as before. Closed squares stay as a purple/crimson fill under the pins. |
+| 0–11 | Heatmap plus every paid / bounty pin. Only free report pins fade into the mass. A cluster that contains any paid pin stays visible. Dense cities stay a crimson/purple mass. A lone pin in an empty region is a bright spike. |
+| 11–12 | Heatmap opacity falls to 0. Free report pins fade in. Paid pins were already visible. |
+| 12–20 | All pins, same as before. Closed squares are an outline only (fill stops at zoom 12) so the pin stays readable. |
 
 Palette on `heatmap-density`: transparent, grey, neon green `#39ff14`, orange `#ff9f1a`, plasma `#1a0033`, crimson `#ff0055`.
 
-If `get_garba_vortex_sectors` is missing (migration not applied yet), the client leaves pin opacity alone so the live map does not go blank at country zoom.
+If the heatmap or sector RPC is missing, the client detects `PGRST202` / `42883` only (not every "does not exist" message) and stops calling that function for the rest of the session. Pin opacity stays at 1 so the live map does not go blank. Viewport fetches wait 400 ms. Heatmap and storm status are requested together on the RPC fallback. The admin storm card polls every 15 s only while the admin panel's Analytics pillar is mounted, and it stops if that RPC is missing.
 
 ## Data
 
 No parallel pin table. Columns on `public.missions`:
 
-- `severity_score` integer 1–100 (default 1). Duplicate reports add 1, capped at 100.
-- `is_isolated` boolean. True when visible neighbours inside `isolation_radius_m` are at or below `isolation_neighbor_max`.
+- `severity_score` integer 1–100 (default 1). A bump adds 1, capped at 100. The owner's `photo_urls` and `video_proof_url` stay untouched.
+- `is_isolated` boolean, **default false**. An insert or an update of location / lat / lng / `hidden_at` / status runs `garba_vortex_isolation_trigger`, which sets true only when visible neighbours inside `isolation_radius_m` are at or below `isolation_neighbor_max`. A new paid pin is not a black-hole spike before that recompute.
 - `sector_id` uuid, set on free pins dissolved into a closed square.
 
-Hidden rows (`hidden_at`) are excluded from the heatmap and from sector counts. `get_garba_vortex_heatmap` is `SECURITY DEFINER` so it can refresh the storm snapshot, with the same explicit `hidden_at` filter the invoker version used (public mission reads are already "visible unless hidden"). Aggregates are grid cells (max 2000), not raw pins. During storm mode the cells come from `garba_vortex_heatmap_snapshot` instead, with `isolated` and `black_hole` forced off.
+Bump photos and the optional video live in `garba_vortex_contributions` (`reporter_id`, `mission_id`, `sector_id`, `photo_urls`, `created_at`). No client role can read that table.
+
+Hidden rows (`hidden_at`) are excluded from the heatmap and from sector counts. `get_garba_vortex_heatmap` and `get_garba_vortex_public_status` are `STABLE` and do not write. Storm is evaluated on `place_free_vortex_pin` / `garba_vortex_record_write` and when an admin saves. The snapshot refreshes from `record_write` only while storm is already on, and from `admin_set_garba_vortex_storm`. A quiet period does not clear storm until the next free-pin write (or an admin force-off). Aggregates are grid cells (max 2000), not raw pins. During storm mode the cells come from `garba_vortex_heatmap_snapshot`, with `isolated` and `black_hole` forced off. Anon heatmap reads never write.
 
 PostGIS was already installed (`20260720_proof_of_work_lifecycle_security.sql`, `missions.location`). This migration creates it only when it is absent (`extensions` schema on Supabase, otherwise the current schema). Proximity, isolation, and the square polygon use `ST_DWithin` / `ST_Covers` plus a partial GiST index. The heatmap itself is a zoom-sized lat/lng grid (`garba_vortex_cell_m`): about 400 km at zoom 0, floored at 250 m. Grid bins stay stable while panning; `ST_ClusterDBSCAN` was skipped because it is heavier and the cells move between requests.
 
@@ -66,14 +68,15 @@ Paid pins (`create_lead_mission_with_token`, including the photo pin) are unchan
 
 Free reports (`is_report`) snap to a 200 m × 200 m grid (`sector_grid_m`, 0.04 km²). At `sector_pin_threshold` (default 5, the centre + 4 pattern) the cell becomes `cleanup_sectors.status = 'cleanup'`:
 
-- One square polygon (fill + line, not a fill-extrusion — extrusion fights the globe style on mid-range phones).
-- One **available** bounty mission at the cell centre (`beach_street_cleanup`, `expected_price` between $2 and $40, `amount_target` 1). It uses the existing bid flow and does not start a 7-day crowdfund clock, so the order does not quietly expire. Member report pins stay in the database; the map hides them inside the square. The sector mission pin stays.
-- The square stops accepting free pins while that order is still open (`available` / `funding` / `in_progress` / `review` and the usual aliases). When the order is completed, hidden, or archived, the polygon drops off the map and the square accepts pins again.
-- Tap the polygon (when no pin is under the finger) to open that mission if it is in the loaded set.
+- One square polygon (fill + line, not a fill-extrusion — extrusion fights the globe style on mid-range phones). Fill `maxzoom` is 12; the outline stays so the square does not cover its pin at street zoom. Vortex layers are inserted with `beforeId` at the lowest existing mission-pin or RUSH plane/ship layer, so they sit under those pins. Weather is a DOM canvas above the GL map.
+- **No automatic mission.** The fifth report does not become the creator and the price is not invented. `mission_id` stays null. `garba_vortex_sector_order_open(NULL)` is true, so the unfunded square stays on the map and blocks new free pins. Any signed-in user opens it with `open_cleanup_sector_mission`: `auth.uid()` is the creator, and the RPC calls `create_lead_mission_with_token` ($2 floor, token bid, optional crowdfund). The caller's own photo array is stored; other reporters' photos are not copied.
+- Member free-report pins stay in the database. The map hides only free reports inside the square. Paid and non-report missions inside the same square stay visible.
+- The square stops accepting free pins while it is unfunded or its order is still open (`available` / `funding` / `in_progress` / `review` and the usual aliases). When a linked order is completed, hidden, or archived, the polygon drops off the map and the square accepts pins again.
+- Tap the polygon (when no pin is under the finger). If `mission_id` is set and that job is loaded, it opens. Otherwise the Cleanup Sector sheet asks for a budget and optional crowdfund, then calls the RPC.
 
 ## Black hole (no Three.js)
 
-Mapbox circle layers: purple halo, crimson ring, hot core. The ring radius/opacity pulse at ~8 fps via `setPaintProperty` only while zoom &lt; 12, the camera is idle, and there is at least one black-hole cell (capped at 48, nearest the camera). No GeoJSON rewrite per frame.
+Mapbox circle layers: purple halo, crimson ring, hot core. Pulse is one `requestAnimationFrame` loop that writes feature-state `pulse` about every 220 ms. The React paint expressions read `['feature-state', 'pulse']` and are not rewritten each frame. The loop pauses when the tab is hidden, the camera is moving, zoom is 12 or higher, or no black-hole cell is in view (capped at 48, nearest the camera). No GeoJSON rewrite per frame.
 
 - `VITE_GARBA_VORTEX_BLACK_HOLE=0` or `localStorage.garba_vortex_black_hole=0` hides the rings. The heatmap spike remains.
 - `prefers-reduced-motion`, Save-Data, `deviceMemory <= 2`, or `hardwareConcurrency <= 2` keeps a **static** ring and skips the animation loop. Mid-range Android (typically 8 cores / 4 GB+) keeps the pulse.
@@ -84,7 +87,7 @@ Demo without the database: open the app with `?vortexDemo=1` (Cairo mass + Weste
 
 Free-pin **creates and bumps** (committed only, not the dry-run) land in `garba_vortex_write_events`. Rows older than 15 minutes are deleted inside the recorder. Clients cannot read that table.
 
-`garba_vortex_evaluate_storm` (owner only) runs on each commit and at most every 5 seconds from the heatmap read:
+`garba_vortex_evaluate_storm` (owner only) runs inside `place_free_vortex_pin` before the insert (so the throttle matches the pre-write state) and again inside `garba_vortex_record_write` after the ledger row. It does **not** run from the public heatmap, the public status RPC, or the admin 15 s poll. `admin_set_garba_vortex_storm` still evaluates because that call is an admin write:
 
 | `storm_mode` | Behaviour |
 | --- | --- |
@@ -152,11 +155,12 @@ Heatmap cell size is `greatest(250 m, 400 km / 2^zoom)` in `garba_vortex_cell_m`
 
 | RPC | Who | Notes |
 | --- | --- | --- |
-| `place_free_vortex_pin(...)` | authenticated, service_role | Writes. Optional token debit when cost &gt; 0. |
+| `place_free_vortex_pin(...)` | authenticated, service_role | Writes. Bump updates `severity_score` only and inserts `garba_vortex_contributions`. Optional token debit when cost &gt; 0. |
 | `create_garbage_zone_report(...)` | authenticated, service_role | Same rules; returns the mission uuid (existing or bumped). |
-| `get_garba_vortex_heatmap(...)` | anon, authenticated | Cells. Storm: averaged snapshot, no spikes. |
-| `get_garba_vortex_public_status()` | anon, authenticated | `{ storm, cache_seconds }` only. |
-| `get_garba_vortex_sectors(...)` | anon, authenticated | Closed squares with an open order. |
-| `admin_get_garba_vortex_storm()` / `admin_set_garba_vortex_storm(...)` | authenticated (admin check inside) | Counts, mode, thresholds. Audited. |
+| `get_garba_vortex_heatmap(...)` | anon, authenticated | `STABLE`. Cells. Storm: averaged snapshot, no spikes. No writes. |
+| `get_garba_vortex_public_status()` | anon, authenticated | `STABLE`. `{ storm, cache_seconds }` only. |
+| `get_garba_vortex_sectors(...)` | anon, authenticated | `STABLE`. Closed squares, including unfunded ones (`mission_id` null). |
+| `open_cleanup_sector_mission(...)` | authenticated, service_role | Explicit fund. Creator is `auth.uid()`. Anon cannot execute. |
+| `admin_get_garba_vortex_storm()` / `admin_set_garba_vortex_storm(...)` | authenticated (admin check inside) | Get is `STABLE` and does not evaluate. Set evaluates and can refresh. Audited. |
 | `garba_vortex_evaluate_storm` / `garba_vortex_record_write` / `refresh_garba_vortex_heatmap_snapshot` | owner only | Not granted to anon or authenticated. |
-| `garba_vortex_refresh_isolation` / `garba_vortex_rollup_sector` | owner only | Not granted to anon or authenticated. |
+| `garba_vortex_refresh_isolation` / `garba_vortex_rollup_sector` / `garba_vortex_isolation_trigger` | owner only | Trigger runs on mission insert/update. Not granted to anon or authenticated. |

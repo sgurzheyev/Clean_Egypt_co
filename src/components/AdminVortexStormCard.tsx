@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../services/supabase';
-import { isMissingRpcError } from '../lib/garbaVortex';
+import { noteMissingVortexRpc, vortexRpcSkipped } from '../lib/garbaVortexApi';
 
 type StormMode = 'off' | 'auto' | 'on';
 
@@ -100,9 +100,14 @@ export default function AdminVortexStormCard() {
   const busyRef = useRef(false);
 
   const load = useCallback(async () => {
+    if (vortexRpcSkipped('admin_get_garba_vortex_storm')) {
+      setMissing(true);
+      setError(null);
+      return;
+    }
     const { data, error: rpcError } = await supabase.rpc('admin_get_garba_vortex_storm');
     if (rpcError) {
-      if (isMissingRpcError(rpcError)) {
+      if (noteMissingVortexRpc('admin_get_garba_vortex_storm', rpcError)) {
         setMissing(true);
         setError(null);
         return;
@@ -121,11 +126,14 @@ export default function AdminVortexStormCard() {
     setDraft((prev) => (dirty && prev ? prev : draftFrom(next)));
   }, [dirty]);
 
+  // Mounted only while the admin panel's Analytics pillar is open. A missing
+  // function stops the interval for the rest of the session.
   useEffect(() => {
+    if (missing) return;
     void load();
     const id = window.setInterval(() => void load(), 15_000);
     return () => window.clearInterval(id);
-  }, [load]);
+  }, [load, missing]);
 
   const patchDraft = (partial: Partial<Draft>) => {
     setDirty(true);

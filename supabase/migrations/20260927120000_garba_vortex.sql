@@ -12,7 +12,7 @@
 -- top of that geography index (stable cells, capped row count). Meter checks
 -- (bump, isolation, sector squares) use ST_DWithin / ST_Covers.
 --
--- Storm mode is intentionally not implemented.
+-- Storm mode is the next file: 20260927130000_garba_vortex_storm.sql.
 -- ============================================================================
 
 DO $ext$
@@ -85,7 +85,7 @@ ALTER TABLE public.missions
   ADD COLUMN IF NOT EXISTS severity_score integer NOT NULL DEFAULT 1;
 
 ALTER TABLE public.missions
-  ADD COLUMN IF NOT EXISTS is_isolated boolean NOT NULL DEFAULT true;
+  ADD COLUMN IF NOT EXISTS is_isolated boolean NOT NULL DEFAULT false;
 
 ALTER TABLE public.missions
   ADD COLUMN IF NOT EXISTS sector_id uuid;
@@ -109,7 +109,7 @@ ALTER TABLE public.missions VALIDATE CONSTRAINT missions_severity_score_range;
 COMMENT ON COLUMN public.missions.severity_score IS
   'Garba-Vortex intensity 1–100. Duplicate free reports bump this instead of inserting a row.';
 COMMENT ON COLUMN public.missions.is_isolated IS
-  'True when few/no other visible pins sit inside garba_vortex_config.isolation_radius_m.';
+  'True only after garba_vortex_refresh_isolation. Default false so a new paid pin is not a black-hole spike before that recompute.';
 COMMENT ON COLUMN public.missions.sector_id IS
   'Set when this free pin was dissolved into a closed cleanup sector.';
 
@@ -161,7 +161,7 @@ CREATE INDEX IF NOT EXISTS idx_cleanup_sectors_status
   ON public.cleanup_sectors (status);
 
 COMMENT ON TABLE public.cleanup_sectors IS
-  'Garba-Vortex dirty squares. status=cleanup closes the square to new free pins and points at one available cleanup mission.';
+  'Garba-Vortex dirty squares. status=cleanup closes the square to new free pins. mission_id stays null until open_cleanup_sector_mission.';
 
 ALTER TABLE public.cleanup_sectors ENABLE ROW LEVEL SECURITY;
 
@@ -395,8 +395,36 @@ REVOKE ALL ON FUNCTION public.garba_vortex_refresh_isolation(double precision, d
 REVOKE ALL ON FUNCTION public.garba_vortex_refresh_isolation(double precision, double precision) FROM anon;
 REVOKE ALL ON FUNCTION public.garba_vortex_refresh_isolation(double precision, double precision) FROM authenticated;
 
+-- Recompute isolation for every visible mission when its place or visibility changes.
+-- UPDATE OF skips is_isolated itself, so the inner refresh cannot recurse.
+CREATE OR REPLACE FUNCTION public.garba_vortex_isolation_trigger()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions, net, pg_temp
+AS $$
+BEGIN
+  IF NEW.location_lat IS NULL OR NEW.location_lng IS NULL THEN
+    RETURN NEW;
+  END IF;
+  PERFORM public.garba_vortex_refresh_isolation(NEW.location_lat, NEW.location_lng);
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.garba_vortex_isolation_trigger() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.garba_vortex_isolation_trigger() FROM anon;
+REVOKE ALL ON FUNCTION public.garba_vortex_isolation_trigger() FROM authenticated;
+
+DROP TRIGGER IF EXISTS trg_garba_vortex_isolation ON public.missions;
+CREATE TRIGGER trg_garba_vortex_isolation
+  AFTER INSERT OR UPDATE OF location, location_lat, location_lng, hidden_at, status
+  ON public.missions
+  FOR EACH ROW
+  EXECUTE FUNCTION public.garba_vortex_isolation_trigger();
+
 -- ---------------------------------------------------------------------------
--- Promote a 200 m square into one available cleanup mission.
+-- Promote a 200 m square into a Cleanup Sector. No mission row is created.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.garba_vortex_rollup_sector(
   p_lat double precision,
@@ -418,9 +446,6 @@ DECLARE
   v_sev integer := 0;
   v_sector_id uuid;
   v_status text;
-  v_mission_id uuid;
-  v_price integer;
-  v_photos text[];
   v_half double precision;
   v_dlat double precision;
   v_dlng double precision;
@@ -460,8 +485,8 @@ BEGIN
         center_lat = EXCLUDED.center_lat,
         center_lng = EXCLUDED.center_lng,
         updated_at = now()
-  RETURNING s.id, s.status, s.mission_id
-    INTO v_sector_id, v_status, v_mission_id;
+  RETURNING s.id, s.status
+    INTO v_sector_id, v_status;
 
   IF v_count < v_threshold OR v_status = 'cleanup' THEN
     RETURN v_sector_id;
@@ -484,72 +509,19 @@ BEGIN
     4326
   )::geography;
 
-  SELECT coalesce(m.photo_urls, ARRAY[]::text[])
-    INTO v_photos
-  FROM public.missions m
-  WHERE m.hidden_at IS NULL
-    AND coalesce(m.is_report, false) = true
-    AND m.location_lat BETWEEN v_cell.cell_lat - 0.02 AND v_cell.cell_lat + 0.02
-    AND m.location_lng BETWEEN v_cell.cell_lng - 0.02 AND v_cell.cell_lng + 0.02
-    AND (SELECT c.grid_key FROM public.garba_vortex_cell(m.location_lat, m.location_lng, v_grid_m) AS c) = v_cell.grid_key
-  ORDER BY m.severity_score DESC, m.created_at DESC
-  LIMIT 1;
-
-  v_price := greatest(2, least(40, v_count * 2));
-
-  -- One open bounty for the square (standard bid flow, no crowdfund expiry).
-  INSERT INTO public.missions (
-    creator_id,
-    status,
-    category,
-    amount_target,
-    expected_price,
-    current_funding,
-    service_type,
-    location_lat,
-    location_lng,
-    description,
-    photo_urls,
-    country,
-    city,
-    is_report,
-    crowdfunding_mode,
-    severity_score,
-    is_isolated
-  )
-  VALUES (
-    p_creator,
-    'available',
-    'public',
-    1,
-    v_price,
-    0,
-    'beach_street_cleanup',
-    v_cell.cell_lat,
-    v_cell.cell_lng,
-    'Cleanup Sector — this 200 m square is closed to new free pins. Bid to clean the whole block.',
-    coalesce(v_photos, ARRAY[]::text[])[1:9],
-    p_country,
-    p_city,
-    false,
-    false,
-    least(100, greatest(1, v_sev)),
-    false
-  )
-  RETURNING id INTO v_mission_id;
-
+  -- Unfunded square. A later open_cleanup_sector_mission call creates the order
+  -- with auth.uid() as creator and the normal lead-mission price/token rules.
   UPDATE public.cleanup_sectors
      SET status = 'cleanup',
          area = v_area,
-         mission_id = v_mission_id,
-         closed_at = now(),
+         mission_id = NULL,
+         closed_at = coalesce(closed_at, now()),
          updated_at = now()
    WHERE id = v_sector_id;
 
   UPDATE public.missions m
      SET sector_id = v_sector_id
    WHERE m.hidden_at IS NULL
-     AND m.id IS DISTINCT FROM v_mission_id
      AND coalesce(m.is_report, false) = true
      AND m.location_lat BETWEEN v_cell.cell_lat - 0.02 AND v_cell.cell_lat + 0.02
      AND m.location_lng BETWEEN v_cell.cell_lng - 0.02 AND v_cell.cell_lng + 0.02
@@ -562,6 +534,114 @@ $$;
 REVOKE ALL ON FUNCTION public.garba_vortex_rollup_sector(double precision, double precision, uuid, text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.garba_vortex_rollup_sector(double precision, double precision, uuid, text, text) FROM anon;
 REVOKE ALL ON FUNCTION public.garba_vortex_rollup_sector(double precision, double precision, uuid, text, text) FROM authenticated;
+
+COMMENT ON FUNCTION public.garba_vortex_rollup_sector(double precision, double precision, uuid, text, text) IS
+  'Marks a full 200 m square as a Cleanup Sector. Does not insert a mission. p_creator is unused and kept so existing callers stay valid.';
+
+-- Explicit fund/convert. Creator is auth.uid() inside create_lead_mission_with_token
+-- ($2 floor, token bid, optional crowdfund clock).
+CREATE OR REPLACE FUNCTION public.open_cleanup_sector_mission(
+  p_sector_id uuid,
+  p_expected_price integer,
+  p_description text,
+  p_photo_urls text[] DEFAULT ARRAY[]::text[],
+  p_crowdfunding_mode boolean DEFAULT false,
+  p_token_bid integer DEFAULT 1
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions, net, pg_temp
+AS $$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_status text;
+  v_mission uuid;
+  v_lat double precision;
+  v_lng double precision;
+  v_desc text;
+  v_mid uuid;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+  IF p_sector_id IS NULL THEN
+    RAISE EXCEPTION 'Sector id required';
+  END IF;
+
+  SELECT s.status, s.mission_id, s.center_lat, s.center_lng
+    INTO v_status, v_mission, v_lat, v_lng
+  FROM public.cleanup_sectors s
+  WHERE s.id = p_sector_id
+  FOR UPDATE;
+
+  IF NOT FOUND OR v_status IS DISTINCT FROM 'cleanup' THEN
+    RAISE EXCEPTION 'cleanup_sector_not_ready' USING ERRCODE = 'P0001';
+  END IF;
+
+  IF v_mission IS NOT NULL AND public.garba_vortex_sector_order_open(v_mission) THEN
+    RAISE EXCEPTION 'cleanup_sector_already_open' USING ERRCODE = 'P0001';
+  END IF;
+
+  v_desc := nullif(btrim(coalesce(p_description, '')), '');
+  IF v_desc IS NULL THEN
+    v_desc := 'Cleanup Sector — fund this 200 m square.';
+  END IF;
+
+  v_mid := public.create_lead_mission_with_token(
+    'beach_street_cleanup',
+    v_lat,
+    v_lng,
+    v_desc,
+    coalesce(p_photo_urls, ARRAY[]::text[]),
+    NULL,
+    NULL,
+    greatest(1, coalesce(p_token_bid, 1)),
+    p_expected_price,
+    coalesce(p_crowdfunding_mode, false),
+    NULL,
+    NULL,
+    'one_time',
+    NULL
+  );
+
+  UPDATE public.cleanup_sectors
+     SET mission_id = v_mid,
+         updated_at = now()
+   WHERE id = p_sector_id;
+
+  RETURN v_mid;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.open_cleanup_sector_mission(uuid, integer, text, text[], boolean, integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.open_cleanup_sector_mission(uuid, integer, text, text[], boolean, integer) FROM anon;
+GRANT EXECUTE ON FUNCTION public.open_cleanup_sector_mission(uuid, integer, text, text[], boolean, integer) TO authenticated, service_role;
+
+COMMENT ON FUNCTION public.open_cleanup_sector_mission(uuid, integer, text, text[], boolean, integer) IS
+  'Authenticated user opens a Cleanup Sector as a normal lead mission. Does not copy other reporters'' photos.';
+
+-- Bump photos live here, not on the mission the bump strengthens.
+CREATE TABLE IF NOT EXISTS public.garba_vortex_contributions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  mission_id uuid NOT NULL REFERENCES public.missions(id) ON DELETE CASCADE,
+  sector_id uuid,
+  reporter_id uuid NOT NULL,
+  photo_urls text[] NOT NULL DEFAULT ARRAY[]::text[],
+  video_proof_url text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_garba_vortex_contributions_mission
+  ON public.garba_vortex_contributions (mission_id, created_at DESC);
+
+ALTER TABLE public.garba_vortex_contributions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.garba_vortex_contributions FROM PUBLIC;
+REVOKE ALL ON TABLE public.garba_vortex_contributions FROM anon;
+REVOKE ALL ON TABLE public.garba_vortex_contributions FROM authenticated;
+
+COMMENT ON TABLE public.garba_vortex_contributions IS
+  'Photos and video from a free-pin bump. The bumped mission photo_urls stay the owner''s.';
 
 -- ---------------------------------------------------------------------------
 -- Free pin entry. p_commit=false is the preflight (no writes, no token move).
@@ -726,25 +806,17 @@ BEGIN
       );
     END IF;
 
-    UPDATE public.missions m
-       SET severity_score = v_bump_score,
-           photo_urls = coalesce(
-             (
-               SELECT array_agg(shot.u)
-               FROM (
-                 SELECT u
-                 FROM unnest(
-                   coalesce(m.photo_urls, ARRAY[]::text[])
-                   || coalesce(p_photo_urls, ARRAY[]::text[])
-                 ) AS u
-                 WHERE nullif(btrim(u), '') IS NOT NULL
-                 LIMIT 9
-               ) AS shot
-             ),
-             m.photo_urls
-           ),
-           video_proof_url = coalesce(m.video_proof_url, v_video)
-     WHERE m.id = v_bump_id;
+    UPDATE public.missions
+       SET severity_score = v_bump_score
+     WHERE id = v_bump_id;
+
+    INSERT INTO public.garba_vortex_contributions (mission_id, reporter_id, photo_urls, video_proof_url)
+    VALUES (
+      v_bump_id,
+      v_uid,
+      coalesce(p_photo_urls[1:9], ARRAY[]::text[]),
+      v_video
+    );
 
     PERFORM public.garba_vortex_refresh_isolation(p_location_lat, p_location_lng);
 
@@ -853,7 +925,7 @@ BEGIN
     v_city,
     now() + interval '7 days',
     1,
-    true
+    false
   )
   RETURNING id INTO v_id;
 
@@ -1196,6 +1268,25 @@ BEGIN
     'EXECUTE'
   ) THEN
     RAISE EXCEPTION 'Post-flight failed: anon can execute garba_vortex_refresh_isolation';
+  END IF;
+
+  IF has_function_privilege('anon', 'public.garba_vortex_isolation_trigger()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Post-flight failed: anon can execute garba_vortex_isolation_trigger';
+  END IF;
+
+  IF has_function_privilege(
+    'anon',
+    'public.open_cleanup_sector_mission(uuid, integer, text, text[], boolean, integer)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'Post-flight failed: anon can execute open_cleanup_sector_mission';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'garba_vortex_contributions'
+  ) THEN
+    RAISE EXCEPTION 'Post-flight failed: garba_vortex_contributions missing';
   END IF;
 END
 $pf$;

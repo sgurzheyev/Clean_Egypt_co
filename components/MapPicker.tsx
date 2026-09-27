@@ -116,10 +116,15 @@ import {
 import { useMutedCreators } from '../src/hooks/useMutedCreators';
 import { useGarbaVortexOverlay } from '../src/hooks/useGarbaVortexOverlay';
 import {
+  blackHolePulseOpacity,
+  blackHolePulseRadius,
   isDissolvedMissionPin,
+  lowestOverlayAnchor,
   readVortexDemoCamera,
   VORTEX_HEATMAP_COLOR,
+  vortexPinPaintOpacity,
 } from '../src/lib/garbaVortex';
+import CleanupSectorOffer from './CleanupSectorOffer';
 import { useListScrollMapPreview } from '../src/hooks/useListScrollMapPreview';
 import {
   getCrowdfundingCountdownParts,
@@ -2006,6 +2011,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [reportPin, setReportPin] = useState<{ lat: number; lng: number } | null>(null);
   /** True when the lightweight report form sheet is open over the pin. */
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
+  const [sectorOfferId, setSectorOfferId] = useState<string | null>(null);
+  const [vortexBeforeId, setVortexBeforeId] = useState<string | undefined>();
   const reportPinRef = React.useRef<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
     reportPinRef.current = reportPin;
@@ -3337,6 +3344,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               layers: ['vortex-sector-fill'],
             });
             const missionId = sectorHits[0]?.properties?.mission_id;
+            const sectorId = sectorHits[0]?.properties?.sector_id;
             if (missionId) {
               const sectorJob = (jobsRef.current || []).find(
                 (j) => String(j.id) === String(missionId)
@@ -3345,6 +3353,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 handleMarkerClick(sectorJob);
                 return;
               }
+            }
+            if (sectorId) {
+              setSectorOfferId(String(sectorId));
+              return;
             }
           } catch {
             /* sector layer may be absent */
@@ -3419,6 +3431,43 @@ const MapPicker: React.FC<MapPickerProps> = ({
   );
 
   useEffect(() => {
+    if (!mapReady) return;
+    const map = mapRef.current?.getMap?.() ?? mapInstanceRef.current;
+    if (!map?.getStyle) return;
+    const anchors = [
+      'mission-pins-clusters',
+      'mission-pins-glow',
+      'mission-pins-core',
+      'mission-pins-icon',
+      'mission-pins-crowd-label',
+      LIVE_FLIGHTS_TRAIL_GLOW_LAYER_ID,
+      LIVE_FLIGHTS_TRAIL_LAYER_ID,
+      LIVE_FLIGHTS_GLOW_LAYER_ID,
+      LIVE_FLIGHTS_CORE_LAYER_ID,
+      LIVE_FLIGHTS_ICON_LAYER_ID,
+      LIVE_SHIPS_TRAIL_GLOW_LAYER_ID,
+      LIVE_SHIPS_TRAIL_LAYER_ID,
+      LIVE_SHIPS_GLOW_LAYER_ID,
+      LIVE_SHIPS_CORE_LAYER_ID,
+      LIVE_SHIPS_ICON_LAYER_ID,
+    ];
+    const sync = () => {
+      try {
+        const ids = (map.getStyle()?.layers || []).map((layer) => layer.id);
+        const next = lowestOverlayAnchor(ids, anchors);
+        setVortexBeforeId((prev) => (prev === next ? prev : next));
+      } catch {
+        /* style not ready */
+      }
+    };
+    sync();
+    map.on?.('idle', sync);
+    return () => {
+      map.off?.('idle', sync);
+    };
+  }, [mapReady]);
+
+  useEffect(() => {
     if (vortexOverlay.blackHoleMode !== 'pulse' || !vortexOverlay.ready) return;
     if (vortexOverlay.heatmapOpacity <= 0) return;
     if (vortexOverlay.blackHoles.features.length === 0) return;
@@ -3426,21 +3475,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
     let last = 0;
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
+      if (typeof document !== 'undefined' && document.hidden) return;
       if (cameraBusyRef.current) return;
-      if (now - last < 120) return;
+      if (now - last < 220) return;
       last = now;
       const map = mapRef.current?.getMap?.() ?? mapInstanceRef.current;
-      if (!map?.getLayer?.('vortex-bh-ring')) return;
-      const phase = (Math.sin(now / 420) + 1) / 2;
-      const opacity = vortexOverlay.heatmapOpacity * (0.28 + phase * 0.42);
-      try {
-        map.setPaintProperty('vortex-bh-ring', 'circle-radius', 16 + phase * 26);
-        map.setPaintProperty('vortex-bh-ring', 'circle-opacity', opacity);
-        if (map.getLayer('vortex-bh-halo')) {
-          map.setPaintProperty('vortex-bh-halo', 'circle-opacity', opacity * 0.55);
+      if (!map?.getLayer?.('vortex-bh-ring') || !map.setFeatureState) return;
+      const phase = (Math.sin(now / 520) + 1) / 2;
+      for (const feature of vortexOverlay.blackHoles.features) {
+        if (feature.id == null) continue;
+        try {
+          map.setFeatureState(
+            { source: 'vortex-black-holes', id: feature.id },
+            { pulse: phase }
+          );
+        } catch {
+          /* style swap */
         }
-      } catch {
-        /* style swap */
       }
     };
     raf = requestAnimationFrame(tick);
@@ -3449,7 +3500,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     vortexOverlay.blackHoleMode,
     vortexOverlay.ready,
     vortexOverlay.heatmapOpacity,
-    vortexOverlay.blackHoles.features.length,
+    vortexOverlay.blackHoles,
   ]);
 
   const handleMapMouseMove = useCallback(
@@ -4610,7 +4661,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
           String(j.id),
           Number(j.location_lng),
           Number(j.location_lat),
-          vortexOverlay.sectors
+          vortexOverlay.sectors,
+          isGarbageZoneReport(j)
         );
       })
       .map((j) => ({
@@ -5405,6 +5457,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               <Layer
                 id="vortex-heatmap"
                 type="heatmap"
+                beforeId={vortexBeforeId}
                 maxzoom={13}
                 paint={{
                   'heatmap-weight': ['interpolate', ['linear'], ['get', 'weight'], 0, 0, 12, 1],
@@ -5444,31 +5497,45 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <Layer
                   id="vortex-bh-halo"
                   type="circle"
+                  beforeId={vortexBeforeId}
                   maxzoom={12.2}
                   paint={{
-                    'circle-radius': [
-                      'interpolate',
-                      ['linear'],
-                      ['get', 'severity'],
-                      1,
-                      22,
-                      100,
-                      48,
-                    ],
+                    'circle-radius':
+                      vortexOverlay.blackHoleMode === 'pulse'
+                        ? (blackHolePulseRadius() as never)
+                        : ([
+                            'interpolate',
+                            ['linear'],
+                            ['get', 'severity'],
+                            1,
+                            22,
+                            100,
+                            48,
+                          ] as never),
                     'circle-color': '#1a0033',
                     'circle-blur': 0.85,
-                    'circle-opacity': vortexOverlay.heatmapOpacity * 0.55,
+                    'circle-opacity':
+                      vortexOverlay.blackHoleMode === 'pulse'
+                        ? (blackHolePulseOpacity(vortexOverlay.heatmapOpacity * 0.55) as never)
+                        : vortexOverlay.heatmapOpacity * 0.55,
                   }}
                 />
                 <Layer
                   id="vortex-bh-ring"
                   type="circle"
+                  beforeId={vortexBeforeId}
                   maxzoom={12.2}
                   paint={{
-                    'circle-radius': 22,
+                    'circle-radius':
+                      vortexOverlay.blackHoleMode === 'pulse'
+                        ? (blackHolePulseRadius() as never)
+                        : 22,
                     'circle-color': '#ff0055',
                     'circle-blur': 0.35,
-                    'circle-opacity': vortexOverlay.heatmapOpacity * 0.7,
+                    'circle-opacity':
+                      vortexOverlay.blackHoleMode === 'pulse'
+                        ? (blackHolePulseOpacity(vortexOverlay.heatmapOpacity * 0.7) as never)
+                        : vortexOverlay.heatmapOpacity * 0.7,
                     'circle-stroke-width': 2,
                     'circle-stroke-color': '#ff0055',
                     'circle-stroke-opacity': vortexOverlay.heatmapOpacity,
@@ -5477,6 +5544,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 <Layer
                   id="vortex-bh-core"
                   type="circle"
+                  beforeId={vortexBeforeId}
                   maxzoom={12.2}
                   paint={{
                     'circle-radius': 5,
@@ -5491,6 +5559,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
               <Layer
                 id="vortex-sector-fill"
                 type="fill"
+                beforeId={vortexBeforeId}
+                maxzoom={12}
                 paint={{
                   'fill-color': [
                     'interpolate',
@@ -5511,6 +5581,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               <Layer
                 id="vortex-sector-line"
                 type="line"
+                beforeId={vortexBeforeId}
                 paint={{
                   'line-color': '#ff0055',
                   'line-width': 2,
@@ -5530,6 +5601,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
           cluster
           clusterMaxZoom={12}
           clusterRadius={52}
+          clusterProperties={{
+            paid_count: ['+', ['case', ['==', ['get', 'is_report'], 1], 0, 1]],
+          }}
         >
           {/* Spatial clusters at city zoom — expands to individual pins past z12. */}
           <Layer
@@ -5548,10 +5622,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 25,
                 26,
               ],
-              'circle-opacity': (mapMarkerLayerSuppressed ? 0 : 0.75) * vortexPinFade,
+              'circle-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0 : 0.75, vortexPinFade) as never,
               'circle-stroke-width': 2,
               'circle-stroke-color': '#ecfeff',
-              'circle-stroke-opacity': (mapMarkerLayerSuppressed ? 0 : 0.9) * vortexPinFade,
+              'circle-stroke-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0 : 0.9, vortexPinFade) as never,
             }}
           />
           <Layer
@@ -5567,7 +5641,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }}
             paint={{
               'text-color': '#020617',
-              'text-opacity': (mapMarkerLayerSuppressed ? 0 : 1) * vortexPinFade,
+              'text-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0 : 1, vortexPinFade) as never,
             }}
           />
           <Layer
@@ -5580,8 +5654,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 : MISSION_PIN_GLOW_RADIUS,
               'circle-color': MISSION_PIN_CORE_COLOR,
               'circle-blur': mapCameraBusy ? 0.35 : funMapMode ? 1.05 : 0.85,
-              'circle-opacity':
-                (mapMarkerLayerSuppressed ? 0 : funMapMode ? 0.5 : 0.35) * vortexPinFade,
+              'circle-opacity': vortexPinPaintOpacity(
+                mapMarkerLayerSuppressed ? 0 : funMapMode ? 0.5 : 0.35,
+                vortexPinFade
+              ) as never,
             }}
           />
           <Layer
@@ -5593,8 +5669,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
               'circle-color': MISSION_PIN_CORE_COLOR,
               'circle-stroke-width': MISSION_PIN_HOVER_STROKE_WIDTH,
               'circle-stroke-color': '#ffffff',
-              'circle-opacity': (mapMarkerLayerSuppressed ? 0.08 : 0.92) * vortexPinFade,
-              'circle-stroke-opacity': (mapMarkerLayerSuppressed ? 0.08 : 0.95) * vortexPinFade,
+              'circle-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0.08 : 0.92, vortexPinFade) as never,
+              'circle-stroke-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0.08 : 0.95, vortexPinFade) as never,
             }}
           />
           <Layer
@@ -5609,7 +5685,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               'icon-anchor': 'center',
             }}
             paint={{
-              'icon-opacity': (mapMarkerLayerSuppressed ? 0 : 1) * vortexPinFade,
+              'icon-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0 : 1, vortexPinFade) as never,
             }}
           />
           <Layer
@@ -5639,7 +5715,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               'text-color': '#f5f3ff',
               'text-halo-color': '#6d28d9',
               'text-halo-width': 1.25,
-              'text-opacity': (mapMarkerLayerSuppressed ? 0 : 1) * vortexPinFade,
+              'text-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0 : 1, vortexPinFade) as never,
             }}
           />
         </Source>
@@ -7075,6 +7151,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }}
         toast={toast}
       />
+
+      {sectorOfferId ? (
+        <CleanupSectorOffer
+          sectorId={sectorOfferId}
+          signedIn={!!currentUserId}
+          t={(key, options) => String(t(key, options))}
+          onClose={() => setSectorOfferId(null)}
+          onOpened={(missionId) => {
+            setSectorOfferId(null);
+            toast.success(
+              t('vortexSectorOfferOpened', { defaultValue: 'Cleanup order opened.' })
+            );
+            void fetchMissions();
+            void openMissionById(missionId);
+          }}
+        />
+      ) : null}
 
       {splashMounted && (
         <MapBootSplash

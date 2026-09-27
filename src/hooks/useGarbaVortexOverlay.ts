@@ -42,7 +42,6 @@ export function useGarbaVortexOverlay(input: {
   const demo = useMemo(() => readVortexDemoCamera(), []);
   const viewRef = useRef(input);
   viewRef.current = input;
-  const stormRef = useRef(false);
 
   const viewKey =
     Math.round(input.latitude * 20) * 1_000_000 +
@@ -89,7 +88,6 @@ export function useGarbaVortexOverlay(input: {
         const center = { lng: view.longitude, lat: view.latitude };
         setState((prev) => {
           const storm = !!(heatResult && heatResult.ok && heatResult.storm);
-          stormRef.current = storm;
           const cells = heatResult && heatResult.ok ? heatResult.rows : null;
           return {
             ready: true,
@@ -103,7 +101,7 @@ export function useGarbaVortexOverlay(input: {
           };
         });
       })();
-    }, stormRef.current ? 1100 : 380);
+    }, 400);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);

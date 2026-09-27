@@ -21,6 +21,34 @@ export function vortexFetchUnavailable<T>(result: VortexFetch<T> | null | undefi
   return !!result && result.ok === false && result.unavailable;
 }
 
+const skippedRpcs = new Set<string>();
+
+export function resetVortexRpcSkips(): void {
+  skippedRpcs.clear();
+}
+
+function rpcSkipped(name: string): boolean {
+  return skippedRpcs.has(name);
+}
+
+function rememberMissingRpc(name: string, error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!isMissingRpcError(error)) return false;
+  skippedRpcs.add(name);
+  return true;
+}
+
+/** Session latch for PGRST202 / 42883. Shared so a remount does not retry. */
+export function noteMissingVortexRpc(
+  name: string,
+  error: { code?: string; message?: string } | null | undefined
+): boolean {
+  return rememberMissingRpc(name, error);
+}
+
+export function vortexRpcSkipped(name: string): boolean {
+  return rpcSkipped(name);
+}
+
 function asRecord(row: unknown): Record<string, unknown> {
   return row && typeof row === 'object' ? (row as Record<string, unknown>) : {};
 }
@@ -74,8 +102,13 @@ async function fetchVortexHeatmapViaApi(
 }
 
 async function fetchVortexStormFlag(): Promise<boolean> {
+  if (rpcSkipped('get_garba_vortex_public_status')) return false;
   const { data, error } = await supabase.rpc('get_garba_vortex_public_status');
-  if (error || !data || typeof data !== 'object') return false;
+  if (error) {
+    rememberMissingRpc('get_garba_vortex_public_status', error);
+    return false;
+  }
+  if (!data || typeof data !== 'object') return false;
   return asRecord(data).storm === true;
 }
 
@@ -84,22 +117,28 @@ export async function fetchVortexHeatmap(
   zoom: number,
   includeReports: boolean
 ): Promise<VortexFetch<VortexHeatCell[]>> {
+  if (rpcSkipped('get_garba_vortex_heatmap')) {
+    return { ok: false, unavailable: true };
+  }
+
   const viaApi = await fetchVortexHeatmapViaApi(bbox, zoom, includeReports);
   if (viaApi) return viaApi;
 
-  const { data, error } = await supabase.rpc('get_garba_vortex_heatmap', {
-    p_min_lng: bbox.minLng,
-    p_min_lat: bbox.minLat,
-    p_max_lng: bbox.maxLng,
-    p_max_lat: bbox.maxLat,
-    p_zoom: zoom,
-    p_include_reports: includeReports,
-  });
-  if (error) {
-    return { ok: false, unavailable: isMissingRpcError(error) };
+  const [heat, storm] = await Promise.all([
+    supabase.rpc('get_garba_vortex_heatmap', {
+      p_min_lng: bbox.minLng,
+      p_min_lat: bbox.minLat,
+      p_max_lng: bbox.maxLng,
+      p_max_lat: bbox.maxLat,
+      p_zoom: zoom,
+      p_include_reports: includeReports,
+    }),
+    fetchVortexStormFlag(),
+  ]);
+  if (heat.error) {
+    return { ok: false, unavailable: rememberMissingRpc('get_garba_vortex_heatmap', heat.error) };
   }
-  const storm = await fetchVortexStormFlag();
-  return { ok: true, storm, rows: suppressStormSpikes(mapVortexHeatRows(data), storm) };
+  return { ok: true, storm, rows: suppressStormSpikes(mapVortexHeatRows(heat.data), storm) };
 }
 
 function ringFromGeoJSON(geojson: unknown): number[][] {
@@ -122,6 +161,9 @@ function safeParse(text: string): unknown {
 }
 
 export async function fetchVortexSectors(bbox: VortexBBox): Promise<VortexFetch<VortexSector[]>> {
+  if (rpcSkipped('get_garba_vortex_sectors')) {
+    return { ok: false, unavailable: true };
+  }
   const { data, error } = await supabase.rpc('get_garba_vortex_sectors', {
     p_min_lng: bbox.minLng,
     p_min_lat: bbox.minLat,
@@ -129,7 +171,7 @@ export async function fetchVortexSectors(bbox: VortexBBox): Promise<VortexFetch<
     p_max_lat: bbox.maxLat,
   });
   if (error) {
-    return { ok: false, unavailable: isMissingRpcError(error) };
+    return { ok: false, unavailable: rememberMissingRpc('get_garba_vortex_sectors', error) };
   }
   const rows = (Array.isArray(data) ? data : []).map((raw) => {
     const row = asRecord(raw);
@@ -157,6 +199,7 @@ export type VortexPinPlan = {
 };
 
 export async function previewFreeVortexPin(lat: number, lng: number): Promise<VortexPinPlan> {
+  if (rpcSkipped('place_free_vortex_pin')) return { ok: true, unavailable: true };
   const { data, error } = await supabase.rpc('place_free_vortex_pin', {
     p_location_lat: lat,
     p_location_lng: lng,
@@ -165,7 +208,7 @@ export async function previewFreeVortexPin(lat: number, lng: number): Promise<Vo
     p_commit: false,
   });
   if (error) {
-    if (isMissingRpcError(error)) return { ok: true, unavailable: true };
+    if (rememberMissingRpc('place_free_vortex_pin', error)) return { ok: true, unavailable: true };
     return { ok: false, code: error.message };
   }
   const row = asRecord(data);
@@ -187,6 +230,7 @@ export async function placeFreeVortexPin(input: {
   city: string | null;
   videoProofUrl: string | null;
 }): Promise<VortexPinPlan> {
+  if (rpcSkipped('place_free_vortex_pin')) return { ok: false, unavailable: true };
   const { data, error } = await supabase.rpc('place_free_vortex_pin', {
     p_location_lat: input.lat,
     p_location_lng: input.lng,
@@ -199,7 +243,11 @@ export async function placeFreeVortexPin(input: {
     p_commit: true,
   });
   if (error) {
-    return { ok: false, unavailable: isMissingRpcError(error), code: error.message };
+    return {
+      ok: false,
+      unavailable: rememberMissingRpc('place_free_vortex_pin', error),
+      code: error.message,
+    };
   }
   const row = asRecord(data);
   return {
