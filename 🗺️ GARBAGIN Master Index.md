@@ -227,10 +227,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[api/moderate-mission-photo-safety.ts]]
 - [[api/analyze-mission.ts]]
 - [[api/translate.ts]]
-- [[api/opensky-states.ts]] — leftover RUSH OpenSky proxy (client removed; delete after Paranoic). See [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]
-- [[api/adsb-nearby.ts]] — leftover RUSH ADSB proxy
-- [[api/ais-nearby.ts]] — leftover RUSH AIS proxy
-- [[api/_lib/adsbNearbyFetch.ts]]
+- [[api/garba-vortex-heatmap.ts]] — Garba-Vortex heatmap. RUSH proxies removed: [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]
 
 ### Manual SQL / ops
 - [[supabase/manual/kyc_documents_storage_policies.sql]]
@@ -333,7 +330,7 @@ Full history (incl. archive): [[03_Backend_SQL/SQL_Migrations_Index]]
 | Lifecycle Wave G | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] | [[supabase/migrations/20260917_wave_g_lifecycle_hardening.sql]], [[src/lib/missionBids.ts]] |
 | Lifecycle Wave H / Hungry-Games sub | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] | [[supabase/migrations/20260917_wave_h_surface_hardening.sql]], [[supabase/migrations/20260917_hungry_games_subscription_gate.sql]], [[components/MapPicker.tsx]] |
 | Lifecycle Wave I / SEC-4 | [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] | [[api/_lib/requireUser.ts]], [[api/analyze-mission.ts]], [[src/lib/supabaseAuth.ts]] |
-| Weather / RUSH / AR removed | [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]] | [[components/MapFunModeControls.tsx]], [[components/Profile.tsx]], [[api/opensky-states.ts]] (proxy kept) |
+| Weather / RUSH / AR removed | [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]] | [[components/MapFunModeControls.tsx]], [[components/Profile.tsx]] |
 | P2P deals (no escrow) | [[01_Architecture/P2P_Deal_Flow]] | [[src/lib/submitMissionProof.ts]], [[src/lib/missionBids.ts]] |
 | Security / RPCs | [[01_Architecture/Security_and_RPCs]] | [[supabase/migrations/20260719_submit_mission_proof_rpc.sql]] |
 | KYC | [[01_Architecture/KYC_Verification]] | [[components/VerificationModal.tsx]], [[src/lib/kycDocuments.ts]] |

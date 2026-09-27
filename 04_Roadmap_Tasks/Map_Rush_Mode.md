@@ -36,7 +36,7 @@ H2H Move night: dark navy land `#0a1018`, muted greenspace, cyan road glow. Off 
 
 ## Env
 
-See [[.env.example]] `AISSTREAM_API_KEY` (preferred) / `VITE_AISSTREAM_API_KEY` (fallback). Do not commit keys.
+Historical: `AISSTREAM_API_KEY` / `VITE_AISSTREAM_API_KEY` lived in [[.env.example]] until the proxies were removed. Do not commit keys.
 
 ## Related files
 
