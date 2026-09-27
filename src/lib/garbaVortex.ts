@@ -228,12 +228,89 @@ export function emptyVortexCollection(): VortexFeatureCollection {
 
 export function classifyVortexPinError(
   message: string
-): 'daily_limit' | 'sector_closed' | 'insufficient_tokens' | null {
+): 'storm_limit' | 'daily_limit' | 'sector_closed' | 'insufficient_tokens' | null {
   const text = message.toLowerCase();
+  if (text.includes('free_pin_storm_limit')) return 'storm_limit';
   if (text.includes('free_pin_daily_limit')) return 'daily_limit';
   if (text.includes('cleanup_sector_closed')) return 'sector_closed';
   if (text.includes('insufficient_tokens')) return 'insufficient_tokens';
   return null;
+}
+
+/**
+ * CDN / browser cache for /api/garba-vortex-heatmap.
+ * Calm responses stay uncached. Storm responses are public for `seconds`.
+ */
+export function stormCacheControl(active: boolean, seconds: number): string {
+  if (!active) return 'private, no-store';
+  const raw = Number(seconds);
+  const ttl = Number.isFinite(raw) ? Math.min(300, Math.max(5, Math.round(raw))) : 30;
+  return `public, max-age=${ttl}, s-maxage=${ttl}, stale-while-revalidate=${ttl * 2}`;
+}
+
+/** Storm snapshots must not paint isolated spikes or black-hole rings. */
+export function suppressStormSpikes(cells: VortexHeatCell[], storm: boolean): VortexHeatCell[] {
+  if (!storm) return cells;
+  return cells.map((cell) =>
+    cell.isolated || cell.blackHole ? { ...cell, isolated: false, blackHole: false } : cell
+  );
+}
+
+export type VortexHeatmapQuery = {
+  minLng: number;
+  minLat: number;
+  maxLng: number;
+  maxLat: number;
+  zoom: number;
+  includeReports: boolean;
+};
+
+function requiredQueryNumber(params: URLSearchParams, ...names: string[]): number {
+  const raw = queryParam(params, ...names);
+  if (raw == null) return Number.NaN;
+  return Number(raw);
+}
+
+function queryParam(params: URLSearchParams, ...names: string[]): string | null {
+  for (const name of names) {
+    const value = params.get(name);
+    if (value != null && value.trim() !== '') return value.trim();
+  }
+  return null;
+}
+
+/** Shared by the Vercel route and the Vite dev proxy. */
+export function parseVortexHeatmapQuery(
+  params: URLSearchParams
+): { ok: true; query: VortexHeatmapQuery } | { ok: false; error: string } {
+  const minLng = requiredQueryNumber(params, 'minLng', 'min_lng');
+  const minLat = requiredQueryNumber(params, 'minLat', 'min_lat');
+  const maxLng = requiredQueryNumber(params, 'maxLng', 'max_lng');
+  const maxLat = requiredQueryNumber(params, 'maxLat', 'max_lat');
+  const zoomRaw = queryParam(params, 'zoom');
+  const zoom = zoomRaw == null ? 4 : Number(zoomRaw);
+  const includeRaw = (queryParam(params, 'includeReports', 'include_reports') || '1').toLowerCase();
+  if (![minLng, minLat, maxLng, maxLat, zoom].every(Number.isFinite)) {
+    return { ok: false, error: 'minLng, minLat, maxLng, maxLat, zoom required' };
+  }
+  if (minLat < -90 || minLat > 90 || maxLat < -90 || maxLat > 90 || minLat > maxLat) {
+    return { ok: false, error: 'latitude out of range' };
+  }
+  if (minLng < -180 || minLng > 180 || maxLng < -180 || maxLng > 180) {
+    return { ok: false, error: 'longitude out of range' };
+  }
+  if (zoom < 0 || zoom > 22) return { ok: false, error: 'zoom out of range' };
+  return {
+    ok: true,
+    query: {
+      minLng,
+      minLat,
+      maxLng,
+      maxLat,
+      zoom,
+      includeReports: includeRaw !== '0' && includeRaw !== 'false',
+    },
+  };
 }
 
 export function isMissingRpcError(error: { code?: string; message?: string } | null | undefined): boolean {

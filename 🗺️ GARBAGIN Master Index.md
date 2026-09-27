@@ -56,7 +56,7 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[04_Roadmap_Tasks/Legacy_Dispute_RPC_Closed]] — dropped the unauthenticated legacy `resolve_mission_dispute(uuid, boolean, text)` that moved balances (applied to prod 2026-09-27)
 - [[04_Roadmap_Tasks/Map_Rush_Mode]] — RUSH live planes/ships + H2H night land
 - [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] — idle RUSH chip matches collapsed WX
-- [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] — zoom heatmap, free-pin anti-spam, cleanup sectors
+- [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] — zoom heatmap, free-pin anti-spam, cleanup sectors, storm mode
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `supabase migration repair` for `20260912_*` / `20260917_*`
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games SQL + Edge apply order · Wave I Vercel JWT (no SQL)
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — read-only lifecycle scorecard (PR #2)

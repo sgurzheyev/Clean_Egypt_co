@@ -12,6 +12,7 @@ import {
   readVortexDemoCamera,
   sectorFillOpacityForZoom,
   sectorsToGeoJSON,
+  suppressStormSpikes,
   type VortexFeatureCollection,
   type VortexSector,
 } from '../lib/garbaVortex';
@@ -41,6 +42,7 @@ export function useGarbaVortexOverlay(input: {
   const demo = useMemo(() => readVortexDemoCamera(), []);
   const viewRef = useRef(input);
   viewRef.current = input;
+  const stormRef = useRef(false);
 
   const viewKey =
     Math.round(input.latitude * 20) * 1_000_000 +
@@ -49,14 +51,17 @@ export function useGarbaVortexOverlay(input: {
 
   const [state, setState] = useState<OverlayState>(() => {
     if (!demo) return IDLE;
-    const cells = demoVortexCells();
+    const storm =
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('vortexStorm') === '1';
+    const cells = suppressStormSpikes(demoVortexCells(), storm);
     const sectors = demoVortexSectors();
     const center = { lng: demo.longitude, lat: demo.latitude };
     return {
       ready: true,
       sectors,
       heatmap: cellsToHeatmap(cells),
-      blackHoles: cellsToBlackHoles(cells, center),
+      blackHoles: storm ? emptyVortexCollection() : cellsToBlackHoles(cells, center),
     };
   });
 
@@ -83,16 +88,22 @@ export function useGarbaVortexOverlay(input: {
         if (!sectorsResult.ok) return;
         const center = { lng: view.longitude, lat: view.latitude };
         setState((prev) => {
+          const storm = !!(heatResult && heatResult.ok && heatResult.storm);
+          stormRef.current = storm;
           const cells = heatResult && heatResult.ok ? heatResult.rows : null;
           return {
             ready: true,
             sectors: sectorsResult.rows,
             heatmap: cells ? cellsToHeatmap(cells) : prev.heatmap,
-            blackHoles: cells ? cellsToBlackHoles(cells, center) : prev.blackHoles,
+            blackHoles: cells
+              ? storm
+                ? emptyVortexCollection()
+                : cellsToBlackHoles(cells, center)
+              : prev.blackHoles,
           };
         });
       })();
-    }, 380);
+    }, stormRef.current ? 1100 : 380);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);

@@ -17,6 +17,7 @@ import { runMissionAiAnalysis } from '../lib/openai';
 import { adminHideMission } from '../lib/adminMission';
 import { YEARLY_SUBSCRIPTION } from '../lib/tokenPricing';
 import KYCReviewDashboard from './KYCReviewDashboard';
+import AdminVortexStormCard from './AdminVortexStormCard';
 import { ADMIN_FORCE_RELEASE_PAYMENT_BTN } from '../../constants';
 import { formatTokens } from '../lib/formatMoney';
 import ModeratedMissionPhoto from '../../components/ModeratedMissionPhoto';
@@ -1033,6 +1034,8 @@ const AdminDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               </div>
             </div>
           </section>
+
+          <AdminVortexStormCard />
 
           <section className="rounded-2xl border border-white/10 bg-black/40 p-4">
             <h4 className="mb-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">

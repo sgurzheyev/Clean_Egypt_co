@@ -75,6 +75,7 @@ Chronological — June–July 2026 token / crowdfunding / privacy stack.
 | 2026-09-27 | [[20260927100000_admin_reset_tokens.sql]] | Admin: `admin_reset_all_tokens(p_tokens default 100)` sets every `profiles.token_balance` (tokens only), admin/service_role only, one audit row. Live applied via `db query`; history repaired `20260927100000`. Note: [[04_Roadmap_Tasks/Field_Test_Token_Reset]]. |
 | 2026-09-27 | [[20260927110000_drop_legacy_resolve_dispute.sql]] | Security: `DROP FUNCTION IF EXISTS resolve_mission_dispute(uuid, boolean, text)` — legacy overload with no auth, EXECUTE for PUBLIC/anon, wrote `balance_egp` / `frozen_balance`. No callers (app uses the 5-arg overload). Post-check: legacy gone, 5-arg present, anon denied. Live applied via `db query`; history repaired `20260927110000`. Note: [[04_Roadmap_Tasks/Legacy_Dispute_RPC_Closed]]. |
 | 2026-09-27 | [[20260927120000_garba_vortex.sql]] | Garba-Vortex: `severity_score` / `is_isolated` / `cleanup_sectors`, heatmap + sector read RPCs, free-pin daily cap and 200 m bump inside `place_free_vortex_pin`. PostGIS already present; grid bins for the heatmap. Do not `db push`. Note: [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]]. |
+| 2026-09-27 | [[20260927130000_garba_vortex_storm.sql]] | Garba-Vortex storm: write ledger, averaged heatmap snapshot, tighter free-pin cap, public status + admin get/set. Apply after `20260927120000`. Do not `db push`. Note: [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]]. |
 
 > Full marketplace architecture write-up: [[01_Architecture/ARCHITECTURE_MARKETPLACE_2026]]
 

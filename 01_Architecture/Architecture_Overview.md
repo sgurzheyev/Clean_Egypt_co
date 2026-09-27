@@ -23,7 +23,7 @@
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `migration repair` for `20260912_*` / `20260917_*` (no `db push`)
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games SQL + Edge apply order
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — lifecycle audit scorecard
-- [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] — macro heatmap, free-pin anti-spam, 200 m cleanup sectors
+- [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] — macro heatmap, free-pin anti-spam, 200 m cleanup sectors, storm mode
 - [[01_Architecture/Global_Location_Filtering]] — `location_catalog`, autofill trigger, multi-country filter + facets
 - Frontend map: [[02_Frontend/Frontend_Components]]
 - Field dashboard: [[04_Roadmap_Tasks/00_Dashboard]]

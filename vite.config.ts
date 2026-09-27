@@ -70,7 +70,12 @@ function liveTrafficDevProxy(env: Record<string, string>): Plugin {
       server.middlewares.use(async (req, res, next) => {
         const rawUrl = req.url || '';
         const pathOnly = rawUrl.split('?')[0];
-        if (pathOnly !== '/api/opensky-states' && pathOnly !== '/api/adsb-nearby' && pathOnly !== '/api/ais-nearby') {
+        if (
+          pathOnly !== '/api/opensky-states' &&
+          pathOnly !== '/api/adsb-nearby' &&
+          pathOnly !== '/api/ais-nearby' &&
+          pathOnly !== '/api/garba-vortex-heatmap'
+        ) {
           next();
           return;
         }
@@ -114,6 +119,27 @@ function liveTrafficDevProxy(env: Record<string, string>): Plugin {
             } catch (err) {
               const message = err instanceof Error ? err.message : 'OpenSky unreachable';
               json(200, { error: message, states: [] });
+            }
+            return;
+          }
+          if (pathOnly === '/api/garba-vortex-heatmap') {
+            try {
+              const { queryGarbaVortexHeatmap } = await import('./api/garba-vortex-heatmap.ts');
+              const result = await queryGarbaVortexHeatmap({
+                searchParams: src.searchParams,
+                supabaseUrl: env.SUPABASE_URL || env.VITE_SUPABASE_URL,
+                anonKey: env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY,
+              });
+              res.statusCode = result.status;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.setHeader('Cache-Control', result.cacheControl);
+              res.end(req.method === 'HEAD' ? undefined : JSON.stringify(result.body));
+            } catch (err) {
+              const message = err instanceof Error ? err.message : 'heatmap';
+              res.statusCode = 503;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.setHeader('Cache-Control', 'private, no-store');
+              res.end(JSON.stringify({ storm: false, cache_seconds: 0, cells: [], error: message }));
             }
             return;
           }

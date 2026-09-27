@@ -12,7 +12,7 @@ aliases: [Frontend Components, UI Map]
 | Surface | Link |
 | --- | --- |
 | Map (create / bid / crowdfund / stores / Hungry-Games sub modal) | [[components/MapPicker.tsx]] · [[src/lib/mapInteractions.ts]] · [[components/MapFunModeControls.tsx]] · [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] |
-| Garba-Vortex overlay | [[src/lib/garbaVortex.ts]] · [[src/hooks/useGarbaVortexOverlay.ts]] · [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] |
+| Garba-Vortex overlay | [[src/lib/garbaVortex.ts]] · [[src/hooks/useGarbaVortexOverlay.ts]] · [[api/garba-vortex-heatmap.ts]] · [[src/components/AdminVortexStormCard.tsx]] · [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] |
 | Store coverage map (lilac zone) | [[components/StoreCoverageMap.tsx]] |
 | Store pin preview | [[components/MapStorePreviewCard.tsx]] · `.map-store-preview-card` light frost (service zone stays visible through the sheet). Hero swipes all `contractor_stores.store_photos` (cover first); bio expands in-place. |
 | Portaled store profile | [[components/StoreProfileOverlay.tsx]] |

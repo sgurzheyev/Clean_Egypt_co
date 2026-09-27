@@ -680,6 +680,8 @@ const resources = {
       reportZoneCreateFailed: 'Could not publish this report.',
       reportZoneCreated: 'Garbage zone reported — thank you!',
       vortexFreePinDailyLimit: 'Daily free-pin limit reached. Try again tomorrow.',
+      vortexStormThrottle:
+        'Storm mode: free pins are heavily limited right now. Try again in a few minutes, or strengthen a report that is already nearby.',
       vortexSectorClosed:
         'This square is a Cleanup Sector. Open that order instead of dropping another pin.',
       vortexInsufficientTokens: 'Not enough tokens for a pin in this high-risk zone.',
@@ -2077,6 +2079,8 @@ const resources = {
       reportZoneCreateFailed: 'Не удалось опубликовать отчёт.',
       reportZoneCreated: 'Зона отмечена — спасибо!',
       vortexFreePinDailyLimit: 'Лимит бесплатных пинов на сегодня исчерпан. Попробуйте завтра.',
+      vortexStormThrottle:
+        'Штормовой режим: бесплатные пины сейчас сильно ограничены. Попробуйте через несколько минут или усильте уже стоящий рядом отчёт.',
       vortexSectorClosed:
         'Этот квадрат — сектор уборки. Откройте заказ сектора, а не ставьте ещё один пин.',
       vortexInsufficientTokens: 'Не хватает токенов для пина в зоне повышенного риска.',

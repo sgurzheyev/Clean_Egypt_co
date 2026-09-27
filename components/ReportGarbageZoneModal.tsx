@@ -148,7 +148,12 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
     } catch (err: any) {
       const vortexCode = vortexPinErrorCode(err);
       const vortexMessage =
-        vortexCode === 'daily_limit'
+        vortexCode === 'storm_limit'
+          ? t('vortexStormThrottle', {
+              defaultValue:
+                'Storm mode: free pins are heavily limited right now. Try again in a few minutes, or strengthen a report that is already nearby.',
+            })
+          : vortexCode === 'daily_limit'
           ? t('vortexFreePinDailyLimit', {
               defaultValue: 'Daily free-pin limit reached. Try again tomorrow.',
             })

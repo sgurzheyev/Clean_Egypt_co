@@ -25,7 +25,7 @@
 - [[04_Roadmap_Tasks/Legacy_Dispute_RPC_Closed]] — security: dropped legacy `resolve_mission_dispute(uuid, boolean, text)` (no auth, anon could move balances) · **applied to prod 2026-09-27**
 - [[04_Roadmap_Tasks/Map_Rush_Mode]] — RUSH live planes/ships + H2H night land
 - [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] — idle RUSH chip matches collapsed WX
-- [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] — macro heatmap, 200 m bump, cleanup sectors
+- [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] — macro heatmap, 200 m bump, cleanup sectors, storm mode
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `migration repair` for `20260912_*` / `20260917_*` (no `db push`)
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games SQL + Edge apply order · Wave I Vercel JWT (no SQL)
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — canon vs code scorecard (Waves A–I)
@@ -52,7 +52,7 @@
 - [[04_Roadmap_Tasks/Legacy_Dispute_RPC_Closed]]: legacy unauthenticated dispute RPC dropped
 - [[04_Roadmap_Tasks/Map_Rush_Mode]]: RUSH live planes/ships + H2H night land
 - [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]]: idle RUSH matches the WX chip; color and craft count only while ships/planes are on
-- [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]]: zoom 0–11 heatmap, free-pin cap, cleanup squares
+- [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]]: zoom 0–11 heatmap, free-pin cap, cleanup squares, storm snapshot
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]: `supabase migration repair --status applied 20260912` / `20260917`
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]: P0→H + Hungry-Games paste order (live already applied)
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]: аудит стейт-машины

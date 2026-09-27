@@ -1,6 +1,7 @@
 import { supabase } from '../../services/supabase';
 import {
   isMissingRpcError,
+  suppressStormSpikes,
   type VortexHeatCell,
   type VortexSector,
 } from './garbaVortex';
@@ -13,7 +14,7 @@ export type VortexBBox = {
 };
 
 export type VortexFetch<T> =
-  | { ok: true; rows: T }
+  | { ok: true; rows: T; storm?: boolean }
   | { ok: false; unavailable: boolean };
 
 export function vortexFetchUnavailable<T>(result: VortexFetch<T> | null | undefined): boolean {
@@ -29,11 +30,63 @@ function num(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+export function mapVortexHeatRows(data: unknown): VortexHeatCell[] {
+  return (Array.isArray(data) ? data : []).map((raw) => {
+    const row = asRecord(raw);
+    return {
+      lng: num(row.lng),
+      lat: num(row.lat),
+      weight: num(row.weight),
+      pointCount: num(row.point_count ?? row.pointCount),
+      maxSeverity: num(row.max_severity ?? row.maxSeverity, 1),
+      isolated: row.isolated === true || row.isolated === 'true',
+      blackHole: row.black_hole === true || row.black_hole === 'true' || row.blackHole === true,
+    };
+  });
+}
+
+async function fetchVortexHeatmapViaApi(
+  bbox: VortexBBox,
+  zoom: number,
+  includeReports: boolean
+): Promise<VortexFetch<VortexHeatCell[]> | null> {
+  if (typeof fetch !== 'function') return null;
+  try {
+    const params = new URLSearchParams({
+      minLng: String(bbox.minLng),
+      minLat: String(bbox.minLat),
+      maxLng: String(bbox.maxLng),
+      maxLat: String(bbox.maxLat),
+      zoom: String(zoom),
+      includeReports: includeReports ? '1' : '0',
+    });
+    const res = await fetch(`/api/garba-vortex-heatmap?${params.toString()}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (res.status === 404 || res.status === 503) return null;
+    if (!res.ok) return null;
+    const body = asRecord(await res.json());
+    const storm = body.storm === true;
+    return { ok: true, storm, rows: suppressStormSpikes(mapVortexHeatRows(body.cells), storm) };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchVortexStormFlag(): Promise<boolean> {
+  const { data, error } = await supabase.rpc('get_garba_vortex_public_status');
+  if (error || !data || typeof data !== 'object') return false;
+  return asRecord(data).storm === true;
+}
+
 export async function fetchVortexHeatmap(
   bbox: VortexBBox,
   zoom: number,
   includeReports: boolean
 ): Promise<VortexFetch<VortexHeatCell[]>> {
+  const viaApi = await fetchVortexHeatmapViaApi(bbox, zoom, includeReports);
+  if (viaApi) return viaApi;
+
   const { data, error } = await supabase.rpc('get_garba_vortex_heatmap', {
     p_min_lng: bbox.minLng,
     p_min_lat: bbox.minLat,
@@ -45,19 +98,8 @@ export async function fetchVortexHeatmap(
   if (error) {
     return { ok: false, unavailable: isMissingRpcError(error) };
   }
-  const rows = (Array.isArray(data) ? data : []).map((raw) => {
-    const row = asRecord(raw);
-    return {
-      lng: num(row.lng),
-      lat: num(row.lat),
-      weight: num(row.weight),
-      pointCount: num(row.point_count),
-      maxSeverity: num(row.max_severity, 1),
-      isolated: row.isolated === true || row.isolated === 'true',
-      blackHole: row.black_hole === true || row.black_hole === 'true',
-    };
-  });
-  return { ok: true, rows };
+  const storm = await fetchVortexStormFlag();
+  return { ok: true, storm, rows: suppressStormSpikes(mapVortexHeatRows(data), storm) };
 }
 
 function ringFromGeoJSON(geojson: unknown): number[][] {

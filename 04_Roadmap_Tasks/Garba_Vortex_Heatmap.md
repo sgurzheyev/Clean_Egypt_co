@@ -7,15 +7,16 @@ aliases: [Garba-Vortex, Garba Vortex Heatmap]
 
 > ← [[🗺️ GARBAGIN Master Index]] · [[04_Roadmap_Tasks/00_Dashboard]] · [[02_Frontend/Frontend_Components]] · [[03_Backend_SQL/SQL_Migrations_Index]] · [[01_Architecture/Architecture_Overview]]
 
-Macro waste heatmap on the existing Mapbox globe, with server-side free-pin anti-spam and 200 m cleanup squares. Storm mode is out of scope. Migration: [[20260927120000_garba_vortex.sql]]. Client: [[src/lib/garbaVortex.ts]] · [[src/hooks/useGarbaVortexOverlay.ts]] · [[components/MapPicker.tsx]].
+Macro waste heatmap on the existing Mapbox globe, with server-side free-pin anti-spam, 200 m cleanup squares, and storm mode. Migrations: [[20260927120000_garba_vortex.sql]] then [[20260927130000_garba_vortex_storm.sql]]. Client: [[src/lib/garbaVortex.ts]] · [[src/hooks/useGarbaVortexOverlay.ts]] · [[components/MapPicker.tsx]] · [[api/garba-vortex-heatmap.ts]]. Admin indicator: [[src/components/AdminVortexStormCard.tsx]] on the Analytics pillar.
 
-Apply on prod by hand (do not `db push`):
+Apply on prod by hand (do not `db push`), base file first:
 
 ```bash
 supabase db query --linked -f supabase/migrations/20260927120000_garba_vortex.sql
+supabase db query --linked -f supabase/migrations/20260927130000_garba_vortex_storm.sql
 ```
 
-Safe to re-run. Re-runs do **not** reset a tuned `garba_vortex_config` row.
+Safe to re-run. Re-runs do **not** reset a tuned `garba_vortex_config` row and do **not** clear an active storm flag. The first file's header still says storm was left out; stage 5 is the second file.
 
 ## What you see
 
@@ -37,7 +38,7 @@ No parallel pin table. Columns on `public.missions`:
 - `is_isolated` boolean. True when visible neighbours inside `isolation_radius_m` are at or below `isolation_neighbor_max`.
 - `sector_id` uuid, set on free pins dissolved into a closed square.
 
-Hidden rows (`hidden_at`) are excluded from the heatmap and from sector counts. `get_garba_vortex_heatmap` is `SECURITY INVOKER`, so mission RLS applies as well as the explicit `hidden_at` filter. Aggregates are grid cells (max 2000), not raw pins.
+Hidden rows (`hidden_at`) are excluded from the heatmap and from sector counts. `get_garba_vortex_heatmap` is `SECURITY DEFINER` so it can refresh the storm snapshot, with the same explicit `hidden_at` filter the invoker version used (public mission reads are already "visible unless hidden"). Aggregates are grid cells (max 2000), not raw pins. During storm mode the cells come from `garba_vortex_heatmap_snapshot` instead, with `isolated` and `black_hole` forced off.
 
 PostGIS was already installed (`20260720_proof_of_work_lifecycle_security.sql`, `missions.location`). This migration creates it only when it is absent (`extensions` schema on Supabase, otherwise the current schema). Proximity, isolation, and the square polygon use `ST_DWithin` / `ST_Covers` plus a partial GiST index. The heatmap itself is a zoom-sized lat/lng grid (`garba_vortex_cell_m`): about 400 km at zoom 0, floored at 250 m. Grid bins stay stable while panning; `ST_ClusterDBSCAN` was skipped because it is heavier and the cells move between requests.
 
@@ -51,7 +52,7 @@ Enforced in `place_free_vortex_pin` (`SECURITY DEFINER`, `auth.uid()`). `create_
 
 | Check | Default | Behaviour |
 | --- | --- | --- |
-| Free pins / user / day | 5 | New row rejected with `free_pin_daily_limit`. A bump does not count. |
+| Free pins / user / day | 5 | New row rejected with `free_pin_daily_limit`. A bump does not count. Storm tightens this; see below. |
 | Same pile, any reporter | 35 m | Recent free pin this close is bumped (`severity_score + 1`) instead of inserted. |
 | Own recent pin | 200 m | The caller's own free pin inside `bump_radius_m` is bumped. Other people can still place pins in that square (centre + 4). |
 | Scope `any` | off | Set `bump_scope` to `any` and the 200 m bump applies to every reporter. Sectors then fill only after `bump_recency_days`. |
@@ -79,6 +80,30 @@ Mapbox circle layers: purple halo, crimson ring, hot core. The ring radius/opaci
 
 Demo without the database: open the app with `?vortexDemo=1` (Cairo mass + Western Desert hole). Street square: `?vortexDemo=1&vortexZoom=15.2&vortexLat=30.0365&vortexLng=31.2755`.
 
+## Storm mode
+
+Free-pin **creates and bumps** (committed only, not the dry-run) land in `garba_vortex_write_events`. Rows older than 15 minutes are deleted inside the recorder. Clients cannot read that table.
+
+`garba_vortex_evaluate_storm` (owner only) runs on each commit and at most every 5 seconds from the heatmap read:
+
+| `storm_mode` | Behaviour |
+| --- | --- |
+| `auto` (default) | Turns **on** when global writes in the last minute ≥ `storm_global_writes_per_minute` (60) **or** any `storm_region_km` bucket (25 km) ≥ `storm_region_writes_per_minute` (12). Stays on until **both** rates drop below `storm_release_ratio` (0.60) times their thresholds **and** `storm_cooldown_seconds` (120) have passed since `active_since`. Reason is `global`, `region`, `cooldown`, or `clear`. |
+| `on` | Forced. Reason `forced_on`. Ignores the counters. |
+| `off` | Forced calm. Reason `forced_off`. |
+
+While it is on:
+
+- The heatmap RPC serves `garba_vortex_heatmap_snapshot` (coarse `storm_cell_m`, default 8 km, cap 4000 cells). Weights use the dense-city formula only — the isolated-singleton floor is not applied. Each cell is `0.7 × own + 0.3 × neighbour average`. A singleton with no neighbour is dimmed to 35% of that blend, so a desert spike does not paint a black hole. `isolated` and `black_hole` are false. The snapshot refreshes when older than `storm_snapshot_ttl_seconds` (60). A second caller in the same window keeps the previous snapshot (`pg_try_advisory_xact_lock`). If the snapshot is empty, the RPC falls back to a coarse live aggregate that still suppresses spikes.
+- `GET /api/garba-vortex-heatmap` sets `Cache-Control: public, max-age=<storm_cache_seconds>, s-maxage=<storm_cache_seconds>, stale-while-revalidate=<2×>`. Calm responses are `private, no-store`. A warm lambda also keeps a short in-memory copy of storm responses. The route is public (no user JWT). Missing Supabase env returns 503 and the map client calls the RPC directly. Direct RPC calls skip the CDN; the app prefers the API route. Vite dev proxies the same handler.
+- Free pins use `least(free_pins_per_day, storm_free_pins_per_day)` (default 1), `greatest` bump radii (`storm_bump_radius_m` 500, `storm_same_spot_radius_m` 200), and `bump_scope` forced to `any`. The dry-run uses the same limits so the preflight matches. If the storm cap is what rejects the row and it is tighter than the calm cap, the error is `free_pin_storm_limit` (RU/EN copy on the report sheet). Otherwise it stays `free_pin_daily_limit`. The write that crosses the threshold is still accepted; the **next** request is throttled. Token cost stays 0 unless `high_risk_token_cost` was raised.
+
+The admin Analytics pillar shows a Calm/Storm pill, writes per minute against both thresholds, snapshot age, and Auto / Force on / Force off. Saving calls `admin_set_garba_vortex_storm` (platform admin or service role) and writes `admin_audit_log` when Admin P1's `private.write_admin_audit` is present. Null arguments leave a tune unchanged. "Save + refresh snapshot" passes `p_refresh=true`.
+
+Public clients can read only `{ storm, cache_seconds }` from `get_garba_vortex_public_status`. Write counts stay on the admin RPC.
+
+Demo without the database: `?vortexDemo=1&vortexStorm=1` draws the seeded heatmap with spikes and the black-hole ring removed.
+
 ## Where to tune
 
 Zoom fade is client-only, in [[src/lib/garbaVortex.ts]]:
@@ -103,9 +128,23 @@ SET
   high_risk_token_cost = 0,
   high_risk_min_pins = 3,
   black_hole_min_severity = 8,
+  storm_mode = 'auto',          -- off | auto | on
+  storm_global_writes_per_minute = 60,
+  storm_region_writes_per_minute = 12,
+  storm_region_km = 25,
+  storm_snapshot_ttl_seconds = 60,
+  storm_free_pins_per_day = 1,
+  storm_bump_radius_m = 500,
+  storm_same_spot_radius_m = 200,
+  storm_cache_seconds = 30,
+  storm_cooldown_seconds = 120,
+  storm_release_ratio = 0.60,
+  storm_cell_m = 8000,
   updated_at = now()
 WHERE id = 1;
 ```
+
+Prefer the admin card for `storm_mode`, the two write thresholds, the storm daily cap, and the storm bump radius. The SQL above is the full set. Do not delete the singleton row.
 
 Heatmap cell size is `greatest(250 m, 400 km / 2^zoom)` in `garba_vortex_cell_m`. Change that function if city cells should be coarser.
 
@@ -115,6 +154,9 @@ Heatmap cell size is `greatest(250 m, 400 km / 2^zoom)` in `garba_vortex_cell_m`
 | --- | --- | --- |
 | `place_free_vortex_pin(...)` | authenticated, service_role | Writes. Optional token debit when cost &gt; 0. |
 | `create_garbage_zone_report(...)` | authenticated, service_role | Same rules; returns the mission uuid (existing or bumped). |
-| `get_garba_vortex_heatmap(...)` | anon, authenticated | Read-only cells. |
+| `get_garba_vortex_heatmap(...)` | anon, authenticated | Cells. Storm: averaged snapshot, no spikes. |
+| `get_garba_vortex_public_status()` | anon, authenticated | `{ storm, cache_seconds }` only. |
 | `get_garba_vortex_sectors(...)` | anon, authenticated | Closed squares with an open order. |
+| `admin_get_garba_vortex_storm()` / `admin_set_garba_vortex_storm(...)` | authenticated (admin check inside) | Counts, mode, thresholds. Audited. |
+| `garba_vortex_evaluate_storm` / `garba_vortex_record_write` / `refresh_garba_vortex_heatmap_snapshot` | owner only | Not granted to anon or authenticated. |
 | `garba_vortex_refresh_isolation` / `garba_vortex_rollup_sector` | owner only | Not granted to anon or authenticated. |
