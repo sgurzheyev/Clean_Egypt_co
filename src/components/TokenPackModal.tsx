@@ -569,6 +569,11 @@ export default function TokenPackModal({
                 <p className="mt-1 text-xl font-black text-cyan-300">
                   {t('saasTokenAmount', { count: tokenTier.tokens })}
                 </p>
+                <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+                  {t('tokensInAppOnly', {
+                    defaultValue: 'Tokens are in-app credit only. They cannot be cashed out.',
+                  })}
+                </p>
               </div>
             </div>
 

@@ -16,9 +16,10 @@ supabase db query --linked -f supabase/migrations/20260927120000_garba_vortex.sq
 supabase db query --linked -f supabase/migrations/20260927130000_garba_vortex_storm.sql
 supabase db query --linked -f supabase/migrations/20260927140000_free_pin_expiry.sql
 supabase db query --linked -f supabase/migrations/20260927150000_token_donations.sql
+supabase db query --linked -f supabase/migrations/20260927160000_closed_economy.sql
 ```
 
-Safe to re-run. Re-runs do **not** reset a tuned `garba_vortex_config` row and do **not** clear an active storm flag. `token_donation_config` inserts only when the singleton row is missing, so a re-run does not reset the caps. Stage 5 is the second file. Apply `20260927150000` after the three vortex files. Do not edit those three; they are the ones already in flight for prod.
+Safe to re-run. Re-runs do **not** reset a tuned `garba_vortex_config` row and do **not** clear an active storm flag. `token_donation_config` and `closed_economy_config` insert only when the singleton row is missing, so a re-run does not reset the caps or the bonus rate. Stage 5 is the second file. Apply `20260927150000` and then `20260927160000` after the three vortex files. Do not edit those three; they are the ones already in flight for prod.
 
 ## What you see
 
@@ -95,6 +96,23 @@ Settlement:
 `private.write_admin_audit` stays for admin RPCs. A user donation is recorded only in `token_donations`.
 
 The briefing shows **Donate tokens** beside the Stripe amount on a free report and on an open crowdfunding card, with the pool total and days left. Copy is RU and EN.
+
+## Closed loop
+
+`20260927160000_closed_economy.sql` applies after the token-donation file. Do not edit the earlier migrations.
+
+If a crowdfunded pin expires before a cleanup is completed, Stripe USD stays with the platform. `process_expired_crowdfunding_missions` still inserts `city_notification_events` (`crowdfunding_expired`, `pdf_status=pending`). The existing `city-notification-pipeline` builds the municipal PDF (coordinates, dates, amount raised, report count, photo links) and stores `pdf_url`. A trigger copies that URL onto `missions.authority_notice_pdf_url` and `closed_economy_expiries.notice_pdf_url`.
+
+Each Stripe donor is credited in-app tokens. The rate is the top shop tier (`$99 = 5000` tokens) plus the config bonus:
+
+```
+tokens_per_usd = floor(anchor_tokens * (100 + stripe_bonus_percent) / (anchor_usd * 100))
+credited       = amount_usd * tokens_per_usd
+```
+
+Defaults: `floor(5000 * 120 / 9900) = 60`, so **$100 → 6000 tokens**. A $99 donation → 5940. Buying the $99 pack in the shop is still 5000; the bonus is only for an unfinished cleanup. Held token donations on that expiry are refunded with their own bonus: `floor(tokens * 120 / 100)` (100 → 120). Both writes are unique on `(source, source_id)` in `closed_economy_token_credits`, and the expiry is also written to `admin_audit_log` when that writer exists.
+
+A completed cleanup still pays the cleaner the held tokens with no bonus, and Stripe funds follow the existing mission payout. Cancel, archive, and admin delete refund token donations 1:1. There is no token cash-out. The Stripe form says, in RU and EN, that an uncleaned pin funds an official report and returns tokens (+20%) to spend in GarbaGin.
 
 ## Cleanup sectors
 

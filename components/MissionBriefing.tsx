@@ -1271,6 +1271,17 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       })}
                     </p>
                   )}
+                  {reportFirstDonateOpen && (
+                    <p className="mt-3 text-xs leading-relaxed text-amber-100/90">
+                      {t('stripeExpiryTokenPromise', {
+                        defaultValue:
+                          'If nobody cleans it, your donation funds an official report to local authorities and you get tokens (+20%) to spend in GarbaGin.',
+                      })}{' '}
+                      {t('tokensInAppOnly', {
+                        defaultValue: 'Tokens are in-app credit only. They cannot be cashed out.',
+                      })}
+                    </p>
+                  )}
                   {canContribute && onContribute && reportFirstDonateOpen && (
                     <form
                       className="mt-4 space-y-2"
@@ -1471,6 +1482,15 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     refreshKey={`${fundedUsd}-${mission.crowdfunding_expires_at ?? ''}`}
                   />
 
+                  <p className="mt-3 text-xs leading-relaxed text-amber-100/90">
+                    {t('stripeExpiryTokenPromise', {
+                      defaultValue:
+                        'If nobody cleans it, your donation funds an official report to local authorities and you get tokens (+20%) to spend in GarbaGin.',
+                    })}{' '}
+                    {t('tokensInAppOnly', {
+                      defaultValue: 'Tokens are in-app credit only. They cannot be cashed out.',
+                    })}
+                  </p>
                   {canContribute && onContribute && (
                     <form
                       className="mt-4 flex gap-2"

@@ -126,6 +126,13 @@ async function buildPdfBytes(opts: {
     'n/a'
   );
   const expiredAt = str(payload.expired_at, event.created_at);
+  const createdAt = str(payload.created_at ?? mission?.created_at, 'n/a');
+  const reportCount = Math.max(1, Math.floor(num(payload.report_count, 1)));
+  const photoList = Array.isArray(payload.photo_urls)
+    ? payload.photo_urls.map((item) => str(item)).filter(Boolean)
+    : Array.isArray(mission?.photo_urls)
+      ? mission.photo_urls.map((item) => str(item)).filter(Boolean)
+      : [];
 
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([595, 842]); // A4
@@ -186,7 +193,13 @@ async function buildPdfBytes(opts: {
     draw(`Map: https://www.google.com/maps?q=${lat},${lng}`, 9, false, rgb(0.15, 0.35, 0.65));
   }
   draw(`Target budget (USD): $${target}`);
-  draw(`Raised (USD): $${raised}`);
+  draw(
+    isExpired
+      ? `Raised (USD): $${raised} — retained by the platform for this official report`
+      : `Raised (USD): $${raised}`
+  );
+  draw(`Report count: ${reportCount}`);
+  draw(`Pin created: ${createdAt}`);
   draw(`Funding window end: ${fundingExpires}`);
   if (isExpired) {
     draw(`Expired at: ${expiredAt}`);
@@ -200,7 +213,16 @@ async function buildPdfBytes(opts: {
   for (const line of wrapLines(description, 82).slice(0, 12)) {
     draw(line, 10);
   }
-  y -= 10;
+  y -= 6;
+
+  if (photoList.length > 0 && y > 160) {
+    draw('Photographs', 12, true);
+    for (const photo of photoList.slice(0, 6)) {
+      if (y < 120) break;
+      draw(photo, 8, false, rgb(0.15, 0.35, 0.65));
+    }
+    y -= 6;
+  }
 
   if (isExpired) {
     draw('Escalation statement', 12, true, rgb(0.55, 0.1, 0.1));

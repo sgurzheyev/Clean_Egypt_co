@@ -141,7 +141,7 @@ export default function TokenDonateForm({
           : signedIn
             ? t('donateTokensHint', {
                 defaultValue:
-                  'Held for the cleaner who finishes this pin. Refunded to you if it expires first.',
+                  'Held for the cleaner who finishes this pin. If it expires first, you get these tokens back plus 20%. Tokens cannot be cashed out.',
               })
             : t('donateTokensNeedAuth', { defaultValue: 'Sign in to donate tokens.' })}
       </p>
