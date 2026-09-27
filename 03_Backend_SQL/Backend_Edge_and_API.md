@@ -43,10 +43,7 @@ aliases: [Backend Edge and API]
 - [[api/moderate-mission-photo-safety.ts]] — Wave I: JWT + image size cap
 - [[api/analyze-mission.ts]] — Wave I: JWT + membership; still read-only
 - [[api/translate.ts]] — Wave I: JWT + max text length
-- [[api/opensky-states.ts]] — leftover RUSH flights proxy (OpenSky). Client no longer calls it. Delete after Paranoic has its own proxy. [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]
-- [[api/adsb-nearby.ts]] — leftover RUSH flights proxy (self-contained; adsb.lol + adsb.fi; soft 200 `{ ac, error? }`)
-- [[api/_lib/adsbNearbyFetch.ts]] — test helper copy (do **not** import from the ADSB handler; Vercel ESM + renameTStoJS)
-- [[api/ais-nearby.ts]] — leftover RUSH ships proxy (self-contained AISStream WS; soft 200 `{ ships, error? }`)
+- [[api/garba-vortex-heatmap.ts]] — Garba-Vortex heatmap (kept). RUSH OpenSky / ADSB / AIS proxies removed: [[04_Roadmap_Tasks/Map_Weather_Rush_AR_Removed]]
 
 ## Clients
 - [[services/supabase.ts]]

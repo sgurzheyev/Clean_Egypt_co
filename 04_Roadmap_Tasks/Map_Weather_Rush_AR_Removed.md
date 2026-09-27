@@ -21,17 +21,15 @@ These map features are not useful on a cleanup / services marketplace, and AR co
 
 Fun / cartoon land (neon roads) stays as its own **FUN** chip. Sunrise/sunset lighting stays on SunCalc and does not depend on weather codes. Garba-Vortex heatmap, sectors, and storm mode stay.
 
-## Proxies left on purpose
+## Proxies removed
 
-Do not delete these until Paranoic has its own proxy:
+Paranoic has its own proxies. These GarbaGin routes are gone:
 
 - [[api/opensky-states.ts]]
 - [[api/adsb-nearby.ts]]
 - [[api/_lib/adsbNearbyFetch.ts]]
 - [[api/ais-nearby.ts]]
 
-The GarbaGin client does not call them. `VITE_AISSTREAM_API_KEY` is no longer read in the browser; the AIS lambda may still fall back to that server env.
-
-The proxy regression test is `src/lib/liveCraftProxy.test.ts`, not a file under `api/`. Vercel deploys every non-underscore file in `api/` as its own Serverless Function. Main already has 12 of those, which is the Hobby plan cap, so a test left in `api/` fails the preview deploy.
+`src/lib/liveCraftProxy.test.ts` went with them. `AISSTREAM_API_KEY` and `VITE_AISSTREAM_API_KEY` are no longer in [[.env.example]]. Garba-Vortex stays: [[api/garba-vortex-heatmap.ts]].
 
 Prior notes (historical): [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]].
