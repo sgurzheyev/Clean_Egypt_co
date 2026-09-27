@@ -8,6 +8,7 @@ import { MISSION_SHORT_DESCRIPTION_MAX } from '../src/lib/missionDescription';
 import {
   MAX_GARBAGE_ZONE_REPORT_PHOTOS,
   createGarbageZoneReport,
+  vortexPinErrorCode,
   type CreatedGarbageZoneReport,
 } from '../src/lib/garbageZoneReport';
 import { isLikelyImageFile } from '../src/lib/missionPhotoCompression';
@@ -145,8 +146,25 @@ const ReportGarbageZoneModal: React.FC<Props> = ({ open, lat, lng, onClose, onCr
       await onCreated(created);
       resetLocal();
     } catch (err: any) {
+      const vortexCode = vortexPinErrorCode(err);
+      const vortexMessage =
+        vortexCode === 'daily_limit'
+          ? t('vortexFreePinDailyLimit', {
+              defaultValue: 'Daily free-pin limit reached. Try again tomorrow.',
+            })
+          : vortexCode === 'sector_closed'
+            ? t('vortexSectorClosed', {
+                defaultValue:
+                  'This square is a Cleanup Sector. Open that order instead of dropping another pin.',
+              })
+            : vortexCode === 'insufficient_tokens'
+              ? t('vortexInsufficientTokens', {
+                  defaultValue: 'Not enough tokens for a pin in this high-risk zone.',
+                })
+              : null;
       setError(
-        err?.message ||
+        vortexMessage ||
+          err?.message ||
           t('reportZoneCreateFailed', { defaultValue: 'Could not publish this report.' })
       );
       setSubmitting(false);

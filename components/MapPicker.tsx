@@ -114,6 +114,12 @@ import {
   filterMissionsByMutedCreators,
 } from '../src/lib/mutedCreators';
 import { useMutedCreators } from '../src/hooks/useMutedCreators';
+import { useGarbaVortexOverlay } from '../src/hooks/useGarbaVortexOverlay';
+import {
+  isDissolvedMissionPin,
+  readVortexDemoCamera,
+  VORTEX_HEATMAP_COLOR,
+} from '../src/lib/garbaVortex';
 import { useListScrollMapPreview } from '../src/hooks/useListScrollMapPreview';
 import {
   getCrowdfundingCountdownParts,
@@ -1642,12 +1648,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
     void resolveBootMapLocation().then((origin) => {
       if (cancelled) return;
       const fromGps = origin.fromGps;
+      const demoCam = readVortexDemoCamera();
       const nextView = {
-        latitude: origin.lat,
-        longitude: origin.lng,
-        zoom: fromGps ? MAP_BOOT_GPS_VIEW.zoom : MAP_INITIAL_VIEW.zoom,
-        pitch: fromGps ? MAP_BOOT_GPS_VIEW.pitch : MAP_INITIAL_VIEW.pitch,
-        bearing: fromGps ? MAP_BOOT_GPS_VIEW.bearing : MAP_INITIAL_VIEW.bearing,
+        latitude: demoCam?.latitude ?? origin.lat,
+        longitude: demoCam?.longitude ?? origin.lng,
+        zoom: demoCam?.zoom ?? (fromGps ? MAP_BOOT_GPS_VIEW.zoom : MAP_INITIAL_VIEW.zoom),
+        pitch: demoCam ? 20 : fromGps ? MAP_BOOT_GPS_VIEW.pitch : MAP_INITIAL_VIEW.pitch,
+        bearing: demoCam ? 0 : fromGps ? MAP_BOOT_GPS_VIEW.bearing : MAP_INITIAL_VIEW.bearing,
       };
       setViewState(nextView);
       setWeatherFetchCenter({ lat: origin.lat, lng: origin.lng });
@@ -1957,6 +1964,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [marketCountryIds, setMarketCountryIds] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_CITIES_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
+  const vortexOverlay = useGarbaVortexOverlay({
+    mapReady,
+    cameraBusy: mapCameraBusy,
+    latitude: viewState.latitude,
+    longitude: viewState.longitude,
+    zoom: viewState.zoom,
+    includeReports: showFreeReports,
+  });
   const { mutedIds, muteCreator } = useMutedCreators();
   const toggleMissionTag = useCallback((tag: string) => {
     setSelectedMissionTags((prev) =>
@@ -3310,6 +3325,31 @@ const MapPicker: React.FC<MapPickerProps> = ({
           handleMarkerClick(job);
           return;
         }
+
+        if (map && point && vortexOverlay.ready && map.getLayer?.('vortex-sector-fill')) {
+          try {
+            const pad = 8;
+            const bbox: [mapboxgl.PointLike, mapboxgl.PointLike] = [
+              [point.x - pad, point.y - pad],
+              [point.x + pad, point.y + pad],
+            ];
+            const sectorHits = map.queryRenderedFeatures(bbox, {
+              layers: ['vortex-sector-fill'],
+            });
+            const missionId = sectorHits[0]?.properties?.mission_id;
+            if (missionId) {
+              const sectorJob = (jobsRef.current || []).find(
+                (j) => String(j.id) === String(missionId)
+              );
+              if (sectorJob) {
+                handleMarkerClick(sectorJob);
+                return;
+              }
+            }
+          } catch {
+            /* sector layer may be absent */
+          }
+        }
       }
 
       // 2. Map tap — draft pin first; move pin while creation form is open
@@ -3374,8 +3414,43 @@ const MapPicker: React.FC<MapPickerProps> = ({
       taskTypeSelected,
       toast,
       trafficEnabled,
+      vortexOverlay.ready,
     ]
   );
+
+  useEffect(() => {
+    if (vortexOverlay.blackHoleMode !== 'pulse' || !vortexOverlay.ready) return;
+    if (vortexOverlay.heatmapOpacity <= 0) return;
+    if (vortexOverlay.blackHoles.features.length === 0) return;
+    let raf = 0;
+    let last = 0;
+    const tick = (now: number) => {
+      raf = requestAnimationFrame(tick);
+      if (cameraBusyRef.current) return;
+      if (now - last < 120) return;
+      last = now;
+      const map = mapRef.current?.getMap?.() ?? mapInstanceRef.current;
+      if (!map?.getLayer?.('vortex-bh-ring')) return;
+      const phase = (Math.sin(now / 420) + 1) / 2;
+      const opacity = vortexOverlay.heatmapOpacity * (0.28 + phase * 0.42);
+      try {
+        map.setPaintProperty('vortex-bh-ring', 'circle-radius', 16 + phase * 26);
+        map.setPaintProperty('vortex-bh-ring', 'circle-opacity', opacity);
+        if (map.getLayer('vortex-bh-halo')) {
+          map.setPaintProperty('vortex-bh-halo', 'circle-opacity', opacity * 0.55);
+        }
+      } catch {
+        /* style swap */
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [
+    vortexOverlay.blackHoleMode,
+    vortexOverlay.ready,
+    vortexOverlay.heatmapOpacity,
+    vortexOverlay.blackHoles.features.length,
+  ]);
 
   const handleMapMouseMove = useCallback(
     (event: any) => {
@@ -4529,6 +4604,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const lng = Number(j.location_lng);
         return Number.isFinite(lat) && Number.isFinite(lng);
       })
+      .filter((j) => {
+        if (!vortexOverlay.ready) return true;
+        return !isDissolvedMissionPin(
+          String(j.id),
+          Number(j.location_lng),
+          Number(j.location_lat),
+          vortexOverlay.sectors
+        );
+      })
       .map((j) => ({
         type: 'Feature' as const,
         id: String(j.id),
@@ -4562,7 +4646,11 @@ const MapPicker: React.FC<MapPickerProps> = ({
     showFreeReports,
     mutedIds,
     serviceTypeForMission,
+    vortexOverlay.ready,
+    vortexOverlay.sectors,
   ]);
+
+  const vortexPinFade = vortexOverlay.ready ? vortexOverlay.pinFade : 1;
 
   /** Hold pin FeatureCollection steady during flyTo so Source doesn't rebuild mid-animation. */
   const idleMissionPinsRef = React.useRef(missionPinsGeoJSON);
@@ -5310,6 +5398,129 @@ const MapPicker: React.FC<MapPickerProps> = ({
           />
         </Source>
 
+        {/* Garba-Vortex: macro heatmap fades out across zoom 11–12; pins fade in. */}
+        {vortexOverlay.ready && (
+          <>
+            <Source id="vortex-heatmap" type="geojson" data={vortexOverlay.heatmap}>
+              <Layer
+                id="vortex-heatmap"
+                type="heatmap"
+                maxzoom={13}
+                paint={{
+                  'heatmap-weight': ['interpolate', ['linear'], ['get', 'weight'], 0, 0, 12, 1],
+                  'heatmap-intensity': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    0,
+                    0.55,
+                    5,
+                    0.85,
+                    11,
+                    1.15,
+                  ],
+                  'heatmap-radius': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    0,
+                    6,
+                    4,
+                    16,
+                    8,
+                    28,
+                    11,
+                    40,
+                  ],
+                  'heatmap-opacity': mapMarkerLayerSuppressed
+                    ? vortexOverlay.heatmapOpacity * 0.2
+                    : vortexOverlay.heatmapOpacity,
+                  'heatmap-color': VORTEX_HEATMAP_COLOR as never,
+                }}
+              />
+            </Source>
+            {vortexOverlay.blackHoleMode !== 'off' && (
+              <Source id="vortex-black-holes" type="geojson" data={vortexOverlay.blackHoles}>
+                <Layer
+                  id="vortex-bh-halo"
+                  type="circle"
+                  maxzoom={12.2}
+                  paint={{
+                    'circle-radius': [
+                      'interpolate',
+                      ['linear'],
+                      ['get', 'severity'],
+                      1,
+                      22,
+                      100,
+                      48,
+                    ],
+                    'circle-color': '#1a0033',
+                    'circle-blur': 0.85,
+                    'circle-opacity': vortexOverlay.heatmapOpacity * 0.55,
+                  }}
+                />
+                <Layer
+                  id="vortex-bh-ring"
+                  type="circle"
+                  maxzoom={12.2}
+                  paint={{
+                    'circle-radius': 22,
+                    'circle-color': '#ff0055',
+                    'circle-blur': 0.35,
+                    'circle-opacity': vortexOverlay.heatmapOpacity * 0.7,
+                    'circle-stroke-width': 2,
+                    'circle-stroke-color': '#ff0055',
+                    'circle-stroke-opacity': vortexOverlay.heatmapOpacity,
+                  }}
+                />
+                <Layer
+                  id="vortex-bh-core"
+                  type="circle"
+                  maxzoom={12.2}
+                  paint={{
+                    'circle-radius': 5,
+                    'circle-color': '#ff0055',
+                    'circle-blur': 0.2,
+                    'circle-opacity': vortexOverlay.heatmapOpacity,
+                  }}
+                />
+              </Source>
+            )}
+            <Source id="vortex-sectors" type="geojson" data={vortexOverlay.sectorGeoJSON}>
+              <Layer
+                id="vortex-sector-fill"
+                type="fill"
+                paint={{
+                  'fill-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'severity_sum'],
+                    0,
+                    '#1a0033',
+                    15,
+                    '#6d28d9',
+                    40,
+                    '#ff0055',
+                  ],
+                  'fill-opacity': mapMarkerLayerSuppressed
+                    ? vortexOverlay.sectorOpacity * 0.35
+                    : vortexOverlay.sectorOpacity,
+                }}
+              />
+              <Layer
+                id="vortex-sector-line"
+                type="line"
+                paint={{
+                  'line-color': '#ff0055',
+                  'line-width': 2,
+                  'line-opacity': Math.min(1, vortexOverlay.sectorOpacity + 0.25),
+                }}
+              />
+            </Source>
+          </>
+        )}
+
         {/* Main mission pins — colors driven by service_type GeoJSON property */}
         <Source
           id="mission-pins"
@@ -5337,10 +5548,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 25,
                 26,
               ],
-              'circle-opacity': mapMarkerLayerSuppressed ? 0 : 0.75,
+              'circle-opacity': (mapMarkerLayerSuppressed ? 0 : 0.75) * vortexPinFade,
               'circle-stroke-width': 2,
               'circle-stroke-color': '#ecfeff',
-              'circle-stroke-opacity': mapMarkerLayerSuppressed ? 0 : 0.9,
+              'circle-stroke-opacity': (mapMarkerLayerSuppressed ? 0 : 0.9) * vortexPinFade,
             }}
           />
           <Layer
@@ -5356,7 +5567,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }}
             paint={{
               'text-color': '#020617',
-              'text-opacity': mapMarkerLayerSuppressed ? 0 : 1,
+              'text-opacity': (mapMarkerLayerSuppressed ? 0 : 1) * vortexPinFade,
             }}
           />
           <Layer
@@ -5369,7 +5580,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 : MISSION_PIN_GLOW_RADIUS,
               'circle-color': MISSION_PIN_CORE_COLOR,
               'circle-blur': mapCameraBusy ? 0.35 : funMapMode ? 1.05 : 0.85,
-              'circle-opacity': mapMarkerLayerSuppressed ? 0 : funMapMode ? 0.5 : 0.35,
+              'circle-opacity':
+                (mapMarkerLayerSuppressed ? 0 : funMapMode ? 0.5 : 0.35) * vortexPinFade,
             }}
           />
           <Layer
@@ -5381,8 +5593,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
               'circle-color': MISSION_PIN_CORE_COLOR,
               'circle-stroke-width': MISSION_PIN_HOVER_STROKE_WIDTH,
               'circle-stroke-color': '#ffffff',
-              'circle-opacity': mapMarkerLayerSuppressed ? 0.08 : 0.92,
-              'circle-stroke-opacity': mapMarkerLayerSuppressed ? 0.08 : 0.95,
+              'circle-opacity': (mapMarkerLayerSuppressed ? 0.08 : 0.92) * vortexPinFade,
+              'circle-stroke-opacity': (mapMarkerLayerSuppressed ? 0.08 : 0.95) * vortexPinFade,
             }}
           />
           <Layer
@@ -5397,7 +5609,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               'icon-anchor': 'center',
             }}
             paint={{
-              'icon-opacity': mapMarkerLayerSuppressed ? 0 : 1,
+              'icon-opacity': (mapMarkerLayerSuppressed ? 0 : 1) * vortexPinFade,
             }}
           />
           <Layer
@@ -5427,7 +5639,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               'text-color': '#f5f3ff',
               'text-halo-color': '#6d28d9',
               'text-halo-width': 1.25,
-              'text-opacity': mapMarkerLayerSuppressed ? 0 : 1,
+              'text-opacity': (mapMarkerLayerSuppressed ? 0 : 1) * vortexPinFade,
             }}
           />
         </Source>
@@ -6231,8 +6443,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 created.videoProofUrl
               );
 
-              // Only inject when coordinates are valid — otherwise wait for refetch.
+              // A bump keeps the existing pin. Don't paint a second dot at the draft point.
               if (
+                created.vortexAction !== 'bumped' &&
                 Number.isFinite(optimistic.location_lat) &&
                 Number.isFinite(optimistic.location_lng)
               ) {
@@ -6252,9 +6465,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
               }
 
               toast.success(
-                t('reportZoneCreated', {
-                  defaultValue: 'Garbage zone reported — thank you!',
-                })
+                created.vortexAction === 'bumped'
+                  ? t('vortexPinBumped', {
+                      defaultValue: 'A recent report is already here — its intensity went up.',
+                    })
+                  : t('reportZoneCreated', {
+                      defaultValue: 'Garbage zone reported — thank you!',
+                    })
               );
 
               await fetchMissions();

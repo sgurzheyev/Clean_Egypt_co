@@ -679,6 +679,11 @@ const resources = {
       reportZonePhotoRequired: 'Add a photo of the zone.',
       reportZoneCreateFailed: 'Could not publish this report.',
       reportZoneCreated: 'Garbage zone reported — thank you!',
+      vortexFreePinDailyLimit: 'Daily free-pin limit reached. Try again tomorrow.',
+      vortexSectorClosed:
+        'This square is a Cleanup Sector. Open that order instead of dropping another pin.',
+      vortexInsufficientTokens: 'Not enough tokens for a pin in this high-risk zone.',
+      vortexPinBumped: 'A recent report is already here — its intensity went up.',
       reportZoneRenderError: 'Ошибка при отрисовке метки. Перезагрузите карту.',
       reportZoneCitizenLabel: 'Citizen report',
       reportZoneFreeLabel: 'Free civic report',
@@ -2071,6 +2076,11 @@ const resources = {
       reportZonePhotoRequired: 'Добавьте фото зоны.',
       reportZoneCreateFailed: 'Не удалось опубликовать отчёт.',
       reportZoneCreated: 'Зона отмечена — спасибо!',
+      vortexFreePinDailyLimit: 'Лимит бесплатных пинов на сегодня исчерпан. Попробуйте завтра.',
+      vortexSectorClosed:
+        'Этот квадрат — сектор уборки. Откройте заказ сектора, а не ставьте ещё один пин.',
+      vortexInsufficientTokens: 'Не хватает токенов для пина в зоне повышенного риска.',
+      vortexPinBumped: 'Рядом уже есть свежий отчёт — его интенсивность увеличена.',
       reportZoneRenderError: 'Ошибка при отрисовке метки. Перезагрузите карту.',
       reportZoneCitizenLabel: 'Гражданский репорт',
       reportZoneFreeLabel: 'Бесплатный гражданский репорт',
