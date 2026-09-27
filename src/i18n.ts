@@ -673,6 +673,7 @@ const resources = {
       stripeExpiryTokenPromise:
         'If nobody cleans it, your donation funds an official report to local authorities and you get tokens (+20%) to spend in GarbaGin.',
       tokensInAppOnly: 'Tokens are in-app credit only. They cannot be cashed out.',
+      playPurchasesComingSoon: 'Purchases coming soon in the Android app.',
       donateTokensTitle: 'Donate tokens',
       donateTokensHint:
         'Held for the cleaner who finishes this pin. If it expires first, you get these tokens back plus 20%. Tokens cannot be cashed out.',
@@ -2103,6 +2104,7 @@ const resources = {
       stripeExpiryTokenPromise:
         'Если никто не уберёт, ваш взнос оплачивает официальный отчёт местным властям, а вы получаете токены (+20%), чтобы тратить их в GarbaGin.',
       tokensInAppOnly: 'Токены — внутренний кредит приложения. Их нельзя вывести.',
+      playPurchasesComingSoon: 'Покупки скоро появятся в приложении Android.',
       donateTokensTitle: 'Пожертвовать токены',
       donateTokensHint:
         'Токены держатся для клинера, который закроет пин. Если срок выйдет раньше, вам вернут их и ещё 20%. Вывести токены нельзя.',

@@ -1,4 +1,5 @@
 import { supabase } from '../../services/supabase';
+import { isTwaContext } from './twaContext';
 import { resolveAccessToken } from './supabaseAuth';
 import { throwIfInvokeFailed } from './supabaseFunctionError';
 
@@ -24,6 +25,11 @@ export async function startContributionCheckout(input: {
   /** Frozen campaign goal when waking a `reported` pin (ignored if the pin already has a draft ≥ $2). */
   targetUsd?: number;
 }): Promise<{ url: string; sessionId: string }> {
+  if (isTwaContext()) {
+    throw Object.assign(new Error('Purchases coming soon in the Android app.'), {
+      code: 'digital_goods_blocked',
+    });
+  }
   const accessToken = await resolveAccessToken();
   if (!accessToken) {
     throw new Error('Not authenticated');

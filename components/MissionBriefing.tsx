@@ -62,6 +62,7 @@ import {
 } from '../src/lib/garbageZoneReport';
 import { CITY_MIN_PRICE, BOTTOM_SHEET_MAX_HEIGHT_STYLE } from '../constants';
 import TokenDonateForm from './TokenDonateForm';
+import { isTwaContext } from '../src/lib/twaContext';
 import MissionChatPanel from '../src/components/chat/MissionChatPanel';
 import EcoHeroesRibbon from './EcoHeroesRibbon';
 import ImpactCardModal from './ImpactCardModal';
@@ -1241,10 +1242,14 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 <section className="border-t border-white/5 pt-4">
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-[11px] leading-relaxed text-slate-300">
-                      {t('reportZoneBridgeHint', {
-                        defaultValue:
-                          'Civic report — free. The first Stripe dollar starts the campaign. No donation in 7 days quietly hides the pin (no city notice).',
-                      })}
+                      {isTwaContext()
+                        ? t('playPurchasesComingSoon', {
+                            defaultValue: 'Purchases coming soon in the Android app.',
+                          })
+                        : t('reportZoneBridgeHint', {
+                            defaultValue:
+                              'Civic report — free. The first Stripe dollar starts the campaign. No donation in 7 days quietly hides the pin (no city notice).',
+                          })}
                     </p>
                     {reportHideCountdownParts && (
                       <p
@@ -1271,7 +1276,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       })}
                     </p>
                   )}
-                  {reportFirstDonateOpen && (
+                  {!isTwaContext() && reportFirstDonateOpen && (
                     <p className="mt-3 text-xs leading-relaxed text-amber-100/90">
                       {t('stripeExpiryTokenPromise', {
                         defaultValue:
@@ -1282,7 +1287,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       })}
                     </p>
                   )}
-                  {canContribute && onContribute && reportFirstDonateOpen && (
+                  {!isTwaContext() && canContribute && onContribute && reportFirstDonateOpen && (
                     <form
                       className="mt-4 space-y-2"
                       onSubmit={(e) => {
@@ -1358,7 +1363,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                       onDonated={onTokenDonated}
                     />
                   )}
-                  {!canContribute && !isMissionCreator && (
+                  {!isTwaContext() && !canContribute && !isMissionCreator && (
                     <p className="mt-3 text-xs italic text-slate-500">
                       {t('signInToContribute', {
                         defaultValue: 'Sign in to start this campaign with the first dollar.',
@@ -1482,16 +1487,24 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     refreshKey={`${fundedUsd}-${mission.crowdfunding_expires_at ?? ''}`}
                   />
 
-                  <p className="mt-3 text-xs leading-relaxed text-amber-100/90">
-                    {t('stripeExpiryTokenPromise', {
-                      defaultValue:
-                        'If nobody cleans it, your donation funds an official report to local authorities and you get tokens (+20%) to spend in GarbaGin.',
-                    })}{' '}
-                    {t('tokensInAppOnly', {
-                      defaultValue: 'Tokens are in-app credit only. They cannot be cashed out.',
-                    })}
-                  </p>
-                  {canContribute && onContribute && (
+                  {isTwaContext() ? (
+                    <p className="mt-3 text-xs leading-relaxed text-slate-400">
+                      {t('playPurchasesComingSoon', {
+                        defaultValue: 'Purchases coming soon in the Android app.',
+                      })}
+                    </p>
+                  ) : (
+                    <p className="mt-3 text-xs leading-relaxed text-amber-100/90">
+                      {t('stripeExpiryTokenPromise', {
+                        defaultValue:
+                          'If nobody cleans it, your donation funds an official report to local authorities and you get tokens (+20%) to spend in GarbaGin.',
+                      })}{' '}
+                      {t('tokensInAppOnly', {
+                        defaultValue: 'Tokens are in-app credit only. They cannot be cashed out.',
+                      })}
+                    </p>
+                  )}
+                  {!isTwaContext() && canContribute && onContribute && (
                     <form
                       className="mt-4 flex gap-2"
                       onSubmit={(e) => {
@@ -1533,7 +1546,7 @@ const MissionBriefing: React.FC<MissionBriefingProps> = ({
                     expiresAt={mission.crowdfunding_expires_at}
                     onDonated={onTokenDonated}
                   />
-                  {!canContribute && !isMissionCreator && (
+                  {!isTwaContext() && !canContribute && !isMissionCreator && (
                     <p className="mt-3 text-xs italic text-slate-500">{t('signInToContribute')}</p>
                   )}
                   {isMissionCreator && (

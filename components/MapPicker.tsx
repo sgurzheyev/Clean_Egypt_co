@@ -227,6 +227,7 @@ import { useRealWeather } from '../src/hooks/useRealWeather';
 import WeatherOverlay from '../src/components/WeatherOverlay';
 import WeatherDebugPanel from '../src/components/WeatherDebugPanel';
 import { confirmContributionCheckout, startContributionCheckout } from '../src/lib/contributions';
+import { isTwaContext } from '../src/lib/twaContext';
 import { isEdgeFunctionUnreachable } from '../src/lib/supabaseFunctionError';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import {
@@ -3986,6 +3987,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const handleBriefingContribute = useCallback(
     async (amountUsd: number, extras?: { targetUsd?: number }) => {
       if (!selectedMission || briefingActionLockRef.current) return;
+      if (isTwaContext()) {
+        toast.error(
+          t('playPurchasesComingSoon', {
+            defaultValue: 'Purchases coming soon in the Android app.',
+          })
+        );
+        return;
+      }
       const wakeFromReport = isReportFirstDonateOpen(selectedMission);
       const target = resolveCampaignTargetUsd(selectedMission, extras?.targetUsd);
       const funded = Math.floor(Number(selectedMission.current_funding ?? 0));
@@ -6211,11 +6220,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
               {t('subscriptionGateTitle')}
             </p>
             <p className="mt-3 text-sm leading-relaxed text-slate-300">
-              {t('subscriptionGateBody')}
+              {isTwaContext()
+                ? t('playPurchasesComingSoon', {
+                    defaultValue: 'Purchases coming soon in the Android app.',
+                  })
+                : t('subscriptionGateBody')}
             </p>
+            {!isTwaContext() ? (
             <p className="mt-4 text-3xl font-black text-white">
               {t('subscriptionGatePerYear', { price: formatUsdPrice(YEARLY_SUBSCRIPTION.usd) })}
             </p>
+            ) : null}
             <ul className="mt-4 space-y-2 text-xs text-slate-300">
               <li className="flex items-start gap-2">
                 <span className="text-cyan-400 shrink-0">✓</span>
@@ -6234,6 +6249,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               >
                 {t('close')}
               </button>
+              {!isTwaContext() ? (
               <button
                 type="button"
                 onClick={() => {
@@ -6244,6 +6260,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               >
                 {t('saasPaySubscription')}
               </button>
+              ) : null}
             </div>
           </div>
         </div>

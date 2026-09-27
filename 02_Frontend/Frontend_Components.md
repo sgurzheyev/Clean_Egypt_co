@@ -5,7 +5,7 @@ aliases: [Frontend Components, UI Map]
 
 # Frontend Components
 
-> ← [[🗺️ GARBAGIN Master Index]] · Architecture: [[01_Architecture/Architecture_Overview]] · Roadmap: [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · Wave I: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · RUSH: [[04_Roadmap_Tasks/Map_Rush_Mode]] · Vortex: [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]]
+> ← [[🗺️ GARBAGIN Master Index]] · Architecture: [[01_Architecture/Architecture_Overview]] · Roadmap: [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · Wave I: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · RUSH: [[04_Roadmap_Tasks/Map_Rush_Mode]] · Vortex: [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] · Play payments: [[04_Roadmap_Tasks/Payments_Play_Policy]]
 
 ## Primary surfaces
 
@@ -41,7 +41,7 @@ aliases: [Frontend Components, UI Map]
 | WebXR AR overlay | [[src/components/AROverlay.tsx]] |
 | Mission chat | [[src/components/chat/MissionChatPanel.tsx]] |
 | Admin + KYC queue | [[src/components/AdminDashboard.tsx]], [[src/components/KYCReviewDashboard.tsx]] |
-| Token / subscription modals | [[src/components/TokenPackModal.tsx]], [[src/components/SubscriptionModal.tsx]] |
+| Token / subscription modals | [[src/components/TokenPackModal.tsx]], [[src/components/SubscriptionModal.tsx]] · TWA detection [[src/lib/twaContext.ts]] · Play Billing (flag off) [[src/lib/playBilling.ts]] · [[04_Roadmap_Tasks/Payments_Play_Policy]] |
 
 ## Styling & theme
 

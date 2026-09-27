@@ -25,6 +25,9 @@ import {
   YEARLY_SUBSCRIPTION,
   formatUsdPrice,
 } from '../lib/tokenPricing';
+import { isPlayBillingEnabled } from '../lib/playBilling';
+import { isTwaContext } from '../lib/twaContext';
+import PlayBillingCheckout from './PlayBillingCheckout';
 
 const CARD_STYLE = {
   style: {
@@ -351,7 +354,7 @@ export default function TokenPackModal({
   }, [open, userId, initialMode]);
 
   useEffect(() => {
-    if (!open || !payerId || !publishableKey) return;
+    if (!open || isTwaContext() || !payerId || !publishableKey) return;
     let cancelled = false;
     setIntent(null);
     setIntentError(null);
@@ -398,6 +401,59 @@ export default function TokenPackModal({
   }, [checkoutMode, t, tokenTier.tokens, tokenTier.usd]);
 
   if (!open) return null;
+
+  if (isTwaContext()) {
+    return createPortal(
+      <div
+        className="pointer-events-auto fixed inset-0 z-[10100] isolate flex items-end justify-center overflow-hidden overscroll-none sm:items-center sm:p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="saas-payment-modal-title"
+      >
+        <button
+          type="button"
+          className="absolute inset-0 z-0 touch-none bg-black/80 backdrop-blur-md"
+          aria-label={t('close')}
+          onClick={requestClose}
+        />
+        <div
+          className="ce-bottom-sheet pointer-events-auto relative z-[1] w-full max-w-md rounded-t-3xl border border-white/10 bg-slate-950/90 px-6 py-6 shadow-2xl sm:rounded-3xl"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <h3
+            id="saas-payment-modal-title"
+            className="text-sm font-black uppercase tracking-[0.22em] text-white"
+          >
+            {t('saasPaymentModalTitle')}
+          </h3>
+          <p className="mt-4 text-sm leading-relaxed text-slate-300">
+            {t('playPurchasesComingSoon', {
+              defaultValue: 'Purchases coming soon in the Android app.',
+            })}
+          </p>
+          {isPlayBillingEnabled() ? (
+            <div className="mt-4">
+              <PlayBillingCheckout
+                mode={checkoutMode}
+                onDone={() => {
+                  onSuccess();
+                  onClose();
+                }}
+              />
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={requestClose}
+            className="mt-6 w-full rounded-2xl border border-white/15 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-300"
+          >
+            {t('close')}
+          </button>
+        </div>
+      </div>,
+      document.body
+    );
+  }
 
   const payLabel = t('payAmount', {
     amount: checkoutSummary.usdLabel,
