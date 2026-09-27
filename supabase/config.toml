@@ -99,3 +99,9 @@ entrypoint = "./functions/stripe-token-credit/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/stripe-subscription-activate/index.ts"
+
+# Play Billing verifier. Stays off until PLAY_BILLING_ENABLED=true is set on the function.
+[functions.play-billing-verify]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/play-billing-verify/index.ts"

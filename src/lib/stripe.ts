@@ -1,11 +1,17 @@
 import { throwIfInvokeFailed } from './supabaseFunctionError';
 import { invokeAuthenticatedFunction, resolveAuthenticatedUserId } from './supabaseAuth';
+import { isTwaContext } from './twaContext';
 
 /** Create a Stripe PaymentIntent for wallet top-up (USD). */
 export async function createWalletTopUpIntent(input: {
   userId: string;
   amountUsd: number;
 }): Promise<{ clientSecret: string; amountUsd: number }> {
+  if (isTwaContext()) {
+    throw Object.assign(new Error('Purchases coming soon in the Android app.'), {
+      code: 'digital_goods_blocked',
+    });
+  }
   const userId = await resolveAuthenticatedUserId(input.userId);
   if (!userId) throw new Error('Not authenticated');
 

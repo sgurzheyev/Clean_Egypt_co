@@ -5,7 +5,7 @@ aliases: [Backend Edge and API]
 
 # Backend — Edge Functions & API
 
-> ← [[🗺️ GARBAGIN Master Index]] · Migrations: [[03_Backend_SQL/SQL_Migrations_Index]] · Security: [[01_Architecture/Security_and_RPCs]] · Stripe: [[01_Architecture/Stripe_USD_Flow]] · Wave I: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]]
+> ← [[🗺️ GARBAGIN Master Index]] · Migrations: [[03_Backend_SQL/SQL_Migrations_Index]] · Security: [[01_Architecture/Security_and_RPCs]] · Stripe: [[01_Architecture/Stripe_USD_Flow]] · Wave I: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · Play payments: [[04_Roadmap_Tasks/Payments_Play_Policy]]
 
 ## Stripe / payments
 - [[supabase/functions/stripe-contribution-checkout/index.ts]]
@@ -19,6 +19,7 @@ aliases: [Backend Edge and API]
 - [[supabase/functions/stripe-subscription-activate/index.ts]]
 - [[supabase/functions/stripe-intent/index.ts]]
 - [[supabase/functions/create-payment-intent/index.ts]]
+- [[supabase/functions/play-billing-verify/index.ts]] — Play Billing verifier. Returns 403 until `PLAY_BILLING_ENABLED=true`. Note: [[04_Roadmap_Tasks/Payments_Play_Policy]]
 
 ## Media uploads
 - [[supabase/functions/r2-presign-media/index.ts]] — presign Content-Type only; phone proxy `file_base64` when browser PUT to R2 is `Failed to fetch`. Note: [[04_Roadmap_Tasks/Phone_Prod_Reviews_Pin_Sheet]]

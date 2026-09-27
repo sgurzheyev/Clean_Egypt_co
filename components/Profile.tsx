@@ -43,6 +43,8 @@ import {
   formatSubmittedRelative,
   type MissionSortMode,
 } from '../src/lib/missionFilterSort';
+import { filterMissionsByServiceTypes, useMissionServiceFilter } from '../src/lib/missionServiceFilter';
+import { freeGarbagePinExpired } from '../src/lib/freeGarbagePin';
 import {
   MARKETPLACE_ALL_CITIES_ID,
   filterMissionsByCountriesCity,
@@ -162,10 +164,12 @@ interface Job {
   creator_id: string | null;
   cleaner_id: string | null;
   category: 'public' | 'home' | 'office' | string;
+  service_type?: string | null;
   amount_target: number;
   expected_price?: number | null;
   current_funding?: number | null;
   crowdfunding_mode?: boolean | null;
+  crowdfunding_expires_at?: string | null;
   history_public_until?: string | null;
   media_purged_at?: string | null;
   is_report?: boolean | null;
@@ -354,6 +358,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   const [marketCountryIds, setMarketCountryIds] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_CITIES_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
+  const { selectedServiceTypes, toggleServiceType, clearServiceTypes } = useMissionServiceFilter();
   // Immersive Visual Feed — stack is set by the section that opened it
   // (My Orders vs Services Market) so vertical swipe stays in-context.
   const [immersiveStartId, setImmersiveStartId] = useState<string | null>(null);
@@ -475,6 +480,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         const status = String(job.status || '').toLowerCase();
         if (status === 'hidden' || status === 'archived') return false;
         if (status === 'expired') return isPublicGarbageHistory(job);
+        if ((status === 'reported' || job.is_report) && freeGarbagePinExpired(job)) return false;
         if (status === 'reported' || job.is_report) return true;
         // Crowdfunding campaigns stay public until fully funded → in_progress,
         // even when a cleaner is pre-locked during funding.
@@ -628,7 +634,10 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
         filterMissionsByMutedCreators(
           filterMissionsByFreeReports(
             filterMissionsByCountriesCity(
-              filterMissionsByTags(source, marketSelectedTags),
+              filterMissionsByServiceTypes(
+                filterMissionsByTags(source, marketSelectedTags),
+                selectedServiceTypes
+              ),
               marketCountryIds,
               marketCityId,
               locationCatalog
@@ -646,6 +655,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
   }, [
       openMarketplaceJobs,
       marketSelectedTags,
+      selectedServiceTypes,
       marketCountryIds,
       marketCityId,
       locationCatalog,
@@ -1164,6 +1174,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
           expected_price,
           current_funding,
           crowdfunding_mode,
+          crowdfunding_expires_at,
           history_public_until,
           media_purged_at,
           is_report,
@@ -2840,6 +2851,9 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose, session: _session, o
               selectedTags={marketSelectedTags}
               onToggleTag={toggleMarketTag}
               onClearTags={clearMarketTags}
+              selectedServiceTypes={selectedServiceTypes}
+              onToggleServiceType={toggleServiceType}
+              onClearServiceTypes={clearServiceTypes}
               resultCount={displayedMarketplaceJobs.length}
               countryIds={marketCountryIds}
               onCountryIdsChange={setMarketCountryIds}

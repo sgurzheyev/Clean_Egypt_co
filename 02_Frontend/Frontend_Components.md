@@ -5,13 +5,14 @@ aliases: [Frontend Components, UI Map]
 
 # Frontend Components
 
-> ← [[🗺️ GARBAGIN Master Index]] · Architecture: [[01_Architecture/Architecture_Overview]] · Roadmap: [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · Wave I: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · RUSH: [[04_Roadmap_Tasks/Map_Rush_Mode]]
+> ← [[🗺️ GARBAGIN Master Index]] · Architecture: [[01_Architecture/Architecture_Overview]] · Roadmap: [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] · Wave D: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · Wave E: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · Wave F: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · Wave G: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · Wave H: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · Wave I: [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · RUSH: [[04_Roadmap_Tasks/Map_Rush_Mode]] · Vortex: [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] · Play payments: [[04_Roadmap_Tasks/Payments_Play_Policy]]
 
 ## Primary surfaces
 
 | Surface | Link |
 | --- | --- |
-| Map (create / bid / crowdfund / stores / Hungry-Games sub modal) | [[components/MapPicker.tsx]] · [[src/lib/mapInteractions.ts]] · [[components/MapFunModeControls.tsx]] · [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] |
+| Map (create / bid / crowdfund / stores / Hungry-Games sub modal) | [[components/MapPicker.tsx]] · [[src/lib/mapInteractions.ts]] · [[components/MapFunModeControls.tsx]] · [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] |
+| Garba-Vortex overlay | [[src/lib/garbaVortex.ts]] · [[src/hooks/useGarbaVortexOverlay.ts]] · [[api/garba-vortex-heatmap.ts]] · [[src/components/AdminVortexStormCard.tsx]] · [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] |
 | Store coverage map (lilac zone) | [[components/StoreCoverageMap.tsx]] |
 | Store pin preview | [[components/MapStorePreviewCard.tsx]] · `.map-store-preview-card` light frost (service zone stays visible through the sheet). Hero swipes all `contractor_stores.store_photos` (cover first); bio expands in-place. |
 | Portaled store profile | [[components/StoreProfileOverlay.tsx]] |
@@ -40,7 +41,7 @@ aliases: [Frontend Components, UI Map]
 | WebXR AR overlay | [[src/components/AROverlay.tsx]] |
 | Mission chat | [[src/components/chat/MissionChatPanel.tsx]] |
 | Admin + KYC queue | [[src/components/AdminDashboard.tsx]], [[src/components/KYCReviewDashboard.tsx]] |
-| Token / subscription modals | [[src/components/TokenPackModal.tsx]], [[src/components/SubscriptionModal.tsx]] |
+| Token / subscription modals | [[src/components/TokenPackModal.tsx]], [[src/components/SubscriptionModal.tsx]] · TWA detection [[src/lib/twaContext.ts]] · Play Billing (flag off) [[src/lib/playBilling.ts]] · [[04_Roadmap_Tasks/Payments_Play_Policy]] |
 
 ## Styling & theme
 

@@ -1,7 +1,7 @@
 /**
  * Donor escrow review: play R2 proof video.
- * Approve (first yes) closes the job. Reject sends work back to in_progress
- * so the locked cleaner can re-upload — not a terminal `failed`.
+ * Votes are weighted by donations. One no does not close the cleanup.
+ * Yes-weight over half of all donations releases the pot immediately.
  */
 import React, { useEffect, useState } from 'react';
 import { Check, Loader2, ShieldAlert, X } from 'lucide-react';
@@ -70,13 +70,21 @@ const DonorProofReview: React.FC<DonorProofReviewProps> = ({
     try {
       setVoting(isApproved ? 'approve' : 'reject');
       const result = await processProofVote({ missionId, isApproved });
+      const released = result.status === 'approved';
       toast?.success(
-        isApproved
-          ? t('escrowVoteRecorded', { defaultValue: 'Your vote has been recorded.' })
-          : t('escrowVoteRejectedRetry', {
-              defaultValue:
-                'Rejected. The cleaner can re-upload. The pot stays intact.',
+        released
+          ? t('escrowVoteReleased', {
+              defaultValue: 'Approved. Donated funds are released to the worker.',
             })
+          : isApproved
+            ? t('escrowVoteRecordedYes', {
+                defaultValue:
+                  'Your yes is recorded. Funds stay held until yes-votes cover more than half of all donations, or the 24-hour review ends with more yes weight than no.',
+              })
+            : t('escrowVoteRecordedNo', {
+                defaultValue:
+                  'Your no is recorded. One no does not close the cleanup. At the end of 24 hours the heavier side of the votes cast decides.',
+              })
       );
       onVoted?.(result.status);
     } catch (err: unknown) {
@@ -95,7 +103,7 @@ const DonorProofReview: React.FC<DonorProofReviewProps> = ({
       <p className="text-xs text-slate-300">
         {t('escrowDonorReviewHint', {
           defaultValue:
-            'Approve closes the job. Reject sends it back so the cleaner can re-upload — the pot is not refunded.',
+            'Your vote is weighted by what you donated. If yes-votes already cover more than half of every donation, the worker is paid now. Otherwise the review stays open for 24 hours, and the heavier side of the votes cast wins. A no majority lets the worker upload proof once more. No votes, a tie, or a second no closes the cleanup as not done.',
         })}
       </p>
 
@@ -155,7 +163,7 @@ const DonorProofReview: React.FC<DonorProofReviewProps> = ({
           ) : (
             <X className="h-4 w-4" aria-hidden />
           )}
-          {t('escrowRejectCta', { defaultValue: 'Reject — ask for a new video' })}
+          {t('escrowRejectCta', { defaultValue: 'Vote no' })}
         </button>
       </div>
     </div>

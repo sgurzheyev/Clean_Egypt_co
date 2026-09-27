@@ -46,6 +46,7 @@ import {
 } from '../src/lib/contractorStore';
 import {
   filterStoresForMap,
+  storeOffersSelectedServices,
   supplyLooksEco,
   type StoreMapFilterId,
 } from '../src/lib/storeMapFilter';
@@ -77,6 +78,11 @@ import {
   DEFAULT_MISSION_SORT,
   type MissionSortMode,
 } from '../src/lib/missionFilterSort';
+import {
+  filterMissionsByServiceTypes,
+  useMissionServiceFilter,
+} from '../src/lib/missionServiceFilter';
+import { freeGarbagePinExpired } from '../src/lib/freeGarbagePin';
 import MissionFilterPanel from './MissionFilterPanel';
 import { useIsPlatformAdmin } from '../src/lib/platformAdmin';
 import { adminDeleteMission } from '../src/lib/adminMission';
@@ -114,6 +120,17 @@ import {
   filterMissionsByMutedCreators,
 } from '../src/lib/mutedCreators';
 import { useMutedCreators } from '../src/hooks/useMutedCreators';
+import { useGarbaVortexOverlay } from '../src/hooks/useGarbaVortexOverlay';
+import {
+  blackHolePulseOpacity,
+  blackHolePulseRadius,
+  isDissolvedMissionPin,
+  lowestOverlayAnchor,
+  readVortexDemoCamera,
+  VORTEX_HEATMAP_COLOR,
+  vortexPinPaintOpacity,
+} from '../src/lib/garbaVortex';
+import CleanupSectorOffer from './CleanupSectorOffer';
 import { useListScrollMapPreview } from '../src/hooks/useListScrollMapPreview';
 import {
   getCrowdfundingCountdownParts,
@@ -210,6 +227,7 @@ import { useRealWeather } from '../src/hooks/useRealWeather';
 import WeatherOverlay from '../src/components/WeatherOverlay';
 import WeatherDebugPanel from '../src/components/WeatherDebugPanel';
 import { confirmContributionCheckout, startContributionCheckout } from '../src/lib/contributions';
+import { isTwaContext } from '../src/lib/twaContext';
 import { isEdgeFunctionUnreachable } from '../src/lib/supabaseFunctionError';
 import { closestMarketplaceCity } from '../src/lib/egyptMarketplace';
 import {
@@ -457,6 +475,7 @@ interface JobOnMap {
     is_verified?: boolean | null;
   } | null;
   recurrence_type?: RecurrenceType | string | null;
+  token_donation_pool?: number | null;
 }
 
 /** Same filter as mission markers — heatmap aligns with visible pins. */
@@ -466,6 +485,7 @@ function missionEligibleForMapPin(job: JobOnMap): boolean {
   const statusKey = String(job.status || '').toLowerCase();
   if (statusKey === 'hidden' || statusKey === 'archived') return false;
   if (statusKey === 'expired') return isPublicGarbageHistory(job);
+  if ((job.status === 'reported' || job.is_report) && freeGarbagePinExpired(job)) return false;
   if (job.status === 'reported' || job.is_report) return true;
   if (job.status === 'pending') return true;
   if (job.status === 'available') return true;
@@ -1567,6 +1587,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const orderFormRef = React.useRef<HTMLFormElement>(null);
   const jobsRef = React.useRef<JobOnMap[]>([]);
   const selectedMissionTagsRef = React.useRef<string[]>([]);
+  const selectedServiceTypesRef = React.useRef<string[]>([]);
   const marketCountryIdsRef = React.useRef<string[]>([]);
   const marketCityIdRef = React.useRef<string>(MARKETPLACE_ALL_CITIES_ID);
   const showFreeReportsRef = React.useRef(true);
@@ -1642,12 +1663,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
     void resolveBootMapLocation().then((origin) => {
       if (cancelled) return;
       const fromGps = origin.fromGps;
+      const demoCam = readVortexDemoCamera();
       const nextView = {
-        latitude: origin.lat,
-        longitude: origin.lng,
-        zoom: fromGps ? MAP_BOOT_GPS_VIEW.zoom : MAP_INITIAL_VIEW.zoom,
-        pitch: fromGps ? MAP_BOOT_GPS_VIEW.pitch : MAP_INITIAL_VIEW.pitch,
-        bearing: fromGps ? MAP_BOOT_GPS_VIEW.bearing : MAP_INITIAL_VIEW.bearing,
+        latitude: demoCam?.latitude ?? origin.lat,
+        longitude: demoCam?.longitude ?? origin.lng,
+        zoom: demoCam?.zoom ?? (fromGps ? MAP_BOOT_GPS_VIEW.zoom : MAP_INITIAL_VIEW.zoom),
+        pitch: demoCam ? 20 : fromGps ? MAP_BOOT_GPS_VIEW.pitch : MAP_INITIAL_VIEW.pitch,
+        bearing: demoCam ? 0 : fromGps ? MAP_BOOT_GPS_VIEW.bearing : MAP_INITIAL_VIEW.bearing,
       };
       setViewState(nextView);
       setWeatherFetchCenter({ lat: origin.lat, lng: origin.lng });
@@ -1957,6 +1979,15 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [marketCountryIds, setMarketCountryIds] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_CITIES_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
+  const { selectedServiceTypes, toggleServiceType, clearServiceTypes } = useMissionServiceFilter();
+  const vortexOverlay = useGarbaVortexOverlay({
+    mapReady,
+    cameraBusy: mapCameraBusy,
+    latitude: viewState.latitude,
+    longitude: viewState.longitude,
+    zoom: viewState.zoom,
+    includeReports: showFreeReports,
+  });
   const { mutedIds, muteCreator } = useMutedCreators();
   const toggleMissionTag = useCallback((tag: string) => {
     setSelectedMissionTags((prev) =>
@@ -1972,6 +2003,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
   useEffect(() => {
     selectedMissionTagsRef.current = selectedMissionTags;
   }, [selectedMissionTags]);
+  useEffect(() => {
+    selectedServiceTypesRef.current = selectedServiceTypes;
+  }, [selectedServiceTypes]);
   useEffect(() => {
     marketCountryIdsRef.current = marketCountryIds;
   }, [marketCountryIds]);
@@ -1991,6 +2025,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
   const [reportPin, setReportPin] = useState<{ lat: number; lng: number } | null>(null);
   /** True when the lightweight report form sheet is open over the pin. */
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
+  const [sectorOfferId, setSectorOfferId] = useState<string | null>(null);
+  const [vortexBeforeId, setVortexBeforeId] = useState<string | undefined>();
   const reportPinRef = React.useRef<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
     reportPinRef.current = reportPin;
@@ -2127,8 +2163,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
   const filteredStores = useMemo(
     () =>
-      filterStoresForMap(publishedStores, selectedStoreFilter, { ecoStoreIds }),
-    [publishedStores, selectedStoreFilter, ecoStoreIds]
+      filterStoresForMap(publishedStores, selectedStoreFilter, { ecoStoreIds }).filter((store) =>
+        storeOffersSelectedServices(store, selectedServiceTypes)
+      ),
+    [publishedStores, selectedStoreFilter, ecoStoreIds, selectedServiceTypes]
   );
 
   // Drop selection when the active chip filters the store out.
@@ -3068,7 +3106,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
       const visibleJobs = filterMissionsByMutedCreators(
         filterMissionsByFreeReports(
           filterMissionsByCountriesCity(
-            filterMissionsByTags(jobsRef.current || [], selectedMissionTagsRef.current),
+            filterMissionsByServiceTypes(
+              filterMissionsByTags(jobsRef.current || [], selectedMissionTagsRef.current),
+              selectedServiceTypesRef.current
+            ),
             marketCountryIdsRef.current,
             marketCityIdRef.current,
             locationCatalogRef.current
@@ -3310,6 +3351,36 @@ const MapPicker: React.FC<MapPickerProps> = ({
           handleMarkerClick(job);
           return;
         }
+
+        if (map && point && vortexOverlay.ready && map.getLayer?.('vortex-sector-fill')) {
+          try {
+            const pad = 8;
+            const bbox: [mapboxgl.PointLike, mapboxgl.PointLike] = [
+              [point.x - pad, point.y - pad],
+              [point.x + pad, point.y + pad],
+            ];
+            const sectorHits = map.queryRenderedFeatures(bbox, {
+              layers: ['vortex-sector-fill'],
+            });
+            const missionId = sectorHits[0]?.properties?.mission_id;
+            const sectorId = sectorHits[0]?.properties?.sector_id;
+            if (missionId) {
+              const sectorJob = (jobsRef.current || []).find(
+                (j) => String(j.id) === String(missionId)
+              );
+              if (sectorJob) {
+                handleMarkerClick(sectorJob);
+                return;
+              }
+            }
+            if (sectorId) {
+              setSectorOfferId(String(sectorId));
+              return;
+            }
+          } catch {
+            /* sector layer may be absent */
+          }
+        }
       }
 
       // 2. Map tap — draft pin first; move pin while creation form is open
@@ -3374,8 +3445,82 @@ const MapPicker: React.FC<MapPickerProps> = ({
       taskTypeSelected,
       toast,
       trafficEnabled,
+      vortexOverlay.ready,
     ]
   );
+
+  useEffect(() => {
+    if (!mapReady) return;
+    const map = mapRef.current?.getMap?.() ?? mapInstanceRef.current;
+    if (!map?.getStyle) return;
+    const anchors = [
+      'mission-pins-clusters',
+      'mission-pins-glow',
+      'mission-pins-core',
+      'mission-pins-icon',
+      'mission-pins-crowd-label',
+      LIVE_FLIGHTS_TRAIL_GLOW_LAYER_ID,
+      LIVE_FLIGHTS_TRAIL_LAYER_ID,
+      LIVE_FLIGHTS_GLOW_LAYER_ID,
+      LIVE_FLIGHTS_CORE_LAYER_ID,
+      LIVE_FLIGHTS_ICON_LAYER_ID,
+      LIVE_SHIPS_TRAIL_GLOW_LAYER_ID,
+      LIVE_SHIPS_TRAIL_LAYER_ID,
+      LIVE_SHIPS_GLOW_LAYER_ID,
+      LIVE_SHIPS_CORE_LAYER_ID,
+      LIVE_SHIPS_ICON_LAYER_ID,
+    ];
+    const sync = () => {
+      try {
+        const ids = (map.getStyle()?.layers || []).map((layer) => layer.id);
+        const next = lowestOverlayAnchor(ids, anchors);
+        setVortexBeforeId((prev) => (prev === next ? prev : next));
+      } catch {
+        /* style not ready */
+      }
+    };
+    sync();
+    map.on?.('idle', sync);
+    return () => {
+      map.off?.('idle', sync);
+    };
+  }, [mapReady]);
+
+  useEffect(() => {
+    if (vortexOverlay.blackHoleMode !== 'pulse' || !vortexOverlay.ready) return;
+    if (vortexOverlay.heatmapOpacity <= 0) return;
+    if (vortexOverlay.blackHoles.features.length === 0) return;
+    let raf = 0;
+    let last = 0;
+    const tick = (now: number) => {
+      raf = requestAnimationFrame(tick);
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (cameraBusyRef.current) return;
+      if (now - last < 220) return;
+      last = now;
+      const map = mapRef.current?.getMap?.() ?? mapInstanceRef.current;
+      if (!map?.getLayer?.('vortex-bh-ring') || !map.setFeatureState) return;
+      const phase = (Math.sin(now / 520) + 1) / 2;
+      for (const feature of vortexOverlay.blackHoles.features) {
+        if (feature.id == null) continue;
+        try {
+          map.setFeatureState(
+            { source: 'vortex-black-holes', id: feature.id },
+            { pulse: phase }
+          );
+        } catch {
+          /* style swap */
+        }
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [
+    vortexOverlay.blackHoleMode,
+    vortexOverlay.ready,
+    vortexOverlay.heatmapOpacity,
+    vortexOverlay.blackHoles,
+  ]);
 
   const handleMapMouseMove = useCallback(
     (event: any) => {
@@ -3842,6 +3987,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const handleBriefingContribute = useCallback(
     async (amountUsd: number, extras?: { targetUsd?: number }) => {
       if (!selectedMission || briefingActionLockRef.current) return;
+      if (isTwaContext()) {
+        toast.error(
+          t('playPurchasesComingSoon', {
+            defaultValue: 'Purchases coming soon in the Android app.',
+          })
+        );
+        return;
+      }
       const wakeFromReport = isReportFirstDonateOpen(selectedMission);
       const target = resolveCampaignTargetUsd(selectedMission, extras?.targetUsd);
       const funded = Math.floor(Number(selectedMission.current_funding ?? 0));
@@ -4514,7 +4667,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
     const features = filterMissionsByMutedCreators(
       filterMissionsByFreeReports(
         filterMissionsByCountriesCity(
-          filterMissionsByTags(jobs || [], selectedMissionTags),
+          filterMissionsByServiceTypes(
+            filterMissionsByTags(jobs || [], selectedMissionTags),
+            selectedServiceTypes
+          ),
           marketCountryIds,
           marketCityId,
           locationCatalog
@@ -4528,6 +4684,16 @@ const MapPicker: React.FC<MapPickerProps> = ({
         const lat = Number(j.location_lat);
         const lng = Number(j.location_lng);
         return Number.isFinite(lat) && Number.isFinite(lng);
+      })
+      .filter((j) => {
+        if (!vortexOverlay.ready) return true;
+        return !isDissolvedMissionPin(
+          String(j.id),
+          Number(j.location_lng),
+          Number(j.location_lat),
+          vortexOverlay.sectors,
+          isGarbageZoneReport(j)
+        );
       })
       .map((j) => ({
         type: 'Feature' as const,
@@ -4556,13 +4722,18 @@ const MapPicker: React.FC<MapPickerProps> = ({
   }, [
     jobs,
     selectedMissionTags,
+    selectedServiceTypes,
     marketCountryIds,
     marketCityId,
     locationCatalog,
     showFreeReports,
     mutedIds,
     serviceTypeForMission,
+    vortexOverlay.ready,
+    vortexOverlay.sectors,
   ]);
+
+  const vortexPinFade = vortexOverlay.ready ? vortexOverlay.pinFade : 1;
 
   /** Hold pin FeatureCollection steady during flyTo so Source doesn't rebuild mid-animation. */
   const idleMissionPinsRef = React.useRef(missionPinsGeoJSON);
@@ -5310,6 +5481,148 @@ const MapPicker: React.FC<MapPickerProps> = ({
           />
         </Source>
 
+        {/* Garba-Vortex: macro heatmap fades out across zoom 11–12; pins fade in. */}
+        {vortexOverlay.ready && (
+          <>
+            <Source id="vortex-heatmap" type="geojson" data={vortexOverlay.heatmap}>
+              <Layer
+                id="vortex-heatmap"
+                type="heatmap"
+                beforeId={vortexBeforeId}
+                maxzoom={13}
+                paint={{
+                  'heatmap-weight': ['interpolate', ['linear'], ['get', 'weight'], 0, 0, 12, 1],
+                  'heatmap-intensity': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    0,
+                    0.55,
+                    5,
+                    0.85,
+                    11,
+                    1.15,
+                  ],
+                  'heatmap-radius': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    0,
+                    6,
+                    4,
+                    16,
+                    8,
+                    28,
+                    11,
+                    40,
+                  ],
+                  'heatmap-opacity': mapMarkerLayerSuppressed
+                    ? vortexOverlay.heatmapOpacity * 0.2
+                    : vortexOverlay.heatmapOpacity,
+                  'heatmap-color': VORTEX_HEATMAP_COLOR as never,
+                }}
+              />
+            </Source>
+            {vortexOverlay.blackHoleMode !== 'off' && (
+              <Source id="vortex-black-holes" type="geojson" data={vortexOverlay.blackHoles}>
+                <Layer
+                  id="vortex-bh-halo"
+                  type="circle"
+                  beforeId={vortexBeforeId}
+                  maxzoom={12.2}
+                  paint={{
+                    'circle-radius':
+                      vortexOverlay.blackHoleMode === 'pulse'
+                        ? (blackHolePulseRadius() as never)
+                        : ([
+                            'interpolate',
+                            ['linear'],
+                            ['get', 'severity'],
+                            1,
+                            22,
+                            100,
+                            48,
+                          ] as never),
+                    'circle-color': '#1a0033',
+                    'circle-blur': 0.85,
+                    'circle-opacity':
+                      vortexOverlay.blackHoleMode === 'pulse'
+                        ? (blackHolePulseOpacity(vortexOverlay.heatmapOpacity * 0.55) as never)
+                        : vortexOverlay.heatmapOpacity * 0.55,
+                  }}
+                />
+                <Layer
+                  id="vortex-bh-ring"
+                  type="circle"
+                  beforeId={vortexBeforeId}
+                  maxzoom={12.2}
+                  paint={{
+                    'circle-radius':
+                      vortexOverlay.blackHoleMode === 'pulse'
+                        ? (blackHolePulseRadius() as never)
+                        : 22,
+                    'circle-color': '#ff0055',
+                    'circle-blur': 0.35,
+                    'circle-opacity':
+                      vortexOverlay.blackHoleMode === 'pulse'
+                        ? (blackHolePulseOpacity(vortexOverlay.heatmapOpacity * 0.7) as never)
+                        : vortexOverlay.heatmapOpacity * 0.7,
+                    'circle-stroke-width': 2,
+                    'circle-stroke-color': '#ff0055',
+                    'circle-stroke-opacity': vortexOverlay.heatmapOpacity,
+                  }}
+                />
+                <Layer
+                  id="vortex-bh-core"
+                  type="circle"
+                  beforeId={vortexBeforeId}
+                  maxzoom={12.2}
+                  paint={{
+                    'circle-radius': 5,
+                    'circle-color': '#ff0055',
+                    'circle-blur': 0.2,
+                    'circle-opacity': vortexOverlay.heatmapOpacity,
+                  }}
+                />
+              </Source>
+            )}
+            <Source id="vortex-sectors" type="geojson" data={vortexOverlay.sectorGeoJSON}>
+              <Layer
+                id="vortex-sector-fill"
+                type="fill"
+                beforeId={vortexBeforeId}
+                maxzoom={12}
+                paint={{
+                  'fill-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'severity_sum'],
+                    0,
+                    '#1a0033',
+                    15,
+                    '#6d28d9',
+                    40,
+                    '#ff0055',
+                  ],
+                  'fill-opacity': mapMarkerLayerSuppressed
+                    ? vortexOverlay.sectorOpacity * 0.35
+                    : vortexOverlay.sectorOpacity,
+                }}
+              />
+              <Layer
+                id="vortex-sector-line"
+                type="line"
+                beforeId={vortexBeforeId}
+                paint={{
+                  'line-color': '#ff0055',
+                  'line-width': 2,
+                  'line-opacity': Math.min(1, vortexOverlay.sectorOpacity + 0.25),
+                }}
+              />
+            </Source>
+          </>
+        )}
+
         {/* Main mission pins — colors driven by service_type GeoJSON property */}
         <Source
           id="mission-pins"
@@ -5317,37 +5630,42 @@ const MapPicker: React.FC<MapPickerProps> = ({
           data={missionPinsForMap}
           promoteId="mission_id"
           cluster
-          clusterMaxZoom={12}
-          clusterRadius={52}
+          clusterMaxZoom={14}
+          clusterRadius={64}
+          clusterProperties={{
+            paid_count: ['+', ['case', ['==', ['get', 'is_report'], 1], 0, 1]],
+          }}
         >
           {/* Spatial clusters at city zoom — expands to individual pins past z12. */}
           <Layer
             id="mission-pins-clusters"
             type="circle"
             filter={['has', 'point_count']}
-            maxzoom={13}
+            maxzoom={15}
             paint={{
               'circle-color': '#22d3ee',
               'circle-radius': [
                 'step',
                 ['get', 'point_count'],
-                16,
-                8,
-                20,
-                25,
+                18,
+                5,
                 26,
+                12,
+                36,
+                30,
+                48,
               ],
-              'circle-opacity': mapMarkerLayerSuppressed ? 0 : 0.75,
+              'circle-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0 : 0.75, vortexPinFade) as never,
               'circle-stroke-width': 2,
               'circle-stroke-color': '#ecfeff',
-              'circle-stroke-opacity': mapMarkerLayerSuppressed ? 0 : 0.9,
+              'circle-stroke-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0 : 0.9, vortexPinFade) as never,
             }}
           />
           <Layer
             id="mission-pins-cluster-count"
             type="symbol"
             filter={['has', 'point_count']}
-            maxzoom={13}
+            maxzoom={15}
             layout={{
               'text-field': ['get', 'point_count_abbreviated'],
               'text-size': 12,
@@ -5356,7 +5674,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
             }}
             paint={{
               'text-color': '#020617',
-              'text-opacity': mapMarkerLayerSuppressed ? 0 : 1,
+              'text-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0 : 1, vortexPinFade) as never,
             }}
           />
           <Layer
@@ -5369,7 +5687,10 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 : MISSION_PIN_GLOW_RADIUS,
               'circle-color': MISSION_PIN_CORE_COLOR,
               'circle-blur': mapCameraBusy ? 0.35 : funMapMode ? 1.05 : 0.85,
-              'circle-opacity': mapMarkerLayerSuppressed ? 0 : funMapMode ? 0.5 : 0.35,
+              'circle-opacity': vortexPinPaintOpacity(
+                mapMarkerLayerSuppressed ? 0 : funMapMode ? 0.5 : 0.35,
+                vortexPinFade
+              ) as never,
             }}
           />
           <Layer
@@ -5381,8 +5702,8 @@ const MapPicker: React.FC<MapPickerProps> = ({
               'circle-color': MISSION_PIN_CORE_COLOR,
               'circle-stroke-width': MISSION_PIN_HOVER_STROKE_WIDTH,
               'circle-stroke-color': '#ffffff',
-              'circle-opacity': mapMarkerLayerSuppressed ? 0.08 : 0.92,
-              'circle-stroke-opacity': mapMarkerLayerSuppressed ? 0.08 : 0.95,
+              'circle-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0.08 : 0.92, vortexPinFade) as never,
+              'circle-stroke-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0.08 : 0.95, vortexPinFade) as never,
             }}
           />
           <Layer
@@ -5397,7 +5718,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               'icon-anchor': 'center',
             }}
             paint={{
-              'icon-opacity': mapMarkerLayerSuppressed ? 0 : 1,
+              'icon-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0 : 1, vortexPinFade) as never,
             }}
           />
           <Layer
@@ -5427,7 +5748,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               'text-color': '#f5f3ff',
               'text-halo-color': '#6d28d9',
               'text-halo-width': 1.25,
-              'text-opacity': mapMarkerLayerSuppressed ? 0 : 1,
+              'text-opacity': vortexPinPaintOpacity(mapMarkerLayerSuppressed ? 0 : 1, vortexPinFade) as never,
             }}
           />
         </Source>
@@ -5899,11 +6220,17 @@ const MapPicker: React.FC<MapPickerProps> = ({
               {t('subscriptionGateTitle')}
             </p>
             <p className="mt-3 text-sm leading-relaxed text-slate-300">
-              {t('subscriptionGateBody')}
+              {isTwaContext()
+                ? t('playPurchasesComingSoon', {
+                    defaultValue: 'Purchases coming soon in the Android app.',
+                  })
+                : t('subscriptionGateBody')}
             </p>
+            {!isTwaContext() ? (
             <p className="mt-4 text-3xl font-black text-white">
               {t('subscriptionGatePerYear', { price: formatUsdPrice(YEARLY_SUBSCRIPTION.usd) })}
             </p>
+            ) : null}
             <ul className="mt-4 space-y-2 text-xs text-slate-300">
               <li className="flex items-start gap-2">
                 <span className="text-cyan-400 shrink-0">✓</span>
@@ -5922,6 +6249,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               >
                 {t('close')}
               </button>
+              {!isTwaContext() ? (
               <button
                 type="button"
                 onClick={() => {
@@ -5932,6 +6260,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
               >
                 {t('saasPaySubscription')}
               </button>
+              ) : null}
             </div>
           </div>
         </div>
@@ -6084,6 +6413,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
           selectedTags={selectedMissionTags}
           onToggleTag={toggleMissionTag}
           onClearTags={clearMissionTags}
+          selectedServiceTypes={selectedServiceTypes}
+          onToggleServiceType={toggleServiceType}
+          onClearServiceTypes={clearServiceTypes}
           resultCount={missionPinsGeoJSON.features.length}
           countryIds={marketCountryIds}
           onCountryIdsChange={setMarketCountryIds}
@@ -6231,8 +6563,9 @@ const MapPicker: React.FC<MapPickerProps> = ({
                 created.videoProofUrl
               );
 
-              // Only inject when coordinates are valid — otherwise wait for refetch.
+              // A bump keeps the existing pin. Don't paint a second dot at the draft point.
               if (
+                created.vortexAction !== 'bumped' &&
                 Number.isFinite(optimistic.location_lat) &&
                 Number.isFinite(optimistic.location_lng)
               ) {
@@ -6252,9 +6585,13 @@ const MapPicker: React.FC<MapPickerProps> = ({
               }
 
               toast.success(
-                t('reportZoneCreated', {
-                  defaultValue: 'Garbage zone reported — thank you!',
-                })
+                created.vortexAction === 'bumped'
+                  ? t('vortexPinBumped', {
+                      defaultValue: 'A recent report is already here — its intensity went up.',
+                    })
+                  : t('reportZoneCreated', {
+                      defaultValue: 'Garbage zone reported — thank you!',
+                    })
               );
 
               await fetchMissions();
@@ -6643,6 +6980,33 @@ const MapPicker: React.FC<MapPickerProps> = ({
           }
           contributeSubmitting={briefingBidSubmitting}
           onContribute={handleBriefingContribute}
+          onTokenDonated={(patch) => {
+            setSelectedMission((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    crowdfunding_expires_at: patch.crowdfunding_expires_at,
+                    token_donation_pool: patch.token_donation_pool,
+                  }
+                : prev
+            );
+            setJobs((prev) =>
+              prev.map((job) =>
+                job.id === selectedMission.id
+                  ? {
+                      ...job,
+                      crowdfunding_expires_at: patch.crowdfunding_expires_at,
+                      token_donation_pool: patch.token_donation_pool,
+                    }
+                  : job
+              )
+            );
+            if (Number.isFinite(patch.token_balance)) {
+              setViewerProfile((profile) =>
+                profile ? { ...profile, token_balance: patch.token_balance } : profile
+              );
+            }
+          }}
           assignedWorker={assignedWorker}
           gpsDistanceMeters={gpsDistanceMeters}
           gpsDistanceError={gpsDistanceError}
@@ -6858,6 +7222,23 @@ const MapPicker: React.FC<MapPickerProps> = ({
         }}
         toast={toast}
       />
+
+      {sectorOfferId ? (
+        <CleanupSectorOffer
+          sectorId={sectorOfferId}
+          signedIn={!!currentUserId}
+          t={(key, options) => String(t(key, options))}
+          onClose={() => setSectorOfferId(null)}
+          onOpened={(missionId) => {
+            setSectorOfferId(null);
+            toast.success(
+              t('vortexSectorOfferOpened', { defaultValue: 'Cleanup order opened.' })
+            );
+            void fetchMissions();
+            void openMissionById(missionId);
+          }}
+        />
+      ) : null}
 
       {splashMounted && (
         <MapBootSplash

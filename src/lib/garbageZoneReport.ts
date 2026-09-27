@@ -1,5 +1,7 @@
 import { supabase } from '../../services/supabase';
 import { CITY_MIN_PRICE } from '../../constants';
+import { classifyVortexPinError } from './garbaVortex';
+import { placeFreeVortexPin, previewFreeVortexPin } from './garbaVortexApi';
 import {
   filterMissionDescription,
   validateMissionDescription,
@@ -21,7 +23,15 @@ export type CreatedGarbageZoneReport = {
   description: string;
   photoUrls: string[];
   videoProofUrl: string | null;
+  /** `bumped` means a nearby free pin absorbed this report (no new row). */
+  vortexAction?: 'created' | 'bumped';
 };
+
+export function vortexPinErrorCode(error: unknown): ReturnType<typeof classifyVortexPinError> {
+  const row = error as { message?: string; details?: string; code?: string } | null;
+  const text = [row?.message, row?.details, row?.code].filter(Boolean).join(' ');
+  return classifyVortexPinError(text);
+}
 
 export function isGarbageZoneReport(mission: {
   is_report?: boolean | null;
@@ -94,6 +104,15 @@ export async function createGarbageZoneReport(input: {
     throw new Error('At least one photo is required');
   }
 
+  const country = String(input.country ?? '').trim() || null;
+  const city = String(input.city ?? '').trim() || null;
+
+  // Reject daily-cap / closed-sector drops before uploading media.
+  const preview = await previewFreeVortexPin(input.lat, input.lng);
+  if (!preview.unavailable && !preview.ok) {
+    throw new Error(preview.code || 'free pin rejected');
+  }
+
   const photoUrls: string[] = [];
   for (const file of files) {
     photoUrls.push(await uploadReportPhoto(file));
@@ -102,11 +121,38 @@ export async function createGarbageZoneReport(input: {
     throw new Error('At least one photo is required');
   }
 
-  const country = String(input.country ?? '').trim() || null;
-  const city = String(input.city ?? '').trim() || null;
   let videoProofUrl: string | null = null;
   if (input.videoFile) {
     videoProofUrl = await uploadPinVideoProofToR2(input.videoFile, 'reports');
+  }
+
+  if (!preview.unavailable) {
+    const placed = await placeFreeVortexPin({
+      lat: input.lat,
+      lng: input.lng,
+      description: body,
+      photoUrls,
+      serviceType,
+      country,
+      city,
+      videoProofUrl,
+    });
+    if (!placed.ok || !placed.id) {
+      if (placed.unavailable) {
+        // RPC disappeared between preview and commit — fall through.
+      } else {
+        throw new Error(placed.code || 'free pin rejected');
+      }
+    } else {
+      const bumped = placed.action === 'bump' || placed.action === 'bumped';
+      return {
+        id: placed.id,
+        description: body,
+        photoUrls,
+        videoProofUrl,
+        vortexAction: bumped ? 'bumped' : 'created',
+      };
+    }
   }
 
   const { data, error } = await supabase.rpc('create_garbage_zone_report', {
@@ -128,6 +174,7 @@ export async function createGarbageZoneReport(input: {
     description: body,
     photoUrls,
     videoProofUrl,
+    vortexAction: 'created',
   };
 }
 

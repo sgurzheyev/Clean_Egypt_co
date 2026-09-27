@@ -23,6 +23,8 @@ Every major note below links back here. Source paths are wiki-linked so they app
 | Roadmap | [[04_Roadmap_Tasks/Roadmap_to_GooglePlay]] |
 | Lifecycle audit / Wave A–I | [[docs/GARBAGIN_LIFECYCLE_AUDIT]] · [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_C]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_D]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_E]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_F]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_G]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_H]] · [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_I]] · [[04_Roadmap_Tasks/Admin_P0_Hardening]] · [[04_Roadmap_Tasks/Admin_P1_Upgrade]] · [[04_Roadmap_Tasks/Field_Test_Token_Reset]] · [[04_Roadmap_Tasks/Legacy_Dispute_RPC_Closed]] · [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] · [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] |
 | Map RUSH | [[04_Roadmap_Tasks/Map_Rush_Mode]] · [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] |
+| Garba-Vortex | [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] |
+| Play payments | [[04_Roadmap_Tasks/Payments_Play_Policy]] |
 | Archive | [[05_Archive/Garbagin_Roadmap_Update]] |
 | Field dashboard | [[04_Roadmap_Tasks/00_Dashboard]] |
 
@@ -55,6 +57,8 @@ Every major note below links back here. Source paths are wiki-linked so they app
 - [[04_Roadmap_Tasks/Legacy_Dispute_RPC_Closed]] — dropped the unauthenticated legacy `resolve_mission_dispute(uuid, boolean, text)` that moved balances (applied to prod 2026-09-27)
 - [[04_Roadmap_Tasks/Map_Rush_Mode]] — RUSH live planes/ships + H2H night land
 - [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] — idle RUSH chip matches collapsed WX
+- [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] — zoom heatmap, free-pin anti-spam, cleanup sectors, storm mode
+- [[04_Roadmap_Tasks/Payments_Play_Policy]] — TWA hides Stripe digital goods; Play Billing stub stays off
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `supabase migration repair` for `20260912_*` / `20260917_*`
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games SQL + Edge apply order · Wave I Vercel JWT (no SQL)
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — read-only lifecycle scorecard (PR #2)

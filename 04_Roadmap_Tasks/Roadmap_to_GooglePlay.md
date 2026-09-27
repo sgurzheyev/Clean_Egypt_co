@@ -34,6 +34,8 @@ tags: [garbagin, roadmap, google-play, crowdfunding, tokens, ar, p2p]
 - E2E audit (SEC-4 shipped Wave I) → [[docs/GARBAGIN_E2E_AUDIT_2026-09-15]]
 - Apply runbook (P0→H + Hungry-Games; Wave I Vercel JWT) → [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]
 - CLI history repair → [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]
+- Garba-Vortex heatmap → [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]]
+- Play payments policy (TWA, Stripe digital goods hidden, Play Billing off) → [[04_Roadmap_Tasks/Payments_Play_Policy]]
 - P2P deals → [[01_Architecture/P2P_Deal_Flow]]
 - Security & RPCs → [[01_Architecture/Security_and_RPCs]]
 - KYC → [[01_Architecture/KYC_Verification]]
@@ -260,7 +262,7 @@ funding ──(target met, no cleaner)──► available ──(accept bid)─�
 - [ ] Screenshots: map, crowdfunding contribute, Hungry-Games bid, AR proof
 
 ### Android packaging
-- [ ] Capacitor / TWA / React Native shell decision documented (recommend **Capacitor** over map+WebXR stack unless native rewrite planned)
+- [x] Android shell is the Bubblewrap TWA of www.garbagin.com, package `com.garbagin.app`. Digital goods inside it follow [[04_Roadmap_Tasks/Payments_Play_Policy]] (Stripe hidden; Play Billing prepared and off).
 - [ ] Generate **Android App Bundle (`.aab`)**
 - [ ] Permissions declared & justified:
 	- [ ] **Location** (precise) — mission pins, geolocate, proof GPS

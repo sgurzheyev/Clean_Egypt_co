@@ -8,6 +8,7 @@
 - [[01_Architecture/Security_and_RPCs]] — `submit_mission_proof`, USD-only, locked crowdfunding RPCs
 - [[01_Architecture/P2P_Deal_Flow]] — direct payment deal lifecycle + disputes
 - [[01_Architecture/Stripe_USD_Flow]] — Checkout contribute, tokens, crowdfunding expiry
+- [[04_Roadmap_Tasks/Payments_Play_Policy]] — Android TWA: no Stripe digital goods; Play Billing flag off
 - [[04_Roadmap_Tasks/Garbage_History_Lifecycle]] — free pin → rolling crowdfund → Gov Notice / n8n → 7-day history → R2 archive
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_A]] — overfund auto-refund + reporter-only unpaid convert
 - [[04_Roadmap_Tasks/Lifecycle_Fix_Wave_B]] — donor-reject retry + no silent crowd abandon + P2P confirm RPC
@@ -25,6 +26,7 @@
 - [[04_Roadmap_Tasks/Legacy_Dispute_RPC_Closed]] — security: dropped legacy `resolve_mission_dispute(uuid, boolean, text)` (no auth, anon could move balances) · **applied to prod 2026-09-27**
 - [[04_Roadmap_Tasks/Map_Rush_Mode]] — RUSH live planes/ships + H2H night land
 - [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]] — idle RUSH chip matches collapsed WX
+- [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]] — macro heatmap, 200 m bump, cleanup sectors, storm mode
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]] — `migration repair` for `20260912_*` / `20260917_*` (no `db push`)
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]] — P0→H + Hungry-Games SQL + Edge apply order · Wave I Vercel JWT (no SQL)
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]] — canon vs code scorecard (Waves A–I)
@@ -51,6 +53,8 @@
 - [[04_Roadmap_Tasks/Legacy_Dispute_RPC_Closed]]: legacy unauthenticated dispute RPC dropped
 - [[04_Roadmap_Tasks/Map_Rush_Mode]]: RUSH live planes/ships + H2H night land
 - [[04_Roadmap_Tasks/Map_Rush_Idle_Chip]]: idle RUSH matches the WX chip; color and craft count only while ships/planes are on
+- [[04_Roadmap_Tasks/Garba_Vortex_Heatmap]]: zoom 0–11 heatmap, free-pin cap, cleanup squares, storm snapshot
+- [[04_Roadmap_Tasks/Payments_Play_Policy]]: Bubblewrap TWA hides token packs, the $9.99 subscription, and token-bonus Stripe donations. Crowdfund donations release on a weighted donor vote (one no is not final).
 - [[04_Roadmap_Tasks/Ops_Migration_History_Repair]]: `supabase migration repair --status applied 20260912` / `20260917`
 - [[docs/LIFECYCLE_FIX_APPLY_RUNBOOK]]: P0→H + Hungry-Games paste order (live already applied)
 - [[docs/GARBAGIN_LIFECYCLE_AUDIT]]: аудит стейт-машины

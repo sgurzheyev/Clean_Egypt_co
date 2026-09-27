@@ -5,8 +5,10 @@ import App from './App';
 import './index.css';
 import './src/i18n';
 import { installVisualViewportSync } from './src/lib/visualViewport';
+import { captureTwaContext } from './src/lib/twaContext';
 
 installVisualViewportSync();
+captureTwaContext();
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
 root.render(

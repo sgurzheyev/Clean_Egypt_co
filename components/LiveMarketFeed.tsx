@@ -31,6 +31,8 @@ import {
   sortMissions,
   type MissionSortMode,
 } from '../src/lib/missionFilterSort';
+import { filterMissionsByServiceTypes, useMissionServiceFilter } from '../src/lib/missionServiceFilter';
+import { freeGarbagePinExpired } from '../src/lib/freeGarbagePin';
 import MissionFeedCard from './MissionFeedCard';
 import MissionFilterPanel from './MissionFilterPanel';
 import ImmersiveMissionFeed from './ImmersiveMissionFeed';
@@ -176,6 +178,7 @@ function isPublicMarketMission(mission: LiveMarketMission): boolean {
   if (!ACTIVE_MARKET_STATUSES.includes(status)) return false;
   if (status === 'hidden' || status === 'archived') return false;
   if (status === 'expired') return isPublicGarbageHistory(mission);
+  if ((status === 'reported' || mission.is_report) && freeGarbagePinExpired(mission)) return false;
   if (status === 'reported' || mission.is_report) return true;
   if (status === 'funding') return true;
   if (status === 'in_progress') return true;
@@ -258,6 +261,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   const [marketCountryIds, setMarketCountryIds] = useState<string[]>([]);
   const [marketCityId, setMarketCityId] = useState<string>(MARKETPLACE_ALL_CITIES_ID);
   const [showFreeReports, setShowFreeReports] = useState(() => readShowFreeReports());
+  const { selectedServiceTypes, toggleServiceType, clearServiceTypes } = useMissionServiceFilter();
   // Immersive Visual Feed: id of the mission whose photo was tapped (null = closed).
   const [immersiveStartId, setImmersiveStartId] = useState<string | null>(null);
   const marketScrollerRef = useRef<HTMLElement | null>(null);
@@ -313,7 +317,10 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
         filterMissionsByMutedCreators(
           filterMissionsByFreeReports(
             filterMissionsByCountriesCity(
-              filterMissionsByTags(source, selectedTags),
+              filterMissionsByServiceTypes(
+                filterMissionsByTags(source, selectedTags),
+                selectedServiceTypes
+              ),
               marketCountryIds,
               marketCityId,
               locationCatalog
@@ -331,6 +338,7 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
   }, [
     missions,
     selectedTags,
+    selectedServiceTypes,
     marketCountryIds,
     marketCityId,
     locationCatalog,
@@ -523,6 +531,9 @@ const LiveMarketFeed: React.FC<LiveMarketFeedProps> = ({
                   selectedTags={selectedTags}
                   onToggleTag={toggleTag}
                   onClearTags={clearTags}
+                  selectedServiceTypes={selectedServiceTypes}
+                  onToggleServiceType={toggleServiceType}
+                  onClearServiceTypes={clearServiceTypes}
                   resultCount={visibleMissions.length}
                   countryIds={marketCountryIds}
                   onCountryIdsChange={setMarketCountryIds}
